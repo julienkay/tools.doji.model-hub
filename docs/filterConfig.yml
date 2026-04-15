@@ -1,0 +1,11 @@
+apiRules:
+- include: # The namespaces to generate
+    uidRegex: ^Doji\.AI\.ModelHub
+    type: Namespace
+- include:
+    uidRegex: ^Global
+    type: Namespace
+- exclude:
+    uidRegex: ^Doji\.AI\.ModelHub\.Editor
+- exclude:
+    uidRegex: ^Doji\.AI\.ModelHub\.Samples

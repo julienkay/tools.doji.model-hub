@@ -1,0 +1,15 @@
+{
+  "name": "com.doji.hf-hub",
+  "version": "1.0.0",
+  "displayName": "AI Model Hub",
+  "description": "Reference and Download AI models from HuggingFace",
+  "author": {
+    "name": "Doji Technologies",
+    "url": "https://docs.doji-tech.com/com.doji.hf-hub",
+    "email": "support@doji-tech.com"
+  },
+  "documentationUrl": "https://docs.doji-tech.com/com.doji.hf-hub",
+  "dependencies": {
+    "com.unity.ai.inference": "2.6.1"
+  }
+}

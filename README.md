@@ -1,6 +1,12 @@
 # My Project
 
-Reference and Download AI models from HuggingFace your Unity Sentis packages.
+Reference and download AI models from HuggingFace for Unity Sentis packages.
+
+Current architecture direction:
+
+- shared Hub logic belongs in `com.doji.hf-hub/Runtime`
+- `Editor` should contain only UnityEditor adapters and editor UX
+- this split is intentional so package can later download HuggingFace files at runtime too
 
 ## Installation
 

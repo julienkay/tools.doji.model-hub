@@ -30,5 +30,8 @@
     "com.unity.modules.xr": "1.0.0",
     "com.unity.ide.rider": "3.0.39",
     "com.doji.hf-hub": "file:../../../com.doji.hf-hub"
-  }
+  },
+  "testables": [
+    "com.doji.hf-hub"
+  ]
 }

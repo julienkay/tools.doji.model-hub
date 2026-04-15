@@ -1,0 +1,22 @@
+{
+    "name": "Doji.ModelHub.Editor.Tests",
+    "rootNamespace": "Doji.AI.ModelHub.Editor.Tests",
+    "references": [
+        "Doji.ModelHub",
+        "Doji.ModelHub.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

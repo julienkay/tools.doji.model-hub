@@ -1,0 +1,436 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace Doji.AI.ModelHub
+{
+    /// <summary>
+    /// Represents one resolved model dependency discovered from a package manifest.
+    /// </summary>
+    internal sealed class HfHubDiscoveredModelDependency
+    {
+        /// <summary>
+        /// Captures one normalized model dependency from a package manifest.
+        /// </summary>
+        public HfHubDiscoveredModelDependency(
+            string packageId,
+            string packageDisplayName,
+            string packageVersion,
+            string packageResolvedPath,
+            string manifestPath,
+            string manifestHash,
+            HfHubModelDependencyDefinition model)
+        {
+            PackageId = packageId;
+            PackageDisplayName = packageDisplayName;
+            PackageVersion = packageVersion;
+            PackageResolvedPath = packageResolvedPath;
+            ManifestPath = manifestPath;
+            ManifestHash = manifestHash;
+            ModelId = model.Id;
+            ModelDisplayName = model.DisplayName;
+            Repository = model.Repository;
+            Revision = model.Revision;
+            SourceFile = model.SourceFile;
+        }
+
+        /// <summary>
+        /// Installed Unity package identifier that declared dependency.
+        /// </summary>
+        public string PackageId { get; }
+
+        /// <summary>
+        /// User-facing package name used in prompts and status output.
+        /// </summary>
+        public string PackageDisplayName { get; }
+
+        /// <summary>
+        /// Installed package version string.
+        /// </summary>
+        public string PackageVersion { get; }
+
+        /// <summary>
+        /// Absolute package path that contains manifest.
+        /// </summary>
+        public string PackageResolvedPath { get; }
+
+        /// <summary>
+        /// Absolute path to manifest file that declared dependency.
+        /// </summary>
+        public string ManifestPath { get; }
+
+        /// <summary>
+        /// SHA-256 hash of manifest contents used for future staleness checks.
+        /// </summary>
+        public string ManifestHash { get; }
+
+        /// <summary>
+        /// Stable package-local identifier for model dependency.
+        /// </summary>
+        public string ModelId { get; }
+
+        /// <summary>
+        /// User-facing model name shown in prompts and status output.
+        /// </summary>
+        public string ModelDisplayName { get; }
+
+        /// <summary>
+        /// HuggingFace repository identifier that hosts model file.
+        /// </summary>
+        public string Repository { get; }
+
+        /// <summary>
+        /// Branch, tag, or commit to resolve from Hub.
+        /// </summary>
+        public string Revision { get; }
+
+        /// <summary>
+        /// Source file path inside remote repository.
+        /// </summary>
+        public string SourceFile { get; }
+    }
+
+    /// <summary>
+    /// Captures one manifest discovery problem without preventing rest of scan from continuing.
+    /// </summary>
+    internal sealed class HfHubManifestDiscoveryIssue
+    {
+        /// <summary>
+        /// Records one package-specific manifest discovery error or validation failure.
+        /// </summary>
+        public HfHubManifestDiscoveryIssue(string packageId, string manifestPath, string message)
+        {
+            PackageId = packageId;
+            ManifestPath = manifestPath;
+            Message = message;
+        }
+
+        /// <summary>
+        /// Package identifier associated with issue.
+        /// </summary>
+        public string PackageId { get; }
+
+        /// <summary>
+        /// Manifest path associated with issue.
+        /// </summary>
+        public string ManifestPath { get; }
+
+        /// <summary>
+        /// Human-readable validation or I/O failure message.
+        /// </summary>
+        public string Message { get; }
+    }
+
+    /// <summary>
+    /// Summarizes package manifest discovery across one package set.
+    /// </summary>
+    internal sealed class HfHubDiscoveryReport
+    {
+        private readonly HfHubDiscoveredModelDependency[] _dependencies;
+        private readonly HfHubManifestDiscoveryIssue[] _issues;
+
+        /// <summary>
+        /// Stores discovered dependencies and any non-fatal scan issues.
+        /// </summary>
+        public HfHubDiscoveryReport(
+            IReadOnlyList<HfHubDiscoveredModelDependency> dependencies,
+            IReadOnlyList<HfHubManifestDiscoveryIssue> issues)
+        {
+            _dependencies = dependencies?.ToArray() ?? Array.Empty<HfHubDiscoveredModelDependency>();
+            _issues = issues?.ToArray() ?? Array.Empty<HfHubManifestDiscoveryIssue>();
+        }
+
+        /// <summary>
+        /// Valid model dependencies discovered from package manifests.
+        /// </summary>
+        public IReadOnlyList<HfHubDiscoveredModelDependency> Dependencies => _dependencies;
+
+        /// <summary>
+        /// Manifest discovery problems that require maintainer attention.
+        /// </summary>
+        public IReadOnlyList<HfHubManifestDiscoveryIssue> Issues => _issues;
+    }
+
+    /// <summary>
+    /// Captures package metadata needed by manifest discovery in both editor and runtime flows.
+    /// </summary>
+    internal sealed class HfHubInstalledPackageSnapshot
+    {
+        /// <summary>
+        /// Stores normalized package metadata used to locate and label one package manifest.
+        /// </summary>
+        public HfHubInstalledPackageSnapshot(string name, string displayName, string version, string resolvedPath)
+        {
+            Name = name;
+            DisplayName = displayName;
+            Version = version;
+            ResolvedPath = resolvedPath;
+        }
+
+        /// <summary>
+        /// Installed package identifier.
+        /// </summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// User-facing package display name.
+        /// </summary>
+        public string DisplayName { get; }
+
+        /// <summary>
+        /// Installed package version string.
+        /// </summary>
+        public string Version { get; }
+
+        /// <summary>
+        /// Absolute package path resolved by Unity.
+        /// </summary>
+        public string ResolvedPath { get; }
+    }
+
+    /// <summary>
+    /// Provides runtime-safe manifest parsing and package-manifest normalization used by both editor and future runtime Hub downloads.
+    /// </summary>
+    internal static class HfHubManifestDiscovery
+    {
+        /// <summary>
+        /// Discovers manifests from supplied package snapshots.
+        /// </summary>
+        public static HfHubDiscoveryReport DiscoverPackageManifests(IReadOnlyList<HfHubInstalledPackageSnapshot> packages)
+        {
+            var dependencies = new List<HfHubDiscoveredModelDependency>();
+            var issues = new List<HfHubManifestDiscoveryIssue>();
+
+            if (packages == null)
+            {
+                return new HfHubDiscoveryReport(dependencies, issues);
+            }
+
+            foreach (var package in packages.OrderBy(info => info.Name, StringComparer.Ordinal))
+            {
+                if (string.IsNullOrWhiteSpace(package.ResolvedPath))
+                {
+                    continue;
+                }
+
+                var manifestPath = Path.Combine(package.ResolvedPath, ModelHub.ManifestFileName);
+                if (!File.Exists(manifestPath))
+                {
+                    continue;
+                }
+
+                string contents;
+                try
+                {
+                    contents = File.ReadAllText(manifestPath);
+                }
+                catch (Exception exception)
+                {
+                    issues.Add(new HfHubManifestDiscoveryIssue(
+                        package.Name,
+                        manifestPath,
+                        $"Failed to read manifest: {exception.Message}"));
+                    continue;
+                }
+
+                if (!HfHubManifestParser.TryParse(contents, out var manifest, out var errorMessage))
+                {
+                    issues.Add(new HfHubManifestDiscoveryIssue(package.Name, manifestPath, errorMessage));
+                    continue;
+                }
+
+                var manifestHash = ComputeManifestHash(contents);
+                var packageDisplayName = string.IsNullOrWhiteSpace(package.DisplayName) ? package.Name : package.DisplayName;
+                var packageVersion = string.IsNullOrWhiteSpace(package.Version) ? "unknown" : package.Version;
+
+                foreach (var model in manifest.Models)
+                {
+                    dependencies.Add(new HfHubDiscoveredModelDependency(
+                        package.Name,
+                        packageDisplayName,
+                        packageVersion,
+                        package.ResolvedPath,
+                        manifestPath,
+                        manifestHash,
+                        model));
+                }
+            }
+
+            return new HfHubDiscoveryReport(dependencies, issues);
+        }
+
+        private static string ComputeManifestHash(string contents)
+        {
+            using var sha256 = SHA256.Create();
+            var bytes = Encoding.UTF8.GetBytes(contents);
+            var hashBytes = sha256.ComputeHash(bytes);
+            var builder = new StringBuilder(hashBytes.Length * 2);
+            foreach (var hashByte in hashBytes)
+            {
+                builder.Append(hashByte.ToString("x2"));
+            }
+
+            return builder.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Parses and validates v1 package manifest schema used by editor and future runtime Hub flows.
+    /// </summary>
+    internal static class HfHubManifestParser
+    {
+        /// <summary>
+        /// Parses one manifest JSON document into immutable runtime manifest model.
+        /// </summary>
+        public static bool TryParse(string json, out HfHubPackageManifest manifest, out string errorMessage)
+        {
+            manifest = null;
+            errorMessage = null;
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                errorMessage = "Manifest file is empty.";
+                return false;
+            }
+
+            try
+            {
+                var root = JToken.Parse(json);
+                if (root.Type != JTokenType.Object)
+                {
+                    errorMessage = "Manifest root must be a JSON object.";
+                    return false;
+                }
+
+                var rootObject = (JObject)root;
+                if (!TryReadRequiredInt(rootObject, "version", out var version, out errorMessage))
+                {
+                    return false;
+                }
+
+                if (version != 1)
+                {
+                    errorMessage = $"Unsupported manifest version `{version}`. Only version `1` is supported.";
+                    return false;
+                }
+
+                if (!rootObject.TryGetValue("models", StringComparison.Ordinal, out var modelsToken) ||
+                    modelsToken.Type != JTokenType.Array)
+                {
+                    errorMessage = "Manifest must define a `models` array.";
+                    return false;
+                }
+
+                var models = new List<HfHubModelDependencyDefinition>();
+                var seenModelIds = new HashSet<string>(StringComparer.Ordinal);
+
+                var modelIndex = 0;
+                foreach (var modelToken in modelsToken.Children())
+                {
+                    if (modelToken.Type != JTokenType.Object)
+                    {
+                        errorMessage = $"Manifest model at index {modelIndex} must be a JSON object.";
+                        return false;
+                    }
+
+                    var modelElement = (JObject)modelToken;
+                    var id = ReadRequiredString(modelElement, "id", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    if (!seenModelIds.Add(id))
+                    {
+                        errorMessage = $"Manifest model id `{id}` is declared more than once.";
+                        return false;
+                    }
+
+                    var displayName = ReadRequiredString(modelElement, "displayName", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    var repository = ReadRequiredString(modelElement, "repository", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    var revision = ReadRequiredString(modelElement, "revision", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    var sourceFile = ReadRequiredString(modelElement, "sourceFile", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    models.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision, sourceFile));
+                    modelIndex++;
+                }
+
+                manifest = new HfHubPackageManifest(version, models);
+                return true;
+            }
+            catch (JsonException exception)
+            {
+                errorMessage = $"Manifest contains invalid JSON: {exception.Message}";
+                return false;
+            }
+        }
+
+        private static bool TryReadRequiredInt(
+            JObject element,
+            string propertyName,
+            out int value,
+            out string errorMessage)
+        {
+            value = 0;
+            errorMessage = null;
+
+            if (!element.TryGetValue(propertyName, StringComparison.Ordinal, out var propertyToken) ||
+                propertyToken.Type != JTokenType.Integer)
+            {
+                errorMessage = $"Manifest must define a numeric `{propertyName}`.";
+                return false;
+            }
+
+            value = propertyToken.Value<int>();
+            return true;
+        }
+
+        private static string ReadRequiredString(
+            JObject modelElement,
+            string propertyName,
+            int modelIndex,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            if (!modelElement.TryGetValue(propertyName, StringComparison.Ordinal, out var propertyToken) ||
+                propertyToken.Type != JTokenType.String)
+            {
+                errorMessage = $"Manifest model at index {modelIndex} must define a string `{propertyName}`.";
+                return null;
+            }
+
+            var value = propertyToken.Value<string>()?.Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                errorMessage = $"Manifest model at index {modelIndex} must define a non-empty `{propertyName}`.";
+                return null;
+            }
+
+            return value;
+        }
+    }
+}

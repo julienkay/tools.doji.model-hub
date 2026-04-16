@@ -2,7 +2,8 @@
     "name": "Doji.ModelHub.Editor",
     "rootNamespace": "Doji.AI.ModelHub.Editor",
     "references": [
-        "GUID:d3968dc2a3e14bc4a77f0a5b4af632c2"
+        "GUID:d3968dc2a3e14bc4a77f0a5b4af632c2",
+        "Unity.InferenceEngine"
     ],
     "includePlatforms": [
         "Editor"

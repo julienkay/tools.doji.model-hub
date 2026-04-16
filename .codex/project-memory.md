@@ -46,38 +46,20 @@
 
 ## Current Implementation Plan
 
-1. Implement the Hub and cache domain models needed beyond manifest discovery.
-   Keep transport, cache, manifest, and download-state models runtime-safe by default. Add editor-only models only for Package Manager integration, prompting, and editor asset import concerns.
-2. Implement the shared raw cache layout.
-   Start with a simplified per-user cache using `raw/<serialized-repo>/refs/<revision>` and `raw/<serialized-repo>/snapshots/<commit>/<sourceFile>`.
-   Skip blob-level deduplication in v1 unless it becomes necessary.
-3. Implement the Hub HTTP layer.
-   Support anonymous public model access, revision-to-commit resolution, single-file download, and remote metadata needed for staleness checks.
-4. Implement raw download metadata and locking.
-   Store sidecar metadata per cached file and protect downloads with file or snapshot-level locks.
-5. Implement project import layout.
-   Generate assets under `Assets/Doji/HfHub/Generated/<package-id>/<model-id>/`.
-6. Implement the Sentis conversion pipeline.
-   Convert cached ONNX files into project-owned `.sentis` assets and record package/model/revision/commit/Sentis/Unity metadata.
-7. Implement stale detection and sync orchestration.
-   Classify dependencies as missing, stale, ready, or failed and drive download plus conversion.
-8. Implement the first editor UX beyond status inspection.
-   Add automatic prompting on package/project changes plus `Tools/Doji/HF Hub/Sync Models`.
-   Add Project Settings section under `Doji -> AI -> AI Model Hub` for viewing imported models.
-9. Implement the runtime consumption contract.
+1. Implement the runtime consumption contract.
    Prefer a generated per-package registry or locator asset/API over hard-coded `Assets/...` paths.
-10. Add a companion-project integration sample.
-    Prove manifest discovery, prompt, download, conversion, and runtime `.sentis` loading end to end.
-11. Add verification and failure-path tests.
-    Prioritize revision cache behavior, Sentis-version invalidation, metadata recovery, and duplicate-sync protection.
+2. Add a companion-project integration sample.
+   Prove manifest discovery, prompt, download, conversion, and runtime `.sentis` loading end to end.
+3. Add verification and failure-path tests for remaining phases.
+   Prioritize Sentis-version invalidation, metadata recovery, duplicate-sync protection, and editor-UX-triggered sync paths.
 
 ## Current Phase Order
 
 - Phase 1: manifest schema, discovery, normalized dependency model
-- Next phase: raw Hub client, shared cache, file metadata
-- Later phase: Sentis conversion, import metadata
-- Later phase: sync orchestration, prompt/menu UX
-- Later phase: runtime locator, sample package flow
+- Phase 2: raw Hub client, shared cache, file metadata
+- Phase 3: first project import layout and `.sentis` conversion
+- Phase 4: stale detection, prompt/menu/project-settings UX
+- Next phase: runtime locator, sample package flow
 
 ## Implemented So Far
 
@@ -85,19 +67,37 @@
 - Runtime now defines `ModelHub`, `HfHubPackageManifest`, `HfHubModelDependencyDefinition`, manifest parsing, and shared manifest discovery/reporting types.
 - Editor now limits itself to installed-package enumeration plus a basic `Tools/Doji/HF Hub/Show Status` menu over runtime discovery results.
 - The package root includes `hf-hub-manifest.template.json` as a copyable starting point for package authors.
-- Phase 2 is started in editor assembly.
+- Phase 2 is implemented in editor assembly.
 - Editor now includes first raw-cache infrastructure: `HfHubCachePaths`, `HfHubHttpClient`, `HfHubRawCacheMetadata`, `HfHubRawCacheService`, and `HfHubFileLock`.
 - Raw cache currently uses per-user `raw/<serialized-repo>/refs/<revision>` plus `raw/<serialized-repo>/snapshots/<commit>/<sourceFile>` layout with sidecar `.hfhub.json` metadata.
-- Editor now includes first sync orchestration via `HfHubSyncService` and `Tools/Doji/HF Hub/Sync Models`, currently limited to populating shared raw cache.
+- Phase 3 is started and first conversion slice is implemented.
+- Editor now includes `HfHubProjectPaths`, `HfHubImportedModelMetadata`, and `HfHubProjectImportService`.
+- Generated project-owned artifacts currently live under `Assets/Doji/HfHub/Generated/<package-id>/<model-id>/`.
+- Conversion currently works by copying cached ONNX into temporary project asset path, letting Unity Inference import it, then serializing `.sentis` with `ModelWriter.Save(...)`.
+- Generated artifacts currently include `<source-file-name>.sentis` plus `hf-hub-import.json` metadata.
+- Temporary ONNX import assets currently use `Assets/Doji/HfHub/TempImport/...` and are deleted after conversion.
+- Editor now includes first sync orchestration via `HfHubSyncService` and `Tools/Doji/HF Hub/Sync Models`, which now downloads raw files and generates project-owned `.sentis` artifacts.
+- Phase 4 is started and first local-status/editor-UX slice is implemented.
+- Editor now includes `HfHubStatusService`, `HfHubStatusReport`, and per-dependency state classification as `Ready`, `Missing`, `Stale`, or `Failed`.
+- Stale detection currently compares raw cache metadata, revision refs, generated import metadata, manifest hash, and current Sentis version without needing network access.
+- Editor now exposes that status through `Tools/Doji/HF Hub/Show Status`, a Project Settings page at `Doji -> AI -> AI Model Hub`, and an automatic once-per-session sync prompt.
 - Editor tests now cover raw-cache paths, sidecar metadata reads, and file-lock exclusivity.
 - Editor tests now also cover sync success and sync failure aggregation.
+- Editor tests now cover project import path sanitization and real `.onnx` -> `.sentis` conversion using local Unity Inference sample ONNX files.
+- Editor tests now cover local status classification for missing, ready, stale, and failed cases plus auto-prompt decision logic.
 - Editor tests now include explicit live-network integration coverage against `hf-internal-testing/huggingface-hub-dummy-repository` and `onnx-community/tiny-clip-test-ONNX`.
 
 ## Immediate Next Step
 
-- Continue Phase 2.
-- Verify in Unity editor that `HEAD /resolve/...` returns stable commit and size metadata for target public model repos; add fallback if needed.
-- After raw cache path proven, move to project import layout and Sentis conversion.
+- Start runtime locator contract.
+- Define how package code finds generated `.sentis` assets without hard-coded `Assets/...` paths.
+- After that, build the first end-to-end companion-project sample around that runtime contract.
+
+## Important Near-Term Gap
+
+- Current manifest and sync flow support only one `sourceFile` per model entry.
+- Important future support: package dependencies that need multiple files from one HuggingFace repo, including ONNX plus config/tokenizer/preprocess companion files.
+- Reference direction from `huggingface_hub`: use snapshot-style repo download with optional filtering (`allow_patterns` / `ignore_patterns`) rather than only single-file download.
 
 ## V1 Scope Exclusions
 

@@ -17,17 +17,20 @@ namespace Doji.AI.ModelHub.Editor
         public HfHubModelSyncResult(
             HfHubDiscoveredModelDependency dependency,
             HfHubCachedRawFile cachedFile,
+            HfHubImportedModelArtifact importedArtifact,
             string errorMessage)
         {
             Dependency = dependency;
             CachedFile = cachedFile;
+            ImportedArtifact = importedArtifact;
             ErrorMessage = errorMessage;
         }
 
         public HfHubDiscoveredModelDependency Dependency { get; }
         public HfHubCachedRawFile CachedFile { get; }
+        public HfHubImportedModelArtifact ImportedArtifact { get; }
         public string ErrorMessage { get; }
-        public bool Success => CachedFile != null && string.IsNullOrWhiteSpace(ErrorMessage);
+        public bool Success => ImportedArtifact != null && string.IsNullOrWhiteSpace(ErrorMessage);
     }
 
     /// <summary>
@@ -66,18 +69,33 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Syncs discovered model dependencies into shared raw cache.
+    /// Contract for importing cached raw files into project-owned `.sentis` artifacts.
+    /// </summary>
+    internal interface IHfHubProjectImportService
+    {
+        Task<HfHubImportedModelArtifact> ImportAsync(
+            HfHubDiscoveredModelDependency dependency,
+            HfHubCachedRawFile cachedRawFile,
+            CancellationToken cancellationToken);
+    }
+
+    /// <summary>
+    /// Syncs discovered model dependencies into shared cache and project-owned `.sentis` artifacts.
     /// </summary>
     internal sealed class HfHubSyncService
     {
         private readonly IHfHubRawCacheService _rawCacheService;
+        private readonly IHfHubProjectImportService _projectImportService;
 
         /// <summary>
-        /// Creates sync service with optional injected raw-cache service.
+        /// Creates sync service with optional injected raw-cache and import services.
         /// </summary>
-        public HfHubSyncService(IHfHubRawCacheService rawCacheService = null)
+        public HfHubSyncService(
+            IHfHubRawCacheService rawCacheService = null,
+            IHfHubProjectImportService projectImportService = null)
         {
             _rawCacheService = rawCacheService ?? new HfHubRawCacheService();
+            _projectImportService = projectImportService ?? new HfHubProjectImportService();
         }
 
         /// <summary>
@@ -93,11 +111,12 @@ namespace Doji.AI.ModelHub.Editor
                 try
                 {
                     var cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, cancellationToken);
-                    modelResults.Add(new HfHubModelSyncResult(dependency, cachedFile, null));
+                    var importedArtifact = await _projectImportService.ImportAsync(dependency, cachedFile, cancellationToken);
+                    modelResults.Add(new HfHubModelSyncResult(dependency, cachedFile, importedArtifact, null));
                 }
                 catch (Exception exception)
                 {
-                    modelResults.Add(new HfHubModelSyncResult(dependency, null, exception.Message));
+                    modelResults.Add(new HfHubModelSyncResult(dependency, null, null, exception.Message));
                 }
             }
 

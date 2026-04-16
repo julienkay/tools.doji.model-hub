@@ -54,6 +54,19 @@ Field intent:
 
 V1 deliberately supports one source file per model entry. Multi-file models and richer import settings can come later.
 
+Important next extension:
+
+- support package dependencies that require multiple files from one repo, not only one ONNX payload
+- this should cover companion files such as `config.json`, tokenizer files, vocab files, merges files, preprocess metadata, and similar artifacts
+
+Reference behavior from `huggingface_hub`:
+
+- `hf_hub_download(...)` handles one file
+- `snapshot_download(...)` handles whole-repo or filtered multi-file snapshots
+- `snapshot_download(...)` supports `allow_patterns` and `ignore_patterns` for partial repo download
+- it resolves requested revision to concrete commit, stores `refs/<revision> -> <commit>`, and downloads files into `snapshots/<commit>/...`
+- when sibling listing is unreliable, it falls back from repo info to `list_repo_tree(...)` before filtering files
+
 Generated asset paths are not authored in the manifest. They are derived by the Hub:
 
 ```text

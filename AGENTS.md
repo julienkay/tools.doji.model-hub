@@ -24,12 +24,13 @@ Reference and Download AI models from HuggingFace
 
 Prefer these locations:
 
+- repository root: orient from the repository root for searches, docs, and cross-package work; from this companion Unity project working directory, the repository root is `../..`
 - `com.doji.hf-hub/`: local package under development
-- `projects/HF Hub/Assets`: companion-project assets and test scenes
 - `docs/`: user-facing package documentation only; keep maintainer notes and internal architecture docs out of DocFX content
 - `.codex/skills/`: project-specific skills; when a task matches one, read and follow the relevant `SKILL.md`
 - `references/`: maintainer-only local reference checkouts; reuse existing clones before downloading again
 - `.codex/project-memory.md`: durable project memory and agent-oriented project context
+- `projects/HF Hub/Assets`: companion-project assets and test scenes
 
 Prefer working in the package folder when functionality is package-owned.
 
@@ -78,5 +79,7 @@ When adding code:
 ## Validation
 
 - Unity-specific moves must preserve matching `.meta` files
+- each completed implementation phase must add or update tests that cover phase output before treating phase as done
+- when a change affects package users or package-author workflow, add or update user-facing docs under `docs/` in same phase
 - after larger refactors, verify the current file contents before describing the final state; do not rely on intent, partial diffs, or memory
 - when multiple files should have changed, confirm each affected file explicitly

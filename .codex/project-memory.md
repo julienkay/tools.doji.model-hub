@@ -41,6 +41,8 @@
 - Keep internal architecture notes under `.codex/`, with the current vertical-slice spec in `.codex/architecture-v1.md`.
 - Keep maintainer-only external reference checkouts under the top-level `references/` folder.
 - Unless the user says otherwise, treat the package as greenfield and optimize for the current architecture rather than preserving compatibility with earlier drafts or experiments.
+- Every finished implementation phase must add or update tests that cover that phase before it is considered complete.
+- When a finished change affects package users or package authors, update user-facing docs in `docs/` during same phase.
 
 ## Current Implementation Plan
 
@@ -61,6 +63,7 @@
    Classify dependencies as missing, stale, ready, or failed and drive download plus conversion.
 8. Implement the first editor UX beyond status inspection.
    Add automatic prompting on package/project changes plus `Tools/Doji/HF Hub/Sync Models`.
+   Add Project Settings section under `Doji -> AI -> AI Model Hub` for viewing imported models.
 9. Implement the runtime consumption contract.
    Prefer a generated per-package registry or locator asset/API over hard-coded `Assets/...` paths.
 10. Add a companion-project integration sample.
@@ -82,12 +85,19 @@
 - Runtime now defines `ModelHub`, `HfHubPackageManifest`, `HfHubModelDependencyDefinition`, manifest parsing, and shared manifest discovery/reporting types.
 - Editor now limits itself to installed-package enumeration plus a basic `Tools/Doji/HF Hub/Show Status` menu over runtime discovery results.
 - The package root includes `hf-hub-manifest.template.json` as a copyable starting point for package authors.
+- Phase 2 is started in editor assembly.
+- Editor now includes first raw-cache infrastructure: `HfHubCachePaths`, `HfHubHttpClient`, `HfHubRawCacheMetadata`, `HfHubRawCacheService`, and `HfHubFileLock`.
+- Raw cache currently uses per-user `raw/<serialized-repo>/refs/<revision>` plus `raw/<serialized-repo>/snapshots/<commit>/<sourceFile>` layout with sidecar `.hfhub.json` metadata.
+- Editor now includes first sync orchestration via `HfHubSyncService` and `Tools/Doji/HF Hub/Sync Models`, currently limited to populating shared raw cache.
+- Editor tests now cover raw-cache paths, sidecar metadata reads, and file-lock exclusivity.
+- Editor tests now also cover sync success and sync failure aggregation.
+- Editor tests now include explicit live-network integration coverage against `hf-internal-testing/huggingface-hub-dummy-repository` and `onnx-community/tiny-clip-test-ONNX`.
 
 ## Immediate Next Step
 
-- Start Phase 2.
-- Build runtime-first Hub HTTP and cache layers, with editor wrappers only where Unity editor APIs are required.
-- Keep the cache simple: revision refs, resolved commit snapshots, sidecar metadata, and file-level locking.
+- Continue Phase 2.
+- Verify in Unity editor that `HEAD /resolve/...` returns stable commit and size metadata for target public model repos; add fallback if needed.
+- After raw cache path proven, move to project import layout and Sentis conversion.
 
 ## V1 Scope Exclusions
 
@@ -100,6 +110,7 @@
 - Add optional HuggingFace authentication support.
 - Add gated model workflows.
 - Define a stronger offline story for disconnected reuse and cache portability.
+- Future UI direction: browse HuggingFace models from that Project Settings surface.
 
 ## Open Questions
 

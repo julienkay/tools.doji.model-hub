@@ -1,6 +1,6 @@
 ---
 name: user-facing-docfx-docs
-description: Write or revise user-facing DocFX documentation for this Unity package-authoring project. Use when expanding the manual, documenting wizards/settings/templates, improving DocFX navigation, or separating consumer documentation from maintainer-only build notes.
+description: Write or revise user-facing DocFX documentation for the in-development `com.doji.hf-hub` Unity package. Use when expanding the manual, documenting package manifests, shared cache behavior, HuggingFace download workflows, Sentis-related outputs, editor status surfaces, or improving DocFX navigation while keeping maintainer-only build notes out of consumer docs.
 ---
 
 # User-Facing DocFX Docs
@@ -11,10 +11,10 @@ Use this skill when editing `docs/` for package consumers.
 
 Keep user-facing docs focused on using the package:
 
-- what the tool does
-- when to use each workflow
-- what each visible setting changes
-- what files or output the user should expect
+- what HF Hub does for package authors and Unity projects
+- when to use package manifests, shared cache, and generated assets
+- what editor-visible surfaces or menu entries do
+- what files, folders, downloads, or generated outputs the user should expect
 
 Keep maintainer-only material out of consumer docs.
 
@@ -24,27 +24,29 @@ Do not guess from UI text alone. Verify against implementation before documentin
 
 Read only the files needed for the current page, usually:
 
-- wizard window classes in `com.doji.package-authoring/Editor/Wizards/`
-- settings models in `com.doji.package-authoring/Editor/Wizards/Models/`
-- drawers and shared GUI in `com.doji.package-authoring/Editor/Wizards/Drawers/` and `.../UI/`
-- template providers and template classes in `.../Presets/` and `.../Templates/`
+- package-level constants and manifest contracts in `com.doji.hf-hub/Runtime/`
+- runtime-safe manifest and model dependency types in `com.doji.hf-hub/Runtime/`
+- editor package discovery, menu items, cache services, and download logic in `com.doji.hf-hub/Editor/`
+- package tests in `com.doji.hf-hub/Tests/` when behavior or edge cases need confirmation
+- existing user docs in `docs/` so new pages match the current manual structure
 
 Document actual behavior, including:
 
-- conditional fields
-- foldouts and hidden sections
-- generated files and folders
-- token support
-- side effects in manifests or project output
+- manifest fields, validation rules, and uniqueness constraints
+- package discovery conditions and failure modes
+- shared cache paths, lock behavior, and metadata side effects
+- generated project assets, output paths, and when regeneration is required
+- editor-only vs runtime-safe behavior boundaries
+- current limitations, missing UI, or in-development workflow gaps when they materially affect user expectations
 
 ## Documentation standards
 
 Prefer task-oriented docs first, then reference depth:
 
 1. Landing page with workflow map
-2. Task pages for major tools
-3. Reference pages for dense UI surfaces such as wizard settings
-4. Supporting pages for templates, presets/defaults, and generated output
+2. Task pages for package author and Unity project workflows
+3. Reference pages for manifest schema, cache layout, and editor status surfaces
+4. Supporting pages for generated output, Sentis conversion expectations, and troubleshooting
 
 Before rewriting a page or section, decide these three things privately:
 
@@ -85,7 +87,7 @@ Prefer showing over telling:
 Default to visuals-first documentation:
 
 - if a screenshot explains a UI section faster than prose, place the image before the explanation
-- when documenting a specific editor window section, include a screenshot of that section
+- when documenting a specific editor dialog, menu result, or inspector surface, include a screenshot of that section
 - if a page introduces a major workflow surface, include an overview screenshot near the top
 - create placeholder PNGs in `docs/images/` when the final screenshots are not available yet, and reference them from the markdown immediately
 
@@ -94,23 +96,24 @@ Screenshot best practices:
 - prefer cropped, purpose-specific screenshots over one huge full-screen capture when the page is about a specific section
 - keep the relevant control visible in the first screenful; do not make the reader hunt for the thing being discussed
 - use one overview screenshot for orientation, then smaller section screenshots for detailed reference pages
-- when a screenshot is meant to explain a toggle, foldout, or preset menu, capture it in the state being described
+- when a screenshot is meant to explain a menu command, status dialog, or conditional UI state, capture it in the state being described
 - keep filenames descriptive and stable, usually `<page-topic>-<section>.png`
 - when adding a placeholder, use the final intended filename so the real screenshot can replace it without markdown changes
 - keep alt text functional and specific, describing the UI surface shown rather than repeating the heading verbatim
 
-For wizard documentation:
+For HF Hub workflow documentation:
 
-- document every visible setting in the main window
-- explain what the field writes or changes
-- call out when a field appears only if another toggle is enabled
-- distinguish package, repository, and project scope clearly
+- distinguish package author scope, project scope, shared machine cache scope, and generated asset scope clearly
+- explain which data lives in package manifests versus shared cache metadata versus generated project assets
+- document the user-visible trigger for each workflow, such as package install, menu action, confirmation prompt, or future import step
+- call out when a workflow is editor-only today but intentionally structured for future runtime reuse
 
-For template documentation:
+For manifest and cache reference pages:
 
-- explain which generated file each template controls
-- separate editable templates from built-in locked templates
-- list supported tokens only if the implementation supports them
+- document every supported manifest field and what it controls
+- explain validation rules and user-visible failures with concrete examples
+- show expected paths, filenames, and cache metadata where those details drive behavior
+- describe Sentis-related outputs and regeneration expectations only to the extent the implementation actually supports them
 
 ## Project-specific conventions
 
@@ -118,31 +121,38 @@ For template documentation:
 - Keep `docs/index.md` as a concise entry page that points into the manual and API reference.
 - Update `docs/manual/toc.yml` when adding or reordering manual pages.
 - Keep the tone practical and explicit. Avoid filler marketing language.
-- Prefer concrete file names, menu paths, and generated output paths.
+- Prefer concrete file names, menu paths, cache paths, generated output paths, and manifest filenames.
 - Put screenshot placeholders under `docs/images/`, preferably grouped by topic such as `docs/images/manual/`.
+- Treat `hf-hub-manifest.json` as the primary package author entry point unless the current implementation adds another stronger user-facing workflow.
+- Prefer `com.doji.hf-hub/` as the package-owned source of truth and `projects/HF Hub/Assets` only when documenting companion-project examples or sample scenes.
+- Reflect the active architecture direction: shared Hub logic should be documented as runtime-safe where implemented, with editor-only integration called out separately.
 
 ## Local preview workflow
 
 After changing user-facing docs in this repository, default to rebuilding and serving the DocFX site unless the user explicitly says not to.
 
-Use the local wrapper script:
+Run these commands from the repository root:
 
-- `./scripts/docfx.sh metadata docs/docfx.json`
-- `./scripts/docfx.sh build docs/docfx.json`
-- `./scripts/docfx.sh serve docs/_site`
+- `docfx metadata docs/docfx.json`
+- `docfx build docs/docfx.json`
+- `docfx serve docs/_site`
 
 Notes:
 
+- If `docfx` is not installed, install it as a global .NET tool with `dotnet tool install -g docfx`.
+- On macOS with Homebrew `.NET`, if `docfx` cannot locate the SDK, set `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` and prepend that directory to `PATH` before running `docfx`.
 - Run `metadata` before `build` when API docs may have changed, especially after changing public types, namespaces, XML documentation, or assembly-visible API shape.
 - `build` alone does not regenerate this repository's API metadata under `docs/api/`.
 - Run the build after documentation edits so navigation and broken-link issues surface immediately. Treat a successful `build` as the authoritative local verification step.
 - `serve` does not rebuild; it only serves the current `docs/_site` output.
+- `docfx serve` prints the local preview URL after startup. Stop the server with `Ctrl+C`.
 - If a serve session is already running for the current workspace, prefer reusing it after a fresh build instead of starting duplicates.
 - Do not assume HTTP checks from the current Codex session can reach a DocFX server started by another session. Session-local `curl` failures do not prove the preview is stale or broken.
 - Use HTTP checks such as `curl -I --max-time 2 http://127.0.0.1:8080` only as positive confirmation when they succeed from the current session.
 - If a preview server likely already exists but this session cannot reach it, report that the build succeeded and that preview reachability appears session-local rather than treating it as a DocFX failure.
 - Report the local preview URL or any build errors back to the user. When reusing an existing preview, make it clear whether the URL was confirmed from the current session or inferred from an already-running server.
 - If namespaces or generated API file names changed, stale files can linger in `docs/api/` and `docs/_site/api/`. In that case, clean generated API outputs first while preserving hand-authored files such as `docs/api/index.md` and `docs/api/.gitignore`.
+- If the repository also ships a PDF DocFX config such as `docs/docfx-pdf.json`, use `docfx build` against that file when the task explicitly involves PDF docs, and report the configured output location rather than assuming a fixed PDF path across repositories.
 
 ## Verification checklist
 
@@ -153,8 +163,8 @@ Before finishing:
 - confirm `docs/index.md` still matches the manual structure
 - confirm user-facing pages do not contain maintainer-only DocFX build instructions
 - confirm image references resolve to actual files under `docs/images/`
-- run `./scripts/docfx.sh metadata docs/docfx.json` when API docs may have changed
-- run `./scripts/docfx.sh build docs/docfx.json` unless the user explicitly skips local verification
-- start, refresh, or reuse `./scripts/docfx.sh serve docs/_site` unless the user explicitly skips local preview
+- run `docfx metadata docs/docfx.json` when API docs may have changed
+- run `docfx build docs/docfx.json` unless the user explicitly skips local verification
+- start, refresh, or reuse `docfx serve docs/_site` unless the user explicitly skips local preview
 - do not treat a failed `curl` from the current session as evidence that an already-running preview server is unusable
 - if stale served output is involved, remember that `docfx serve docs/_site` serves existing generated files and does not rebuild them

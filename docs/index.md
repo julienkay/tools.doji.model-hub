@@ -1,3 +1,11 @@
 # AI Model Hub
 
-Reference and Download AI models from HuggingFace your Unity Sentis packages.
+Reference and download AI models from HuggingFace for Unity packages.
+
+## Manual
+
+- [Package Manifests and Shared Cache](manual/package-manifests-and-cache.md)
+
+## API Reference
+
+- [Scripting API](api/index.md)

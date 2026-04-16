@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
 using Newtonsoft.Json;
 
 namespace Doji.AI.ModelHub.Editor
@@ -27,6 +28,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public async Task<HfHubCachedRawFile> GetOrDownloadAsync(
             HfHubDiscoveredModelDependency dependency,
+            IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
             var resolvedFile = await _httpClient.ResolveFileVersionAsync(dependency, cancellationToken);
@@ -43,7 +45,7 @@ namespace Doji.AI.ModelHub.Editor
                 resolvedFile.ResolvedCommitHash,
                 resolvedFile.SourceFile);
 
-            using var fileLock = HfHubFileLock.Acquire(lockPath, DefaultLockTimeout);
+            using var fileLock = FileLock.Acquire(lockPath, DefaultLockTimeout);
 
             if (TryReadMetadata(metadataPath, out var existingMetadata) &&
                 IsCacheHit(snapshotFilePath, existingMetadata, resolvedFile))
@@ -52,7 +54,7 @@ namespace Doji.AI.ModelHub.Editor
                 return new HfHubCachedRawFile(snapshotFilePath, metadataPath, existingMetadata);
             }
 
-            await _httpClient.DownloadFileAsync(resolvedFile, snapshotFilePath, cancellationToken);
+            await _httpClient.DownloadFileAsync(resolvedFile, snapshotFilePath, progress, cancellationToken);
 
             var metadata = new HfHubRawCacheMetadata
             {

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
 using NUnit.Framework;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -103,11 +104,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             // Lock behavior test uses real file lock path and asserts second acquisition fails before first is disposed.
             var lockPath = Path.Combine(_rootDirectory, "cache.lock");
-            using var firstLock = HfHubFileLock.Acquire(lockPath, TimeSpan.FromSeconds(1));
+            using var firstLock = FileLock.Acquire(lockPath, TimeSpan.FromSeconds(1));
 
             Assert.Throws<IOException>(() =>
             {
-                using var _ = HfHubFileLock.Acquire(lockPath, TimeSpan.Zero);
+                using var _ = FileLock.Acquire(lockPath, TimeSpan.Zero);
             });
         }
 
@@ -128,7 +129,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var service = new HfHubRawCacheService(httpClient);
             var dependency = CreateDependency();
 
-            var cachedFile = await service.GetOrDownloadAsync(dependency, CancellationToken.None);
+            var cachedFile = await service.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
             Assert.That(File.Exists(cachedFile.FilePath), Is.True);
             Assert.That(File.ReadAllText(cachedFile.FilePath), Is.EqualTo("hello"));
@@ -156,11 +157,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var service = new HfHubRawCacheService(seedClient);
             var dependency = CreateDependency();
 
-            var firstCachedFile = await service.GetOrDownloadAsync(dependency, CancellationToken.None);
+            var firstCachedFile = await service.GetOrDownloadAsync(dependency, null, CancellationToken.None);
             var reuseClient = new FakeHfHubHttpClient(resolvedFile, "other");
             var reuseService = new HfHubRawCacheService(reuseClient);
 
-            var secondCachedFile = await reuseService.GetOrDownloadAsync(dependency, CancellationToken.None);
+            var secondCachedFile = await reuseService.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
             Assert.That(secondCachedFile.FilePath, Is.EqualTo(firstCachedFile.FilePath));
             Assert.That(File.ReadAllText(secondCachedFile.FilePath), Is.EqualTo("hello"));
@@ -219,6 +220,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             public Task DownloadFileAsync(
                 HfHubResolvedFileVersion resolvedFile,
                 string targetPath,
+                IProgress<DownloadProgress> progress,
                 CancellationToken cancellationToken)
             {
                 DownloadCallCount++;
@@ -229,6 +231,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 }
 
                 File.WriteAllText(targetPath, _downloadContents);
+                progress?.Report(new DownloadProgress(_downloadContents.Length, _downloadContents.Length));
                 return Task.CompletedTask;
             }
         }

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
+using Doji.Downloads.Editor;
 using Newtonsoft.Json.Linq;
 using UnityEngine.Networking;
 
@@ -14,16 +17,26 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal interface IHfHubHttpClient
     {
+        /// <summary>
+        /// Resolves a package-declared dependency to a concrete remote file version.
+        /// </summary>
         Task<HfHubResolvedFileVersion> ResolveFileVersionAsync(
             HfHubDiscoveredModelDependency dependency,
             CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Downloads one resolved file into local cache, reporting byte progress while the transfer is active.
+        /// </summary>
         Task DownloadFileAsync(
             HfHubResolvedFileVersion resolvedFile,
             string targetPath,
+            IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken);
     }
 
+    /// <summary>
+    /// Captures the minimum HEAD response data needed to resolve a Hub file version without keeping a request object alive.
+    /// </summary>
     internal sealed class HfHubHeadResponse
     {
         public HfHubHeadResponse(string requestUrl, Func<string, string> getHeader)
@@ -36,20 +49,43 @@ namespace Doji.AI.ModelHub.Editor
         public Func<string, string> GetHeader { get; }
     }
 
+    /// <summary>
+    /// Transport abstraction that keeps raw UnityWebRequest usage out of cache and sync orchestration code.
+    /// </summary>
     internal interface IHfHubHttpTransport
     {
+        /// <summary>
+        /// Performs lightweight metadata lookup for a Hub file.
+        /// </summary>
         Task<HfHubHeadResponse> HeadAsync(string url, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Reads JSON API responses used when HEAD metadata is insufficient.
+        /// </summary>
         Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken);
-        Task DownloadFileAsync(string url, string targetPath, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Streams a file download to disk, optionally resuming from an existing partial payload.
+        /// </summary>
+        Task DownloadFileAsync(string url, string targetPath, long? expectedSizeInBytes, IProgress<DownloadProgress> progress, CancellationToken cancellationToken);
     }
 
+    /// <summary>
+    /// UnityWebRequest-backed transport used by editor sync.
+    /// It handles resumable partial downloads by keeping a sibling `.downloading` file and issuing `Range` requests.
+    /// </summary>
     internal sealed class UnityWebRequestHfHubTransport : IHfHubHttpTransport
     {
+        private readonly UnityWebRequestResumableDownloader _downloader = new();
+
+        /// <summary>
+        /// Reads response headers for a Hub file without downloading the payload.
+        /// </summary>
         public async Task<HfHubHeadResponse> HeadAsync(string url, CancellationToken cancellationToken)
         {
             using var request = UnityWebRequest.Head(url);
             request.SetRequestHeader("Accept-Encoding", "identity");
-            await HfHubHttpClient.SendAsync(request, cancellationToken);
+            await UnityWebRequestResumableDownloader.SendAsync(request, cancellationToken);
 
             var headers = request.GetResponseHeaders() ?? new Dictionary<string, string>();
 
@@ -58,41 +94,28 @@ namespace Doji.AI.ModelHub.Editor
                 headerName => headers.TryGetValue(headerName, out var value) ? value : null);
         }
 
+        /// <summary>
+        /// Fetches JSON API data used as fallback when HEAD metadata is incomplete.
+        /// </summary>
         public async Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken)
         {
             using var request = UnityWebRequest.Get(url);
-            await HfHubHttpClient.SendAsync(request, cancellationToken);
+            await UnityWebRequestResumableDownloader.SendAsync(request, cancellationToken);
             return JObject.Parse(request.downloadHandler.text);
         }
 
-        public async Task DownloadFileAsync(string url, string targetPath, CancellationToken cancellationToken)
+        /// <summary>
+        /// Streams a file to a temporary path, resuming from an existing partial file when possible.
+        /// If the server ignores `Range`, the transfer restarts once from zero to avoid appending duplicate content.
+        /// </summary>
+        public async Task DownloadFileAsync(
+            string url,
+            string targetPath,
+            long? expectedSizeInBytes,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
         {
-            var targetDirectory = System.IO.Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrWhiteSpace(targetDirectory))
-            {
-                System.IO.Directory.CreateDirectory(targetDirectory);
-            }
-
-            var temporaryPath = targetPath + ".downloading";
-            if (System.IO.File.Exists(temporaryPath))
-            {
-                System.IO.File.Delete(temporaryPath);
-            }
-
-            using var request = UnityWebRequest.Get(url);
-            request.downloadHandler = new DownloadHandlerFile(temporaryPath)
-            {
-                removeFileOnAbort = true
-            };
-
-            await HfHubHttpClient.SendAsync(request, cancellationToken);
-
-            if (System.IO.File.Exists(targetPath))
-            {
-                System.IO.File.Delete(targetPath);
-            }
-
-            System.IO.File.Move(temporaryPath, targetPath);
+            await _downloader.DownloadFileAsync(url, targetPath, expectedSizeInBytes, progress, cancellationToken);
         }
     }
 
@@ -156,15 +179,21 @@ namespace Doji.AI.ModelHub.Editor
 
         /// <summary>
         /// Downloads resolved raw file to target path atomically through temporary file.
+        /// Progress reporting is optional but intended to feed editor background task UI.
         /// </summary>
         public async Task DownloadFileAsync(
             HfHubResolvedFileVersion resolvedFile,
             string targetPath,
+            IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
-            await _transport.DownloadFileAsync(resolvedFile.DownloadUrl, targetPath, cancellationToken);
+            await _transport.DownloadFileAsync(resolvedFile.DownloadUrl, targetPath, resolvedFile.SizeInBytes, progress, cancellationToken);
         }
 
+        /// <summary>
+        /// Builds the public HuggingFace `resolve` URL used for both HEAD metadata lookup and file download.
+        /// Path segments are escaped individually so nested repo paths remain stable.
+        /// </summary>
         private static string BuildResolveUrl(string repository, string revision, string sourceFile)
         {
             var escapedRevision = UnityWebRequest.EscapeURL(revision);
@@ -175,6 +204,10 @@ namespace Doji.AI.ModelHub.Editor
             return $"{HubEndpoint}/{repository}/resolve/{escapedRevision}/{escapedSourceFile}";
         }
 
+        /// <summary>
+        /// Falls back to the model revision API when HEAD metadata does not include a resolved commit hash.
+        /// This keeps the cache keyed by concrete commit even when the CDN response is sparse.
+        /// </summary>
         private async Task<string> ResolveCommitFromModelRevisionApiAsync(
             string repository,
             string revision,
@@ -192,22 +225,9 @@ namespace Doji.AI.ModelHub.Editor
             return sha;
         }
 
-        internal static async Task SendAsync(UnityWebRequest request, CancellationToken cancellationToken)
-        {
-            var operation = request.SendWebRequest();
-            while (!operation.isDone)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Task.Yield();
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (request.result is UnityWebRequest.Result.ConnectionError or UnityWebRequest.Result.ProtocolError or UnityWebRequest.Result.DataProcessingError)
-            {
-                throw new InvalidOperationException($"HuggingFace request failed: {request.responseCode} {request.error}");
-            }
-        }
-
+        /// <summary>
+        /// Removes weak formatting noise from ETag values so cache metadata stays stable across response variants.
+        /// </summary>
         private static string NormalizeEntityTag(string entityTag)
         {
             if (string.IsNullOrWhiteSpace(entityTag))

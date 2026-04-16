@@ -61,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var rawCacheService = new HfHubRawCacheService();
 
-            var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, CancellationToken.None);
+            var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
             Assert.That(File.Exists(cachedFile.FilePath), Is.True);
             Assert.That(new FileInfo(cachedFile.FilePath).Length, Is.GreaterThan(0));
@@ -88,7 +88,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var rawCacheService = new HfHubRawCacheService();
 
-            var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, CancellationToken.None);
+            var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
             Assert.That(File.Exists(cachedFile.FilePath), Is.True);
             Assert.That(new FileInfo(cachedFile.FilePath).Length, Is.GreaterThan(0));

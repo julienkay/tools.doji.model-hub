@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
 using NUnit.Framework;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -82,6 +83,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             public Task<HfHubCachedRawFile> GetOrDownloadAsync(
                 HfHubDiscoveredModelDependency dependency,
+                IProgress<DownloadProgress> progress,
                 CancellationToken cancellationToken)
             {
                 var metadata = new HfHubRawCacheMetadata

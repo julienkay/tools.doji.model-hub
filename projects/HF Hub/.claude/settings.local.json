@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat ~/Library/Logs/JetBrains/Rider2025.3/threadDumps-freeze-20260416-143642-RD-253.30387.148/*.txt)"
+    ]
+  }
+}

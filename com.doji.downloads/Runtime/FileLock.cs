@@ -2,24 +2,24 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace Doji.AI.ModelHub.Editor
+namespace Doji.Downloads
 {
     /// <summary>
-    /// Provides coarse file-level lock for cache download and metadata writes.
+    /// Provides coarse file-level locking for durable download work.
     /// </summary>
-    internal sealed class HfHubFileLock : IDisposable
+    public sealed class FileLock : IDisposable
     {
         private readonly FileStream _lockStream;
 
-        private HfHubFileLock(FileStream lockStream)
+        private FileLock(FileStream lockStream)
         {
             _lockStream = lockStream;
         }
 
         /// <summary>
-        /// Acquires exclusive lock for path, waiting until timeout expires.
+        /// Acquires an exclusive lock for the target path, waiting until timeout expires.
         /// </summary>
-        public static HfHubFileLock Acquire(string lockPath, TimeSpan timeout)
+        public static FileLock Acquire(string lockPath, TimeSpan timeout)
         {
             var lockDirectory = Path.GetDirectoryName(lockPath);
             if (!string.IsNullOrWhiteSpace(lockDirectory))
@@ -37,7 +37,7 @@ namespace Doji.AI.ModelHub.Editor
                         FileMode.OpenOrCreate,
                         FileAccess.ReadWrite,
                         FileShare.None);
-                    return new HfHubFileLock(stream);
+                    return new FileLock(stream);
                 }
                 catch (IOException)
                 {

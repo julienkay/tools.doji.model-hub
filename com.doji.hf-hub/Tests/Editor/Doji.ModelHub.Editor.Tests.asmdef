@@ -4,6 +4,8 @@
     "references": [
         "Doji.ModelHub",
         "Doji.ModelHub.Editor",
+        "Doji.Downloads",
+        "Doji.Downloads.Editor",
         "Unity.InferenceEngine",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "tiny-clip-onnx",
+      "displayName": "Tiny CLIP ONNX",
+      "repository": "onnx-community/tiny-clip-test-ONNX",
+      "revision": "main",
+      "sourceFile": "onnx/model.onnx"
+    }
+  ]
+}

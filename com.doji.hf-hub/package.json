@@ -10,6 +10,7 @@
   },
   "documentationUrl": "https://docs.doji-tech.com/com.doji.hf-hub",
   "dependencies": {
+    "com.doji.downloads": "1.0.0",
     "com.unity.ai.inference": "2.6.1",
     "com.unity.nuget.newtonsoft-json": "3.2.2"
   }

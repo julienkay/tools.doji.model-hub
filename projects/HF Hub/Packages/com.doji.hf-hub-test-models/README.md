@@ -1,0 +1,7 @@
+# Doji HF Hub Test Models
+
+This embedded package exists only to exercise local `hf-hub-manifest.json` discovery and sync during development.
+
+Current test dependency:
+
+- `onnx-community/tiny-clip-test-ONNX` at `onnx/model.onnx`

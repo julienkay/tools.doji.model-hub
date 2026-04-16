@@ -74,6 +74,8 @@ Current sync flow:
 
 Current sync flow still follows the manifest limitation above, so it only syncs one declared `sourceFile` per model entry.
 
+Sync now runs as an editor background task instead of blocking the editor while downloads are in progress.
+
 ## Status and Prompting
 
 HF Hub currently evaluates each discovered dependency into one of these local states:
@@ -88,6 +90,8 @@ When dependencies are `Missing`, `Stale`, or `Failed`, HF Hub currently:
 - shows that state in `Tools/Doji/HF Hub/Show Status`
 - shows the same state in `Project Settings > Doji > AI > AI Model Hub`
 - prompts once per editor session to sync now, postpone, or open Project Settings
+
+Starting sync from either the menu, Project Settings, or the prompt now uses Unity's background Progress UI.
 
 The Project Settings page is the main user-facing status surface for this package at the moment.
 
@@ -172,6 +176,14 @@ Current sidecar records:
 - cached file path
 - download timestamp
 
+While a download is still in progress, HF Hub also keeps a partial payload file next to the final target:
+
+```text
+model.onnx.downloading
+```
+
+That partial file is used to resume interrupted downloads instead of restarting from zero.
+
 ## File Locking
 
 HF Hub uses file-level lock next to cached raw file during download and metadata write:
@@ -191,3 +203,21 @@ Assets/Doji/HfHub/TempImport/
 ```
 
 That temporary asset exists only long enough for Unity Inference to import the ONNX file and is then removed again.
+
+## Background Sync and Domain Reloads
+
+HF Hub currently persists active sync work to:
+
+```text
+Library/Doji/HfHub/sync-state.json
+```
+
+That state file allows the package to resume pending sync work after a domain reload or editor script reload.
+
+Current behavior:
+
+- downloads run under Unity's Progress API in the background
+- partial `.downloading` files are resumed with HTTP `Range` requests when possible
+- pending dependency queue is restored after domain reload from `Library/Doji/HfHub/sync-state.json`
+
+This is the current foundation for making model downloads the reliable core workflow of the package.

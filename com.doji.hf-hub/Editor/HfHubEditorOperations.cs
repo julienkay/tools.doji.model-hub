@@ -1,6 +1,5 @@
 using System.Linq;
 using System.Text;
-using System.Threading;
 using UnityEditor;
 using UnityEngine;
 
@@ -26,42 +25,11 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Runs sync for all discovered dependencies and returns aggregated sync report.
+        /// Starts or resumes background sync using editor progress UI instead of blocking the editor.
         /// </summary>
-        public static HfHubSyncReport RunSync()
+        public static void StartBackgroundSync()
         {
-            var discoveryReport = HfHubPackageDiscovery.DiscoverInstalledPackageManifests();
-            return new HfHubSyncService().SyncAsync(discoveryReport, CancellationToken.None).GetAwaiter().GetResult();
-        }
-
-        /// <summary>
-        /// Runs sync and reports result through Console and modal dialog.
-        /// </summary>
-        public static void RunInteractiveSync()
-        {
-            HfHubSyncReport syncReport;
-            try
-            {
-                syncReport = RunSync();
-            }
-            catch (System.Exception exception)
-            {
-                Debug.LogError($"HF Hub sync failed: {exception.Message}");
-                EditorUtility.DisplayDialog("HF Hub Sync", $"Sync failed.\n\n{exception.Message}", "OK");
-                return;
-            }
-
-            var consoleReport = BuildSyncConsoleReport(syncReport);
-            if (syncReport.FailureCount > 0 || syncReport.DiscoveryIssues.Count > 0)
-            {
-                Debug.LogWarning(consoleReport);
-            }
-            else
-            {
-                Debug.Log(consoleReport);
-            }
-
-            EditorUtility.DisplayDialog("HF Hub Sync", BuildSyncDialogMessage(syncReport), "OK");
+            HfHubBackgroundSyncManager.StartOrResume();
         }
 
         /// <summary>

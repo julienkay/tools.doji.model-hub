@@ -79,7 +79,7 @@ namespace Doji.AI.ModelHub.Editor
             switch (action)
             {
                 case 0:
-                    HfHubEditorOperations.RunInteractiveSync();
+                    HfHubEditorOperations.StartBackgroundSync();
                     HfHubProjectSettingsProvider.Refresh();
                     break;
                 case 2:

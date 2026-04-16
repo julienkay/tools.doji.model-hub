@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 
@@ -100,6 +101,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var transport = new FakeTransport();
             var client = new HfHubHttpClient(transport);
             var targetPath = Path.Combine(_rootDirectory, "model.onnx");
+            var progressRecorder = new ProgressRecorder();
 
             await client.DownloadFileAsync(
                 new HfHubResolvedFileVersion(
@@ -111,11 +113,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "etag",
                     12),
                 targetPath,
+                progressRecorder,
                 CancellationToken.None);
 
             Assert.That(transport.DownloadCallCount, Is.EqualTo(1));
             Assert.That(File.Exists(targetPath), Is.True);
             Assert.That(File.ReadAllText(targetPath), Is.EqualTo("downloaded"));
+            Assert.That(progressRecorder.LastProgress.HasValue, Is.True);
+            Assert.That(progressRecorder.LastProgress.Value.DownloadedBytes, Is.EqualTo(10));
         }
 
         private static HfHubDiscoveredModelDependency CreateDependency()
@@ -167,7 +172,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 return Task.FromResult(JsonResponse);
             }
 
-            public Task DownloadFileAsync(string url, string targetPath, CancellationToken cancellationToken)
+            public Task DownloadFileAsync(
+                string url,
+                string targetPath,
+                long? expectedSizeInBytes,
+                IProgress<DownloadProgress> progress,
+                CancellationToken cancellationToken)
             {
                 DownloadCallCount++;
                 var directory = Path.GetDirectoryName(targetPath);
@@ -177,7 +187,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 }
 
                 File.WriteAllText(targetPath, "downloaded");
+                progress?.Report(new DownloadProgress(10, expectedSizeInBytes));
                 return Task.CompletedTask;
+            }
+        }
+
+        private sealed class ProgressRecorder : IProgress<DownloadProgress>
+        {
+            public DownloadProgress? LastProgress { get; private set; }
+
+            public void Report(DownloadProgress value)
+            {
+                LastProgress = value;
             }
         }
     }

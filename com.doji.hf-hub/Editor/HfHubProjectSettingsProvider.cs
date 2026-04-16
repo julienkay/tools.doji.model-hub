@@ -52,7 +52,7 @@ namespace Doji.AI.ModelHub.Editor
 
                 if (GUILayout.Button("Sync Models", GUILayout.Width(120)))
                 {
-                    HfHubEditorOperations.RunInteractiveSync();
+                    HfHubEditorOperations.StartBackgroundSync();
                     Refresh();
                 }
             }

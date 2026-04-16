@@ -30,7 +30,7 @@ namespace Doji.AI.ModelHub.Editor
         [MenuItem("Tools/Doji/HF Hub/Sync Models")]
         private static void SyncModels()
         {
-            HfHubEditorOperations.RunInteractiveSync();
+            HfHubEditorOperations.StartBackgroundSync();
             HfHubProjectSettingsProvider.Refresh();
         }
 

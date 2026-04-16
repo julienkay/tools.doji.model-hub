@@ -28,10 +28,12 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
-    "com.unity.ide.rider": "3.0.39",
+    "com.unity.ide.rider": "3.0.40",
+    "com.doji.downloads": "file:../../../com.doji.downloads",
     "com.doji.hf-hub": "file:../../../com.doji.hf-hub"
   },
   "testables": [
+    "com.doji.downloads",
     "com.doji.hf-hub"
   ]
 }

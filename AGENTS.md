@@ -6,9 +6,11 @@ This repository contains the Unity package `com.doji.hf-hub` and its companion p
 
 Reference and Download AI models from HuggingFace
 
+It is built with Unity 6000.3 LTS. There is no compile step, CLI build command, or test runner to invoke. Do not attempt to build, compile, or run the project. 
+
 ## Package Direction
 
-- Treat `com.doji.hf-hub` as a Unity-package-friendly reference and import layer for HuggingFace models, not as a place to ship large model binaries through UPM.
+- `com.doji.hf-hub` is a Unity-package-friendly reference and import layer for HuggingFace models. It solves the problem of creating packages or projects that use large AI models without shipping them inside the UPM package or Unity projects or even including them in the repo / git LFS explicitly. Essentially package management for AI models specifically for Unity (Sentis).
 - Prefer a package-owned manifest workflow: UPM packages declare remote model dependencies, the Hub detects those manifests when packages are present in a project, then downloads source ONNX files into a shared local cache and converts them into project-owned `.sentis` assets after user confirmation.
 - Prefer runtime-safe implementations for Hub logic whenever possible so future runtime downloads can reuse same code. Keep only UnityEditor integration points, editor UX, and Package Manager adapters in `Editor`.
 - Optimize for Sentis editor and runtime behavior. Avoid long-lived references to large ONNX `ModelAsset` files when they would force expensive import work during domain reloads.

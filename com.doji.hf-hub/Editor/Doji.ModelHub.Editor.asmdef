@@ -3,6 +3,8 @@
     "rootNamespace": "Doji.AI.ModelHub.Editor",
     "references": [
         "GUID:d3968dc2a3e14bc4a77f0a5b4af632c2",
+        "GUID:33634f0321224cbab008d083a50cd823",
+        "GUID:fe5ebd90e7614ec78c930038d8122905",
         "Unity.InferenceEngine"
     ],
     "includePlatforms": [

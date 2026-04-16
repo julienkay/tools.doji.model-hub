@@ -18,6 +18,28 @@ Out of scope for v1:
 - gated models
 - offline workflows beyond reusing already downloaded raw cache data
 
+## Package Boundary
+
+Current prototype proved one important boundary: generic resumable download infrastructure should not stay embedded inside `com.doji.hf-hub`.
+
+Target shape:
+
+- one generic downloader package with no HuggingFace or Sentis knowledge
+- one HuggingFace Hub package that consumes that downloader package
+
+Why:
+
+- resumable file transfer, persisted jobs, and recovery are useful beyond AI model imports
+- those concerns must eventually work at runtime too
+- editor-only UX such as prompts and Project Settings should not define core download architecture
+- HuggingFace resolution and `.sentis` import are separate concerns from URL-to-file transfer
+
+Recommended first extraction package:
+
+- `com.doji.downloads`
+
+Keep it in same repository first. Separate repository can wait until API shape proves stable.
+
 ## Manifest Schema
 
 V1 uses a single JSON manifest stored inside each package that depends on AI model files.
@@ -93,6 +115,97 @@ Raw ONNX path shape:
 
 Downloaded files should only be keyed by Hub identity, not by project.
 
+## Download Reliability
+
+The download path is the core workflow of this package and must be engineered as first-class infrastructure.
+
+V1 architecture targets three explicit guarantees:
+
+1. Downloads run in the background using Unity editor task/progress APIs.
+2. Downloads are resumable instead of restarting from zero.
+3. Active sync work is not lost on domain reload.
+
+How V1 tackles each guarantee:
+
+- Background execution:
+  - sync must not block the editor thread with `.GetAwaiter().GetResult()` style orchestration
+  - editor-triggered sync runs through a dedicated background sync manager
+  - user-visible state is surfaced through Unity `Progress` API rather than modal blocking UI
+  - menu, Project Settings, and prompts all start the same background sync path
+
+- Resumable downloads:
+  - raw target uses a sibling partial file such as `<file>.downloading`
+  - if that partial file exists, the next download attempt resumes from its current byte length
+  - resume is implemented with HTTP `Range` requests
+  - if the server ignores `Range` and returns full content, the client detects that and restarts cleanly once to avoid file corruption
+  - this behavior follows the same general strategy used by `huggingface_hub` in `file_download.py`
+
+- Domain reload resilience:
+  - active sync state is persisted under `Library/Doji/HfHub/sync-state.json`
+  - persisted state stores which dependency is currently active and which declared dependencies remain pending
+  - after domain reload or editor script reload, the background sync manager checks for that persisted state and resumes remaining work
+  - raw download partial files remain on disk, so resumed sync can continue transfer from previous byte position where the server supports it
+
+This means the architecture deliberately separates:
+
+- shared raw cache state
+- generated project artifact state
+- active sync job state
+
+Those are different concerns and must remain independently recoverable.
+
+It also separates package responsibilities:
+
+- downloader package owns transfer/job durability
+- HF Hub package owns repository resolution, cache policy, and model import
+
+### Downloader Package Responsibilities
+
+Downloader package should own:
+
+- runtime-safe download core with no `UnityEditor` dependency
+- persisted job state
+- partial file conventions such as `.downloading` or `.part`
+- resume semantics using HTTP `Range`
+- file locking and duplicate-work prevention
+- transport abstraction
+- progress and cancel contracts
+- retry/backoff policy
+- integrity checks once download completes
+
+Optional editor-specific adapter layer may live there too, but only for:
+
+- `Progress` integration
+- assembly/domain reload hooks
+- editor job restoration hooks
+
+### HF Hub Responsibilities
+
+`com.doji.hf-hub` should keep owning:
+
+- package manifest discovery
+- HuggingFace repo/revision/file resolution
+- HuggingFace-specific cache layout and sidecar metadata
+- package/user-facing prompts and status surfaces
+- project import pipeline from raw ONNX to `.sentis`
+- stale detection and generated asset metadata
+- runtime model locator contract
+
+### Migration Bias
+
+Do not generalize too far too early.
+
+First extraction should support only what current project needs:
+
+- URL to local file
+- resume
+- persisted state
+- cancel
+- recovery after editor/domain reload
+- editor/runtime-safe core contracts
+
+Avoid designing giant universal downloader API before real second use case exists.
+
 ## Conversion Trigger
 
 V1 conversion is editor-driven and package-discovery-based.
@@ -111,6 +224,13 @@ Behavior:
 6. Write a small metadata file next to each generated asset so later scans can detect staleness cheaply.
 
 The key behavior is automatic prompting, not silent automatic import. The Hub should behave more like Unity Package Manager: package dependencies are discovered automatically, but the expensive content step is made explicit to the user.
+
+The expensive content step must still be non-blocking:
+
+- approval is explicit
+- execution is backgrounded
+- progress is visible
+- interruption should be recoverable
 
 Fallback trigger:
 
@@ -159,3 +279,11 @@ Keep the first implementation simple:
 - project-owned generated `.sentis` assets
 - no silent background conversion
 - no auth flow
+
+## Planned Extraction Order
+
+1. Extract generic transport/result/progress contracts into downloader package.
+2. Extract partial-file handling, locks, and persisted job-state model.
+3. Extract resumable file runner with no HuggingFace references.
+4. Replace HF Hub background sync internals with adapter over downloader package.
+5. Re-test reload recovery, progress reporting, and resume behavior through HF Hub.

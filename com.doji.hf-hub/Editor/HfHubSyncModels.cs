@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Doji.Downloads;
 
 namespace Doji.AI.ModelHub.Editor
 {
@@ -65,6 +66,7 @@ namespace Doji.AI.ModelHub.Editor
     {
         Task<HfHubCachedRawFile> GetOrDownloadAsync(
             HfHubDiscoveredModelDependency dependency,
+            IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken);
     }
 
@@ -110,7 +112,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 try
                 {
-                    var cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, cancellationToken);
+                    var cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, null, cancellationToken);
                     var importedArtifact = await _projectImportService.ImportAsync(dependency, cachedFile, cancellationToken);
                     modelResults.Add(new HfHubModelSyncResult(dependency, cachedFile, importedArtifact, null));
                 }

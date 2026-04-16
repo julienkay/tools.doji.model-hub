@@ -1,12 +1,29 @@
 {
   "dependencies": {
+    "com.doji.downloads": {
+      "version": "file:../../../com.doji.downloads",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.2"
+      }
+    },
     "com.doji.hf-hub": {
       "version": "file:../../../com.doji.hf-hub",
       "depth": 0,
       "source": "local",
       "dependencies": {
+        "com.doji.downloads": "1.0.0",
         "com.unity.ai.inference": "2.6.1",
         "com.unity.nuget.newtonsoft-json": "3.2.2"
+      }
+    },
+    "com.doji.hf-hub-test-models": {
+      "version": "file:com.doji.hf-hub-test-models",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.doji.hf-hub": "1.0.0"
       }
     },
     "com.unity.ai.inference": {
@@ -64,7 +81,7 @@
       "dependencies": {}
     },
     "com.unity.ide.rider": {
-      "version": "3.0.39",
+      "version": "3.0.40",
       "depth": 0,
       "source": "registry",
       "dependencies": {

@@ -141,6 +141,12 @@ namespace Doji.AI.ModelHub.Editor
             HfHubCachedRawFile cachedRawFile,
             string sentisAssetPath)
         {
+            var runtimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
+            var runtimeSentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+                dependency.PackageId,
+                dependency.ModelId,
+                dependency.SourceFile);
+
             return new HfHubImportedModelMetadata
             {
                 PackageId = dependency.PackageId,
@@ -157,6 +163,10 @@ namespace Doji.AI.ModelHub.Editor
                 SentisVersion = GetSentisVersion(),
                 UnityVersion = Application.unityVersion,
                 SentisAssetPath = sentisAssetPath,
+                RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
+                RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
+                RuntimeSentisAssetPath = runtimeSentisAssetPath,
+                RuntimeSentisRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath),
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             };
         }

@@ -49,6 +49,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(artifact.Metadata.ModelId, Is.EqualTo("tiny-sample"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
             Assert.That(artifact.Metadata.SentisAssetPath, Is.EqualTo(artifact.SentisAssetPath));
+            Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/Doji/HfHub/Registries/com.doji.test/hf-hub-runtime.json"));
+            Assert.That(artifact.RuntimeRegistryRelativePath, Is.EqualTo("Doji/HfHub/Registries/com.doji.test/hf-hub-runtime.json"));
+            Assert.That(artifact.RuntimeSentisAssetPath, Is.EqualTo("Assets/StreamingAssets/Doji/HfHub/Models/com.doji.test/tiny-sample/SingleInputSingleOuput.sentis"));
+            Assert.That(artifact.RuntimeSentisRelativePath, Is.EqualTo("Doji/HfHub/Models/com.doji.test/tiny-sample/SingleInputSingleOuput.sentis"));
             Assert.That(AssetDatabase.LoadMainAssetAtPath("Assets/Doji/HfHub/TempImport/com.doji.test/tiny-sample/SingleInputSingleOuput.onnx"), Is.Null);
         }
 

@@ -19,5 +19,15 @@ namespace Doji.AI.ModelHub
         /// Root folder inside the Unity project where generated `.sentis` assets will be written.
         /// </summary>
         public const string GeneratedAssetsRoot = "Assets/Doji/HfHub/Generated";
+
+        /// <summary>
+        /// Root folder inside the Unity project where runtime-loadable generated files are written for builds.
+        /// </summary>
+        public const string RuntimeStreamingAssetsRoot = "Assets/StreamingAssets/Doji/HfHub";
+
+        /// <summary>
+        /// Relative root inside `Application.streamingAssetsPath` used by generated runtime locator registries and files.
+        /// </summary>
+        public const string RuntimeStreamingRelativeRoot = "Doji/HfHub";
     }
 }

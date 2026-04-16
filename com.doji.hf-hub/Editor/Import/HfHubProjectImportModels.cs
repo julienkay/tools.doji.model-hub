@@ -22,6 +22,10 @@ namespace Doji.AI.ModelHub.Editor
         public string SentisVersion { get; set; }
         public string UnityVersion { get; set; }
         public string SentisAssetPath { get; set; }
+        public string RuntimeRegistryAssetPath { get; set; }
+        public string RuntimeRegistryRelativePath { get; set; }
+        public string RuntimeSentisAssetPath { get; set; }
+        public string RuntimeSentisRelativePath { get; set; }
         public string ImportedAtUtc { get; set; }
     }
 
@@ -46,5 +50,9 @@ namespace Doji.AI.ModelHub.Editor
         public string SentisAssetPath { get; }
         public string MetadataAssetPath { get; }
         public HfHubImportedModelMetadata Metadata { get; }
+        public string RuntimeRegistryAssetPath => Metadata?.RuntimeRegistryAssetPath;
+        public string RuntimeRegistryRelativePath => Metadata?.RuntimeRegistryRelativePath;
+        public string RuntimeSentisAssetPath => Metadata?.RuntimeSentisAssetPath;
+        public string RuntimeSentisRelativePath => Metadata?.RuntimeSentisRelativePath;
     }
 }

@@ -62,8 +62,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(model.PackageId, Is.EqualTo("com.doji.test"));
             Assert.That(model.ModelId, Is.EqualTo("tiny-model"));
             Assert.That(model.Repository, Is.EqualTo("doji/test-model"));
-            Assert.That(model.PrimarySentisPath, Is.EqualTo(
-                Path.Combine(UnityEngine.Application.streamingAssetsPath, "hf-hub/models--doji--test-model/snapshots/abc123/model.sentis")));
+            // Unity may return `Application.streamingAssetsPath` with `/` even on Windows.
+            Assert.That(NormalizePath(model.PrimarySentisPath), Is.EqualTo(
+                NormalizePath(HfHubProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis"))));
             Assert.That(model.Files.Count, Is.EqualTo(1));
             Assert.That(model.Files[0].Kind, Is.EqualTo("sentis"));
             Assert.That(model.Files[0].FilePath, Is.EqualTo(model.PrimarySentisPath));
@@ -224,6 +225,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 AssetDatabase.DeleteAsset(assetPath);
             }
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return path.Replace('\\', '/');
         }
     }
 }

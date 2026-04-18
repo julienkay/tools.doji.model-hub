@@ -18,6 +18,7 @@ namespace Doji.AI.ModelHub
             string packageId,
             string packageVersion,
             string modelId,
+            string repository,
             string displayName,
             string primarySentisPath,
             IReadOnlyList<HfHubResolvedRuntimeFile> files)
@@ -25,6 +26,7 @@ namespace Doji.AI.ModelHub
             PackageId = packageId ?? throw new ArgumentNullException(nameof(packageId));
             PackageVersion = packageVersion ?? throw new ArgumentNullException(nameof(packageVersion));
             ModelId = modelId ?? throw new ArgumentNullException(nameof(modelId));
+            Repository = repository ?? throw new ArgumentNullException(nameof(repository));
             DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
             PrimarySentisPath = primarySentisPath ?? throw new ArgumentNullException(nameof(primarySentisPath));
             _files = files?.ToArray() ?? Array.Empty<HfHubResolvedRuntimeFile>();
@@ -44,6 +46,11 @@ namespace Doji.AI.ModelHub
         /// Stable package-local model id used at runtime lookup.
         /// </summary>
         public string ModelId { get; }
+
+        /// <summary>
+        /// Canonical HuggingFace repository id for this runtime model.
+        /// </summary>
+        public string Repository { get; }
 
         /// <summary>
         /// User-facing model name for diagnostics and tooling.

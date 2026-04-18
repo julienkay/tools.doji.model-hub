@@ -62,6 +62,9 @@ namespace Doji.AI.ModelHub
         private string _modelId;
 
         [SerializeField]
+        private string _repository;
+
+        [SerializeField]
         private string _primarySentisRelativePath;
 
         public HfHubRuntimeLocatorEntryDocument()
@@ -71,6 +74,7 @@ namespace Doji.AI.ModelHub
         public HfHubRuntimeLocatorEntryDocument(HfHubRuntimeLocatorEntry entry)
         {
             _modelId = entry.ModelId;
+            _repository = entry.Repository;
             _displayName = entry.DisplayName;
             _primarySentisRelativePath = entry.PrimarySentisRelativePath;
             _files = entry.Files.Select(file => new HfHubRuntimeLocatorFileDocument(file)).ToArray();
@@ -80,6 +84,7 @@ namespace Doji.AI.ModelHub
         {
             return new HfHubRuntimeLocatorEntry(
                 _modelId,
+                _repository,
                 _displayName,
                 _primarySentisRelativePath,
                 (_files ?? Array.Empty<HfHubRuntimeLocatorFileDocument>())

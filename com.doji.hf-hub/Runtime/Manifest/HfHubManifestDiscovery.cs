@@ -10,12 +10,12 @@ using Newtonsoft.Json.Linq;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Represents one resolved model dependency discovered from a package manifest.
+    /// Represents one resolved model dependency discovered from one manifest owner.
     /// </summary>
     internal sealed class HfHubDiscoveredModelDependency
     {
         /// <summary>
-        /// Captures one normalized model dependency from a package manifest.
+        /// Captures one normalized model dependency from one package or project manifest source.
         /// </summary>
         public HfHubDiscoveredModelDependency(
             string packageId,
@@ -40,27 +40,27 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Installed Unity package identifier that declared dependency.
+        /// Stable manifest owner identifier used by sync and runtime locator lookup.
         /// </summary>
         public string PackageId { get; }
 
         /// <summary>
-        /// User-facing package name used in prompts and status output.
+        /// User-facing manifest owner name used in prompts and status output.
         /// </summary>
         public string PackageDisplayName { get; }
 
         /// <summary>
-        /// Installed package version string.
+        /// Manifest owner version string or project marker.
         /// </summary>
         public string PackageVersion { get; }
 
         /// <summary>
-        /// Absolute package path that contains manifest.
+        /// Absolute owner path used to anchor related project or package context.
         /// </summary>
         public string PackageResolvedPath { get; }
 
         /// <summary>
-        /// Absolute path to manifest file that declared dependency.
+        /// Absolute path to manifest source that declared dependency.
         /// </summary>
         public string ManifestPath { get; }
 
@@ -126,9 +126,9 @@ namespace Doji.AI.ModelHub
         public string Message { get; }
     }
 
-    /// <summary>
-    /// Summarizes package manifest discovery across one package set.
-    /// </summary>
+        /// <summary>
+        /// Summarizes manifest discovery across one scan.
+        /// </summary>
     internal sealed class HfHubDiscoveryReport
     {
         private readonly HfHubDiscoveredModelDependency[] _dependencies;
@@ -146,7 +146,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Valid model dependencies discovered from package manifests.
+        /// Valid model dependencies discovered from package or project manifests.
         /// </summary>
         public IReadOnlyList<HfHubDiscoveredModelDependency> Dependencies => _dependencies;
 
@@ -326,8 +326,7 @@ namespace Doji.AI.ModelHub
                     return false;
                 }
 
-                var models = new List<HfHubModelDependencyDefinition>();
-                var seenModelIds = new HashSet<string>(StringComparer.Ordinal);
+                var models = new List<HfHubManifestModelDraft>();
 
                 var modelIndex = 0;
                 foreach (var modelToken in modelsToken.Children())
@@ -342,12 +341,6 @@ namespace Doji.AI.ModelHub
                     var id = ReadRequiredString(modelElement, "id", modelIndex, out errorMessage);
                     if (errorMessage != null)
                     {
-                        return false;
-                    }
-
-                    if (!seenModelIds.Add(id))
-                    {
-                        errorMessage = $"Manifest model id `{id}` is declared more than once.";
                         return false;
                     }
 
@@ -375,12 +368,11 @@ namespace Doji.AI.ModelHub
                         return false;
                     }
 
-                    models.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision, sourceFile));
+                    models.Add(new HfHubManifestModelDraft(id, displayName, repository, revision, sourceFile));
                     modelIndex++;
                 }
 
-                manifest = new HfHubPackageManifest(version, models);
-                return true;
+                return HfHubManifestFactory.TryCreateManifest(version, models, out manifest, out errorMessage);
             }
             catch (JsonException exception)
             {
@@ -431,6 +423,109 @@ namespace Doji.AI.ModelHub
             }
 
             return value;
+        }
+    }
+
+    /// <summary>
+    /// Captures one manifest model entry before it is validated into immutable package data.
+    /// </summary>
+    internal sealed class HfHubManifestModelDraft
+    {
+        public HfHubManifestModelDraft(
+            string id,
+            string displayName,
+            string repository,
+            string revision,
+            string sourceFile)
+        {
+            Id = id;
+            DisplayName = displayName;
+            Repository = repository;
+            Revision = revision;
+            SourceFile = sourceFile;
+        }
+
+        public string Id { get; }
+        public string DisplayName { get; }
+        public string Repository { get; }
+        public string Revision { get; }
+        public string SourceFile { get; }
+    }
+
+    /// <summary>
+    /// Validates normalized manifest data regardless of whether it came from JSON or a Unity asset.
+    /// </summary>
+    internal static class HfHubManifestFactory
+    {
+        public static bool TryCreateManifest(
+            int version,
+            IReadOnlyList<HfHubManifestModelDraft> models,
+            out HfHubPackageManifest manifest,
+            out string errorMessage)
+        {
+            manifest = null;
+            errorMessage = null;
+
+            if (version != 1)
+            {
+                errorMessage = $"Unsupported manifest version `{version}`. Only version `1` is supported.";
+                return false;
+            }
+
+            if (models == null)
+            {
+                errorMessage = "Manifest must define a `models` array.";
+                return false;
+            }
+
+            var finalizedModels = new List<HfHubModelDependencyDefinition>(models.Count);
+            var seenModelIds = new HashSet<string>(StringComparer.Ordinal);
+            for (var modelIndex = 0; modelIndex < models.Count; modelIndex++)
+            {
+                var model = models[modelIndex];
+                if (!TryValidateRequiredString(model?.Id, "id", modelIndex, out var id, out errorMessage))
+                {
+                    return false;
+                }
+
+                if (!seenModelIds.Add(id))
+                {
+                    errorMessage = $"Manifest model id `{id}` is declared more than once.";
+                    return false;
+                }
+
+                if (!TryValidateRequiredString(model.DisplayName, "displayName", modelIndex, out var displayName, out errorMessage) ||
+                    !TryValidateRequiredString(model.Repository, "repository", modelIndex, out var repository, out errorMessage) ||
+                    !TryValidateRequiredString(model.Revision, "revision", modelIndex, out var revision, out errorMessage) ||
+                    !TryValidateRequiredString(model.SourceFile, "sourceFile", modelIndex, out var sourceFile, out errorMessage))
+                {
+                    return false;
+                }
+
+                finalizedModels.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision, sourceFile));
+            }
+
+            manifest = new HfHubPackageManifest(version, finalizedModels);
+            return true;
+        }
+
+        private static bool TryValidateRequiredString(
+            string value,
+            string propertyName,
+            int modelIndex,
+            out string trimmedValue,
+            out string errorMessage)
+        {
+            trimmedValue = value?.Trim();
+            errorMessage = null;
+
+            if (string.IsNullOrWhiteSpace(trimmedValue))
+            {
+                errorMessage = $"Manifest model at index {modelIndex} must define a non-empty `{propertyName}`.";
+                return false;
+            }
+
+            return true;
         }
     }
 }

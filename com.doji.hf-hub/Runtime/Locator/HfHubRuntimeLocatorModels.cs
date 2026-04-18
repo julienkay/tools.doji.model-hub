@@ -49,7 +49,7 @@ namespace Doji.AI.ModelHub
     }
 
     /// <summary>
-    /// Maps one package-local model id to runtime-loadable files under shared StreamingAssets root.
+    /// Maps one declared model dependency to runtime-loadable files under shared StreamingAssets root.
     /// </summary>
     [Serializable]
     public sealed class HfHubRuntimeLocatorEntry
@@ -61,11 +61,13 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public HfHubRuntimeLocatorEntry(
             string modelId,
+            string repository,
             string displayName,
             string primarySentisRelativePath,
             IReadOnlyList<HfHubRuntimeLocatorFile> files)
         {
             ModelId = modelId ?? throw new ArgumentNullException(nameof(modelId));
+            Repository = repository ?? throw new ArgumentNullException(nameof(repository));
             DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
             PrimarySentisRelativePath = primarySentisRelativePath ?? throw new ArgumentNullException(nameof(primarySentisRelativePath));
             _files = files?.ToArray() ?? Array.Empty<HfHubRuntimeLocatorFile>();
@@ -75,6 +77,11 @@ namespace Doji.AI.ModelHub
         /// Stable package-local model id used at runtime lookup.
         /// </summary>
         public string ModelId { get; }
+
+        /// <summary>
+        /// Canonical HuggingFace repository id used by `from_pretrained(...)` style calls.
+        /// </summary>
+        public string Repository { get; }
 
         /// <summary>
         /// User-facing model name for diagnostics and tooling.

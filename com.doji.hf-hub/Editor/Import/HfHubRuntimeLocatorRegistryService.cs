@@ -56,6 +56,7 @@ namespace Doji.AI.ModelHub.Editor
             var metadata = result.ImportedArtifact.Metadata;
             return new HfHubRuntimeLocatorEntry(
                 result.Dependency.ModelId,
+                result.Dependency.Repository,
                 result.Dependency.ModelDisplayName,
                 metadata.RuntimeSentisRelativePath,
                 new[]

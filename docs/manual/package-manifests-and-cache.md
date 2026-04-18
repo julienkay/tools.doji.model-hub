@@ -2,6 +2,8 @@
 
 Packages that depend on remote HuggingFace model files declare them in `hf-hub-manifest.json` at package root.
 
+Projects can also declare dependencies with a `HfHubProjectManifestAsset` created from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
+
 Example:
 
 ```json
@@ -42,14 +44,27 @@ Not supported yet:
 
 This matters for real model packages because many ONNX repos need more than one file to be usable.
 
+## Project Manifest Assets
+
+Project manifest assets use the same schema fields as package manifests, but are edited through the Inspector instead of raw JSON.
+
+Use them when:
+
+- the dependency belongs to one Unity project, not a reusable UPM package
+- you want a context-menu-created asset that artists or designers can inspect in Unity
+- you still want HF Hub to participate in the same shared cache, sync, and runtime locator flow
+
+Package manifests remain plain JSON because they travel better inside source-controlled UPM packages.
+
 ## Discovery
 
-When Unity project contains installed packages with `hf-hub-manifest.json`, HF Hub scans those manifests and builds dependency list for project.
+When Unity project contains installed packages with `hf-hub-manifest.json` or project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
 
 Current development build includes:
 
 - manifest parsing and validation
 - installed-package discovery
+- project-manifest asset discovery
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 - editor status command at `Tools/Doji/HF Hub/Show Status`
 - editor sync command at `Tools/Doji/HF Hub/Sync Models`
@@ -61,7 +76,7 @@ Use `Tools/Doji/HF Hub/Sync Models` to resolve discovered package dependencies, 
 
 Current sync flow:
 
-1. Scan installed packages for `hf-hub-manifest.json`.
+1. Scan installed packages for `hf-hub-manifest.json` and project assets for `HfHubProjectManifestAsset`.
 2. Validate manifest contents.
 3. Resolve each dependency to remote HuggingFace file version.
 4. Download missing raw files into shared cache.
@@ -160,26 +175,36 @@ The `.sentis` file is runtime-facing payload intended for editor and runtime loa
 HF Hub also writes locator metadata under shared `StreamingAssets` root:
 
 ```text
-Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json
+Assets/StreamingAssets/hf-hub/registries/<owner-id>/hf-hub-runtime.json
 ```
 
-Runtime code should resolve generated payloads by stable package id plus model id through:
+Runtime code should resolve generated payloads by canonical HuggingFace `repo_id` through:
 
 ```csharp
-if (ModelHub.TryResolveRuntimeModel("com.doji.example", "tiny-random-bert", out var model))
+if (ModelHub.TryResolveRuntimeModel("hf-internal-testing/tiny-random-bert", out var model))
 {
     var sentisPath = model.PrimarySentisPath;
 }
 ```
 
-This avoids hard-coding `Assets/...` or `StreamingAssets/...` path conventions in package runtime code.
+Or load directly, upstream-style:
+
+```csharp
+var model = ModelHub.LoadRuntimeModel("hf-internal-testing/tiny-random-bert");
+```
+
+This avoids hard-coding `Assets/...` or `StreamingAssets/...` path conventions in package or project runtime code.
+
+Owner-specific overloads still exist for rare ambiguous cases where same repository id appears in more than one manifest owner.
+
+Companion project includes sample MonoBehaviour at `projects/HF Hub/Assets/HF Hub/HfHubRuntimeLocatorSample.cs` that demonstrates this exact lookup and load path.
 
 In other words, runtime `load(<modelId>)` should usually mean "resolve local generated payload and load it", not "go to network first".
 
 Editor-only import provenance currently lives under:
 
 ```text
-Library/Doji/HfHub/import-state/<package-id>/<model-id>/hf-hub-import.json
+Library/Doji/HfHub/import-state/<owner-id>/<model-id>/hf-hub-import.json
 ```
 
 That file is maintainer/debug state, not user-facing project content.

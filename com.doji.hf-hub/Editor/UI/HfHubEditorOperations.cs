@@ -16,11 +16,11 @@ namespace Doji.AI.ModelHub.Editor
         public const string ProjectSettingsPath = "Project/Doji/AI/AI Model Hub";
 
         /// <summary>
-        /// Evaluates current local dependency status for all discovered package manifests.
+        /// Evaluates current local dependency status for all discovered package and project manifests.
         /// </summary>
         public static HfHubStatusReport CreateStatusReport()
         {
-            var discoveryReport = HfHubPackageDiscovery.DiscoverInstalledPackageManifests();
+            var discoveryReport = HfHubEditorManifestDiscovery.DiscoverInstalledManifests();
             return new HfHubStatusService().BuildStatusReport(discoveryReport);
         }
 
@@ -39,7 +39,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (report.DependencyStatuses.Count == 0 && report.DiscoveryIssues.Count == 0)
             {
-                return "No hf-hub package manifests were found in the installed packages.";
+                return "No hf-hub package or project manifests were found.";
             }
 
             var packageCount = report.DependencyStatuses
@@ -68,7 +68,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (report.DependencyStatuses.Count == 0 && report.DiscoveryIssues.Count == 0)
             {
-                builder.AppendLine("- No hf-hub package manifests were found in the installed packages.");
+                builder.AppendLine("- No hf-hub package or project manifests were found.");
                 return builder.ToString().TrimEnd();
             }
 

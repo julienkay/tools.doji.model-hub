@@ -61,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (_statusReport.DependencyStatuses.Count == 0 && _statusReport.DiscoveryIssues.Count == 0)
             {
-                EditorGUILayout.HelpBox("No hf-hub package manifests were found in the installed packages.", MessageType.Info);
+                EditorGUILayout.HelpBox("No hf-hub package or project manifests were found.", MessageType.Info);
                 return;
             }
 

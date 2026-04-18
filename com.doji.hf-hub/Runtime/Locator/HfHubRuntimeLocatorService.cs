@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -47,10 +48,58 @@ namespace Doji.AI.ModelHub
                 manifest.PackageId,
                 manifest.PackageVersion,
                 entry.ModelId,
+                entry.Repository,
                 entry.DisplayName,
                 ModelHub.GetRuntimeAbsolutePath(entry.PrimarySentisRelativePath),
                 files);
             return true;
+        }
+
+        public static bool TryResolveModel(string repository, out HfHubResolvedRuntimeModel model)
+        {
+            model = null;
+            if (string.IsNullOrWhiteSpace(repository))
+            {
+                return false;
+            }
+
+            var matches = new List<HfHubResolvedRuntimeModel>();
+            foreach (var manifest in LoadAllManifests())
+            {
+                foreach (var entry in manifest.Models.Where(candidate =>
+                             string.Equals(candidate.Repository, repository, StringComparison.Ordinal)))
+                {
+                    var files = entry.Files
+                        .Select(file => new HfHubResolvedRuntimeFile(
+                            ModelHub.GetRuntimeAbsolutePath(file.RelativePath),
+                            file.SourceFile,
+                            file.Kind))
+                        .ToArray();
+
+                    matches.Add(new HfHubResolvedRuntimeModel(
+                        manifest.PackageId,
+                        manifest.PackageVersion,
+                        entry.ModelId,
+                        entry.Repository,
+                        entry.DisplayName,
+                        ModelHub.GetRuntimeAbsolutePath(entry.PrimarySentisRelativePath),
+                        files));
+                }
+            }
+
+            if (matches.Count == 1)
+            {
+                model = matches[0];
+                return true;
+            }
+
+            if (matches.Count > 1)
+            {
+                throw new InvalidOperationException(
+                    $"HF Hub runtime model '{repository}' is ambiguous across multiple registries. Use owner-specific lookup or keep repository ids unique.");
+            }
+
+            return false;
         }
 
         internal static bool TryLoadManifest(string packageId, out HfHubRuntimeLocatorManifest manifest)
@@ -83,6 +132,44 @@ namespace Doji.AI.ModelHub
             catch
             {
                 return false;
+            }
+        }
+
+        private static IEnumerable<HfHubRuntimeLocatorManifest> LoadAllManifests()
+        {
+            var registriesRoot = Path.Combine(Application.streamingAssetsPath, ModelHub.RuntimeStreamingRelativeRoot, "registries");
+            if (!Directory.Exists(registriesRoot))
+            {
+                yield break;
+            }
+
+            var registryFiles = Directory.GetFiles(registriesRoot, "hf-hub-runtime.json", SearchOption.AllDirectories)
+                .OrderBy(path => path, StringComparer.Ordinal);
+
+            foreach (var registryFile in registryFiles)
+            {
+                HfHubRuntimeLocatorManifest manifest = null;
+
+                try
+                {
+                    var json = File.ReadAllText(registryFile);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        continue;
+                    }
+
+                    var document = JsonUtility.FromJson<HfHubRuntimeLocatorManifestDocument>(json);
+                    manifest = document?.ToManifest();
+                }
+                catch
+                {
+                    manifest = null;
+                }
+
+                if (manifest != null)
+                {
+                    yield return manifest;
+                }
             }
         }
     }

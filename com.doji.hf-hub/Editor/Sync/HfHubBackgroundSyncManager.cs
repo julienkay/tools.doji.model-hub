@@ -40,7 +40,7 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var discoveryReport = HfHubPackageDiscovery.DiscoverInstalledPackageManifests();
+            var discoveryReport = HfHubEditorManifestDiscovery.DiscoverInstalledManifests();
             Runner.StartOrResume(
                 () => PersistentItemQueueState.Create(discoveryReport.Dependencies.Select(GetDependencyKey)),
                 RunAsync,
@@ -64,7 +64,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         private static async Task<bool> RunAsync(PersistentItemQueueState state, EditorPersistentOperationContext context)
         {
-            var discoveryReport = HfHubPackageDiscovery.DiscoverInstalledPackageManifests();
+            var discoveryReport = HfHubEditorManifestDiscovery.DiscoverInstalledManifests();
             var dependencies = discoveryReport.Dependencies
                 .Where(dependency => state.PendingItemKeys.Contains(GetDependencyKey(dependency)))
                 .OrderBy(dependency => dependency.PackageId, StringComparer.Ordinal)

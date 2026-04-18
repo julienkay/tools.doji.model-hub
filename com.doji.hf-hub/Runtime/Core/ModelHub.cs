@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Unity.InferenceEngine;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub
@@ -31,6 +32,14 @@ namespace Doji.AI.ModelHub
         public const string RuntimeStreamingRelativeRoot = "hf-hub";
 
         /// <summary>
+        /// Resolves one synchronized model by canonical HuggingFace repository id.
+        /// </summary>
+        public static bool TryResolveRuntimeModel(string modelId, out HfHubResolvedRuntimeModel model)
+        {
+            return HfHubRuntimeLocatorService.TryResolveModel(modelId, out model);
+        }
+
+        /// <summary>
         /// Resolves one synchronized model by stable package-local string id.
         /// </summary>
         public static bool TryResolveRuntimeModel(
@@ -39,6 +48,20 @@ namespace Doji.AI.ModelHub
             out HfHubResolvedRuntimeModel model)
         {
             return HfHubRuntimeLocatorService.TryResolveModel(packageId, modelId, out model);
+        }
+
+        /// <summary>
+        /// Resolves one synchronized model by canonical HuggingFace repository id or throws when registry data is missing.
+        /// </summary>
+        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string modelId)
+        {
+            if (TryResolveRuntimeModel(modelId, out var model))
+            {
+                return model;
+            }
+
+            throw new FileNotFoundException(
+                $"HF Hub runtime model '{modelId}' was not found under '{Application.streamingAssetsPath}'.");
         }
 
         /// <summary>
@@ -53,6 +76,24 @@ namespace Doji.AI.ModelHub
 
             throw new FileNotFoundException(
                 $"HF Hub runtime model '{packageId}/{modelId}' was not found under '{Application.streamingAssetsPath}'.");
+        }
+
+        /// <summary>
+        /// Resolves one synchronized model by canonical HuggingFace repository id and loads serialized Sentis payload.
+        /// </summary>
+        public static Model LoadRuntimeModel(string modelId)
+        {
+            var resolvedModel = ResolveRuntimeModel(modelId);
+            return ModelLoader.Load(resolvedModel.PrimarySentisPath);
+        }
+
+        /// <summary>
+        /// Resolves one synchronized model and loads serialized Sentis payload from generated runtime path.
+        /// </summary>
+        public static Model LoadRuntimeModel(string packageId, string modelId)
+        {
+            var resolvedModel = ResolveRuntimeModel(packageId, modelId);
+            return ModelLoader.Load(resolvedModel.PrimarySentisPath);
         }
 
         internal static string GetRuntimeRegistryRelativePath(string packageId)

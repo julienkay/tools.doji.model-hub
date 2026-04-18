@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor.Tests
 {
@@ -220,6 +221,77 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(errorMessage, Is.EqualTo("Manifest model id `shared-id` is declared more than once."));
         }
 
+        /// <summary>
+        /// Tests that project manifest assets are normalized into standard dependency records under the shared project owner id.
+        /// </summary>
+        [Test]
+        public void DiscoverProjectManifests_ReturnsNormalizedDependencies()
+        {
+            var asset = ScriptableObject.CreateInstance<HfHubProjectManifestAsset>();
+            SetProjectManifest(asset, 1, new[]
+            {
+                new HfHubProjectManifestModelAssetEntry
+                {
+                    Id = "tiny-clip-onnx",
+                    DisplayName = "Tiny CLIP ONNX",
+                    Repository = "onnx-community/tiny-clip-test-ONNX",
+                    Revision = "main",
+                    SourceFile = "onnx/model.onnx"
+                }
+            });
+
+            var snapshot = new HfHubProjectManifestAssetSnapshot(
+                "Assets/HF Hub/HF Hub Project Manifest.asset",
+                Path.Combine(_rootDirectory, "Assets", "HF Hub", "HF Hub Project Manifest.asset"),
+                _rootDirectory,
+                asset);
+
+            var report = HfHubProjectManifestDiscovery.DiscoverProjectManifests(new[] { snapshot });
+
+            Assert.That(report.Issues, Is.Empty);
+            Assert.That(report.Dependencies.Count, Is.EqualTo(1));
+
+            var dependency = report.Dependencies[0];
+            Assert.That(dependency.PackageId, Is.EqualTo(HfHubProjectManifestDiscovery.ProjectManifestOwnerId));
+            Assert.That(dependency.PackageDisplayName, Is.EqualTo("Project"));
+            Assert.That(dependency.PackageVersion, Is.EqualTo("project"));
+            Assert.That(dependency.Repository, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
+            Assert.That(dependency.SourceFile, Is.EqualTo("onnx/model.onnx"));
+        }
+
+        /// <summary>
+        /// Tests that invalid project manifest assets report the same validation issues as JSON manifests.
+        /// </summary>
+        [Test]
+        public void DiscoverProjectManifests_ReportsInvalidProjectManifestAsset()
+        {
+            var asset = ScriptableObject.CreateInstance<HfHubProjectManifestAsset>();
+            SetProjectManifest(asset, 1, new[]
+            {
+                new HfHubProjectManifestModelAssetEntry
+                {
+                    Id = "broken-model",
+                    DisplayName = "Broken Model",
+                    Repository = string.Empty,
+                    Revision = "main",
+                    SourceFile = "model.onnx"
+                }
+            });
+
+            var snapshot = new HfHubProjectManifestAssetSnapshot(
+                "Assets/HF Hub/Broken Manifest.asset",
+                Path.Combine(_rootDirectory, "Assets", "HF Hub", "Broken Manifest.asset"),
+                _rootDirectory,
+                asset);
+
+            var report = HfHubProjectManifestDiscovery.DiscoverProjectManifests(new[] { snapshot });
+
+            Assert.That(report.Dependencies, Is.Empty);
+            Assert.That(report.Issues.Count, Is.EqualTo(1));
+            Assert.That(report.Issues[0].PackageId, Is.EqualTo(HfHubProjectManifestDiscovery.ProjectManifestOwnerId));
+            Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a non-empty `repository`."));
+        }
+
         private HfHubInstalledPackageSnapshot CreatePackage(
             string packageId,
             string displayName,
@@ -243,6 +315,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var bytes = Encoding.UTF8.GetBytes(value);
             var hashBytes = sha256.ComputeHash(bytes);
             return string.Concat(hashBytes.Select(hashByte => hashByte.ToString("x2")));
+        }
+
+        private static void SetProjectManifest(
+            HfHubProjectManifestAsset asset,
+            int version,
+            HfHubProjectManifestModelAssetEntry[] models)
+        {
+            var serializedObject = new UnityEditor.SerializedObject(asset);
+            serializedObject.FindProperty("<Version>k__BackingField").intValue = version;
+
+            var modelsProperty = serializedObject.FindProperty("<Models>k__BackingField");
+            modelsProperty.arraySize = models.Length;
+            for (var i = 0; i < models.Length; i++)
+            {
+                var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
+                modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = models[i].Id;
+                modelProperty.FindPropertyRelative("<DisplayName>k__BackingField").stringValue = models[i].DisplayName;
+                modelProperty.FindPropertyRelative("<Repository>k__BackingField").stringValue = models[i].Repository;
+                modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
+                modelProperty.FindPropertyRelative("<SourceFile>k__BackingField").stringValue = models[i].SourceFile;
+            }
+
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

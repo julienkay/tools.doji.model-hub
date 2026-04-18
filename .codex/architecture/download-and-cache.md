@@ -10,13 +10,16 @@ Cache root:
 - Windows: `%LocalAppData%/Doji/HfHub`
 - Linux: `~/.cache/doji/hf-hub`
 
-Raw ONNX path shape:
+Current raw-cache layout uses HuggingFace-style revision and snapshot bookkeeping:
 
 ```text
-<cache-root>/raw/<repository>/<revision>/<sourceFile>
+<cache-root>/raw/<serialized-repo>/refs/<revision>
+<cache-root>/raw/<serialized-repo>/snapshots/<commit>/<sourceFile>
 ```
 
 Downloaded files should only be keyed by Hub identity, not by project.
+
+Raw files keep sidecar `.hfhub.json` metadata so later status checks and stale detection can reason about the cached file without needing fresh network calls.
 
 ## Download Reliability
 
@@ -46,6 +49,8 @@ How V1 tackles each guarantee:
   - persisted state stores which dependency is currently active and which declared dependencies remain pending
   - after domain reload or editor script reload, the background sync manager checks for that persisted state and resumes remaining work
   - raw download partial files remain on disk, so resumed sync can continue transfer from previous byte position where the server supports it
+
+Current implementation uses `HfHubBackgroundSyncManager` to start sync through Unity's `Progress` API, persist pending dependency keys under `Library/Doji/HfHub/sync-state.json`, and resume remaining work after a domain reload.
 
 This means the architecture deliberately separates:
 
@@ -91,6 +96,11 @@ Optional editor-specific adapter layer may live there too, but only for:
 - project import pipeline from raw ONNX to `.sentis`
 - stale detection and generated asset metadata
 - runtime model locator contract
+
+Current repository status:
+
+- `com.doji.downloads` owns shared progress, file locking, resumable `UnityWebRequest` downloads, persisted queue-state storage, generic editor recovery and progress-runner primitives, and sequential queue execution.
+- `com.doji.hf-hub` remains the queue owner for HuggingFace-specific sync meaning, repository resolution, cache metadata, and import orchestration.
 
 ## Migration Bias
 

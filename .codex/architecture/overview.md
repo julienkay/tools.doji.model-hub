@@ -18,6 +18,19 @@ Out of scope for v1:
 - gated models
 - offline workflows beyond reusing already downloaded raw cache data
 
+## Current Implementation Map
+
+The current package already covers the main editor-side vertical slice:
+
+- package manifest discovery and normalized dependency modeling in `com.doji.hf-hub/Runtime`
+- editor package enumeration plus status surfaces for discovery results
+- shared raw-cache infrastructure and HuggingFace-specific metadata handling
+- background sync orchestration through Unity `Progress` with persisted resume state
+- project-owned `.sentis` generation plus generated-asset metadata for stale detection
+- local status classification as `Ready`, `Missing`, `Stale`, or `Failed`
+
+The remaining active architecture slice is the runtime locator contract that removes hard-coded project paths from package runtime usage and supports future multi-file model pipelines.
+
 ## Package Boundary
 
 Current prototype proved one important boundary: generic resumable download infrastructure should not stay embedded inside `com.doji.hf-hub`.

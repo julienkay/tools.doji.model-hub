@@ -31,15 +31,20 @@ Prefer these locations:
 - `docs/`: user-facing package documentation only; keep maintainer notes and internal architecture docs out of DocFX content
 - `.codex/skills/`: project-specific skills; when a task matches one, read and follow the relevant `SKILL.md`
 - `references/`: maintainer-only local reference checkouts; reuse existing clones before downloading again
-- `.codex/project-memory.md`: durable project memory and agent-oriented project context
+- `.codex/current-work.md`: first-read session resume doc with active tasks, blockers, and next steps
+- `.codex/project-brief.md`: stable project intent, constraints, and repo context
+- `.codex/architecture/`: durable maintainer reference docs; read only the files relevant to the current task
 - `projects/HF Hub/Assets`: companion-project assets and test scenes
 
 Prefer working in the package folder when functionality is package-owned.
 
-## Project Memory
+## Internal Docs
 
-Keep durable project memory in `.codex/project-memory.md`.
-Keep internal architecture notes, planning notes, and maintainer-only decisions under `.codex/`.
+Read `.codex/current-work.md` first for most sessions.
+Read `.codex/project-brief.md` second.
+Read only the relevant `.codex/architecture/*.md` files for the task at hand.
+Keep maintainer-only planning and backlog notes under `.codex/`.
+Use the `current-work-maintenance` skill whenever updating `.codex/current-work.md` or when a task changes the active project focus, blockers, or next steps enough that the next session needs an updated handoff.
 
 ## Conventions
 
@@ -49,6 +54,7 @@ When adding code:
 - use asmdefs deliberately and keep assembly references explicit
 - keep namespaces, folders, and asmdef boundaries coherent for Unity and Rider
 - preserve `.meta` files when moving Unity assets or scripts
+- organize future scripts by task area; prefer colocated or clearly scoped folders such as docs-, tooling-, or workflow-specific script locations over a shared miscellaneous scripts bucket
 
 ## C# Style (Unity)
 

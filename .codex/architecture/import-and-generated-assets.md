@@ -32,6 +32,29 @@ Fallback trigger:
 
 The menu command remains available to rescan package manifests and retry downloads or conversion after a user initially postpones the prompt.
 
+## Current Generated Layout
+
+Generated project-owned artifacts currently live under:
+
+```text
+Assets/Doji/HfHub/Generated/<package-id>/<model-id>/
+```
+
+Current conversion flow:
+
+1. Resolve the required ONNX file from the shared raw cache.
+2. Copy it into a temporary project import path under `Assets/Doji/HfHub/TempImport/...`.
+3. Let Unity and Sentis import that temporary ONNX asset.
+4. Serialize the imported model as `.sentis` with `ModelWriter.Save(...)`.
+5. Delete the temporary ONNX import asset after conversion completes.
+
+Each generated output folder currently includes:
+
+- `<source-file-name>.sentis`
+- `hf-hub-import.json`
+
+That metadata file is the editor-side provenance record used for stale detection and re-import decisions.
+
 ## Sentis Version Invalidation
 
 Each generated model gets a sidecar metadata file in its derived output folder.

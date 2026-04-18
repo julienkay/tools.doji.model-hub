@@ -18,6 +18,13 @@ This means:
 - registry exists to map those ids to unique files under shared `StreamingAssets` root
 - package code should not hard-code `Assets/...` or `StreamingAssets/...` conventions directly
 
+## Working Assumptions
+
+- Runtime Sentis loading should use `StreamingAssets`.
+- Generated model payloads and related repository files may need to be copied under one shared project `StreamingAssets` root.
+- There is only one `StreamingAssets` root in a Unity project, so generated runtime paths must be globally collision-safe across packages and models.
+- Package authors should be able to build higher-level wrappers and pipelines that load several generated models and companion config, tokenizer, or preprocess files dynamically by string id.
+
 ## Why Registry Still Helps
 
 - Unity runtime has one shared `StreamingAssets` root, so path uniqueness must be managed centrally
@@ -47,3 +54,11 @@ This is closest in spirit to the HuggingFace Python stack:
 - `huggingface_hub` handles file resolution, download, and cache
 - higher-level libraries expose `from_pretrained(...)` style model loading
 - local file layout and metadata stay implementation detail below that public loading API
+
+## Recommended Direction
+
+1. Generate package-owned runtime locator metadata alongside imported artifacts.
+2. Put imported runtime payloads under one HF Hub-owned `StreamingAssets` subtree with globally unique package and model paths.
+3. Keep runtime locator metadata and editor import metadata separate because they serve different contracts.
+4. Preserve room for multi-file model repos instead of assuming one model id maps to one `.sentis` file forever.
+5. Keep the registry private to HF Hub and expose string-based lookup and load entry points as the supported package-facing surface.

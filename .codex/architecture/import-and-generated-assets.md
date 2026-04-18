@@ -34,26 +34,32 @@ The menu command remains available to rescan package manifests and retry downloa
 
 ## Current Generated Layout
 
-Generated project-owned artifacts currently live under:
+Generated runtime payloads currently live under:
 
 ```text
-Assets/Doji/HfHub/Generated/<package-id>/<model-id>/
+Assets/StreamingAssets/hf-hub/<serialized-repo>/snapshots/<resolved-commit>/
 ```
 
 Current conversion flow:
 
 1. Resolve the required ONNX file from the shared raw cache.
-2. Copy it into a temporary project import path under `Assets/Doji/HfHub/TempImport/...`.
-3. Let Unity and Sentis import that temporary ONNX asset.
-4. Serialize the imported model as `.sentis` with `ModelWriter.Save(...)`.
-5. Delete the temporary ONNX import asset after conversion completes.
+2. Convert cached ONNX file directly through Unity Inference editor conversion code without importing that ONNX file as a Unity asset.
+3. Serialize the converted model as `.sentis` directly into `StreamingAssets` with `ModelWriter.Save(...)`.
+4. Write editor-only provenance metadata under `Library/Doji/HfHub/import-state/...`.
 
-Each generated output folder currently includes:
+Current generated output now includes:
 
-- `<source-file-name>.sentis`
-- `hf-hub-import.json`
+- `Assets/StreamingAssets/hf-hub/<serialized-repo>/snapshots/<resolved-commit>/<source-file-name>.sentis`
+- `Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json`
+- `Library/Doji/HfHub/import-state/<package-id>/<model-id>/hf-hub-import.json`
 
-That metadata file is the editor-side provenance record used for stale detection and re-import decisions.
+`StreamingAssets` `.sentis` is build-facing payload. Registry JSON is string-id lookup index used by runtime locator APIs. `Library` metadata is editor-side provenance for stale detection and re-import decisions.
+
+Conversion abstraction now hangs off `IHfHubOnnxModelConverter`:
+
+- editor uses Unity Inference internal ONNX conversion through a small bridge assembly
+- runtime placeholder currently throws `NotImplementedException`
+- future custom ONNX package should implement the same contract for runtime-safe conversion
 
 ## Sentis Version Invalidation
 

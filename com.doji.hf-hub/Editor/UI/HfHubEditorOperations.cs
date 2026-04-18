@@ -129,7 +129,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     builder.AppendLine($"- OK {result.Dependency.PackageId}/{result.Dependency.ModelId}");
                     builder.AppendLine($"  raw: {result.CachedFile.FilePath}");
-                    builder.AppendLine($"  sentis: {result.ImportedArtifact.SentisAssetPath}");
+                    builder.AppendLine($"  runtime sentis: {result.ImportedArtifact.SentisAssetPath}");
                 }
                 else
                 {

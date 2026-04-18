@@ -22,7 +22,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var discoveryReport = new HfHubDiscoveryReport(
                 new[] { dependency },
                 Array.Empty<HfHubManifestDiscoveryIssue>());
-            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService());
+            var registryService = new FakeRuntimeLocatorRegistryService();
+            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService(), registryService);
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -30,7 +31,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.FailureCount, Is.EqualTo(0));
             Assert.That(report.ModelResults[0].Success, Is.True);
             Assert.That(report.ModelResults[0].CachedFile.FilePath, Is.EqualTo("/cache/ok-model.onnx"));
-            Assert.That(report.ModelResults[0].ImportedArtifact.SentisAssetPath, Is.EqualTo("Assets/Doji/HfHub/Generated/com.doji.test/ok-model/model.sentis"));
+            Assert.That(report.ModelResults[0].ImportedArtifact.SentisAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis"));
+            Assert.That(registryService.CallCount, Is.EqualTo(1));
+            Assert.That(registryService.LastResults.Length, Is.EqualTo(1));
         }
 
         [Test]
@@ -44,7 +47,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var discoveryReport = new HfHubDiscoveryReport(
                 new[] { dependency },
                 new[] { discoveryIssue });
-            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService("broken-model"));
+            var registryService = new FakeRuntimeLocatorRegistryService();
+            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService("broken-model"), registryService);
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -53,6 +57,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DiscoveryIssues.Count, Is.EqualTo(1));
             Assert.That(report.ModelResults[0].Success, Is.False);
             Assert.That(report.ModelResults[0].ErrorMessage, Does.Contain("Simulated import failure"));
+            Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
         /// <summary>
@@ -138,14 +143,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RawFilePath = cachedRawFile.FilePath,
                     SentisVersion = "2.6.1",
                     UnityVersion = "6000.3.10f1",
-                    SentisAssetPath = $"Assets/Doji/HfHub/Generated/{dependency.PackageId}/{dependency.ModelId}/model.sentis",
+                    SentisAssetPath = "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
+                    RuntimeSentisAssetPath = "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
+                    RuntimeSentisRelativePath = "hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 };
 
                 return Task.FromResult(new HfHubImportedModelArtifact(
                     metadata.SentisAssetPath,
-                    $"Assets/Doji/HfHub/Generated/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json",
+                    $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json",
                     metadata));
+            }
+        }
+
+        /// <summary>
+        /// Minimal fake runtime locator registry service for sync tests.
+        /// It records final sync results so tests can verify registry rebuild trigger happens once per sync.
+        /// </summary>
+        private sealed class FakeRuntimeLocatorRegistryService : IHfHubRuntimeLocatorRegistryService
+        {
+            public int CallCount { get; private set; }
+            public HfHubModelSyncResult[] LastResults { get; private set; }
+
+            public void WriteRegistries(System.Collections.Generic.IReadOnlyList<HfHubModelSyncResult> modelResults)
+            {
+                CallCount++;
+                LastResults = modelResults == null
+                    ? Array.Empty<HfHubModelSyncResult>()
+                    : System.Linq.Enumerable.ToArray(modelResults);
             }
         }
     }

@@ -11,12 +11,19 @@ Desired usage style is similar in spirit to Python ecosystem pretrained loading 
 - optional safety checks that can pin or validate expected resolved revision or commit
 - higher-level package-defined pipelines that can dynamically resolve multiple model entries and companion files from stable string ids
 
+Default runtime expectation is stronger offline-use than upstream Python libraries:
+
+- runtime `load(<modelId>)` should usually resolve already-generated local payloads
+- builds should normally ship or otherwise already contain required runtime payloads
+- runtime download still matters as future capability, but should extend this contract rather than replace it
+
 This means:
 
 - generated runtime locator registry is implementation detail, not the primary package-facing API
 - runtime code should call locator or load API with string id
 - registry exists to map those ids to unique files under shared `StreamingAssets` root
 - package code should not hard-code `Assets/...` or `StreamingAssets/...` conventions directly
+- package code should be able to treat runtime load as local resolution first and network fallback later
 
 ## Working Assumptions
 
@@ -35,10 +42,10 @@ This means:
 Because Unity runtime loading will rely on `StreamingAssets`, generated runtime files should live under one shared root such as:
 
 ```text
-Assets/StreamingAssets/Doji/HfHub/
+Assets/StreamingAssets/hf-hub/
 ```
 
-Path uniqueness must hold across all packages and models, so runtime file layout should include package id plus model id and preserve room for multiple companion files per model.
+Path uniqueness must hold across all packages and models, so runtime file layout should follow upstream-style repo serialization plus resolved commit and preserve room for multiple companion files per model.
 
 ## Recommended Layering
 
@@ -55,10 +62,19 @@ This is closest in spirit to the HuggingFace Python stack:
 - higher-level libraries expose `from_pretrained(...)` style model loading
 - local file layout and metadata stay implementation detail below that public loading API
 
+Key difference from upstream default assumptions:
+
+- HF Hub for Unity is more offline-first at runtime
+- editor sync is default preparation step
+- locator/load APIs should make already-downloaded runtime payloads feel like normal local assets
+
 ## Recommended Direction
 
-1. Generate package-owned runtime locator metadata alongside imported artifacts.
-2. Put imported runtime payloads under one HF Hub-owned `StreamingAssets` subtree with globally unique package and model paths.
-3. Keep runtime locator metadata and editor import metadata separate because they serve different contracts.
-4. Preserve room for multi-file model repos instead of assuming one model id maps to one `.sentis` file forever.
-5. Keep the registry private to HF Hub and expose string-based lookup and load entry points as the supported package-facing surface.
+Current implementation:
+
+1. Import writes generated runtime `.sentis` payloads under `Assets/StreamingAssets/hf-hub/<serialized-repo>/snapshots/<resolved-commit>/`.
+2. Sync writes per-package locator registries under `Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json`.
+3. Import metadata and runtime locator metadata stay separate because they serve different contracts.
+4. Runtime code resolves models by stable package id plus model id through `ModelHub.TryResolveRuntimeModel(...)`.
+5. Runtime payload layout now leans closer to official Hub cache concepts by using serialized repository ids and resolved commits instead of package-owned path segments.
+6. Runtime locator contract should continue to support future `load(<modelId>)` style APIs where local resolution is default and runtime download is optional fallback.

@@ -3,7 +3,7 @@ using System;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Sidecar metadata written next to generated project-owned `.sentis` artifact.
+    /// Editor-only import metadata persisted under `Library` for one synchronized model payload.
     /// </summary>
     [Serializable]
     internal sealed class HfHubImportedModelMetadata
@@ -30,7 +30,7 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Represents one generated project-owned `.sentis` artifact and its metadata.
+    /// Represents one generated runtime `.sentis` artifact and its editor-only import metadata.
     /// </summary>
     internal sealed class HfHubImportedModelArtifact
     {
@@ -39,16 +39,16 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public HfHubImportedModelArtifact(
             string sentisAssetPath,
-            string metadataAssetPath,
+            string metadataFilePath,
             HfHubImportedModelMetadata metadata)
         {
             SentisAssetPath = sentisAssetPath;
-            MetadataAssetPath = metadataAssetPath;
+            MetadataFilePath = metadataFilePath;
             Metadata = metadata;
         }
 
         public string SentisAssetPath { get; }
-        public string MetadataAssetPath { get; }
+        public string MetadataFilePath { get; }
         public HfHubImportedModelMetadata Metadata { get; }
         public string RuntimeRegistryAssetPath => Metadata?.RuntimeRegistryAssetPath;
         public string RuntimeRegistryRelativePath => Metadata?.RuntimeRegistryRelativePath;

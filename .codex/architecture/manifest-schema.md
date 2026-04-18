@@ -28,7 +28,8 @@ Initial schema:
 Field intent:
 
 - `version`: manifest format version
-- `id`: stable package-local identifier used for generated paths and metadata
+- `id`: stable package-local alias used for generated paths and package-facing lookup
+- `repository`: HuggingFace model id / repo id used as upstream source identity
 - `displayName`: user-facing name shown in download prompts
 - `repository`: HuggingFace repo id
 - `revision`: branch, tag, or commit to resolve from HuggingFace

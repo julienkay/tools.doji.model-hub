@@ -28,6 +28,7 @@ The file should let the next agent answer three questions in under a minute:
 - No architecture explanations unless needed to unblock the next task.
 - Delete done items instead of archiving them there.
 - Keep it short enough to read in under a minute.
+- If the user confirms that relevant tests passed for a task, treat that task as successfully finished work unless there is still explicit follow-up remaining.
 
 ## What Belongs Here
 
@@ -49,11 +50,12 @@ The file should let the next agent answer three questions in under a minute:
 
 1. Read the current file.
 2. Remove completed items instead of marking them as done.
-3. Rewrite focus if the active slice has changed.
-4. Keep only the next actionable tasks.
-5. Move durable implementation detail to `.codex/architecture/` if it matters later.
-6. Move non-active ideas or questions to `.codex/backlog.md` if they should be kept.
-7. Confirm the file is still short and scannable.
+3. If the user reports that written tests passed, treat the covered task as complete and remove it from `Next Tasks` unless another explicit action is still pending.
+4. Rewrite focus if the active slice has changed.
+5. Keep only the next actionable tasks.
+6. Move durable implementation detail to `.codex/architecture/` if it matters later.
+7. Move non-active ideas, longer-scoped epics, or lower-priority work to `.codex/backlog.md` if they should be kept.
+8. Confirm the file is still short and scannable.
 
 ## Default Shape
 
@@ -86,6 +88,8 @@ Short sentence.
 - Keep section names stable so agents can scan quickly.
 - If a section has nothing useful to say, keep it brief instead of padding it.
 - When a task is fully done, remove it from `Next Tasks` and update `Focus` or `Exit Criteria` to match the remaining active slice.
+- When the user verifies that tests passed for a task, that validation is enough to remove the corresponding TODO from `Next Tasks` unless the task still has non-test follow-up work.
+- Move lower-priority or longer-running items to `.codex/backlog.md` instead of leaving them in `current-work.md`.
 - If all active work changed, rewrite the file to fit the new slice instead of incrementally preserving stale context.
 
 ## Coordination Rule

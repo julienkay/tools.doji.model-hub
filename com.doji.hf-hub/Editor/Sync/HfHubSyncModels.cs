@@ -82,22 +82,33 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
+    /// Contract for rebuilding package runtime locator registries from successful imports.
+    /// </summary>
+    internal interface IHfHubRuntimeLocatorRegistryService
+    {
+        void WriteRegistries(IReadOnlyList<HfHubModelSyncResult> modelResults);
+    }
+
+    /// <summary>
     /// Syncs discovered model dependencies into shared cache and project-owned `.sentis` artifacts.
     /// </summary>
     internal sealed class HfHubSyncService
     {
         private readonly IHfHubRawCacheService _rawCacheService;
         private readonly IHfHubProjectImportService _projectImportService;
+        private readonly IHfHubRuntimeLocatorRegistryService _runtimeLocatorRegistryService;
 
         /// <summary>
         /// Creates sync service with optional injected raw-cache and import services.
         /// </summary>
         public HfHubSyncService(
             IHfHubRawCacheService rawCacheService = null,
-            IHfHubProjectImportService projectImportService = null)
+            IHfHubProjectImportService projectImportService = null,
+            IHfHubRuntimeLocatorRegistryService runtimeLocatorRegistryService = null)
         {
             _rawCacheService = rawCacheService ?? new HfHubRawCacheService();
             _projectImportService = projectImportService ?? new HfHubProjectImportService();
+            _runtimeLocatorRegistryService = runtimeLocatorRegistryService ?? new HfHubRuntimeLocatorRegistryService();
         }
 
         /// <summary>
@@ -121,6 +132,8 @@ namespace Doji.AI.ModelHub.Editor
                     modelResults.Add(new HfHubModelSyncResult(dependency, null, null, exception.Message));
                 }
             }
+
+            _runtimeLocatorRegistryService.WriteRegistries(modelResults);
 
             return new HfHubSyncReport(discoveryReport.Issues, modelResults);
         }

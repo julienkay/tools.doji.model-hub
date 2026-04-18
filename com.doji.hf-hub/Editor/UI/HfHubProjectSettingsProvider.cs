@@ -88,16 +88,16 @@ namespace Doji.AI.ModelHub.Editor
                         EditorStyles.boldLabel);
                     EditorGUILayout.LabelField("State", status.State.ToString());
                     EditorGUILayout.LabelField("Reason", status.Message);
-                    EditorGUILayout.LabelField("Source", $"{status.Dependency.Repository}@{status.Dependency.Revision} :: {status.Dependency.SourceFile}");
+                    DrawSourceRow(status);
 
                     if (!string.IsNullOrWhiteSpace(status.RawFilePath))
                     {
-                        EditorGUILayout.LabelField("Raw Cache", status.RawFilePath);
+                        DrawRevealPathRow("Raw Cache", status.RawFilePath);
                     }
 
                     if (!string.IsNullOrWhiteSpace(status.SentisAssetPath))
                     {
-                        EditorGUILayout.LabelField(".sentis", status.SentisAssetPath);
+                        DrawPingAssetRow("Runtime .sentis", status.SentisAssetPath);
                     }
                 }
             }
@@ -123,6 +123,44 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return MessageType.None;
+        }
+
+        private static void DrawSourceRow(HfHubDependencyStatus status)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel("Source");
+                if (GUILayout.Button(status.Dependency.SourceFile, EditorStyles.linkLabel))
+                {
+                    HfHubProjectSettingsLinks.OpenSourceRepositoryFile(status.Dependency);
+                }
+            }
+
+            EditorGUILayout.LabelField("Repository", $"{status.Dependency.Repository}@{status.Dependency.Revision}");
+        }
+
+        private static void DrawRevealPathRow(string label, string path)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel(label);
+                if (GUILayout.Button(path, EditorStyles.linkLabel))
+                {
+                    HfHubProjectSettingsLinks.RevealPath(path);
+                }
+            }
+        }
+
+        private static void DrawPingAssetRow(string label, string assetPath)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel(label);
+                if (GUILayout.Button(assetPath, EditorStyles.linkLabel))
+                {
+                    HfHubProjectSettingsLinks.PingAsset(assetPath);
+                }
+            }
         }
     }
 }

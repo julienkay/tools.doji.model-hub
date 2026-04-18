@@ -2,19 +2,18 @@
 
 ## Focus
 
-Finish the runtime locator contract, then prove it in a companion-project sample flow.
+Build first companion-project sample around sync, runtime locator lookup, and runtime model load.
 
 ## Next Tasks
 
-- [ ] Finish the runtime locator contract for generated `.sentis` assets and companion repository files.
-- [ ] Generate package-owned runtime locator metadata for string-based runtime lookup and future multi-file model pipelines.
-- [ ] Update runtime and editor code so packages stop depending on hard-coded `Assets/Doji/HfHub/Generated/...` paths.
 - [ ] Build the first companion-project sample around sync, locator lookup, and runtime model load.
+- [ ] Extend runtime locator registry entries from primary `.sentis` payloads to multi-file companion file sets.
+- [ ] Decide whether public runtime lookup should stay `package id + model id` or move closer to HuggingFace source ids for package-facing APIs.
+- [ ] Add runtime-capable ONNX converter package behind `IHfHubOnnxModelConverter` when runtime conversion work starts.
 
 ## Blockers And Decisions Needed
 
-- Settle the registry shape for one model id resolving to a primary `.sentis` payload plus optional companion files.
-- Settle the final `StreamingAssets` layout and uniqueness contract across packages and models.
+- No active blocker for current sample-flow slice.
 
 ## Read Before Editing
 
@@ -25,6 +24,4 @@ Finish the runtime locator contract, then prove it in a companion-project sample
 
 ## Exit Criteria
 
-- Runtime APIs resolve generated content by stable string id rather than project path conventions.
-- Import generates runtime locator metadata together with project-owned artifacts.
 - The companion project demonstrates sync, lookup, and runtime model load through the locator path.

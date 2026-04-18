@@ -37,19 +37,15 @@ namespace Doji.AI.ModelHub.Editor
         private HfHubDependencyStatus BuildDependencyStatus(HfHubDiscoveredModelDependency dependency)
         {
             var revisionRefPath = HfHubCachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
-            var sentisAssetPath = HfHubProjectPaths.GetGeneratedSentisAssetPath(
-                dependency.PackageId,
-                dependency.ModelId,
-                dependency.SourceFile);
-            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
-            var importMetadataAssetPath = HfHubProjectPaths.GetGeneratedMetadataAssetPath(
+            string sentisAssetPath = null;
+            var importMetadataAssetPath = HfHubProjectPaths.GetImportMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
-            var importMetadataAbsolutePath = HfHubProjectPaths.ToAbsolutePath(importMetadataAssetPath);
+            var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(importMetadataAssetPath);
 
             if (!File.Exists(revisionRefPath))
             {
-                return Missing(dependency, "Raw cache revision ref not found.", revisionRefPath, sentisAssetPath, importMetadataAssetPath);
+                return Missing(dependency, "Raw cache revision ref is missing.", revisionRefPath, sentisAssetPath, importMetadataAssetPath);
             }
 
             string resolvedCommitHash;
@@ -61,7 +57,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return Failed(
                     dependency,
-                    $"Failed to read raw cache revision ref: {exception.Message}",
+                    $"Could not read raw cache revision ref: {exception.Message}",
                     revisionRefPath,
                     sentisAssetPath,
                     importMetadataAssetPath);
@@ -90,7 +86,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return Missing(
                     dependency,
-                    "Cached raw source file not found.",
+                    "Raw source file is missing from cache.",
                     revisionRefPath,
                     rawFilePath,
                     rawMetadataPath,
@@ -102,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return Missing(
                     dependency,
-                    "Raw cache metadata not found.",
+                    "Raw cache metadata file is missing.",
                     revisionRefPath,
                     rawFilePath,
                     rawMetadataPath,
@@ -136,11 +132,17 @@ namespace Doji.AI.ModelHub.Editor
                     importMetadataAssetPath);
             }
 
+            sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+                dependency.Repository,
+                resolvedCommitHash,
+                dependency.SourceFile);
+            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
+
             if (!File.Exists(sentisAbsolutePath))
             {
                 return Missing(
                     dependency,
-                    "Generated .sentis artifact not found.",
+                    "Runtime .sentis asset is missing.",
                     revisionRefPath,
                     rawFilePath,
                     rawMetadataPath,
@@ -153,7 +155,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return Missing(
                     dependency,
-                    "Generated import metadata not found.",
+                    "Import metadata file is missing.",
                     revisionRefPath,
                     rawFilePath,
                     rawMetadataPath,
@@ -166,7 +168,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return Failed(
                     dependency,
-                    "Generated import metadata is invalid.",
+                    "Import metadata is invalid.",
                     revisionRefPath,
                     rawFilePath,
                     rawMetadataPath,
@@ -199,7 +201,7 @@ namespace Doji.AI.ModelHub.Editor
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Ready,
-                "Ready.",
+                "Raw cache and runtime .sentis are current.",
                 revisionRefPath,
                 rawFilePath,
                 rawMetadataPath,
@@ -217,27 +219,27 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal))
             {
-                return "Raw cache repository does not match manifest.";
+                return "Raw cache repository differs from manifest.";
             }
 
             if (!string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal))
             {
-                return "Raw cache revision does not match manifest.";
+                return "Raw cache revision differs from manifest.";
             }
 
             if (!string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
             {
-                return "Raw cache commit does not match current revision ref.";
+                return "Raw cache commit differs from revision ref.";
             }
 
             if (!string.Equals(rawMetadata.SourceFile, dependency.SourceFile, StringComparison.Ordinal))
             {
-                return "Raw cache source file does not match manifest.";
+                return "Raw cache source path differs from manifest.";
             }
 
             if (!string.Equals(rawMetadata.CachedFilePath, rawFilePath, StringComparison.Ordinal))
             {
-                return "Raw cache file path metadata does not match current cache layout.";
+                return "Raw cache file path metadata differs from current cache layout.";
             }
 
             return null;
@@ -253,57 +255,57 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal))
             {
-                return "Generated import metadata package id does not match current dependency.";
+                return "Import metadata package id differs from current dependency.";
             }
 
             if (!string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal))
             {
-                return "Generated import metadata model id does not match current dependency.";
+                return "Import metadata model id differs from current dependency.";
             }
 
             if (!string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal))
             {
-                return "Generated import metadata manifest hash is stale.";
+                return "Import metadata manifest hash differs from current manifest.";
             }
 
             if (!string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal))
             {
-                return "Generated import metadata repository does not match manifest.";
+                return "Import metadata repository differs from manifest.";
             }
 
             if (!string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal))
             {
-                return "Generated import metadata revision does not match manifest.";
+                return "Import metadata revision differs from manifest.";
             }
 
             if (!string.Equals(importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal))
             {
-                return "Generated import metadata commit does not match cached raw file.";
+                return "Import metadata commit differs from cached raw file.";
             }
 
             if (!string.Equals(importedMetadata.SourceFile, dependency.SourceFile, StringComparison.Ordinal))
             {
-                return "Generated import metadata source file does not match manifest.";
+                return "Import metadata source path differs from manifest.";
             }
 
             if (!string.Equals(importedMetadata.RawFilePath, rawFilePath, StringComparison.Ordinal))
             {
-                return "Generated import metadata raw file path is stale.";
+                return "Import metadata raw file path differs from current cache path.";
             }
 
             if (!string.Equals(importedMetadata.RawMetadataPath, rawMetadataPath, StringComparison.Ordinal))
             {
-                return "Generated import metadata raw metadata path is stale.";
+                return "Import metadata raw metadata path differs from current cache path.";
             }
 
             if (!string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
             {
-                return "Generated .sentis artifact was produced with a different Sentis version.";
+                return "Import metadata Sentis version differs from installed Sentis version.";
             }
 
             if (!string.Equals(importedMetadata.SentisAssetPath, sentisAssetPath, StringComparison.Ordinal))
             {
-                return "Generated import metadata .sentis asset path is stale.";
+                return "Import metadata .sentis asset path differs from current asset path.";
             }
 
             return null;

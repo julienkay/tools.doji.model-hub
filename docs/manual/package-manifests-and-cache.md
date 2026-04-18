@@ -22,9 +22,9 @@ Example:
 ## Manifest Fields
 
 - `version`: manifest schema version. Current value is `1`.
-- `id`: package-local model identifier.
+- `id`: package-local lookup alias used by HF Hub inside one Unity package.
 - `displayName`: user-facing model name.
-- `repository`: HuggingFace repository id.
+- `repository`: HuggingFace model id or repository id, same source concept used by `from_pretrained(...)`.
 - `revision`: branch, tag, or commit to resolve.
 - `sourceFile`: file path inside remote repository.
 
@@ -66,11 +66,9 @@ Current sync flow:
 3. Resolve each dependency to remote HuggingFace file version.
 4. Download missing raw files into shared cache.
 5. Write cache metadata and revision ref files.
-6. Copy cached ONNX into a temporary Unity import location.
-7. Let Unity Inference import that ONNX file.
-8. Serialize resulting model to a generated `.sentis` file owned by the current project.
-9. Write generated-artifact metadata next to that `.sentis` file.
-10. Remove the temporary ONNX import asset again.
+6. Convert cached ONNX directly through Unity Inference editor conversion code.
+7. Serialize resulting model to a generated `.sentis` file under shared `StreamingAssets`.
+8. Write editor-only import metadata under `Library/Doji/HfHub/import-state/`.
 
 Current sync flow still follows the manifest limitation above, so it only syncs one declared `sourceFile` per model entry.
 
@@ -94,6 +92,24 @@ When dependencies are `Missing`, `Stale`, or `Failed`, HF Hub currently:
 Starting sync from either the menu, Project Settings, or the prompt now uses Unity's background Progress UI.
 
 The Project Settings page is the main user-facing status surface for this package at the moment.
+
+Each dependency row also exposes clickable links for:
+
+- `Source`: opens declared HuggingFace repository file in browser
+- `Raw Cache`: reveals downloaded source file in local file browser
+- `Runtime .sentis`: selects and pings generated runtime asset in Unity Project view
+
+## Runtime Use Assumption
+
+HF Hub is designed around stronger offline runtime use than the upstream Python Hub libraries.
+
+Default expectation:
+
+- package authors sync models in the Editor first
+- builds include or otherwise already have the generated runtime `.sentis` payloads
+- runtime code resolves local payloads by model id through HF Hub locator APIs
+
+Runtime download is still planned, but that is additive. Default workflow assumes the file was downloaded and converted in the Editor before runtime load happens.
 
 ## Shared Raw Cache
 
@@ -121,29 +137,54 @@ raw/hf-internal-testing--tiny-random-bert/snapshots/<commit>/model.onnx
 
 ## Generated Project Artifacts
 
-Generated project-owned assets live under:
+Generated runtime payloads live under:
 
 ```text
-Assets/Doji/HfHub/Generated/<package-id>/<model-id>/
+Assets/StreamingAssets/hf-hub/<serialized-repo>/snapshots/<resolved-commit>/
 ```
 
-Current generated files:
+Current generated runtime files:
 
 ```text
 <source-file-name>.sentis
-hf-hub-import.json
 ```
 
 Example:
 
 ```text
-Assets/Doji/HfHub/Generated/com.doji.example/tiny-random-bert/model.sentis
-Assets/Doji/HfHub/Generated/com.doji.example/tiny-random-bert/hf-hub-import.json
+Assets/StreamingAssets/hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/<commit>/model.sentis
 ```
 
-The `.sentis` file is the project-owned artifact intended for loading in editor and runtime.
+The `.sentis` file is runtime-facing payload intended for editor and runtime load paths.
 
-The `hf-hub-import.json` sidecar currently records:
+HF Hub also writes locator metadata under shared `StreamingAssets` root:
+
+```text
+Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json
+```
+
+Runtime code should resolve generated payloads by stable package id plus model id through:
+
+```csharp
+if (ModelHub.TryResolveRuntimeModel("com.doji.example", "tiny-random-bert", out var model))
+{
+    var sentisPath = model.PrimarySentisPath;
+}
+```
+
+This avoids hard-coding `Assets/...` or `StreamingAssets/...` path conventions in package runtime code.
+
+In other words, runtime `load(<modelId>)` should usually mean "resolve local generated payload and load it", not "go to network first".
+
+Editor-only import provenance currently lives under:
+
+```text
+Library/Doji/HfHub/import-state/<package-id>/<model-id>/hf-hub-import.json
+```
+
+That file is maintainer/debug state, not user-facing project content.
+
+Stored fields include:
 
 - package id and package version
 - model id and display name
@@ -153,6 +194,8 @@ The `hf-hub-import.json` sidecar currently records:
 - Sentis version
 - Unity version for diagnostics
 - generated `.sentis` asset path
+- generated runtime registry path
+- generated runtime `.sentis` path
 - import timestamp
 
 HF Hub currently regenerates the `.sentis` artifact when the generated file is missing or when recorded metadata no longer matches the package manifest, raw commit, or installed Sentis version.
@@ -196,13 +239,7 @@ This prevents duplicate writes when multiple editor operations try to cache same
 
 ## Temporary Import Assets
 
-During conversion, HF Hub creates a temporary ONNX asset under:
-
-```text
-Assets/Doji/HfHub/TempImport/
-```
-
-That temporary asset exists only long enough for Unity Inference to import the ONNX file and is then removed again.
+Current implementation does not create temporary ONNX Unity assets during conversion.
 
 ## Background Sync and Domain Reloads
 

@@ -1,0 +1,96 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
+namespace Doji.AI.ModelHub.Editor
+{
+    /// <summary>
+    /// Writes per-package runtime locator registries for generated files under shared `StreamingAssets` root.
+    /// </summary>
+    internal sealed class HfHubRuntimeLocatorRegistryService : IHfHubRuntimeLocatorRegistryService
+    {
+        private const int RuntimeLocatorSchemaVersion = 1;
+
+        /// <summary>
+        /// Rebuilds runtime locator registries from successful sync results.
+        /// </summary>
+        public void WriteRegistries(IReadOnlyList<HfHubModelSyncResult> modelResults)
+        {
+            var successfulResults = (modelResults ?? Array.Empty<HfHubModelSyncResult>())
+                .Where(result => result.Success && result.ImportedArtifact?.Metadata != null)
+                .ToArray();
+
+            foreach (var packageGroup in successfulResults.GroupBy(result => result.Dependency.PackageId, StringComparer.Ordinal))
+            {
+                var manifest = new HfHubRuntimeLocatorManifest(
+                    RuntimeLocatorSchemaVersion,
+                    packageGroup.Key,
+                    packageGroup.First().Dependency.PackageVersion,
+                    packageGroup
+                        .OrderBy(result => result.Dependency.ModelId, StringComparer.Ordinal)
+                        .Select(CreateEntry)
+                        .ToArray());
+
+                var registryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(packageGroup.Key);
+                var registryAbsolutePath = HfHubProjectPaths.ToAbsolutePath(registryAssetPath);
+                EnsureAssetFolderExists(Path.GetDirectoryName(registryAssetPath)?.Replace('\\', '/')
+                    ?? throw new InvalidOperationException("Missing runtime registry directory."));
+
+                Directory.CreateDirectory(Path.GetDirectoryName(registryAbsolutePath)
+                    ?? throw new InvalidOperationException("Missing runtime registry directory."));
+                File.WriteAllText(
+                    registryAbsolutePath,
+                    JsonUtility.ToJson(new HfHubRuntimeLocatorManifestDocument(manifest), true));
+
+                AssetDatabase.ImportAsset(
+                    registryAssetPath,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            }
+        }
+
+        private static HfHubRuntimeLocatorEntry CreateEntry(HfHubModelSyncResult result)
+        {
+            var metadata = result.ImportedArtifact.Metadata;
+            return new HfHubRuntimeLocatorEntry(
+                result.Dependency.ModelId,
+                result.Dependency.ModelDisplayName,
+                metadata.RuntimeSentisRelativePath,
+                new[]
+                {
+                    new HfHubRuntimeLocatorFile(
+                        metadata.RuntimeSentisRelativePath,
+                        result.Dependency.SourceFile,
+                        "sentis")
+                });
+        }
+
+        private static void EnsureAssetFolderExists(string assetFolderPath)
+        {
+            if (AssetDatabase.IsValidFolder(assetFolderPath))
+            {
+                return;
+            }
+
+            var parts = assetFolderPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0 || !string.Equals(parts[0], "Assets", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Expected Unity asset folder under Assets, got '{assetFolderPath}'.");
+            }
+
+            var currentFolder = parts[0];
+            for (var i = 1; i < parts.Length; i++)
+            {
+                var nextFolder = $"{currentFolder}/{parts[i]}";
+                if (!AssetDatabase.IsValidFolder(nextFolder))
+                {
+                    AssetDatabase.CreateFolder(currentFolder, parts[i]);
+                }
+
+                currentFolder = nextFolder;
+            }
+        }
+    }
+}

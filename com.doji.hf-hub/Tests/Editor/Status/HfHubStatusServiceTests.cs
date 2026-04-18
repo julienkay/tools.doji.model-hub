@@ -49,7 +49,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Missing));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache revision ref not found."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache revision ref is missing."));
         }
 
         [Test]
@@ -62,7 +62,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Missing));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Generated .sentis artifact not found."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Runtime .sentis asset is missing."));
         }
 
         [Test]
@@ -76,7 +76,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.ReadyCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Ready));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Ready."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache and runtime .sentis are current."));
         }
 
         [Test]
@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.StaleCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Stale));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Generated import metadata manifest hash is stale."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata manifest hash differs from current manifest."));
         }
 
         [Test]
@@ -100,8 +100,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRawCache(dependency);
             WriteSentisFile(dependency);
 
-            var importMetadataAbsolutePath = HfHubProjectPaths.ToAbsolutePath(
-                HfHubProjectPaths.GetGeneratedMetadataAssetPath(dependency.PackageId, dependency.ModelId));
+            var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(
+                HfHubProjectPaths.GetImportMetadataFilePath(dependency.PackageId, dependency.ModelId));
             Directory.CreateDirectory(Path.GetDirectoryName(importMetadataAbsolutePath) ?? throw new InvalidOperationException());
             File.WriteAllText(importMetadataAbsolutePath, "{ invalid json");
 
@@ -109,7 +109,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.FailedCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Failed));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Generated import metadata is invalid."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata is invalid."));
         }
 
         [Test]
@@ -122,7 +122,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new HfHubDependencyStatus(
                         CreateDependency(),
                         HfHubDependencyState.Missing,
-                        "Missing.",
+                        "Raw cache revision ref is missing.",
                         null,
                         null,
                         null,
@@ -146,13 +146,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new HfHubDependencyStatus(
                         dependency,
                         HfHubDependencyState.Ready,
-                        "Ready.",
+                        "Raw cache and runtime .sentis are current.",
                         "ref",
                         "raw",
                         "rawmeta",
                         new HfHubRawCacheMetadata(),
-                        "Assets/Doji/HfHub/Generated/com.doji.test/test-model/model.sentis",
-                        "Assets/Doji/HfHub/Generated/com.doji.test/test-model/hf-hub-import.json",
+                        "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
+                        "Library/Doji/HfHub/import-state/com.doji.test/test-model/hf-hub-import.json",
                         new HfHubImportedModelMetadata())
                 });
 
@@ -215,12 +215,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             WriteSentisFile(dependency);
 
-            var sentisAssetPath = HfHubProjectPaths.GetGeneratedSentisAssetPath(
-                dependency.PackageId,
-                dependency.ModelId,
+            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+                dependency.Repository,
+                commitHash,
                 dependency.SourceFile);
-            var importMetadataAbsolutePath = HfHubProjectPaths.ToAbsolutePath(
-                HfHubProjectPaths.GetGeneratedMetadataAssetPath(dependency.PackageId, dependency.ModelId));
+            var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(
+                HfHubProjectPaths.GetImportMetadataFilePath(dependency.PackageId, dependency.ModelId));
             var rawFilePath = HfHubCachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, dependency.SourceFile);
             var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash, dependency.SourceFile);
 
@@ -250,15 +250,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static void WriteSentisFile(HfHubDiscoveredModelDependency dependency)
         {
             var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(
-                HfHubProjectPaths.GetGeneratedSentisAssetPath(dependency.PackageId, dependency.ModelId, dependency.SourceFile));
+                HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", dependency.SourceFile));
             Directory.CreateDirectory(Path.GetDirectoryName(sentisAbsolutePath) ?? throw new InvalidOperationException());
             File.WriteAllText(sentisAbsolutePath, "sentis");
         }
 
         private static void CleanupProjectArtifacts()
         {
-            DeleteAssetIfExists("Assets/Doji/HfHub/Generated");
-            DeleteAssetIfExists("Assets/Doji/HfHub/TempImport");
+            DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
+            DeleteProjectFolderIfExists("Library/Doji/HfHub/import-state");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
@@ -267,6 +267,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
             if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(HfHubProjectPaths.ToAbsolutePath(assetPath)))
             {
                 AssetDatabase.DeleteAsset(assetPath);
+            }
+        }
+
+        private static void DeleteProjectFolderIfExists(string projectRelativePath)
+        {
+            var absolutePath = HfHubProjectPaths.ToProjectAbsolutePath(projectRelativePath);
+            if (Directory.Exists(absolutePath))
+            {
+                Directory.Delete(absolutePath, true);
             }
         }
     }

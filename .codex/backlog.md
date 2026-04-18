@@ -1,5 +1,14 @@
 # Backlog
 
+Use this file for work that should stay discoverable across sessions but is not part of the active slice in `.codex/current-work.md`.
+
+This is the home for:
+
+- longer-scoped epics
+- lower-priority work
+- parked ideas that should not disappear
+- open questions that matter beyond the current task
+
 ## Open Questions
 
 - Where should the shared cache live on each platform, and how should cleanup or eviction work?

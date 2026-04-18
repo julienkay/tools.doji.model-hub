@@ -1,45 +1,33 @@
 using System;
 using System.IO;
-using System.Linq;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Centralizes project-local generated artifact and temporary import paths.
+    /// Centralizes runtime payload and editor-only import-state paths used by HF Hub.
     /// </summary>
     internal static class HfHubProjectPaths
     {
-        private const string GeneratedRoot = "Assets/Doji/HfHub/Generated";
-        private const string TemporaryImportRoot = "Assets/Doji/HfHub/TempImport";
         private const string ImportMetadataFileName = "hf-hub-import.json";
+        private const string ImportStateRoot = "Library/Doji/HfHub/import-state";
         private const string RuntimeRegistryFileName = "hf-hub-runtime.json";
-        private const string RuntimeRegistriesRoot = ModelHub.RuntimeStreamingAssetsRoot + "/Registries";
-        private const string RuntimeModelsRoot = ModelHub.RuntimeStreamingAssetsRoot + "/Models";
+        private const string RuntimeRegistriesRoot = ModelHub.RuntimeStreamingAssetsRoot + "/registries";
 
         /// <summary>
-        /// Returns project-owned output folder for one package model dependency.
+        /// Returns opaque editor-only import-state folder under `Library` for one package model dependency.
         /// </summary>
-        public static string GetGeneratedModelFolder(string packageId, string modelId)
+        public static string GetImportStateFolder(string packageId, string modelId)
         {
-            return $"{GeneratedRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}";
+            return $"{ImportStateRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
         }
 
         /// <summary>
-        /// Returns generated `.sentis` asset path for one dependency.
+        /// Returns editor-only import metadata path under `Library`.
         /// </summary>
-        public static string GetGeneratedSentisAssetPath(string packageId, string modelId, string sourceFile)
+        public static string GetImportMetadataFilePath(string packageId, string modelId)
         {
-            var fileName = $"{Path.GetFileNameWithoutExtension(sourceFile)}.sentis";
-            return $"{GetGeneratedModelFolder(packageId, modelId)}/{fileName}";
-        }
-
-        /// <summary>
-        /// Returns import metadata sidecar path for one dependency.
-        /// </summary>
-        public static string GetGeneratedMetadataAssetPath(string packageId, string modelId)
-        {
-            return $"{GetGeneratedModelFolder(packageId, modelId)}/{ImportMetadataFileName}";
+            return $"{GetImportStateFolder(packageId, modelId)}/{ImportMetadataFileName}";
         }
 
         /// <summary>
@@ -47,33 +35,33 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetRuntimeRegistryAssetPath(string packageId)
         {
-            return $"{RuntimeRegistriesRoot}/{SanitizePathSegment(packageId)}/{RuntimeRegistryFileName}";
+            return $"{RuntimeRegistriesRoot}/{ModelHub.SanitizePathSegment(packageId)}/{RuntimeRegistryFileName}";
         }
 
         /// <summary>
-        /// Returns model folder under shared StreamingAssets root using package + model segments for global uniqueness.
+        /// Returns runtime snapshot folder under shared StreamingAssets root using serialized repository id plus resolved commit.
         /// </summary>
-        public static string GetRuntimeModelFolder(string packageId, string modelId)
+        public static string GetRuntimeSnapshotFolder(string repository, string resolvedCommitHash)
         {
-            return $"{RuntimeModelsRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}";
+            return $"{ModelHub.RuntimeStreamingAssetsRoot}/{ModelHub.SerializeRepositoryId(repository)}/snapshots/{ModelHub.SanitizePathSegment(resolvedCommitHash)}";
         }
 
         /// <summary>
         /// Returns primary runtime `.sentis` file path under shared StreamingAssets root.
         /// </summary>
-        public static string GetRuntimeSentisAssetPath(string packageId, string modelId, string sourceFile)
+        public static string GetRuntimeSentisAssetPath(string repository, string resolvedCommitHash, string sourceFile)
         {
             var fileName = $"{Path.GetFileNameWithoutExtension(sourceFile)}.sentis";
-            return $"{GetRuntimeModelFolder(packageId, modelId)}/{fileName}";
+            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/{fileName}";
         }
 
         /// <summary>
         /// Returns runtime companion/source file path under shared StreamingAssets root while preserving relative repo folders.
         /// </summary>
-        public static string GetRuntimeSourceAssetPath(string packageId, string modelId, string sourceFile)
+        public static string GetRuntimeSourceAssetPath(string repository, string resolvedCommitHash, string sourceFile)
         {
-            var sanitizedRelativeSourcePath = SanitizeRelativePath(sourceFile);
-            return $"{GetRuntimeModelFolder(packageId, modelId)}/repo/{sanitizedRelativeSourcePath}";
+            var sanitizedRelativeSourcePath = ModelHub.SanitizeRelativePath(sourceFile);
+            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/repo/{sanitizedRelativeSourcePath}";
         }
 
         /// <summary>
@@ -91,15 +79,6 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns temporary project asset path used to trigger Unity's ONNX importer.
-        /// </summary>
-        public static string GetTemporaryOnnxAssetPath(string packageId, string modelId, string sourceFile)
-        {
-            var fileName = Path.GetFileName(sourceFile);
-            return $"{TemporaryImportRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}/{fileName}";
-        }
-
-        /// <summary>
         /// Converts Unity asset path to absolute project file path.
         /// </summary>
         public static string ToAbsolutePath(string assetPath)
@@ -109,36 +88,20 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Converts project-relative path such as `Library/...` into absolute project file path.
+        /// </summary>
+        public static string ToProjectAbsolutePath(string projectRelativePath)
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            return Path.GetFullPath(Path.Combine(projectRoot, projectRelativePath));
+        }
+
+        /// <summary>
         /// Returns true when path segment is safe for generated asset paths.
         /// </summary>
         public static string SanitizePathSegment(string value)
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return "unnamed";
-            }
-
-            var invalidCharacters = Path.GetInvalidFileNameChars();
-            var sanitized = new string(value
-                .Select(character => invalidCharacters.Contains(character) || character == '/' || character == '\\'
-                    ? '-'
-                    : character)
-                .ToArray());
-
-            return sanitized.Replace(" ", "-");
-        }
-
-        private static string SanitizeRelativePath(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return "unnamed";
-            }
-
-            return string.Join(
-                "/",
-                value.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(SanitizePathSegment));
+            return ModelHub.SanitizePathSegment(value);
         }
     }
 }

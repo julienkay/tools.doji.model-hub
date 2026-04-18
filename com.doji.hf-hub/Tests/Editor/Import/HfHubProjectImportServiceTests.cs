@@ -11,8 +11,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// <summary>
     /// Covers real project import behavior.
     /// Raw input ONNX stays local by reusing a tiny sample model shipped inside `com.unity.ai.inference`,
-    /// while Unity's real ONNX importer, `.sentis` importer, and `AssetDatabase` pipeline stay active.
-    /// These tests verify generated path shape, metadata write, temp asset cleanup, and up-to-date reuse.
+    /// while direct Unity Inference ONNX conversion, `.sentis` serialization, and `AssetDatabase` pipeline stay active.
+    /// These tests verify generated path shape, metadata write, and up-to-date reuse.
     /// </summary>
     internal sealed class HfHubProjectImportServiceTests
     {
@@ -41,19 +41,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var artifact = await _service.ImportAsync(dependency, cachedRawFile, CancellationToken.None);
 
-            Assert.That(artifact.SentisAssetPath, Is.EqualTo("Assets/Doji/HfHub/Generated/com.doji.test/tiny-sample/SingleInputSingleOuput.sentis"));
+            Assert.That(artifact.SentisAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/commit123/SingleInputSingleOuput.sentis"));
             Assert.That(File.Exists(HfHubProjectPaths.ToAbsolutePath(artifact.SentisAssetPath)), Is.True);
-            Assert.That(File.Exists(HfHubProjectPaths.ToAbsolutePath(artifact.MetadataAssetPath)), Is.True);
-            Assert.That(AssetDatabase.LoadAssetAtPath<ModelAsset>(artifact.SentisAssetPath), Is.Not.Null);
+            Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.MetadataFilePath)), Is.True);
+            Assert.That(ModelLoader.Load(HfHubProjectPaths.ToAbsolutePath(artifact.SentisAssetPath)), Is.Not.Null);
             Assert.That(artifact.Metadata.PackageId, Is.EqualTo("com.doji.test"));
             Assert.That(artifact.Metadata.ModelId, Is.EqualTo("tiny-sample"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
             Assert.That(artifact.Metadata.SentisAssetPath, Is.EqualTo(artifact.SentisAssetPath));
-            Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/Doji/HfHub/Registries/com.doji.test/hf-hub-runtime.json"));
-            Assert.That(artifact.RuntimeRegistryRelativePath, Is.EqualTo("Doji/HfHub/Registries/com.doji.test/hf-hub-runtime.json"));
-            Assert.That(artifact.RuntimeSentisAssetPath, Is.EqualTo("Assets/StreamingAssets/Doji/HfHub/Models/com.doji.test/tiny-sample/SingleInputSingleOuput.sentis"));
-            Assert.That(artifact.RuntimeSentisRelativePath, Is.EqualTo("Doji/HfHub/Models/com.doji.test/tiny-sample/SingleInputSingleOuput.sentis"));
-            Assert.That(AssetDatabase.LoadMainAssetAtPath("Assets/Doji/HfHub/TempImport/com.doji.test/tiny-sample/SingleInputSingleOuput.onnx"), Is.Null);
+            Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/com.doji.test/hf-hub-runtime.json"));
+            Assert.That(artifact.RuntimeRegistryRelativePath, Is.EqualTo("hf-hub/registries/com.doji.test/hf-hub-runtime.json"));
+            Assert.That(artifact.RuntimeSentisAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/commit123/SingleInputSingleOuput.sentis"));
+            Assert.That(artifact.RuntimeSentisRelativePath, Is.EqualTo("hf-hub/models--doji--test-model/snapshots/commit123/SingleInputSingleOuput.sentis"));
+            Assert.That(File.Exists(HfHubProjectPaths.ToAbsolutePath(artifact.RuntimeSentisAssetPath)), Is.True);
+            Assert.That(artifact.RuntimeSentisAssetPath, Is.EqualTo(artifact.SentisAssetPath));
         }
 
         [Test]
@@ -70,7 +71,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var secondArtifact = await _service.ImportAsync(dependency, cachedRawFile, CancellationToken.None);
 
             Assert.That(secondArtifact.SentisAssetPath, Is.EqualTo(firstArtifact.SentisAssetPath));
-            Assert.That(secondArtifact.MetadataAssetPath, Is.EqualTo(firstArtifact.MetadataAssetPath));
+            Assert.That(secondArtifact.MetadataFilePath, Is.EqualTo(firstArtifact.MetadataFilePath));
             Assert.That(secondArtifact.Metadata.ImportedAtUtc, Is.EqualTo(firstTimestamp));
         }
 
@@ -127,8 +128,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static void CleanupProjectArtifacts()
         {
-            DeleteAssetIfExists("Assets/Doji/HfHub/Generated");
-            DeleteAssetIfExists("Assets/Doji/HfHub/TempImport");
+            DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
+            DeleteProjectFolderIfExists("Library/Doji/HfHub/import-state");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
@@ -137,6 +138,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
             if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(HfHubProjectPaths.ToAbsolutePath(assetPath)))
             {
                 AssetDatabase.DeleteAsset(assetPath);
+            }
+        }
+
+        private static void DeleteProjectFolderIfExists(string projectRelativePath)
+        {
+            var absolutePath = HfHubProjectPaths.ToProjectAbsolutePath(projectRelativePath);
+            if (Directory.Exists(absolutePath))
+            {
+                Directory.Delete(absolutePath, true);
             }
         }
     }

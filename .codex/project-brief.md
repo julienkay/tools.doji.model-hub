@@ -18,6 +18,7 @@
 3. The Editor prompts the user to download and import the required model dependencies.
 4. Source ONNX files are downloaded into a shared local cache so multiple Unity projects can reuse the same raw files.
 5. The package converts those cached ONNX files into project-owned `.sentis` artifacts for editor and runtime use.
+6. Runtime code primarily resolves and loads already-generated local payloads. Runtime download remains future scope, but default workflow assumes editor sync happened before build/runtime use.
 
 ## Architectural Boundaries
 
@@ -29,6 +30,7 @@
 - `.sentis` is the preferred consumption format because it avoids repeated ONNX import work.
 - Generated `.sentis` artifacts should be treated as version-sensitive to the installed Sentis version.
 - Reuse raw downloads across projects whenever possible. If converted artifacts are cached later, key them by model identity and Sentis version.
+- Compared with upstream `huggingface_hub`, prioritize stronger offline/runtime use: default package workflow assumes model payloads are pre-downloaded in editor and present at runtime, with runtime download as additive capability rather than primary path.
 
 ## Reference Implementation
 

@@ -17,7 +17,7 @@ It is built with Unity 6000.3 LTS. There is no compile step, CLI build command, 
 - Prefer `.sentis` artifacts for project/runtime consumption because they can be loaded from flatbuffer data without repeated ONNX import cost.
 - Assume `.sentis` output may depend on the installed Sentis version. Favor regeneration or version-keyed caches over treating generated `.sentis` files as universally stable.
 - Reuse raw downloads across projects whenever possible. If conversion caching is added, key it by model identity and Sentis version.
-- Use `huggingface_hub` as the primary reference implementation for Hub interactions and manifest behavior. Keep the local reference checkout in the top-level ignored `references/` folder and do not vendor it into this package.
+- Use `huggingface_hub` as the primary reference implementation for Hub interactions and manifest behavior. Keep the local reference checkout at `references/huggingface_hub`, ignore that checkout in git, and do not vendor it into this package.
 - The official `huggingface_hub` reference checkout should live at `references/huggingface_hub`. Reuse that local clone in future sessions when present, and only refresh it when a task depends on newer upstream behavior.
 - Unless the user explicitly says otherwise, assume the package is still in active development. Prefer the current architecture and schema over maintaining backwards compatibility with earlier ideas, drafts, or implementations.
 - Do not preserve, describe, or optimize for legacy architecture variants unless the user explicitly asks for historical comparison or migration work.
@@ -30,7 +30,7 @@ Prefer these locations:
 - `com.doji.hf-hub/`: local package under development
 - `docs/`: user-facing package documentation only; keep maintainer notes and internal architecture docs out of DocFX content
 - `.codex/skills/`: project-specific skills; when a task matches one, read and follow the relevant `SKILL.md`
-- `references/`: maintainer-only local reference checkouts; reuse existing clones before downloading again
+- `references/`: maintainer-only upstream notes and local reference checkouts; keep maintainer docs there, reuse existing clones before downloading again
 - `.codex/current-work.md`: first-read session resume doc with active tasks, blockers, and next steps
 - `.codex/project-brief.md`: stable project intent, constraints, and repo context
 - `.codex/architecture/`: durable maintainer reference docs; read only the files relevant to the current task
@@ -41,8 +41,7 @@ Prefer working in the package folder when functionality is package-owned.
 ## Internal Docs
 
 Read `.codex/current-work.md` first for most sessions.
-Read `.codex/project-brief.md` second.
-Read only the relevant `.codex/architecture/*.md` files for the task at hand.
+Treat `.codex/index.md` as the main entry point for internal maintainer docs when you need the broader doc map beyond the active handoff.
 Keep maintainer-only planning and backlog notes under `.codex/`.
 Use the `current-work-maintenance` skill whenever updating `.codex/current-work.md` or when a task changes the active project focus, blockers, or next steps enough that the next session needs an updated handoff.
 

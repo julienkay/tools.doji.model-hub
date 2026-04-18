@@ -11,9 +11,9 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Creates an immutable model dependency definition from one manifest entry.
         /// </summary>
-        /// <param name="id">Stable package-local identifier for the model dependency.</param>
+        /// <param name="id">Stable package-local alias used by HF Hub for lookup inside one Unity package.</param>
         /// <param name="displayName">User-facing model name shown in prompts and status output.</param>
-        /// <param name="repository">HuggingFace repository identifier.</param>
+        /// <param name="repository">HuggingFace model id or repository id, matching Hub `from_pretrained(...)` style source naming.</param>
         /// <param name="revision">Branch, tag, or commit to resolve from the Hub.</param>
         /// <param name="sourceFile">Source ONNX file path inside the remote repository.</param>
         public HfHubModelDependencyDefinition(
@@ -31,7 +31,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Stable package-local identifier used for generated asset paths and metadata.
+        /// Stable package-local alias used for generated paths and package-facing runtime lookup.
         /// </summary>
         public string Id { get; }
 
@@ -41,7 +41,7 @@ namespace Doji.AI.ModelHub
         public string DisplayName { get; }
 
         /// <summary>
-        /// HuggingFace repository identifier that hosts the source model file.
+        /// HuggingFace model id or repository id that hosts the source model file.
         /// </summary>
         public string Repository { get; }
 

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -11,12 +10,22 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Converts cached ONNX files into project-owned `.sentis` artifacts and records import metadata.
+    /// Converts cached ONNX files into runtime `.sentis` artifacts under `StreamingAssets` and records editor-only import metadata.
     /// </summary>
     internal sealed class HfHubProjectImportService : IHfHubProjectImportService
     {
+        private readonly IHfHubOnnxModelConverter _onnxModelConverter;
+
         /// <summary>
-        /// Returns generated `.sentis` artifact if still current, otherwise imports cached ONNX into project and serializes `.sentis`.
+        /// Creates import service with injectable ONNX conversion contract for editor/runtime architecture parity.
+        /// </summary>
+        public HfHubProjectImportService(IHfHubOnnxModelConverter onnxModelConverter = null)
+        {
+            _onnxModelConverter = onnxModelConverter ?? new HfHubEditorOnnxModelConverter();
+        }
+
+        /// <summary>
+        /// Returns generated runtime `.sentis` artifact if still current, otherwise converts cached ONNX and serializes `.sentis` into `StreamingAssets`.
         /// </summary>
         public Task<HfHubImportedModelArtifact> ImportAsync(
             HfHubDiscoveredModelDependency dependency,
@@ -31,66 +40,36 @@ namespace Doji.AI.ModelHub.Editor
                     $"HF Hub currently imports only ONNX source files, but '{cachedRawFile.FilePath}' is not an .onnx file.");
             }
 
-            var sentisAssetPath = HfHubProjectPaths.GetGeneratedSentisAssetPath(
-                dependency.PackageId,
-                dependency.ModelId,
+            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+                dependency.Repository,
+                cachedRawFile.Metadata?.ResolvedCommitHash,
                 dependency.SourceFile);
-            var metadataAssetPath = HfHubProjectPaths.GetGeneratedMetadataAssetPath(
+            var metadataFilePath = HfHubProjectPaths.GetImportMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
             var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
-            var metadataAbsolutePath = HfHubProjectPaths.ToAbsolutePath(metadataAssetPath);
+            var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(metadataFilePath);
 
             if (TryReadMetadata(metadataAbsolutePath, out var existingMetadata) &&
                 IsUpToDate(existingMetadata, dependency, cachedRawFile, sentisAssetPath, sentisAbsolutePath))
             {
-                return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataAssetPath, existingMetadata));
+                return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataFilePath, existingMetadata));
             }
 
             EnsureAssetFolderExists(Path.GetDirectoryName(sentisAssetPath)?.Replace('\\', '/')
-                ?? throw new InvalidOperationException("Missing generated output directory."));
+                ?? throw new InvalidOperationException("Missing runtime output directory."));
 
-            var temporaryOnnxAssetPath = HfHubProjectPaths.GetTemporaryOnnxAssetPath(
-                dependency.PackageId,
-                dependency.ModelId,
-                dependency.SourceFile);
-            var temporaryOnnxAbsolutePath = HfHubProjectPaths.ToAbsolutePath(temporaryOnnxAssetPath);
+            var model = _onnxModelConverter.ConvertFromFile(cachedRawFile.FilePath);
+            ModelWriter.Save(sentisAbsolutePath, model);
+            var metadata = CreateMetadata(dependency, cachedRawFile, sentisAssetPath);
+            WriteMetadata(metadataAbsolutePath, metadata);
 
-            try
-            {
-                EnsureAssetFolderExists(Path.GetDirectoryName(temporaryOnnxAssetPath)?.Replace('\\', '/')
-                    ?? throw new InvalidOperationException("Missing temporary import directory."));
-                File.Copy(cachedRawFile.FilePath, temporaryOnnxAbsolutePath, true);
+            AssetDatabase.ImportAsset(
+                sentisAssetPath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            AssetDatabase.SaveAssets();
 
-                AssetDatabase.ImportAsset(
-                    temporaryOnnxAssetPath,
-                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-
-                var importedModelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(temporaryOnnxAssetPath);
-                if (importedModelAsset == null)
-                {
-                    throw new InvalidOperationException(
-                        $"Unity Inference failed to import temporary ONNX asset '{temporaryOnnxAssetPath}'.");
-                }
-
-                ModelWriter.Save(sentisAbsolutePath, importedModelAsset);
-                var metadata = CreateMetadata(dependency, cachedRawFile, sentisAssetPath);
-                WriteMetadata(metadataAbsolutePath, metadata);
-
-                AssetDatabase.ImportAsset(
-                    sentisAssetPath,
-                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                AssetDatabase.ImportAsset(
-                    metadataAssetPath,
-                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                AssetDatabase.SaveAssets();
-
-                return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataAssetPath, metadata));
-            }
-            finally
-            {
-                DeleteTemporaryAsset(temporaryOnnxAssetPath);
-            }
+            return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataFilePath, metadata));
         }
 
         internal static bool TryReadMetadata(string metadataAbsolutePath, out HfHubImportedModelMetadata metadata)
@@ -143,8 +122,8 @@ namespace Doji.AI.ModelHub.Editor
         {
             var runtimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
             var runtimeSentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
-                dependency.PackageId,
-                dependency.ModelId,
+                dependency.Repository,
+                cachedRawFile.Metadata?.ResolvedCommitHash,
                 dependency.SourceFile);
 
             return new HfHubImportedModelMetadata
@@ -162,7 +141,7 @@ namespace Doji.AI.ModelHub.Editor
                 RawMetadataPath = cachedRawFile.MetadataPath,
                 SentisVersion = GetSentisVersion(),
                 UnityVersion = Application.unityVersion,
-                SentisAssetPath = sentisAssetPath,
+                SentisAssetPath = runtimeSentisAssetPath,
                 RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
                 RuntimeSentisAssetPath = runtimeSentisAssetPath,
@@ -217,39 +196,5 @@ namespace Doji.AI.ModelHub.Editor
             return UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly)?.version ?? "unknown";
         }
 
-        private static void DeleteTemporaryAsset(string assetPath)
-        {
-            if (string.IsNullOrWhiteSpace(assetPath))
-            {
-                return;
-            }
-
-            if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || File.Exists(HfHubProjectPaths.ToAbsolutePath(assetPath)))
-            {
-                AssetDatabase.DeleteAsset(assetPath);
-            }
-
-            DeleteEmptyParentFolders(Path.GetDirectoryName(assetPath));
-        }
-
-        private static void DeleteEmptyParentFolders(string assetFolderPath)
-        {
-            var currentFolder = assetFolderPath;
-            while (!string.IsNullOrWhiteSpace(currentFolder) &&
-                   !string.Equals(currentFolder, "Assets", StringComparison.Ordinal) &&
-                   currentFolder.StartsWith("Assets/Doji/HfHub/TempImport", StringComparison.Ordinal))
-            {
-                var absoluteFolderPath = HfHubProjectPaths.ToAbsolutePath(currentFolder);
-                if (Directory.Exists(absoluteFolderPath) &&
-                    !Directory.EnumerateFileSystemEntries(absoluteFolderPath).Any())
-                {
-                    AssetDatabase.DeleteAsset(currentFolder);
-                    currentFolder = Path.GetDirectoryName(currentFolder)?.Replace('\\', '/');
-                    continue;
-                }
-
-                break;
-            }
-        }
     }
 }

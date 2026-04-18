@@ -60,13 +60,16 @@ MonoBehaviour:
 
     Read `.codex/current-work.md` first for most sessions.
 
-    Read `.codex/project-brief.md` second.
-
-    Read only the relevant `.codex/architecture/*.md` files for the task at hand.
+    Treat `.codex/index.md` as the main entry point for internal maintainer docs
+    when you need the broader doc map beyond the active handoff.
 
     Use the `current-work-maintenance` skill whenever updating `.codex/current-work.md`
     or when a task changes the active project focus, blockers, or next steps enough
     that the next session needs an updated handoff.
+
+    If the user confirms that relevant written tests passed for a task, treat that
+    task as completed for `.codex/current-work.md` purposes unless explicit follow-up
+    work remains.
 
 
     ## Conventions

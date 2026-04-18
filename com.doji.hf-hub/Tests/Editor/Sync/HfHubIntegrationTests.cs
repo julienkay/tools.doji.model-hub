@@ -44,27 +44,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Uses a small public dummy model repo with only `README.md`.
-        /// Verifies live HEAD resolution, commit hash capture, and real raw-cache download for a tiny text file.
+        /// Uses a small public dummy model repo.
+        /// Verifies live repo resolution, commit hash capture, and raw snapshot download.
         /// `Explicit` means this runs only when intentionally selected in Unity Test Runner.
         /// </summary>
         [Test]
         [Explicit("Network integration test against live HuggingFace Hub.")]
-        public async Task SyncDummyRepositoryReadme_ResolvesAndCachesFile()
+        public async Task SyncDummyRepository_ResolvesAndCachesSnapshot()
         {
             var dependency = CreateDependency(
                 packageId: "com.doji.integration.dummy",
                 modelId: "dummy-readme",
                 repository: "hf-internal-testing/huggingface-hub-dummy-repository",
-                revision: "main",
-                sourceFile: "README.md");
+                revision: "main");
 
             var rawCacheService = new HfHubRawCacheService();
 
             var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
-            Assert.That(File.Exists(cachedFile.FilePath), Is.True);
-            Assert.That(new FileInfo(cachedFile.FilePath).Length, Is.GreaterThan(0));
+            Assert.That(Directory.Exists(cachedFile.SnapshotRootPath), Is.True);
+            Assert.That(cachedFile.Metadata.Files.Length, Is.GreaterThan(0));
             Assert.That(cachedFile.Metadata.Repository, Is.EqualTo("hf-internal-testing/huggingface-hub-dummy-repository"));
             Assert.That(cachedFile.Metadata.ResolvedCommitHash, Has.Length.EqualTo(40));
             Assert.That(File.ReadAllText(HfHubCachePaths.GetRevisionRefPath(cachedFile.Metadata.Repository, "main")), Is.EqualTo(cachedFile.Metadata.ResolvedCommitHash));
@@ -72,37 +71,36 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         /// <summary>
         /// Uses a public ONNX repository with real model artifacts.
-        /// Verifies live resolution and raw-cache download for actual ONNX file under nested `onnx/` folder.
+        /// Verifies live resolution and raw-cache download for repo snapshot that includes actual ONNX file under nested `onnx/` folder.
         /// `Explicit` means this runs only when intentionally selected in Unity Test Runner.
         /// </summary>
         [Test]
         [Explicit("Network integration test against live HuggingFace Hub.")]
-        public async Task SyncTinyClipOnnxModel_ResolvesAndCachesOnnxFile()
+        public async Task SyncTinyClipOnnxModel_ResolvesAndCachesSnapshot()
         {
             var dependency = CreateDependency(
                 packageId: "com.doji.integration.clip",
                 modelId: "tiny-clip-onnx",
                 repository: "onnx-community/tiny-clip-test-ONNX",
-                revision: "main",
-                sourceFile: "onnx/model.onnx");
+                revision: "main");
 
             var rawCacheService = new HfHubRawCacheService();
 
             var cachedFile = await rawCacheService.GetOrDownloadAsync(dependency, null, CancellationToken.None);
 
-            Assert.That(File.Exists(cachedFile.FilePath), Is.True);
-            Assert.That(new FileInfo(cachedFile.FilePath).Length, Is.GreaterThan(0));
-            Assert.That(cachedFile.Metadata.SourceFile, Is.EqualTo("onnx/model.onnx"));
+            Assert.That(Directory.Exists(cachedFile.SnapshotRootPath), Is.True);
+            Assert.That(cachedFile.TryGetFilePath("onnx/model.onnx", out var onnxPath), Is.True);
+            Assert.That(File.Exists(onnxPath), Is.True);
+            Assert.That(new FileInfo(onnxPath).Length, Is.GreaterThan(0));
             Assert.That(cachedFile.Metadata.ResolvedCommitHash, Has.Length.EqualTo(40));
-            StringAssert.Contains(Path.Combine("snapshots", cachedFile.Metadata.ResolvedCommitHash, "onnx", "model.onnx"), cachedFile.FilePath);
+            StringAssert.Contains(Path.Combine("snapshots", cachedFile.Metadata.ResolvedCommitHash, "onnx", "model.onnx"), onnxPath);
         }
 
         private static HfHubDiscoveredModelDependency CreateDependency(
             string packageId,
             string modelId,
             string repository,
-            string revision,
-            string sourceFile)
+            string revision)
         {
             return new HfHubDiscoveredModelDependency(
                 packageId,
@@ -115,8 +113,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     modelId,
                     modelId,
                     repository,
-                    revision,
-                    sourceFile));
+                    revision));
         }
     }
 }

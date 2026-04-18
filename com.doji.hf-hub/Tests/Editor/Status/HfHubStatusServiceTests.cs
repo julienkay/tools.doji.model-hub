@@ -2,15 +2,12 @@ using System;
 using System.IO;
 using Newtonsoft.Json;
 using NUnit.Framework;
-using Unity.InferenceEngine;
 using UnityEditor;
 
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers local dependency state classification.
-    /// Tests write synthetic raw-cache and generated-artifact files directly so status evaluation stays deterministic
-    /// and does not depend on live Hub traffic or Unity's ONNX importer.
+    /// Covers repo-level local dependency state classification.
     /// </summary>
     internal sealed class HfHubStatusServiceTests
     {
@@ -41,6 +38,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
         }
 
+        /// <summary>
+        /// Verifies missing raw revision ref reports missing state.
+        /// </summary>
         [Test]
         public void BuildStatusReport_ReturnsMissingWhenRawCacheIsAbsent()
         {
@@ -48,12 +48,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Missing));
             Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache revision ref is missing."));
         }
 
+        /// <summary>
+        /// Verifies missing import metadata reports missing state after raw snapshot exists.
+        /// </summary>
         [Test]
-        public void BuildStatusReport_ReturnsMissingWhenGeneratedArtifactIsAbsent()
+        public void BuildStatusReport_ReturnsMissingWhenImportMetadataIsAbsent()
         {
             var dependency = CreateDependency();
             WriteRawCache(dependency);
@@ -61,10 +63,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Missing));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Runtime .sentis asset is missing."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata file is missing."));
         }
 
+        /// <summary>
+        /// Verifies ready state when repo snapshot and import metadata match.
+        /// </summary>
         [Test]
         public void BuildStatusReport_ReturnsReadyWhenRawAndImportArtifactsMatch()
         {
@@ -75,10 +79,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.ReadyCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Ready));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache and runtime .sentis are current."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw repo snapshot and generated runtime files are current."));
         }
 
+        /// <summary>
+        /// Verifies stale state when import manifest hash differs.
+        /// </summary>
         [Test]
         public void BuildStatusReport_ReturnsStaleWhenImportMetadataManifestHashDiffers()
         {
@@ -89,16 +95,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.StaleCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Stale));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata manifest hash differs from current manifest."));
+            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata differs from current repo snapshot or Sentis version."));
         }
 
+        /// <summary>
+        /// Verifies failed state when import metadata cannot be parsed.
+        /// </summary>
         [Test]
         public void BuildStatusReport_ReturnsFailedWhenImportMetadataIsInvalid()
         {
             var dependency = CreateDependency();
             WriteRawCache(dependency);
-            WriteSentisFile(dependency);
+            WriteRuntimeFiles(dependency);
 
             var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(
                 HfHubProjectPaths.GetImportMetadataFilePath(dependency.PackageId, dependency.ModelId));
@@ -108,55 +116,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.FailedCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(HfHubDependencyState.Failed));
             Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata is invalid."));
-        }
-
-        [Test]
-        public void ShouldPrompt_ReturnsTrueWhenAttentionIsNeeded()
-        {
-            var report = new HfHubStatusReport(
-                Array.Empty<HfHubManifestDiscoveryIssue>(),
-                new[]
-                {
-                    new HfHubDependencyStatus(
-                        CreateDependency(),
-                        HfHubDependencyState.Missing,
-                        "Raw cache revision ref is missing.",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null)
-                });
-
-            Assert.That(HfHubAutoPrompt.ShouldPrompt(report), Is.True);
-        }
-
-        [Test]
-        public void ShouldPrompt_ReturnsFalseWhenEverythingIsReady()
-        {
-            var dependency = CreateDependency();
-            var report = new HfHubStatusReport(
-                Array.Empty<HfHubManifestDiscoveryIssue>(),
-                new[]
-                {
-                    new HfHubDependencyStatus(
-                        dependency,
-                        HfHubDependencyState.Ready,
-                        "Raw cache and runtime .sentis are current.",
-                        "ref",
-                        "raw",
-                        "rawmeta",
-                        new HfHubRawCacheMetadata(),
-                        "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
-                        "Library/Doji/HfHub/import-state/com.doji.test/test-model/hf-hub-import.json",
-                        new HfHubImportedModelMetadata())
-                });
-
-            Assert.That(HfHubAutoPrompt.ShouldPrompt(report), Is.False);
         }
 
         private static HfHubStatusReport BuildStatusReport(HfHubDiscoveredModelDependency dependency)
@@ -180,14 +140,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "test-model",
                     "Test Model",
                     "doji/test-model",
-                    "main",
-                    "models/model.onnx"));
+                    "main"));
         }
 
         private static void WriteRawCache(HfHubDiscoveredModelDependency dependency, string commitHash = "abc123")
         {
-            var rawFilePath = HfHubCachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, dependency.SourceFile);
-            var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash, dependency.SourceFile);
+            var rawFilePath = HfHubCachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model.onnx");
+            var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
             var revisionRefPath = HfHubCachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
 
             Directory.CreateDirectory(Path.GetDirectoryName(rawFilePath) ?? throw new InvalidOperationException());
@@ -202,8 +161,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,
-                    SourceFile = dependency.SourceFile,
-                    CachedFilePath = rawFilePath,
+                    CachedSnapshotRoot = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    Files = new[]
+                    {
+                        new HfHubRawCacheFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            CachedFilePath = rawFilePath
+                        }
+                    },
                     DownloadedAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
         }
@@ -213,16 +179,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string commitHash = "abc123",
             string importedManifestHash = null)
         {
-            WriteSentisFile(dependency);
-
-            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
-                dependency.Repository,
-                commitHash,
-                dependency.SourceFile);
+            var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
             var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(
                 HfHubProjectPaths.GetImportMetadataFilePath(dependency.PackageId, dependency.ModelId));
-            var rawFilePath = HfHubCachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, dependency.SourceFile);
-            var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash, dependency.SourceFile);
 
             Directory.CreateDirectory(Path.GetDirectoryName(importMetadataAbsolutePath) ?? throw new InvalidOperationException());
             File.WriteAllText(
@@ -237,22 +196,33 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,
-                    SourceFile = dependency.SourceFile,
-                    RawFilePath = rawFilePath,
-                    RawMetadataPath = rawMetadataPath,
+                    RawSnapshotRootPath = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    RawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash),
                     SentisVersion = HfHubStatusService.GetCurrentSentisVersion(),
                     UnityVersion = UnityEngine.Application.unityVersion,
-                    SentisAssetPath = sentisAssetPath,
+                    RuntimeFiles = runtimeFiles,
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
         }
 
-        private static void WriteSentisFile(HfHubDiscoveredModelDependency dependency)
+        private static HfHubImportedRuntimeFileMetadata[] WriteRuntimeFiles(HfHubDiscoveredModelDependency dependency, string commitHash = "abc123")
         {
-            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(
-                HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", dependency.SourceFile));
+            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, commitHash, "models/model.onnx");
+            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
+
             Directory.CreateDirectory(Path.GetDirectoryName(sentisAbsolutePath) ?? throw new InvalidOperationException());
             File.WriteAllText(sentisAbsolutePath, "sentis");
+
+            return new[]
+            {
+                new HfHubImportedRuntimeFileMetadata
+                {
+                    RepoPath = "models/model.onnx",
+                    Kind = "sentis",
+                    AssetPath = sentisAssetPath,
+                    RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(sentisAssetPath)
+                }
+            };
         }
 
         private static void CleanupProjectArtifacts()

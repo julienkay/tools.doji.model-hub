@@ -2,21 +2,15 @@
 
 ## Focus
 
-Runtime locator slice is at clean stop point. Next slice should unify identity around HuggingFace `repo_id` and finish follow-up contracts.
+Repo-level dependency architecture is now active: manifests declare one `repo_id`, cache downloads whole snapshots, import keeps raw repo files only in shared cache, runtime output uses human-readable `Assets/StreamingAssets/hf-hub/<owner>/<model>/...` paths, and runtime lookup resolves repo snapshots by `repo_id`.
 
-Companion project now includes empty `HfHubProjectManifestAsset` sample at `Assets/HF Hub/HF Hub Project Manifest.asset`, editor discovery now merges package JSON manifests with project manifest assets, and `Assets/HF Hub/HfHubRuntimeLocatorSample.cs` demonstrates upstream-style runtime lookup through `ModelHub.LoadRuntimeModel("<repo_id>")`.
+Companion project includes empty `HfHubProjectManifestAsset` sample at `Assets/HF Hub/HF Hub Project Manifest.asset`, and editor discovery merges package JSON manifests with project manifest assets.
 
 ## Next Tasks
 
-- [ ] Remove package-local manifest `id` from public/runtime identity flow and make HuggingFace `repo_id` canonical.
-- [ ] Extend runtime locator registry entries from primary `.sentis` payloads to multi-file companion file sets.
-- [ ] Define ambiguity strategy when same `repo_id` appears in multiple manifest owners.
-- [ ] Turn companion runtime sample script into a complete clickable scene or prefab flow if UX demo still needed.
-- [ ] Add runtime-capable ONNX converter package behind `IHfHubOnnxModelConverter` when runtime conversion work starts.
-
 ## Blockers And Decisions Needed
 
-- No active blocker for current sample-flow slice.
+- No active blocker.
 
 ## Read Before Editing
 
@@ -27,5 +21,5 @@ Companion project now includes empty `HfHubProjectManifestAsset` sample at `Asse
 
 ## Exit Criteria
 
-- Public runtime API uses HuggingFace-style `repo_id` lookup cleanly.
-- Manifest/runtime identity no longer depends on package-local alias ids.
+- Repo-level workflow is consistent across manifest, cache, import, runtime locator, and docs.
+- Remaining follow-up is runtime helper polish, not per-file dependency plumbing.

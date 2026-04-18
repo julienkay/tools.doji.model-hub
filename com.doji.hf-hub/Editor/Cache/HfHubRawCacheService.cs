@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Doji.Downloads;
@@ -8,74 +9,83 @@ using Newtonsoft.Json;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Manages shared raw ONNX cache, sidecar metadata, ref files, and file-level locking.
+    /// Manages shared raw repository snapshot cache, sidecar metadata, revision refs, and file-level locking.
     /// </summary>
     internal sealed class HfHubRawCacheService : IHfHubRawCacheService
     {
         private static readonly TimeSpan DefaultLockTimeout = TimeSpan.FromSeconds(30);
         private readonly IHfHubHttpClient _httpClient;
 
-        /// <summary>
-        /// Creates cache service with optional injected HTTP client for tests.
-        /// </summary>
         public HfHubRawCacheService(IHfHubHttpClient httpClient = null)
         {
             _httpClient = httpClient ?? new HfHubHttpClient();
         }
 
         /// <summary>
-        /// Returns cached raw file if valid, otherwise resolves and downloads it.
+        /// Returns cached repository snapshot if valid, otherwise resolves and downloads all repository files.
         /// </summary>
-        public async Task<HfHubCachedRawFile> GetOrDownloadAsync(
+        public async Task<HfHubCachedSnapshot> GetOrDownloadAsync(
             HfHubDiscoveredModelDependency dependency,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
-            var resolvedFile = await _httpClient.ResolveFileVersionAsync(dependency, cancellationToken);
-            var snapshotFilePath = HfHubCachePaths.GetSnapshotFilePath(
-                resolvedFile.Repository,
-                resolvedFile.ResolvedCommitHash,
-                resolvedFile.SourceFile);
+            var resolvedSnapshot = await _httpClient.ResolveSnapshotVersionAsync(dependency, cancellationToken);
+            var snapshotRoot = HfHubCachePaths.GetSnapshotRoot(
+                resolvedSnapshot.Repository,
+                resolvedSnapshot.ResolvedCommitHash);
             var metadataPath = HfHubCachePaths.GetSnapshotMetadataPath(
-                resolvedFile.Repository,
-                resolvedFile.ResolvedCommitHash,
-                resolvedFile.SourceFile);
+                resolvedSnapshot.Repository,
+                resolvedSnapshot.ResolvedCommitHash);
             var lockPath = HfHubCachePaths.GetSnapshotLockPath(
-                resolvedFile.Repository,
-                resolvedFile.ResolvedCommitHash,
-                resolvedFile.SourceFile);
+                resolvedSnapshot.Repository,
+                resolvedSnapshot.ResolvedCommitHash);
 
             using var fileLock = FileLock.Acquire(lockPath, DefaultLockTimeout);
 
             if (TryReadMetadata(metadataPath, out var existingMetadata) &&
-                IsCacheHit(snapshotFilePath, existingMetadata, resolvedFile))
+                IsCacheHit(snapshotRoot, existingMetadata, resolvedSnapshot))
             {
-                WriteRevisionRef(resolvedFile.Repository, resolvedFile.RequestedRevision, resolvedFile.ResolvedCommitHash);
-                return new HfHubCachedRawFile(snapshotFilePath, metadataPath, existingMetadata);
+                WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
+                return new HfHubCachedSnapshot(snapshotRoot, metadataPath, existingMetadata);
             }
 
-            await _httpClient.DownloadFileAsync(resolvedFile, snapshotFilePath, progress, cancellationToken);
+            Directory.CreateDirectory(snapshotRoot);
+            foreach (var file in resolvedSnapshot.Files)
+            {
+                var targetPath = HfHubCachePaths.GetSnapshotFilePath(
+                    resolvedSnapshot.Repository,
+                    resolvedSnapshot.ResolvedCommitHash,
+                    file.RepoPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? snapshotRoot);
+                await _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken);
+            }
 
             var metadata = new HfHubRawCacheMetadata
             {
-                Repository = resolvedFile.Repository,
-                RequestedRevision = resolvedFile.RequestedRevision,
-                ResolvedCommitHash = resolvedFile.ResolvedCommitHash,
-                SourceFile = resolvedFile.SourceFile,
-                EntityTag = resolvedFile.EntityTag,
-                SizeInBytes = resolvedFile.SizeInBytes,
-                CachedFilePath = snapshotFilePath,
+                Repository = resolvedSnapshot.Repository,
+                RequestedRevision = resolvedSnapshot.RequestedRevision,
+                ResolvedCommitHash = resolvedSnapshot.ResolvedCommitHash,
+                CachedSnapshotRoot = snapshotRoot,
+                Files = resolvedSnapshot.Files
+                    .Select(file => new HfHubRawCacheFileMetadata
+                    {
+                        RepoPath = file.RepoPath,
+                        CachedFilePath = HfHubCachePaths.GetSnapshotFilePath(
+                            resolvedSnapshot.Repository,
+                            resolvedSnapshot.ResolvedCommitHash,
+                            file.RepoPath),
+                        EntityTag = file.EntityTag,
+                        SizeInBytes = file.SizeInBytes
+                    })
+                    .ToArray(),
                 DownloadedAtUtc = DateTime.UtcNow.ToString("O")
             };
 
             WriteMetadata(metadataPath, metadata);
-            WriteRevisionRef(resolvedFile.Repository, resolvedFile.RequestedRevision, resolvedFile.ResolvedCommitHash);
-            return new HfHubCachedRawFile(snapshotFilePath, metadataPath, metadata);
+            WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
+            return new HfHubCachedSnapshot(snapshotRoot, metadataPath, metadata);
         }
 
-        /// <summary>
-        /// Reads cached metadata file if present and valid.
-        /// </summary>
         public bool TryReadMetadata(string metadataPath, out HfHubRawCacheMetadata metadata)
         {
             metadata = null;
@@ -89,40 +99,51 @@ namespace Doji.AI.ModelHub.Editor
                 metadata = JsonConvert.DeserializeObject<HfHubRawCacheMetadata>(File.ReadAllText(metadataPath));
                 return metadata != null;
             }
-            catch (Exception)
+            catch
             {
                 return false;
             }
         }
 
         private static bool IsCacheHit(
-            string snapshotFilePath,
+            string snapshotRoot,
             HfHubRawCacheMetadata metadata,
-            HfHubResolvedFileVersion resolvedFile)
+            HfHubResolvedSnapshotVersion resolvedSnapshot)
         {
-            if (!File.Exists(snapshotFilePath))
+            if (metadata == null || !Directory.Exists(snapshotRoot))
             {
                 return false;
             }
 
-            if (metadata == null)
+            if (!string.Equals(metadata.Repository, resolvedSnapshot.Repository, StringComparison.Ordinal) ||
+                !string.Equals(metadata.ResolvedCommitHash, resolvedSnapshot.ResolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(metadata.CachedSnapshotRoot, snapshotRoot, StringComparison.Ordinal))
             {
                 return false;
             }
 
-            if (!string.Equals(metadata.Repository, resolvedFile.Repository, StringComparison.Ordinal) ||
-                !string.Equals(metadata.ResolvedCommitHash, resolvedFile.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(metadata.SourceFile, resolvedFile.SourceFile, StringComparison.Ordinal))
+            var files = metadata.Files ?? Array.Empty<HfHubRawCacheFileMetadata>();
+            if (files.Length != resolvedSnapshot.Files.Count)
             {
                 return false;
             }
 
-            if (resolvedFile.SizeInBytes.HasValue)
+            foreach (var resolvedFile in resolvedSnapshot.Files)
             {
-                var fileInfo = new FileInfo(snapshotFilePath);
-                if (fileInfo.Length != resolvedFile.SizeInBytes.Value)
+                var cachedFile = files.FirstOrDefault(file =>
+                    string.Equals(file.RepoPath, resolvedFile.RepoPath, StringComparison.Ordinal));
+                if (cachedFile == null || !File.Exists(cachedFile.CachedFilePath))
                 {
                     return false;
+                }
+
+                if (resolvedFile.SizeInBytes.HasValue)
+                {
+                    var fileInfo = new FileInfo(cachedFile.CachedFilePath);
+                    if (fileInfo.Length != resolvedFile.SizeInBytes.Value)
+                    {
+                        return false;
+                    }
                 }
             }
 

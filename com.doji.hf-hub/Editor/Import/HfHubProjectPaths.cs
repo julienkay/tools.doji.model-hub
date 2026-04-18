@@ -39,29 +39,22 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns runtime snapshot folder under shared StreamingAssets root using serialized repository id plus resolved commit.
+        /// Returns human-readable runtime folder under shared StreamingAssets root using repository owner and model path.
         /// </summary>
         public static string GetRuntimeSnapshotFolder(string repository, string resolvedCommitHash)
         {
-            return $"{ModelHub.RuntimeStreamingAssetsRoot}/{ModelHub.SerializeRepositoryId(repository)}/snapshots/{ModelHub.SanitizePathSegment(resolvedCommitHash)}";
+            return $"{ModelHub.RuntimeStreamingAssetsRoot}/{ModelHub.SanitizeRelativePath(repository)}";
         }
 
         /// <summary>
-        /// Returns primary runtime `.sentis` file path under shared StreamingAssets root.
+        /// Returns runtime `.sentis` file path derived from one repository-relative ONNX file.
         /// </summary>
-        public static string GetRuntimeSentisAssetPath(string repository, string resolvedCommitHash, string sourceFile)
+        public static string GetRuntimeSentisAssetPath(string repository, string resolvedCommitHash, string repoPath)
         {
-            var fileName = $"{Path.GetFileNameWithoutExtension(sourceFile)}.sentis";
-            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/{fileName}";
-        }
-
-        /// <summary>
-        /// Returns runtime companion/source file path under shared StreamingAssets root while preserving relative repo folders.
-        /// </summary>
-        public static string GetRuntimeSourceAssetPath(string repository, string resolvedCommitHash, string sourceFile)
-        {
-            var sanitizedRelativeSourcePath = ModelHub.SanitizeRelativePath(sourceFile);
-            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/repo/{sanitizedRelativeSourcePath}";
+            var sanitizedRelativeRepoPath = ModelHub.SanitizeRelativePath(repoPath);
+            var sentisRelativePath = Path.ChangeExtension(sanitizedRelativeRepoPath, ".sentis")?.Replace('\\', '/')
+                ?? throw new InvalidOperationException($"Could not derive .sentis path from '{repoPath}'.");
+            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/{sentisRelativePath}";
         }
 
         /// <summary>

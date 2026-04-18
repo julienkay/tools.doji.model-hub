@@ -85,31 +85,40 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Gets cached snapshot file path for one resolved commit and source file.
+        /// Gets cached snapshot root for one resolved commit.
         /// </summary>
-        public static string GetSnapshotFilePath(string repository, string commitHash, string sourceFile)
+        public static string GetSnapshotRoot(string repository, string commitHash)
         {
             return Path.Combine(
                 GetRepositoryRoot(repository),
                 "snapshots",
-                SanitizeRelativePathSegment(commitHash),
+                SanitizeRelativePathSegment(commitHash));
+        }
+
+        /// <summary>
+        /// Gets cached snapshot file path for one resolved commit and repository-relative file.
+        /// </summary>
+        public static string GetSnapshotFilePath(string repository, string commitHash, string sourceFile)
+        {
+            return Path.Combine(
+                GetSnapshotRoot(repository, commitHash),
                 ToPlatformRelativePath(sourceFile));
         }
 
         /// <summary>
-        /// Gets sidecar metadata path for one cached snapshot file.
+        /// Gets metadata path for one cached snapshot.
         /// </summary>
-        public static string GetSnapshotMetadataPath(string repository, string commitHash, string sourceFile)
+        public static string GetSnapshotMetadataPath(string repository, string commitHash)
         {
-            return GetSnapshotFilePath(repository, commitHash, sourceFile) + ".hfhub.json";
+            return Path.Combine(GetSnapshotRoot(repository, commitHash), "snapshot.hfhub.json");
         }
 
         /// <summary>
-        /// Gets lock file path for one cached snapshot file.
+        /// Gets lock file path for one cached snapshot.
         /// </summary>
-        public static string GetSnapshotLockPath(string repository, string commitHash, string sourceFile)
+        public static string GetSnapshotLockPath(string repository, string commitHash)
         {
-            return GetSnapshotFilePath(repository, commitHash, sourceFile) + ".lock";
+            return GetSnapshotMetadataPath(repository, commitHash) + ".lock";
         }
 
         private static string ToPlatformRelativePath(string sourceFile)

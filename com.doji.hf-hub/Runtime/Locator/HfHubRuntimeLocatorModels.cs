@@ -57,31 +57,22 @@ namespace Doji.AI.ModelHub
         private readonly HfHubRuntimeLocatorFile[] _files;
 
         /// <summary>
-        /// Creates immutable runtime locator entry for one generated model dependency.
+        /// Creates immutable runtime locator entry for one generated repository snapshot.
         /// </summary>
         public HfHubRuntimeLocatorEntry(
-            string modelId,
-            string repository,
+            string repoId,
             string displayName,
-            string primarySentisRelativePath,
             IReadOnlyList<HfHubRuntimeLocatorFile> files)
         {
-            ModelId = modelId ?? throw new ArgumentNullException(nameof(modelId));
-            Repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            RepoId = repoId ?? throw new ArgumentNullException(nameof(repoId));
             DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
-            PrimarySentisRelativePath = primarySentisRelativePath ?? throw new ArgumentNullException(nameof(primarySentisRelativePath));
             _files = files?.ToArray() ?? Array.Empty<HfHubRuntimeLocatorFile>();
         }
 
         /// <summary>
-        /// Stable package-local model id used at runtime lookup.
-        /// </summary>
-        public string ModelId { get; }
-
-        /// <summary>
         /// Canonical HuggingFace repository id used by `from_pretrained(...)` style calls.
         /// </summary>
-        public string Repository { get; }
+        public string RepoId { get; }
 
         /// <summary>
         /// User-facing model name for diagnostics and tooling.
@@ -89,12 +80,7 @@ namespace Doji.AI.ModelHub
         public string DisplayName { get; }
 
         /// <summary>
-        /// Primary `.sentis` file path relative to `Application.streamingAssetsPath`.
-        /// </summary>
-        public string PrimarySentisRelativePath { get; }
-
-        /// <summary>
-        /// All runtime files generated for model under shared StreamingAssets root.
+        /// All runtime files generated for repository snapshot under shared StreamingAssets root.
         /// </summary>
         public IReadOnlyList<HfHubRuntimeLocatorFile> Files => _files;
     }
@@ -108,10 +94,10 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Creates immutable runtime file locator metadata.
         /// </summary>
-        public HfHubRuntimeLocatorFile(string relativePath, string sourceFile, string kind)
+        public HfHubRuntimeLocatorFile(string relativePath, string repoPath, string kind)
         {
             RelativePath = relativePath ?? throw new ArgumentNullException(nameof(relativePath));
-            SourceFile = sourceFile ?? throw new ArgumentNullException(nameof(sourceFile));
+            RepoPath = repoPath ?? throw new ArgumentNullException(nameof(repoPath));
             Kind = kind ?? throw new ArgumentNullException(nameof(kind));
         }
 
@@ -123,7 +109,7 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Original repository-relative file path represented by this generated runtime file.
         /// </summary>
-        public string SourceFile { get; }
+        public string RepoPath { get; }
 
         /// <summary>
         /// File role such as `sentis` or `source`.

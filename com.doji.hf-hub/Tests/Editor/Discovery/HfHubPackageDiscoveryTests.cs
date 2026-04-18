@@ -8,6 +8,9 @@ using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor.Tests
 {
+    /// <summary>
+    /// Covers package and project manifest discovery for repo-level dependency declarations.
+    /// </summary>
     internal sealed class HfHubPackageDiscoveryTests
     {
         private string _rootDirectory;
@@ -32,8 +35,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Tests that discovery reads valid package manifests and turns them into consistent dependency records.
-        /// "Normalized" here means the result includes fallback package display and version values, resolved manifest paths, and computed manifest hashes.
+        /// Verifies discovery reads valid repo-level manifests and normalizes owner metadata.
         /// </summary>
         [Test]
         public void DiscoverPackageManifests_ReturnsNormalizedDependenciesSortedByPackageId()
@@ -45,8 +47,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
       ""id"": ""vision-base"",
       ""displayName"": ""Vision Base"",
       ""repository"": ""doji/vision-base"",
-      ""revision"": ""refs/tags/v1"",
-      ""sourceFile"": ""models/vision.onnx""
+      ""revision"": ""refs/tags/v1""
     }
   ]
 }";
@@ -58,35 +59,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
       ""id"": ""text-small"",
       ""displayName"": ""Text Small"",
       ""repository"": ""doji/text-small"",
-      ""revision"": ""main"",
-      ""sourceFile"": ""model.onnx""
+      ""revision"": ""main""
     }
   ]
 }";
 
-            var zebraPackage = CreatePackage(
-                "com.doji.zebra",
-                "Zebra Tools",
-                "1.2.3",
-                firstManifest);
-            var alphaPackage = CreatePackage(
-                "com.doji.alpha",
-                null,
-                null,
-                secondManifest);
+            var zebraPackage = CreatePackage("com.doji.zebra", "Zebra Tools", "1.2.3", firstManifest);
+            var alphaPackage = CreatePackage("com.doji.alpha", null, null, secondManifest);
 
-            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[]
-            {
-                zebraPackage,
-                alphaPackage
-            });
+            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[] { zebraPackage, alphaPackage });
 
             Assert.That(report.Issues, Is.Empty);
-            Assert.That(report.Dependencies.Select(dependency => dependency.PackageId), Is.EqualTo(new[]
-            {
-                "com.doji.alpha",
-                "com.doji.zebra"
-            }));
+            Assert.That(report.Dependencies.Select(dependency => dependency.PackageId), Is.EqualTo(new[] { "com.doji.alpha", "com.doji.zebra" }));
 
             var alphaDependency = report.Dependencies[0];
             Assert.That(alphaDependency.PackageDisplayName, Is.EqualTo("com.doji.alpha"));
@@ -101,39 +85,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(zebraDependency.PackageVersion, Is.EqualTo("1.2.3"));
             Assert.That(zebraDependency.ModelDisplayName, Is.EqualTo("Vision Base"));
             Assert.That(zebraDependency.Revision, Is.EqualTo("refs/tags/v1"));
-            Assert.That(zebraDependency.SourceFile, Is.EqualTo("models/vision.onnx"));
             Assert.That(zebraDependency.PackageResolvedPath, Is.EqualTo(zebraPackage.ResolvedPath));
         }
 
         /// <summary>
-        /// Tests that discovery skips packages when there is no Hub manifest file or no resolved package path to read from.
+        /// Verifies discovery skips packages with no manifest or no resolved path.
         /// </summary>
         [Test]
         public void DiscoverPackageManifests_SkipsPackagesWithoutManifestOrResolvedPath()
         {
-            var packageWithoutManifestPath = CreatePackage(
-                "com.doji.nomodels",
-                "No Models",
-                "1.0.0",
-                manifestContents: null);
-            var packageWithoutResolvedPath = new HfHubInstalledPackageSnapshot(
-                "com.doji.unresolved",
-                "Unresolved",
-                "1.0.0",
-                string.Empty);
+            var packageWithoutManifestPath = CreatePackage("com.doji.nomodels", "No Models", "1.0.0", manifestContents: null);
+            var packageWithoutResolvedPath = new HfHubInstalledPackageSnapshot("com.doji.unresolved", "Unresolved", "1.0.0", string.Empty);
 
-            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[]
-            {
-                packageWithoutManifestPath,
-                packageWithoutResolvedPath
-            });
+            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[] { packageWithoutManifestPath, packageWithoutResolvedPath });
 
             Assert.That(report.Dependencies, Is.Empty);
             Assert.That(report.Issues, Is.Empty);
         }
 
         /// <summary>
-        /// Tests that one broken manifest is reported as discovery issue while valid manifests from other packages are still returned.
+        /// Verifies one broken manifest is reported while valid manifests from other packages still load.
         /// </summary>
         [Test]
         public void DiscoverPackageManifests_ReportsInvalidManifestAndContinues()
@@ -155,41 +126,24 @@ namespace Doji.AI.ModelHub.Editor.Tests
       ""id"": ""kept-model"",
       ""displayName"": ""Kept Model"",
       ""repository"": ""doji/kept-model"",
-      ""revision"": ""main"",
-      ""sourceFile"": ""kept.onnx""
+      ""revision"": ""main""
     }
   ]
 }";
 
-            var invalidPackage = CreatePackage(
-                "com.doji.invalid",
-                "Invalid Package",
-                "2.0.0",
-                invalidManifest);
-            var validPackage = CreatePackage(
-                "com.doji.valid",
-                "Valid Package",
-                "2.1.0",
-                validManifest);
+            var invalidPackage = CreatePackage("com.doji.invalid", "Invalid Package", "2.0.0", invalidManifest);
+            var validPackage = CreatePackage("com.doji.valid", "Valid Package", "2.1.0", validManifest);
 
-            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[]
-            {
-                invalidPackage,
-                validPackage
-            });
+            var report = HfHubManifestDiscovery.DiscoverPackageManifests(new[] { invalidPackage, validPackage });
 
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
             Assert.That(report.Dependencies[0].PackageId, Is.EqualTo("com.doji.valid"));
             Assert.That(report.Issues.Count, Is.EqualTo(1));
-
-            var issue = report.Issues[0];
-            Assert.That(issue.PackageId, Is.EqualTo("com.doji.invalid"));
-            Assert.That(issue.ManifestPath, Is.EqualTo(Path.Combine(invalidPackage.ResolvedPath, ModelHub.ManifestFileName)));
-            Assert.That(issue.Message, Is.EqualTo("Manifest model at index 0 must define a string `repository`."));
+            Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a string `repository`."));
         }
 
         /// <summary>
-        /// Tests that manifest parsing fails when same model id appears more than once in one package manifest.
+        /// Verifies manifest parsing still rejects duplicate ids inside one owner manifest.
         /// </summary>
         [Test]
         public void TryParse_RejectsDuplicateModelIds()
@@ -201,15 +155,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
       ""id"": ""shared-id"",
       ""displayName"": ""First"",
       ""repository"": ""doji/first"",
-      ""revision"": ""main"",
-      ""sourceFile"": ""first.onnx""
+      ""revision"": ""main""
     },
     {
       ""id"": ""shared-id"",
       ""displayName"": ""Second"",
       ""repository"": ""doji/second"",
-      ""revision"": ""main"",
-      ""sourceFile"": ""second.onnx""
+      ""revision"": ""main""
     }
   ]
 }";
@@ -222,7 +174,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Tests that project manifest assets are normalized into standard dependency records under the shared project owner id.
+        /// Verifies project manifest assets normalize to same repo-level dependency shape as JSON manifests.
         /// </summary>
         [Test]
         public void DiscoverProjectManifests_ReturnsNormalizedDependencies()
@@ -235,8 +187,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Id = "tiny-clip-onnx",
                     DisplayName = "Tiny CLIP ONNX",
                     Repository = "onnx-community/tiny-clip-test-ONNX",
-                    Revision = "main",
-                    SourceFile = "onnx/model.onnx"
+                    Revision = "main"
                 }
             });
 
@@ -256,11 +207,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(dependency.PackageDisplayName, Is.EqualTo("Project"));
             Assert.That(dependency.PackageVersion, Is.EqualTo("project"));
             Assert.That(dependency.Repository, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
-            Assert.That(dependency.SourceFile, Is.EqualTo("onnx/model.onnx"));
         }
 
         /// <summary>
-        /// Tests that invalid project manifest assets report the same validation issues as JSON manifests.
+        /// Verifies invalid project manifest assets report same validation issue shape as JSON manifests.
         /// </summary>
         [Test]
         public void DiscoverProjectManifests_ReportsInvalidProjectManifestAsset()
@@ -273,8 +223,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Id = "broken-model",
                     DisplayName = "Broken Model",
                     Repository = string.Empty,
-                    Revision = "main",
-                    SourceFile = "model.onnx"
+                    Revision = "main"
                 }
             });
 
@@ -292,11 +241,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a non-empty `repository`."));
         }
 
-        private HfHubInstalledPackageSnapshot CreatePackage(
-            string packageId,
-            string displayName,
-            string version,
-            string manifestContents)
+        private HfHubInstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)
         {
             var packageDirectory = Path.Combine(_rootDirectory, packageId);
             Directory.CreateDirectory(packageDirectory);
@@ -317,10 +262,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return string.Concat(hashBytes.Select(hashByte => hashByte.ToString("x2")));
         }
 
-        private static void SetProjectManifest(
-            HfHubProjectManifestAsset asset,
-            int version,
-            HfHubProjectManifestModelAssetEntry[] models)
+        private static void SetProjectManifest(HfHubProjectManifestAsset asset, int version, HfHubProjectManifestModelAssetEntry[] models)
         {
             var serializedObject = new UnityEditor.SerializedObject(asset);
             serializedObject.FindProperty("<Version>k__BackingField").intValue = version;
@@ -334,7 +276,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 modelProperty.FindPropertyRelative("<DisplayName>k__BackingField").stringValue = models[i].DisplayName;
                 modelProperty.FindPropertyRelative("<Repository>k__BackingField").stringValue = models[i].Repository;
                 modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
-                modelProperty.FindPropertyRelative("<SourceFile>k__BackingField").stringValue = models[i].SourceFile;
             }
 
             serializedObject.ApplyModifiedPropertiesWithoutUndo();

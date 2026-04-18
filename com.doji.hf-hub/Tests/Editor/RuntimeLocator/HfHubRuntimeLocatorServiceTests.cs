@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using Unity.InferenceEngine;
@@ -7,7 +8,7 @@ using Unity.InferenceEngine;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers generated runtime locator registry write and lookup behavior.
+    /// Covers generated runtime locator registry write and repo-level lookup behavior.
     /// </summary>
     internal sealed class HfHubRuntimeLocatorServiceTests
     {
@@ -27,7 +28,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Writes one successful import result and verifies generated registry JSON lands under package-scoped StreamingAssets path.
+        /// Verifies registry JSON writes canonical repo id and runtime file entries.
         /// </summary>
         [Test]
         public void WriteRegistries_WritesPackageScopedRegistryJson()
@@ -40,58 +41,124 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var registryAbsolutePath = HfHubProjectPaths.ToAbsolutePath(registryPath);
 
             Assert.That(File.Exists(registryAbsolutePath), Is.True);
-            Assert.That(File.ReadAllText(registryAbsolutePath), Does.Contain("\"_modelId\": \"tiny-model\""));
-            Assert.That(File.ReadAllText(registryAbsolutePath), Does.Contain("\"_repository\": \"doji/test-model\""));
-            Assert.That(File.ReadAllText(registryAbsolutePath), Does.Contain("\"_primarySentisRelativePath\": \"hf-hub/models--doji--test-model/snapshots/abc123/model.sentis\""));
+            Assert.That(File.ReadAllText(registryAbsolutePath), Does.Contain("\"_repoId\": \"doji/test-model\""));
+            Assert.That(File.ReadAllText(registryAbsolutePath), Does.Contain("\"_kind\": \"sentis\""));
         }
 
         /// <summary>
-        /// Writes one runtime registry file, then resolves model through public API without manual StreamingAssets path composition.
+        /// Verifies owner-specific repo lookup returns generated Sentis entries.
         /// </summary>
         [Test]
         public void TryResolveRuntimeModel_ReturnsResolvedAbsolutePathsFromGeneratedRegistry()
         {
             var result = CreateSuccessResult("tiny-model");
-            WriteRuntimeSentis(result.ImportedArtifact.Metadata.RuntimeSentisAssetPath);
+            WriteRuntimeFiles(result.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { result });
 
-            var found = ModelHub.TryResolveRuntimeModel("com.doji.test", "tiny-model", out var model);
+            var found = ModelHub.TryResolveRuntimeModel("com.doji.test", "doji/test-model", out var model);
 
             Assert.That(found, Is.True);
             Assert.That(model, Is.Not.Null);
             Assert.That(model.PackageId, Is.EqualTo("com.doji.test"));
-            Assert.That(model.ModelId, Is.EqualTo("tiny-model"));
-            Assert.That(model.Repository, Is.EqualTo("doji/test-model"));
-            // Unity may return `Application.streamingAssetsPath` with `/` even on Windows.
-            Assert.That(NormalizePath(model.PrimarySentisPath), Is.EqualTo(
-                NormalizePath(HfHubProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis"))));
+            Assert.That(model.RepoId, Is.EqualTo("doji/test-model"));
             Assert.That(model.Files.Count, Is.EqualTo(1));
-            Assert.That(model.Files[0].Kind, Is.EqualTo("sentis"));
-            Assert.That(model.Files[0].FilePath, Is.EqualTo(model.PrimarySentisPath));
-            Assert.That(model.TryGetFilePath("models/model.onnx", out var filePath), Is.True);
-            Assert.That(filePath, Is.EqualTo(model.PrimarySentisPath));
+            Assert.That(model.TryGetSentisPath("models/model.onnx", out var sentisPath), Is.True);
+            Assert.That(NormalizePath(sentisPath), Does.EndWith("/models/model.sentis"));
         }
 
         /// <summary>
-        /// Resolves generated runtime model by canonical HuggingFace repository id through single-string public API.
+        /// Verifies single-string repo lookup succeeds when only one owner publishes that repo.
         /// </summary>
         [Test]
         public void TryResolveRuntimeModel_ByRepositoryId_ReturnsResolvedModel()
         {
             var result = CreateSuccessResult("tiny-model");
-            WriteRuntimeSentis(result.ImportedArtifact.Metadata.RuntimeSentisAssetPath);
+            WriteRuntimeFiles(result.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { result });
 
             var found = ModelHub.TryResolveRuntimeModel("doji/test-model", out var model);
 
             Assert.That(found, Is.True);
             Assert.That(model, Is.Not.Null);
-            Assert.That(model.Repository, Is.EqualTo("doji/test-model"));
-            Assert.That(model.ModelId, Is.EqualTo("tiny-model"));
+            Assert.That(model.RepoId, Is.EqualTo("doji/test-model"));
         }
 
         /// <summary>
-        /// Verifies public runtime lookup fails cleanly when package registry has not been generated yet.
+        /// Verifies `from_pretrained(...)` style wrapper resolves Sentis payloads by repo path.
+        /// </summary>
+        [Test]
+        public void FromPretrained_ReturnsRepositoryWrapperWithSentisAccess()
+        {
+            var result = CreateSuccessResult("tiny-model");
+            WriteRuntimeFiles(result.ImportedArtifact.Metadata);
+            _registryService.WriteRegistries(new[] { result });
+
+            var repository = ModelHub.FromPretrained("doji/test-model");
+
+            Assert.That(repository.PackageId, Is.EqualTo("com.doji.test"));
+            Assert.That(repository.RepoId, Is.EqualTo("doji/test-model"));
+            Assert.That(repository.TryGetSentisPath("models/model.onnx", out var sentisPath), Is.True);
+            Assert.That(NormalizePath(sentisPath), Does.EndWith("/models/model.sentis"));
+        }
+
+        /// <summary>
+        /// Verifies owner-specific `from_pretrained(...)` style wrapper stays deterministic when repo id is ambiguous globally.
+        /// </summary>
+        [Test]
+        public void FromPretrained_ByOwnerAndRepositoryId_ResolvesChosenOwnerWhenAmbiguous()
+        {
+            var first = CreateSuccessResult("tiny-model", "com.doji.first");
+            var second = CreateSuccessResult("tiny-model", "com.doji.second");
+            WriteRuntimeFiles(first.ImportedArtifact.Metadata);
+            WriteRuntimeFiles(second.ImportedArtifact.Metadata);
+            _registryService.WriteRegistries(new[] { first, second });
+
+            var repository = ModelHub.FromPretrained("com.doji.second", "doji/test-model");
+
+            Assert.That(repository, Is.Not.Null);
+            Assert.That(repository.PackageId, Is.EqualTo("com.doji.second"));
+            Assert.That(repository.RepoId, Is.EqualTo("doji/test-model"));
+        }
+
+        /// <summary>
+        /// Verifies `from_pretrained(...)` wrapper can load generated Sentis payload by repo-relative ONNX path.
+        /// </summary>
+        [Test]
+        public async System.Threading.Tasks.Task FromPretrained_LoadModel_LoadsGeneratedSentisPayload()
+        {
+            var dependency = new HfHubDiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new HfHubModelDependencyDefinition(
+                    "tiny-model",
+                    "Tiny Model",
+                    "doji/test-model",
+                    "main"));
+
+            var cachedSnapshot = CreateCachedSnapshot();
+            var importService = new HfHubProjectImportService();
+            var importedArtifact = await importService.ImportAsync(
+                dependency,
+                cachedSnapshot,
+                System.Threading.CancellationToken.None);
+
+            _registryService.WriteRegistries(new[]
+            {
+                new HfHubModelSyncResult(dependency, cachedSnapshot, importedArtifact, null)
+            });
+
+            var repository = ModelHub.FromPretrained("doji/test-model");
+            var model = repository.LoadModel("SingleInputSingleOuput.onnx");
+
+            Assert.That(model, Is.Not.Null);
+        }
+
+        /// <summary>
+        /// Verifies package-specific repo lookup returns false when registry is missing.
         /// </summary>
         [Test]
         public void TryResolveRuntimeModel_ReturnsFalseWhenRegistryMissing()
@@ -103,7 +170,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Imports real ONNX sample, writes runtime registry, then loads generated `.sentis` through public package API.
+        /// Verifies public runtime load resolves sentis by repo-relative ONNX path.
         /// </summary>
         [Test]
         public async System.Threading.Tasks.Task LoadRuntimeModel_LoadsGeneratedSentisPayloadFromPublicApi()
@@ -119,51 +186,95 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "tiny-model",
                     "Tiny Model",
                     "doji/test-model",
-                    "main",
-                    "SingleInputSingleOuput.onnx"));
+                    "main"));
 
-            var cachedFile = new HfHubCachedRawFile(
-                GetInferenceSampleOnnxPath(),
-                "/cache/SingleInputSingleOuput.onnx.hfhub.json",
-                new HfHubRawCacheMetadata
-                {
-                    Repository = dependency.Repository,
-                    RequestedRevision = dependency.Revision,
-                    ResolvedCommitHash = "abc123",
-                    SourceFile = dependency.SourceFile
-                });
-
+            var cachedSnapshot = CreateCachedSnapshot();
             var importService = new HfHubProjectImportService();
             var importedArtifact = await importService.ImportAsync(
                 dependency,
-                cachedFile,
+                cachedSnapshot,
                 System.Threading.CancellationToken.None);
 
             _registryService.WriteRegistries(new[]
             {
-                new HfHubModelSyncResult(dependency, cachedFile, importedArtifact, null)
+                new HfHubModelSyncResult(dependency, cachedSnapshot, importedArtifact, null)
             });
 
-            var model = ModelHub.LoadRuntimeModel("doji/test-model");
+            var model = ModelHub.LoadRuntimeModel("doji/test-model", "SingleInputSingleOuput.onnx");
 
             Assert.That(model, Is.Not.Null);
         }
 
-        private static HfHubModelSyncResult CreateSuccessResult(string modelId)
+        /// <summary>
+        /// Verifies single-string repo lookup throws when multiple owners publish same repo.
+        /// </summary>
+        [Test]
+        public void TryResolveRuntimeModel_ByRepositoryId_ThrowsWhenAmbiguousAcrossOwners()
+        {
+            var first = CreateSuccessResult("tiny-model", "com.doji.first");
+            var second = CreateSuccessResult("tiny-model", "com.doji.second");
+            WriteRuntimeFiles(first.ImportedArtifact.Metadata);
+            WriteRuntimeFiles(second.ImportedArtifact.Metadata);
+            _registryService.WriteRegistries(new[] { first, second });
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                ModelHub.TryResolveRuntimeModel("doji/test-model", out _));
+
+            Assert.That(exception?.Message, Does.Contain("ambiguous"));
+        }
+
+        /// <summary>
+        /// Verifies single-string `from_pretrained(...)` lookup throws when multiple owners publish same repo.
+        /// </summary>
+        [Test]
+        public void FromPretrained_ByRepositoryId_ThrowsWhenAmbiguousAcrossOwners()
+        {
+            var first = CreateSuccessResult("tiny-model", "com.doji.first");
+            var second = CreateSuccessResult("tiny-model", "com.doji.second");
+            WriteRuntimeFiles(first.ImportedArtifact.Metadata);
+            WriteRuntimeFiles(second.ImportedArtifact.Metadata);
+            _registryService.WriteRegistries(new[] { first, second });
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                ModelHub.FromPretrained("doji/test-model"));
+
+            Assert.That(exception?.Message, Does.Contain("ambiguous"));
+        }
+
+        /// <summary>
+        /// Verifies owner-specific repo lookup remains deterministic when repo id is ambiguous globally.
+        /// </summary>
+        [Test]
+        public void TryResolveRuntimeModel_ByOwnerAndRepositoryId_ResolvesChosenOwnerWhenAmbiguous()
+        {
+            var first = CreateSuccessResult("tiny-model", "com.doji.first");
+            var second = CreateSuccessResult("tiny-model", "com.doji.second");
+            WriteRuntimeFiles(first.ImportedArtifact.Metadata);
+            WriteRuntimeFiles(second.ImportedArtifact.Metadata);
+            _registryService.WriteRegistries(new[] { first, second });
+
+            var found = ModelHub.TryResolveRuntimeModel("com.doji.second", "doji/test-model", out var model);
+
+            Assert.That(found, Is.True);
+            Assert.That(model, Is.Not.Null);
+            Assert.That(model.PackageId, Is.EqualTo("com.doji.second"));
+            Assert.That(model.RepoId, Is.EqualTo("doji/test-model"));
+        }
+
+        private static HfHubModelSyncResult CreateSuccessResult(string modelId, string packageId = "com.doji.test")
         {
             var dependency = new HfHubDiscoveredModelDependency(
-                "com.doji.test",
+                packageId,
                 "Test Package",
                 "1.0.0",
-                "/tmp/com.doji.test",
-                "/tmp/com.doji.test/hf-hub-manifest.json",
+                $"/tmp/{packageId}",
+                $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
                     modelId,
                     "Tiny Model",
                     "doji/test-model",
-                    "main",
-                    "models/model.onnx"));
+                    "main"));
 
             var metadata = new HfHubImportedModelMetadata
             {
@@ -175,32 +286,69 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
                 ResolvedCommitHash = "abc123",
-                SourceFile = dependency.SourceFile,
-                RawFilePath = "/cache/model.onnx",
-                RawMetadataPath = "/cache/model.onnx.hfhub.json",
+                RawSnapshotRootPath = "/cache/doji/test-model/abc123",
+                RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                 SentisVersion = "2.6.1",
                 UnityVersion = "6000.3.10f1",
-                SentisAssetPath = "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
                 RuntimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId),
                 RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId)),
-                RuntimeSentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", dependency.SourceFile),
-                RuntimeSentisRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", dependency.SourceFile)),
+                RuntimeFiles = new[]
+                {
+                    new HfHubImportedRuntimeFileMetadata
+                    {
+                        RepoPath = "models/model.onnx",
+                        Kind = "sentis",
+                        AssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", "models/model.onnx"),
+                        RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", "models/model.onnx"))
+                    }
+                },
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             };
 
             return new HfHubModelSyncResult(
                 dependency,
-                new HfHubCachedRawFile("/cache/model.onnx", "/cache/model.onnx.hfhub.json", new HfHubRawCacheMetadata()),
-                new HfHubImportedModelArtifact(metadata.SentisAssetPath, $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json", metadata),
+                new HfHubCachedSnapshot("/cache/doji/test-model/abc123", "/cache/doji/test-model/abc123/snapshot.hfhub.json", new HfHubRawCacheMetadata()),
+                new HfHubImportedModelArtifact(HfHubProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, "abc123"), $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json", metadata),
                 null);
         }
 
-        private static void WriteRuntimeSentis(string runtimeSentisAssetPath)
+        private static HfHubCachedSnapshot CreateCachedSnapshot()
         {
-            var runtimeSentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(runtimeSentisAssetPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(runtimeSentisAbsolutePath) ?? throw new InvalidOperationException());
-            File.WriteAllText(runtimeSentisAbsolutePath, "sentis");
-            AssetDatabase.ImportAsset(runtimeSentisAssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            var sampleOnnxPath = GetInferenceSampleOnnxPath();
+            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.RuntimeLocatorSnapshot", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(snapshotRoot);
+            var cachedModelPath = Path.Combine(snapshotRoot, "SingleInputSingleOuput.onnx");
+            File.Copy(sampleOnnxPath, cachedModelPath, true);
+
+            return new HfHubCachedSnapshot(
+                snapshotRoot,
+                Path.Combine(snapshotRoot, "snapshot.hfhub.json"),
+                new HfHubRawCacheMetadata
+                {
+                    Repository = "doji/test-model",
+                    RequestedRevision = "main",
+                    ResolvedCommitHash = "abc123",
+                    CachedSnapshotRoot = snapshotRoot,
+                    Files = new[]
+                    {
+                        new HfHubRawCacheFileMetadata
+                        {
+                            RepoPath = "SingleInputSingleOuput.onnx",
+                            CachedFilePath = cachedModelPath
+                        }
+                    }
+                });
+        }
+
+        private static void WriteRuntimeFiles(HfHubImportedModelMetadata metadata)
+        {
+            foreach (var runtimeFile in metadata.RuntimeFiles)
+            {
+                var absolutePath = HfHubProjectPaths.ToAbsolutePath(runtimeFile.AssetPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(absolutePath) ?? throw new InvalidOperationException());
+                File.WriteAllText(absolutePath, runtimeFile.Kind);
+                AssetDatabase.ImportAsset(runtimeFile.AssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            }
         }
 
         private static void CleanupRuntimeArtifacts()

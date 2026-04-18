@@ -55,17 +55,14 @@ namespace Doji.AI.ModelHub.Editor
         {
             var metadata = result.ImportedArtifact.Metadata;
             return new HfHubRuntimeLocatorEntry(
-                result.Dependency.ModelId,
                 result.Dependency.Repository,
                 result.Dependency.ModelDisplayName,
-                metadata.RuntimeSentisRelativePath,
-                new[]
-                {
-                    new HfHubRuntimeLocatorFile(
-                        metadata.RuntimeSentisRelativePath,
-                        result.Dependency.SourceFile,
-                        "sentis")
-                });
+                metadata.RuntimeFiles
+                    .Select(file => new HfHubRuntimeLocatorFile(
+                        file.RelativePath,
+                        file.RepoPath,
+                        file.Kind))
+                    .ToArray());
         }
 
         private static void EnsureAssetFolderExists(string assetFolderPath)

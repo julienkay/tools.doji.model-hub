@@ -34,66 +34,80 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Resolves one synchronized model by canonical HuggingFace repository id.
         /// </summary>
-        public static bool TryResolveRuntimeModel(string modelId, out HfHubResolvedRuntimeModel model)
+        public static bool TryResolveRuntimeModel(string repoId, out HfHubResolvedRuntimeModel model)
         {
-            return HfHubRuntimeLocatorService.TryResolveModel(modelId, out model);
+            return HfHubRuntimeLocatorService.TryResolveModel(repoId, out model);
         }
 
         /// <summary>
-        /// Resolves one synchronized model by stable package-local string id.
+        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace repository id.
         /// </summary>
         public static bool TryResolveRuntimeModel(
             string packageId,
-            string modelId,
+            string repoId,
             out HfHubResolvedRuntimeModel model)
         {
-            return HfHubRuntimeLocatorService.TryResolveModel(packageId, modelId, out model);
+            return HfHubRuntimeLocatorService.TryResolveModel(packageId, repoId, out model);
         }
 
         /// <summary>
         /// Resolves one synchronized model by canonical HuggingFace repository id or throws when registry data is missing.
         /// </summary>
-        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string modelId)
+        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string repoId)
         {
-            if (TryResolveRuntimeModel(modelId, out var model))
+            if (TryResolveRuntimeModel(repoId, out var model))
             {
                 return model;
             }
 
             throw new FileNotFoundException(
-                $"HF Hub runtime model '{modelId}' was not found under '{Application.streamingAssetsPath}'.");
+                $"HF Hub runtime model '{repoId}' was not found under '{Application.streamingAssetsPath}'.");
         }
 
         /// <summary>
-        /// Resolves one synchronized model by stable package-local string id or throws when registry data is missing.
+        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace repository id or throws when registry data is missing.
         /// </summary>
-        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string packageId, string modelId)
+        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string packageId, string repoId)
         {
-            if (TryResolveRuntimeModel(packageId, modelId, out var model))
+            if (TryResolveRuntimeModel(packageId, repoId, out var model))
             {
                 return model;
             }
 
             throw new FileNotFoundException(
-                $"HF Hub runtime model '{packageId}/{modelId}' was not found under '{Application.streamingAssetsPath}'.");
+                $"HF Hub runtime model '{packageId}/{repoId}' was not found under '{Application.streamingAssetsPath}'.");
         }
 
         /// <summary>
-        /// Resolves one synchronized model by canonical HuggingFace repository id and loads serialized Sentis payload.
+        /// Resolves one synchronized repository snapshot by canonical HuggingFace repository id in `from_pretrained(...)` style.
         /// </summary>
-        public static Model LoadRuntimeModel(string modelId)
+        public static HfHubPretrainedRepository FromPretrained(string repoId)
         {
-            var resolvedModel = ResolveRuntimeModel(modelId);
-            return ModelLoader.Load(resolvedModel.PrimarySentisPath);
+            return new HfHubPretrainedRepository(ResolveRuntimeModel(repoId));
         }
 
         /// <summary>
-        /// Resolves one synchronized model and loads serialized Sentis payload from generated runtime path.
+        /// Resolves one synchronized repository snapshot by manifest owner id plus canonical HuggingFace repository id in `from_pretrained(...)` style.
         /// </summary>
-        public static Model LoadRuntimeModel(string packageId, string modelId)
+        public static HfHubPretrainedRepository FromPretrained(string packageId, string repoId)
         {
-            var resolvedModel = ResolveRuntimeModel(packageId, modelId);
-            return ModelLoader.Load(resolvedModel.PrimarySentisPath);
+            return new HfHubPretrainedRepository(ResolveRuntimeModel(packageId, repoId));
+        }
+
+        /// <summary>
+        /// Resolves one synchronized repository snapshot by canonical HuggingFace repository id and loads one serialized Sentis payload.
+        /// </summary>
+        public static Model LoadRuntimeModel(string repoId, string repoPath)
+        {
+            return FromPretrained(repoId).LoadModel(repoPath);
+        }
+
+        /// <summary>
+        /// Resolves one synchronized repository snapshot and loads one serialized Sentis payload from generated runtime path.
+        /// </summary>
+        public static Model LoadRuntimeModel(string packageId, string repoId, string repoPath)
+        {
+            return FromPretrained(packageId, repoId).LoadModel(repoPath);
         }
 
         internal static string GetRuntimeRegistryRelativePath(string packageId)

@@ -24,6 +24,8 @@ This is the home for:
 
 ## Future Scope
 
+- Add runtime-capable ONNX converter package behind `IHfHubOnnxModelConverter` when runtime conversion work starts.
+- Extend `from_pretrained(...)` wrapper API only when concrete tokenizer/config/runtime helper needs appear.
 - Add optional HuggingFace authentication support.
 - Add gated model workflows.
 - Define a stronger offline story for disconnected reuse and cache portability.

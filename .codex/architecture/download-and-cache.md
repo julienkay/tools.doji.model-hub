@@ -2,7 +2,7 @@
 
 ## Cache Location
 
-V1 uses a shared per-user cache outside the Unity project so raw downloads can be reused across projects.
+V1 uses shared per-user cache outside Unity project so raw HuggingFace repository snapshots can be reused across projects.
 
 Cache root:
 
@@ -10,109 +10,36 @@ Cache root:
 - Windows: `%LocalAppData%/Doji/HfHub`
 - Linux: `~/.cache/doji/hf-hub`
 
-Current raw-cache layout uses HuggingFace-style revision and snapshot bookkeeping:
+Current raw-cache layout:
 
 ```text
 <cache-root>/raw/<serialized-repo>/refs/<revision>
-<cache-root>/raw/<serialized-repo>/snapshots/<commit>/<sourceFile>
+<cache-root>/raw/<serialized-repo>/snapshots/<commit>/<repo-file>
+<cache-root>/raw/<serialized-repo>/snapshots/<commit>/snapshot.hfhub.json
 ```
 
-Downloaded files should only be keyed by Hub identity, not by project.
+Revision ref maps requested revision to resolved commit. Snapshot metadata records whole repo file list for that commit.
 
-Raw files keep sidecar `.hfhub.json` metadata so later status checks and stale detection can reason about the cached file without needing fresh network calls.
+## Download Model
 
-## Download Reliability
+Dependency declaration is repo-level.
 
-The download path is the core workflow of this package and must be engineered as first-class infrastructure.
+Download flow:
 
-V1 architecture targets three explicit guarantees:
+1. Resolve `repository + revision` through HuggingFace model revision API.
+2. Read resolved commit hash and `siblings` file list.
+3. Download every sibling file into raw snapshot cache.
+4. Write one repo-level metadata file once snapshot is complete.
 
-1. Downloads run in the background using Unity editor task/progress APIs.
-2. Downloads are resumable instead of restarting from zero.
-3. Active sync work is not lost on domain reload.
+This matches upstream snapshot semantics better than file-by-file dependency declarations.
 
-How V1 tackles each guarantee:
+## Reliability
 
-- Background execution:
-  - sync must not block the editor thread with `.GetAwaiter().GetResult()` style orchestration
-  - editor-triggered sync runs through a dedicated background sync manager
-  - user-visible state is surfaced through Unity `Progress` API rather than modal blocking UI
-  - menu, Project Settings, and prompts all start the same background sync path
-- Resumable downloads:
-  - raw target uses a sibling partial file such as `<file>.downloading`
-  - if that partial file exists, the next download attempt resumes from its current byte length
-  - resume is implemented with HTTP `Range` requests
-  - if the server ignores `Range` and returns full content, the client detects that and restarts cleanly once to avoid file corruption
-  - this behavior follows the same general strategy used by `huggingface_hub` in `file_download.py`
-- Domain reload resilience:
-  - active sync state is persisted under `Library/Doji/HfHub/sync-state.json`
-  - persisted state stores which dependency is currently active and which declared dependencies remain pending
-  - after domain reload or editor script reload, the background sync manager checks for that persisted state and resumes remaining work
-  - raw download partial files remain on disk, so resumed sync can continue transfer from previous byte position where the server supports it
+Download path remains first-class infrastructure:
 
-Current implementation uses `HfHubBackgroundSyncManager` to start sync through Unity's `Progress` API, persist pending dependency keys under `Library/Doji/HfHub/sync-state.json`, and resume remaining work after a domain reload.
+- background execution through Unity editor task/progress APIs
+- resumable file transfers
+- persisted sync queue state across domain reload
+- file locking around snapshot writes
 
-This means the architecture deliberately separates:
-
-- shared raw cache state
-- generated project artifact state
-- active sync job state
-
-Those are different concerns and must remain independently recoverable.
-
-It also separates package responsibilities:
-
-- downloader package owns transfer/job durability
-- HF Hub package owns repository resolution, cache policy, and model import
-
-## Downloader Package Responsibilities
-
-Downloader package should own:
-
-- runtime-safe download core with no `UnityEditor` dependency
-- persisted job state
-- partial file conventions such as `.downloading` or `.part`
-- resume semantics using HTTP `Range`
-- file locking and duplicate-work prevention
-- transport abstraction
-- progress and cancel contracts
-- retry/backoff policy
-- integrity checks once download completes
-
-Optional editor-specific adapter layer may live there too, but only for:
-
-- `Progress` integration
-- assembly/domain reload hooks
-- editor job restoration hooks
-
-## HF Hub Responsibilities
-
-`com.doji.hf-hub` should keep owning:
-
-- package manifest discovery
-- HuggingFace repo/revision/file resolution
-- HuggingFace-specific cache layout and sidecar metadata
-- package/user-facing prompts and status surfaces
-- project import pipeline from raw ONNX to `.sentis`
-- stale detection and generated asset metadata
-- runtime model locator contract
-
-Current repository status:
-
-- `com.doji.downloads` owns shared progress, file locking, resumable `UnityWebRequest` downloads, persisted queue-state storage, generic editor recovery and progress-runner primitives, and sequential queue execution.
-- `com.doji.hf-hub` remains the queue owner for HuggingFace-specific sync meaning, repository resolution, cache metadata, and import orchestration.
-
-## Migration Bias
-
-Do not generalize too far too early.
-
-First extraction should support only what current project needs:
-
-- URL to local file
-- resume
-- persisted state
-- cancel
-- recovery after editor/domain reload
-- editor/runtime-safe core contracts
-
-Avoid designing giant universal downloader API before a real second use case exists.
+Each file download can resume independently. Snapshot lock protects repo metadata write and duplicate snapshot work.

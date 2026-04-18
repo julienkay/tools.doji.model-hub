@@ -5,8 +5,7 @@
       "id": "tiny-random-bert",
       "displayName": "Tiny Random BERT",
       "repository": "hf-internal-testing/tiny-random-bert",
-      "revision": "main",
-      "sourceFile": "model.onnx"
+      "revision": "main"
     }
   ]
 }

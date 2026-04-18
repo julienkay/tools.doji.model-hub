@@ -10,24 +10,23 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void RuntimePaths_UseSerializedRepositoryAndCommitForGlobalUniqueness()
         {
-            var firstPath = HfHubProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-a", "model.onnx");
-            var secondPath = HfHubProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-b", "model.onnx");
+            var firstPath = HfHubProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-a", "onnx/model.onnx");
+            var secondPath = HfHubProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-b", "onnx/model.onnx");
 
-            Assert.That(firstPath, Does.Contain("Assets/StreamingAssets/hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/commit-a"));
-            Assert.That(secondPath, Does.Contain("Assets/StreamingAssets/hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/commit-b"));
-            Assert.That(firstPath, Is.Not.EqualTo(secondPath));
+            Assert.That(firstPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
+            Assert.That(secondPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
         }
 
         [Test]
-        public void RuntimeSourcePath_PreservesRelativeRepoFoldersWithinModelFolder()
+        public void RuntimeSentisPath_PreservesRelativeRepoFoldersWithinSnapshot()
         {
-            var path = HfHubProjectPaths.GetRuntimeSourceAssetPath(
+            var path = HfHubProjectPaths.GetRuntimeSentisAssetPath(
                 "hf-internal-testing/tiny-random-bert",
                 "abc123",
-                "tokenizer/config.json");
+                "tokenizer/config.onnx");
 
             Assert.That(path, Is.EqualTo(
-                "Assets/StreamingAssets/hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/abc123/repo/tokenizer/config.json"));
+                "Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/tokenizer/config.sentis"));
         }
 
         [Test]
@@ -43,10 +42,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void ToStreamingAssetsRelativePath_RemovesProjectStreamingAssetsPrefix()
         {
             var relativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(
-                "Assets/StreamingAssets/hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/abc123/model.sentis");
+                "Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis");
 
             Assert.That(relativePath, Is.EqualTo(
-                "hf-hub/models--hf-internal-testing--tiny-random-bert/snapshots/abc123/model.sentis"));
+                "hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
         }
     }
 }

@@ -16,9 +16,9 @@
 1. A Unity package declares remote model dependencies in a package-owned `hf-hub-manifest.json`.
 2. HF Hub discovers those manifests when packages are present in a Unity project.
 3. The Editor prompts the user to download and import the required model dependencies.
-4. Source ONNX files are downloaded into a shared local cache so multiple Unity projects can reuse the same raw files.
-5. The package converts those cached ONNX files into project-owned `.sentis` artifacts for editor and runtime use.
-6. Runtime code primarily resolves and loads already-generated local payloads. Runtime download remains future scope, but default workflow assumes editor sync happened before build/runtime use.
+4. Whole HuggingFace repository snapshots are downloaded into shared local cache so multiple Unity projects can reuse same raw files.
+5. The package keeps repo files only in shared cache and converts cached ONNX files into project-owned runtime `.sentis` artifacts.
+6. Runtime code primarily resolves already-generated repo snapshots and loads individual model files by repo-relative path. Runtime download remains future scope, but default workflow assumes editor sync happened before build/runtime use.
 
 ## Architectural Boundaries
 

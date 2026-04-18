@@ -12,15 +12,15 @@ namespace Doji.AI.ModelHub
     internal static class HfHubRuntimeLocatorService
     {
         /// <summary>
-        /// Resolves one synchronized model by package id and model id.
+        /// Resolves one synchronized model by package id and canonical HuggingFace repository id.
         /// </summary>
         public static bool TryResolveModel(
             string packageId,
-            string modelId,
+            string repoId,
             out HfHubResolvedRuntimeModel model)
         {
             model = null;
-            if (string.IsNullOrWhiteSpace(packageId) || string.IsNullOrWhiteSpace(modelId))
+            if (string.IsNullOrWhiteSpace(packageId) || string.IsNullOrWhiteSpace(repoId))
             {
                 return false;
             }
@@ -31,7 +31,7 @@ namespace Doji.AI.ModelHub
             }
 
             var entry = manifest.Models.FirstOrDefault(candidate =>
-                string.Equals(candidate.ModelId, modelId, StringComparison.Ordinal));
+                string.Equals(candidate.RepoId, repoId, StringComparison.Ordinal));
             if (entry == null)
             {
                 return false;
@@ -40,25 +40,23 @@ namespace Doji.AI.ModelHub
             var files = entry.Files
                 .Select(file => new HfHubResolvedRuntimeFile(
                     ModelHub.GetRuntimeAbsolutePath(file.RelativePath),
-                    file.SourceFile,
+                    file.RepoPath,
                     file.Kind))
                 .ToArray();
 
             model = new HfHubResolvedRuntimeModel(
                 manifest.PackageId,
                 manifest.PackageVersion,
-                entry.ModelId,
-                entry.Repository,
+                entry.RepoId,
                 entry.DisplayName,
-                ModelHub.GetRuntimeAbsolutePath(entry.PrimarySentisRelativePath),
                 files);
             return true;
         }
 
-        public static bool TryResolveModel(string repository, out HfHubResolvedRuntimeModel model)
+        public static bool TryResolveModel(string repoId, out HfHubResolvedRuntimeModel model)
         {
             model = null;
-            if (string.IsNullOrWhiteSpace(repository))
+            if (string.IsNullOrWhiteSpace(repoId))
             {
                 return false;
             }
@@ -67,22 +65,20 @@ namespace Doji.AI.ModelHub
             foreach (var manifest in LoadAllManifests())
             {
                 foreach (var entry in manifest.Models.Where(candidate =>
-                             string.Equals(candidate.Repository, repository, StringComparison.Ordinal)))
+                             string.Equals(candidate.RepoId, repoId, StringComparison.Ordinal)))
                 {
                     var files = entry.Files
                         .Select(file => new HfHubResolvedRuntimeFile(
                             ModelHub.GetRuntimeAbsolutePath(file.RelativePath),
-                            file.SourceFile,
+                            file.RepoPath,
                             file.Kind))
                         .ToArray();
 
                     matches.Add(new HfHubResolvedRuntimeModel(
                         manifest.PackageId,
                         manifest.PackageVersion,
-                        entry.ModelId,
-                        entry.Repository,
+                        entry.RepoId,
                         entry.DisplayName,
-                        ModelHub.GetRuntimeAbsolutePath(entry.PrimarySentisRelativePath),
                         files));
                 }
             }
@@ -96,7 +92,7 @@ namespace Doji.AI.ModelHub
             if (matches.Count > 1)
             {
                 throw new InvalidOperationException(
-                    $"HF Hub runtime model '{repository}' is ambiguous across multiple registries. Use owner-specific lookup or keep repository ids unique.");
+                    $"HF Hub runtime model '{repoId}' is ambiguous across multiple registries. Use owner-specific lookup or keep repository ids unique.");
             }
 
             return false;

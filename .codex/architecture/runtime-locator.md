@@ -2,79 +2,64 @@
 
 ## Public Contract
 
-Runtime consumption should not require package code to compose generated asset paths manually.
+Runtime code should resolve one HuggingFace repository snapshot by canonical `repo_id`, then address individual files inside that snapshot by repository-relative path.
 
-Desired usage style is similar in spirit to Python ecosystem pretrained loading APIs:
+Desired usage:
 
-- string-based model creation and lookup by stable id
-- package-facing wrapper APIs such as `CreateModel("tiny-clip")` or runtime helpers analogous to `from_pretrained(...)`
-- optional safety checks that can pin or validate expected resolved revision or commit
-- higher-level package-defined pipelines that can dynamically resolve multiple model entries and companion files from stable string ids
+- repo-level resolution by stable `repo_id`
+- model loading by repo-relative ONNX path
+- thin higher-level wrappers can map `from_pretrained(...)` style behavior onto repo snapshot plus file selection
 
-Default runtime expectation is stronger offline-use than upstream Python libraries:
+Current API direction:
 
-- runtime `load(<modelId>)` should usually resolve already-generated local payloads
-- builds should normally ship or otherwise already contain required runtime payloads
-- runtime download still matters as future capability, but should extend this contract rather than replace it
+- `ModelHub.TryResolveRuntimeModel(repoId, out repo)`
+- `repo.TryGetSentisPath("onnx/model.onnx", out path)`
+- `var pretrained = ModelHub.FromPretrained(repoId)`
+- `pretrained.LoadModel("onnx/model.onnx")`
+- `ModelHub.LoadRuntimeModel(repoId, "onnx/model.onnx")`
 
-This means:
+## Why Repo-Level Dependencies
 
-- generated runtime locator registry is implementation detail, not the primary package-facing API
-- runtime code should call locator or load API with string id
-- registry exists to map those ids to unique files under shared `StreamingAssets` root
-- package code should not hard-code `Assets/...` or `StreamingAssets/...` conventions directly
-- package code should be able to treat runtime load as local resolution first and network fallback later
+Repo-level manifest entries simplify almost every layer:
 
-## Working Assumptions
+- manifest schema stays small
+- downloader no longer needs per-file dependency semantics
+- cache naturally follows upstream snapshot shape
+- generated runtime layout mirrors repo snapshot contents
+- ambiguity is only about `repo_id`, not `repo_id + file` ownership
+- runtime wrappers can choose files the same way upstream libraries do
 
-- Runtime Sentis loading should use `StreamingAssets`.
-- Generated model payloads and related repository files may need to be copied under one shared project `StreamingAssets` root.
-- There is only one `StreamingAssets` root in a Unity project, so generated runtime paths must be globally collision-safe across packages and models.
-- Package authors should be able to build higher-level wrappers and pipelines that load several generated models and companion config, tokenizer, or preprocess files dynamically by string id.
+This fits real HuggingFace usage better because model repos usually need multiple files together: ONNX, config, tokenizer, vocab, preprocess metadata, and quantized variants.
 
-## Why Registry Still Helps
+## Locator Role
 
-- Unity runtime has one shared `StreamingAssets` root, so path uniqueness must be managed centrally
-- multi-file model support needs more than `one id -> one sentis path`
-- package authors should be able to build Transformers or Diffusers style wrappers and pipelines that ask for one model id and receive primary model plus companion files
-- registry lets runtime evolve file layout later without breaking package-facing load APIs
+Runtime locator still matters even with repo-level dependencies:
 
-Because Unity runtime loading will rely on `StreamingAssets`, generated runtime files should live under one shared root such as:
+- Unity runtime has one shared `StreamingAssets` root
+- file layout must be globally collision-safe across owners and repos
+- package code should not hard-code generated `StreamingAssets` paths
+- runtime wrappers need one stable repo lookup that returns whole generated file set
+
+## Current Runtime Layout
+
+Generated runtime files live under:
 
 ```text
-Assets/StreamingAssets/hf-hub/
+Assets/StreamingAssets/hf-hub/<repo-owner>/<repo-name>/
 ```
 
-Path uniqueness must hold across all packages and models, so runtime file layout should follow upstream-style repo serialization plus resolved commit and preserve room for multiple companion files per model.
+Current generated contents:
 
-## Recommended Layering
+- `<onnx-file>.sentis` for every converted ONNX file
+- `registries/<owner-id>/hf-hub-runtime.json` for owner-scoped locator data
 
-1. Public runtime API:
-   string-based lookup and load methods used by package code
-2. Internal locator:
-   generated per-package registry mapping ids to runtime file sets
-3. Runtime file storage:
-   deterministic shared `StreamingAssets` subtree with globally unique package and model paths
+## Ambiguity Contract
 
-This is closest in spirit to the HuggingFace Python stack:
+Single-string lookup by `repo_id` is allowed only when exactly one owner publishes that repo.
 
-- `huggingface_hub` handles file resolution, download, and cache
-- higher-level libraries expose `from_pretrained(...)` style model loading
-- local file layout and metadata stay implementation detail below that public loading API
+If multiple owners declare same `repo_id`:
 
-Key difference from upstream default assumptions:
+- `ModelHub.TryResolveRuntimeModel(repoId, out repo)` throws ambiguity error
+- owner-specific overload is required
 
-- HF Hub for Unity is more offline-first at runtime
-- editor sync is default preparation step
-- locator/load APIs should make already-downloaded runtime payloads feel like normal local assets
-
-## Recommended Direction
-
-Current implementation:
-
-1. Import writes generated runtime `.sentis` payloads under `Assets/StreamingAssets/hf-hub/<serialized-repo>/snapshots/<resolved-commit>/`.
-2. Sync writes per-package locator registries under `Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json`.
-3. Import metadata and runtime locator metadata stay separate because they serve different contracts.
-4. Runtime code resolves models by stable package id plus model id through `ModelHub.TryResolveRuntimeModel(...)`.
-5. Runtime payload layout now leans closer to official Hub cache concepts by using serialized repository ids and resolved commits instead of package-owned path segments.
-6. Runtime locator contract should continue to support future `load(<modelId>)` style APIs where local resolution is default and runtime download is optional fallback.
+That keeps default API simple while preserving explicit escape hatch for rare multi-owner collisions.

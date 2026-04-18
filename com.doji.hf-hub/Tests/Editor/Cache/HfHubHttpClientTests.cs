@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Doji.Downloads;
@@ -10,8 +11,7 @@ using NUnit.Framework;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers HTTP client behavior using a fully mocked transport so tests stay independent from live Hub responses.
-    /// The fake transport returns synthetic HEAD headers, JSON payloads, and file downloads to verify request-selection logic only.
+    /// Covers HTTP client repo-snapshot resolution using a fully mocked transport.
     /// </summary>
     internal sealed class HfHubHttpClientTests
     {
@@ -36,80 +36,62 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
         }
 
+        /// <summary>
+        /// Verifies snapshot resolution reads repo commit and sibling file list, then resolves each file URL through HEAD.
+        /// </summary>
         [Test]
-        public async Task ResolveFileVersionAsync_UsesHeadHeadersWhenPresent()
+        public async Task ResolveSnapshotVersionAsync_ResolvesCommitAndAllSiblingFiles()
         {
-            // Fake transport simulates successful HEAD response with all metadata already present.
-            // Test verifies client does not call JSON fallback and maps headers into resolved file version.
             var transport = new FakeTransport
             {
-                HeadResponse = CreateHeadResponse(
-                    "https://cdn.example/model.onnx",
-                    new Dictionary<string, string>
-                    {
-                        ["x-repo-commit"] = "abc123",
-                        ["x-linked-etag"] = "\"etag-1\"",
-                        ["x-linked-size"] = "42"
-                    })
-            };
-            var client = new HfHubHttpClient(transport);
-
-            var resolved = await client.ResolveFileVersionAsync(CreateDependency(), CancellationToken.None);
-
-            Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("abc123"));
-            Assert.That(resolved.EntityTag, Is.EqualTo("etag-1"));
-            Assert.That(resolved.SizeInBytes, Is.EqualTo(42));
-            Assert.That(resolved.DownloadUrl, Is.EqualTo("https://cdn.example/model.onnx"));
-            Assert.That(transport.GetJsonCallCount, Is.EqualTo(0));
-        }
-
-        [Test]
-        public async Task ResolveFileVersionAsync_FallsBackToModelRevisionApiWhenHeadMissesCommit()
-        {
-            // Fake transport omits commit header from HEAD response on purpose.
-            // Test verifies client falls back to model revision API and still keeps etag and size from HEAD response.
-            var transport = new FakeTransport
-            {
-                HeadResponse = CreateHeadResponse(
-                    "https://huggingface.co/doji/test-model/resolve/main/model.onnx",
-                    new Dictionary<string, string>
-                    {
-                        ["etag"] = "\"etag-2\"",
-                        ["content-length"] = "99"
-                    }),
                 JsonResponse = new JObject
                 {
-                    ["sha"] = "fallbacksha"
+                    ["sha"] = "abc123",
+                    ["siblings"] = new JArray
+                    {
+                        new JObject { ["rfilename"] = "config.json" },
+                        new JObject { ["rfilename"] = "onnx/model.onnx" }
+                    }
                 }
             };
+            transport.HeadResponses["https://huggingface.co/doji/test-model/resolve/main/config.json"] =
+                CreateHeadResponse("https://cdn.example/config.json", new Dictionary<string, string>
+                {
+                    ["x-linked-etag"] = "\"etag-config\"",
+                    ["x-linked-size"] = "10"
+                });
+            transport.HeadResponses["https://huggingface.co/doji/test-model/resolve/main/onnx/model.onnx"] =
+                CreateHeadResponse("https://cdn.example/model.onnx", new Dictionary<string, string>
+                {
+                    ["x-linked-etag"] = "\"etag-model\"",
+                    ["x-linked-size"] = "20"
+                });
+
             var client = new HfHubHttpClient(transport);
+            var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(), CancellationToken.None);
 
-            var resolved = await client.ResolveFileVersionAsync(CreateDependency(), CancellationToken.None);
-
-            Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("fallbacksha"));
-            Assert.That(resolved.EntityTag, Is.EqualTo("etag-2"));
-            Assert.That(resolved.SizeInBytes, Is.EqualTo(99));
+            Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("abc123"));
+            Assert.That(resolved.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
+            Assert.That(resolved.Files.First(file => file.RepoPath == "onnx/model.onnx").DownloadUrl, Is.EqualTo("https://cdn.example/model.onnx"));
             Assert.That(transport.GetJsonCallCount, Is.EqualTo(1));
-            StringAssert.Contains("/api/models/doji/test-model/revision/main", transport.LastJsonUrl);
+            Assert.That(transport.HeadCallCount, Is.EqualTo(2));
         }
 
+        /// <summary>
+        /// Verifies file download still delegates to transport for individual snapshot files.
+        /// </summary>
         [Test]
         public async Task DownloadFileAsync_DelegatesToTransport()
         {
-            // Fake transport writes fixed file contents to target path.
-            // Test verifies client delegates download work instead of reimplementing transport-side file write logic.
             var transport = new FakeTransport();
             var client = new HfHubHttpClient(transport);
             var targetPath = Path.Combine(_rootDirectory, "model.onnx");
             var progressRecorder = new ProgressRecorder();
 
             await client.DownloadFileAsync(
-                new HfHubResolvedFileVersion(
-                    "doji/test-model",
-                    "main",
-                    "abc123",
-                    "model.onnx",
-                    "https://huggingface.co/doji/test-model/resolve/main/model.onnx",
+                new HfHubResolvedRepoFile(
+                    "onnx/model.onnx",
+                    "https://huggingface.co/doji/test-model/resolve/main/onnx/model.onnx",
                     "etag",
                     12),
                 targetPath,
@@ -136,8 +118,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "test-model",
                     "Test Model",
                     "doji/test-model",
-                    "main",
-                    "model.onnx"));
+                    "main"));
         }
 
         private static HfHubHeadResponse CreateHeadResponse(string requestUrl, IReadOnlyDictionary<string, string> headers)
@@ -147,28 +128,23 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 headerName => headers.TryGetValue(headerName, out var value) ? value : null);
         }
 
-        /// <summary>
-        /// Minimal fake transport used by HTTP client tests.
-        /// `HeadResponse` controls metadata resolution, `JsonResponse` controls API fallback, and `DownloadFileAsync`
-        /// writes a deterministic file so assertions can check delegation and file output.
-        /// </summary>
         private sealed class FakeTransport : IHfHubHttpTransport
         {
-            public HfHubHeadResponse HeadResponse { get; set; }
+            public Dictionary<string, HfHubHeadResponse> HeadResponses { get; } = new(StringComparer.Ordinal);
             public JObject JsonResponse { get; set; }
             public int GetJsonCallCount { get; private set; }
+            public int HeadCallCount { get; private set; }
             public int DownloadCallCount { get; private set; }
-            public string LastJsonUrl { get; private set; }
 
             public Task<HfHubHeadResponse> HeadAsync(string url, CancellationToken cancellationToken)
             {
-                return Task.FromResult(HeadResponse);
+                HeadCallCount++;
+                return Task.FromResult(HeadResponses[url]);
             }
 
             public Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken)
             {
                 GetJsonCallCount++;
-                LastJsonUrl = url;
                 return Task.FromResult(JsonResponse);
             }
 

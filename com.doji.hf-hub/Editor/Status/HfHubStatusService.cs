@@ -6,23 +6,17 @@ using Unity.InferenceEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Evaluates local cache and generated artifact state for discovered model dependencies.
+    /// Evaluates local cache and generated artifact state for discovered repository dependencies.
     /// </summary>
     internal sealed class HfHubStatusService
     {
         private readonly HfHubRawCacheService _rawCacheService;
 
-        /// <summary>
-        /// Creates status service with optional raw-cache service injection for tests.
-        /// </summary>
         public HfHubStatusService(HfHubRawCacheService rawCacheService = null)
         {
             _rawCacheService = rawCacheService ?? new HfHubRawCacheService();
         }
 
-        /// <summary>
-        /// Builds local dependency status report from an existing manifest discovery report.
-        /// </summary>
         public HfHubStatusReport BuildStatusReport(HfHubDiscoveryReport discoveryReport)
         {
             var dependencyStatuses = discoveryReport.Dependencies
@@ -37,7 +31,7 @@ namespace Doji.AI.ModelHub.Editor
         private HfHubDependencyStatus BuildDependencyStatus(HfHubDiscoveredModelDependency dependency)
         {
             var revisionRefPath = HfHubCachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
-            string sentisAssetPath = null;
+            string runtimePreviewAssetPath = null;
             var importMetadataAssetPath = HfHubProjectPaths.GetImportMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
@@ -45,7 +39,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (!File.Exists(revisionRefPath))
             {
-                return Missing(dependency, "Raw cache revision ref is missing.", revisionRefPath, sentisAssetPath, importMetadataAssetPath);
+                return Missing(dependency, "Raw cache revision ref is missing.", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             string resolvedCommitHash;
@@ -55,260 +49,78 @@ namespace Doji.AI.ModelHub.Editor
             }
             catch (Exception exception)
             {
-                return Failed(
-                    dependency,
-                    $"Could not read raw cache revision ref: {exception.Message}",
-                    revisionRefPath,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Failed(dependency, $"Could not read raw cache revision ref: {exception.Message}", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
-            if (string.IsNullOrWhiteSpace(resolvedCommitHash))
+            var snapshotRoot = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
+            var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, resolvedCommitHash);
+            if (!Directory.Exists(snapshotRoot))
             {
-                return Failed(
-                    dependency,
-                    "Raw cache revision ref is empty.",
-                    revisionRefPath,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
-            }
-
-            var rawFilePath = HfHubCachePaths.GetSnapshotFilePath(
-                dependency.Repository,
-                resolvedCommitHash,
-                dependency.SourceFile);
-            var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(
-                dependency.Repository,
-                resolvedCommitHash,
-                dependency.SourceFile);
-
-            if (!File.Exists(rawFilePath))
-            {
-                return Missing(
-                    dependency,
-                    "Raw source file is missing from cache.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
-            }
-
-            if (!File.Exists(rawMetadataPath))
-            {
-                return Missing(
-                    dependency,
-                    "Raw cache metadata file is missing.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Missing(dependency, "Raw snapshot root is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!_rawCacheService.TryReadMetadata(rawMetadataPath, out var rawMetadata))
             {
-                return Failed(
-                    dependency,
-                    "Raw cache metadata is invalid.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Failed(dependency, "Raw cache metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
-            var rawMismatchMessage = GetRawMismatchMessage(dependency, rawFilePath, resolvedCommitHash, rawMetadata);
-            if (rawMismatchMessage != null)
+            if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
             {
-                return Stale(
-                    dependency,
-                    rawMismatchMessage,
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    rawMetadata,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
-            }
-
-            sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
-                dependency.Repository,
-                resolvedCommitHash,
-                dependency.SourceFile);
-            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
-
-            if (!File.Exists(sentisAbsolutePath))
-            {
-                return Missing(
-                    dependency,
-                    "Runtime .sentis asset is missing.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    rawMetadata,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Stale(dependency, "Raw cache metadata differs from manifest or revision ref.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!File.Exists(importMetadataAbsolutePath))
             {
-                return Missing(
-                    dependency,
-                    "Import metadata file is missing.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    rawMetadata,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Missing(dependency, "Import metadata file is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!HfHubProjectImportService.TryReadMetadata(importMetadataAbsolutePath, out var importedMetadata))
             {
-                return Failed(
-                    dependency,
-                    "Import metadata is invalid.",
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    rawMetadata,
-                    sentisAssetPath,
-                    importMetadataAssetPath);
+                return Failed(dependency, "Import metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
-            var importMismatchMessage = GetImportMismatchMessage(
-                dependency,
-                rawFilePath,
-                rawMetadataPath,
-                sentisAssetPath,
-                rawMetadata,
-                importedMetadata);
-            if (importMismatchMessage != null)
+            if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.RawMetadataPath, rawMetadataPath, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
             {
-                return Stale(
-                    dependency,
-                    importMismatchMessage,
-                    revisionRefPath,
-                    rawFilePath,
-                    rawMetadataPath,
-                    rawMetadata,
-                    sentisAssetPath,
-                    importMetadataAssetPath,
-                    importedMetadata);
+                runtimePreviewAssetPath = importedMetadata.RuntimeFiles?.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
+                return Stale(dependency, "Import metadata differs from current repo snapshot or Sentis version.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath, importedMetadata);
             }
 
+            var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
+            if (runtimeFiles.Length == 0)
+            {
+                return Missing(dependency, "Generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+            }
+
+            foreach (var runtimeFile in runtimeFiles)
+            {
+                if (!File.Exists(HfHubProjectPaths.ToAbsolutePath(runtimeFile.AssetPath)))
+                {
+                    return Missing(dependency, "One or more generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                }
+            }
+
+            runtimePreviewAssetPath = runtimeFiles.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Ready,
-                "Raw cache and runtime .sentis are current.",
+                "Raw repo snapshot and generated runtime files are current.",
                 revisionRefPath,
-                rawFilePath,
+                snapshotRoot,
                 rawMetadataPath,
                 rawMetadata,
-                sentisAssetPath,
+                runtimePreviewAssetPath,
                 importMetadataAssetPath,
                 importedMetadata);
-        }
-
-        private static string GetRawMismatchMessage(
-            HfHubDiscoveredModelDependency dependency,
-            string rawFilePath,
-            string resolvedCommitHash,
-            HfHubRawCacheMetadata rawMetadata)
-        {
-            if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal))
-            {
-                return "Raw cache repository differs from manifest.";
-            }
-
-            if (!string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal))
-            {
-                return "Raw cache revision differs from manifest.";
-            }
-
-            if (!string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
-            {
-                return "Raw cache commit differs from revision ref.";
-            }
-
-            if (!string.Equals(rawMetadata.SourceFile, dependency.SourceFile, StringComparison.Ordinal))
-            {
-                return "Raw cache source path differs from manifest.";
-            }
-
-            if (!string.Equals(rawMetadata.CachedFilePath, rawFilePath, StringComparison.Ordinal))
-            {
-                return "Raw cache file path metadata differs from current cache layout.";
-            }
-
-            return null;
-        }
-
-        private static string GetImportMismatchMessage(
-            HfHubDiscoveredModelDependency dependency,
-            string rawFilePath,
-            string rawMetadataPath,
-            string sentisAssetPath,
-            HfHubRawCacheMetadata rawMetadata,
-            HfHubImportedModelMetadata importedMetadata)
-        {
-            if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal))
-            {
-                return "Import metadata package id differs from current dependency.";
-            }
-
-            if (!string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal))
-            {
-                return "Import metadata model id differs from current dependency.";
-            }
-
-            if (!string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal))
-            {
-                return "Import metadata manifest hash differs from current manifest.";
-            }
-
-            if (!string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal))
-            {
-                return "Import metadata repository differs from manifest.";
-            }
-
-            if (!string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal))
-            {
-                return "Import metadata revision differs from manifest.";
-            }
-
-            if (!string.Equals(importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal))
-            {
-                return "Import metadata commit differs from cached raw file.";
-            }
-
-            if (!string.Equals(importedMetadata.SourceFile, dependency.SourceFile, StringComparison.Ordinal))
-            {
-                return "Import metadata source path differs from manifest.";
-            }
-
-            if (!string.Equals(importedMetadata.RawFilePath, rawFilePath, StringComparison.Ordinal))
-            {
-                return "Import metadata raw file path differs from current cache path.";
-            }
-
-            if (!string.Equals(importedMetadata.RawMetadataPath, rawMetadataPath, StringComparison.Ordinal))
-            {
-                return "Import metadata raw metadata path differs from current cache path.";
-            }
-
-            if (!string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
-            {
-                return "Import metadata Sentis version differs from installed Sentis version.";
-            }
-
-            if (!string.Equals(importedMetadata.SentisAssetPath, sentisAssetPath, StringComparison.Ordinal))
-            {
-                return "Import metadata .sentis asset path differs from current asset path.";
-            }
-
-            return null;
         }
 
         internal static string GetCurrentSentisVersion()
@@ -320,38 +132,12 @@ namespace Doji.AI.ModelHub.Editor
             HfHubDiscoveredModelDependency dependency,
             string message,
             string revisionRefPath,
-            string sentisAssetPath,
-            string importMetadataPath)
-        {
-            return Missing(
-                dependency,
-                message,
-                revisionRefPath,
-                null,
-                null,
-                null,
-                sentisAssetPath,
-                importMetadataPath);
-        }
-
-        private static HfHubDependencyStatus Missing(
-            HfHubDiscoveredModelDependency dependency,
-            string message,
-            string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
             string sentisAssetPath,
             string importMetadataPath)
         {
-            return Missing(
-                dependency,
-                message,
-                revisionRefPath,
-                rawFilePath,
-                rawMetadataPath,
-                null,
-                sentisAssetPath,
-                importMetadataPath);
+            return Missing(dependency, message, revisionRefPath, rawFilePath, rawMetadataPath, null, sentisAssetPath, importMetadataPath);
         }
 
         private static HfHubDependencyStatus Missing(
@@ -399,24 +185,6 @@ namespace Doji.AI.ModelHub.Editor
                 sentisAssetPath,
                 importMetadataPath,
                 importedMetadata);
-        }
-
-        private static HfHubDependencyStatus Failed(
-            HfHubDiscoveredModelDependency dependency,
-            string message,
-            string revisionRefPath,
-            string sentisAssetPath,
-            string importMetadataPath)
-        {
-            return Failed(
-                dependency,
-                message,
-                revisionRefPath,
-                null,
-                null,
-                null,
-                sentisAssetPath,
-                importMetadataPath);
         }
 
         private static HfHubDependencyStatus Failed(

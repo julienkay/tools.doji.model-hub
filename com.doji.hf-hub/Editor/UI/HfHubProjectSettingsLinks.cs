@@ -11,7 +11,7 @@ namespace Doji.AI.ModelHub.Editor
     internal static class HfHubProjectSettingsLinks
     {
         /// <summary>
-        /// Returns HuggingFace repository URL for one declared source file.
+        /// Returns HuggingFace repository URL for one declared dependency.
         /// </summary>
         public static string GetSourceRepositoryUrl(HfHubDiscoveredModelDependency dependency)
         {
@@ -21,11 +21,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var escapedRevision = Uri.EscapeDataString(dependency.Revision ?? string.Empty);
-            var escapedSourceSegments = (dependency.SourceFile ?? string.Empty)
-                .Replace('\\', '/')
-                .Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            var escapedSourcePath = string.Join("/", Array.ConvertAll(escapedSourceSegments, Uri.EscapeDataString));
-            return $"https://huggingface.co/{dependency.Repository}/blob/{escapedRevision}/{escapedSourcePath}";
+            return $"https://huggingface.co/{dependency.Repository}/tree/{escapedRevision}";
         }
 
         /// <summary>
@@ -70,9 +66,9 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Opens declared remote source file in default browser.
+        /// Opens declared remote repository snapshot in default browser.
         /// </summary>
-        public static void OpenSourceRepositoryFile(HfHubDiscoveredModelDependency dependency)
+        public static void OpenSourceRepository(HfHubDiscoveredModelDependency dependency)
         {
             Application.OpenURL(GetSourceRepositoryUrl(dependency));
         }

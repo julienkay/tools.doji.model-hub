@@ -7,17 +7,16 @@ using NUnit.Framework;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers sync orchestration only.
-    /// Raw cache and project import are both mocked, so tests verify result aggregation and stage-to-stage handoff
-    /// without depending on real downloads, Unity importers, or project asset IO.
+    /// Covers sync orchestration using repo-snapshot cache and import fakes.
     /// </summary>
     internal sealed class HfHubSyncServiceTests
     {
+        /// <summary>
+        /// Verifies successful sync returns cached snapshot and imported runtime snapshot artifact.
+        /// </summary>
         [Test]
         public async Task SyncAsync_ReturnsSuccessForImportedDependencies()
         {
-            // Fake raw cache returns deterministic raw file data.
-            // Fake project import then returns deterministic `.sentis` asset path.
             var dependency = CreateDependency("ok-model");
             var discoveryReport = new HfHubDiscoveryReport(
                 new[] { dependency },
@@ -30,18 +29,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.SuccessCount, Is.EqualTo(1));
             Assert.That(report.FailureCount, Is.EqualTo(0));
             Assert.That(report.ModelResults[0].Success, Is.True);
-            Assert.That(report.ModelResults[0].CachedFile.FilePath, Is.EqualTo("/cache/ok-model.onnx"));
-            Assert.That(report.ModelResults[0].ImportedArtifact.SentisAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis"));
+            Assert.That(report.ModelResults[0].CachedFile.SnapshotRootPath, Is.EqualTo("/cache/doji/test-model/abc123"));
+            Assert.That(report.ModelResults[0].ImportedArtifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
             Assert.That(registryService.CallCount, Is.EqualTo(1));
             Assert.That(registryService.LastResults.Length, Is.EqualTo(1));
         }
 
+        /// <summary>
+        /// Verifies import failures are aggregated without dropping discovery issues.
+        /// </summary>
         [Test]
         public async Task SyncAsync_CollectsImportFailuresAndDiscoveryIssues()
         {
-            // Fake raw cache succeeds.
-            // Fake import throws for one chosen model id so test verifies sync keeps discovery issues and
-            // converts conversion/import exceptions into per-model failure result.
             var dependency = CreateDependency("broken-model");
             var discoveryIssue = new HfHubManifestDiscoveryIssue("com.doji.bad", "/tmp/hf-hub-manifest.json", "Bad manifest");
             var discoveryReport = new HfHubDiscoveryReport(
@@ -60,9 +59,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
-        /// <summary>
-        /// Creates one normalized dependency directly so test can focus on sync aggregation.
-        /// </summary>
         private static HfHubDiscoveredModelDependency CreateDependency(string modelId)
         {
             return new HfHubDiscoveredModelDependency(
@@ -76,17 +72,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     modelId,
                     "Test Model",
                     "doji/test-model",
-                    "main",
-                    "models/model.onnx"));
+                    "main"));
         }
 
-        /// <summary>
-        /// Minimal fake cache service for sync tests.
-        /// It always returns synthetic cached raw file data so import stage can be exercised separately.
-        /// </summary>
         private sealed class FakeRawCacheService : IHfHubRawCacheService
         {
-            public Task<HfHubCachedRawFile> GetOrDownloadAsync(
+            public Task<HfHubCachedSnapshot> GetOrDownloadAsync(
                 HfHubDiscoveredModelDependency dependency,
                 IProgress<DownloadProgress> progress,
                 CancellationToken cancellationToken)
@@ -96,22 +87,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = "abc123",
-                    SourceFile = dependency.SourceFile,
-                    CachedFilePath = $"/cache/{dependency.ModelId}.onnx",
+                    CachedSnapshotRoot = "/cache/doji/test-model/abc123",
+                    Files = new[]
+                    {
+                        new HfHubRawCacheFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            CachedFilePath = "/cache/doji/test-model/abc123/models/model.onnx"
+                        }
+                    },
                     DownloadedAtUtc = DateTime.UtcNow.ToString("O")
                 };
 
-                return Task.FromResult(new HfHubCachedRawFile(
-                    $"/cache/{dependency.ModelId}.onnx",
-                    $"/cache/{dependency.ModelId}.onnx.hfhub.json",
+                return Task.FromResult(new HfHubCachedSnapshot(
+                    "/cache/doji/test-model/abc123",
+                    "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                     metadata));
             }
         }
 
-        /// <summary>
-        /// Minimal fake project import service for sync tests.
-        /// It either returns synthetic generated artifact data or throws a controlled exception for one model id.
-        /// </summary>
         private sealed class FakeProjectImportService : IHfHubProjectImportService
         {
             private readonly string _failingModelId;
@@ -123,7 +117,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             public Task<HfHubImportedModelArtifact> ImportAsync(
                 HfHubDiscoveredModelDependency dependency,
-                HfHubCachedRawFile cachedRawFile,
+                HfHubCachedSnapshot cachedSnapshot,
                 CancellationToken cancellationToken)
             {
                 if (dependency.ModelId == _failingModelId)
@@ -138,28 +132,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     ManifestHash = dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
-                    ResolvedCommitHash = cachedRawFile.Metadata.ResolvedCommitHash,
-                    SourceFile = dependency.SourceFile,
-                    RawFilePath = cachedRawFile.FilePath,
+                    ResolvedCommitHash = cachedSnapshot.Metadata.ResolvedCommitHash,
+                    RawSnapshotRootPath = cachedSnapshot.SnapshotRootPath,
+                    RawMetadataPath = cachedSnapshot.MetadataPath,
                     SentisVersion = "2.6.1",
                     UnityVersion = "6000.3.10f1",
-                    SentisAssetPath = "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
-                    RuntimeSentisAssetPath = "Assets/StreamingAssets/hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
-                    RuntimeSentisRelativePath = "hf-hub/models--doji--test-model/snapshots/abc123/model.sentis",
+                    RuntimeFiles = new[]
+                    {
+                        new HfHubImportedRuntimeFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            Kind = "sentis",
+                            AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis",
+                            RelativePath = "hf-hub/doji/test-model/models/model.sentis"
+                        }
+                    },
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 };
 
                 return Task.FromResult(new HfHubImportedModelArtifact(
-                    metadata.SentisAssetPath,
+                    "Assets/StreamingAssets/hf-hub/doji/test-model",
                     $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json",
                     metadata));
             }
         }
 
-        /// <summary>
-        /// Minimal fake runtime locator registry service for sync tests.
-        /// It records final sync results so tests can verify registry rebuild trigger happens once per sync.
-        /// </summary>
         private sealed class FakeRuntimeLocatorRegistryService : IHfHubRuntimeLocatorRegistryService
         {
             public int CallCount { get; private set; }

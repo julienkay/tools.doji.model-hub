@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -10,66 +12,105 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Converts cached ONNX files into runtime `.sentis` artifacts under `StreamingAssets` and records editor-only import metadata.
+    /// Converts cached repository snapshots into runtime files under `StreamingAssets` and records editor-only import metadata.
     /// </summary>
     internal sealed class HfHubProjectImportService : IHfHubProjectImportService
     {
         private readonly IHfHubOnnxModelConverter _onnxModelConverter;
 
-        /// <summary>
-        /// Creates import service with injectable ONNX conversion contract for editor/runtime architecture parity.
-        /// </summary>
         public HfHubProjectImportService(IHfHubOnnxModelConverter onnxModelConverter = null)
         {
             _onnxModelConverter = onnxModelConverter ?? new HfHubEditorOnnxModelConverter();
         }
 
         /// <summary>
-        /// Returns generated runtime `.sentis` artifact if still current, otherwise converts cached ONNX and serializes `.sentis` into `StreamingAssets`.
+        /// Returns generated runtime snapshot artifact if still current, otherwise converts cached ONNX files into `.sentis` runtime assets.
         /// </summary>
         public Task<HfHubImportedModelArtifact> ImportAsync(
             HfHubDiscoveredModelDependency dependency,
-            HfHubCachedRawFile cachedRawFile,
+            HfHubCachedSnapshot cachedSnapshot,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!string.Equals(Path.GetExtension(cachedRawFile.FilePath), ".onnx", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"HF Hub currently imports only ONNX source files, but '{cachedRawFile.FilePath}' is not an .onnx file.");
-            }
-
-            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+            var snapshotRootAssetPath = HfHubProjectPaths.GetRuntimeSnapshotFolder(
                 dependency.Repository,
-                cachedRawFile.Metadata?.ResolvedCommitHash,
-                dependency.SourceFile);
+                cachedSnapshot.Metadata?.ResolvedCommitHash);
             var metadataFilePath = HfHubProjectPaths.GetImportMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
-            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
             var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(metadataFilePath);
 
             if (TryReadMetadata(metadataAbsolutePath, out var existingMetadata) &&
-                IsUpToDate(existingMetadata, dependency, cachedRawFile, sentisAssetPath, sentisAbsolutePath))
+                IsUpToDate(existingMetadata, dependency, cachedSnapshot, snapshotRootAssetPath))
             {
-                return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataFilePath, existingMetadata));
+                return Task.FromResult(new HfHubImportedModelArtifact(snapshotRootAssetPath, metadataFilePath, existingMetadata));
             }
 
-            EnsureAssetFolderExists(Path.GetDirectoryName(sentisAssetPath)?.Replace('\\', '/')
-                ?? throw new InvalidOperationException("Missing runtime output directory."));
+            var runtimeFiles = new List<HfHubImportedRuntimeFileMetadata>();
+            var onnxFileCount = 0;
+            var sentisFileCount = 0;
+            var conversionFailures = new List<string>();
+            foreach (var snapshotFile in cachedSnapshot.Metadata?.Files ?? Array.Empty<HfHubRawCacheFileMetadata>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var model = _onnxModelConverter.ConvertFromFile(cachedRawFile.FilePath);
-            ModelWriter.Save(sentisAbsolutePath, model);
-            var metadata = CreateMetadata(dependency, cachedRawFile, sentisAssetPath);
+                if (string.Equals(Path.GetExtension(snapshotFile.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
+                {
+                    onnxFileCount++;
+                    var runtimeSentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
+                        dependency.Repository,
+                        cachedSnapshot.Metadata?.ResolvedCommitHash,
+                        snapshotFile.RepoPath);
+                    var runtimeSentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(runtimeSentisAssetPath);
+                    EnsureAssetFolderExists(Path.GetDirectoryName(runtimeSentisAssetPath)?.Replace('\\', '/')
+                        ?? throw new InvalidOperationException("Missing runtime sentis output directory."));
+
+                    Model model;
+                    try
+                    {
+                        model = _onnxModelConverter.ConvertFromFile(snapshotFile.CachedFilePath);
+                    }
+                    catch (Exception exception)
+                    {
+                        var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
+                        conversionFailures.Add(failureMessage);
+                        Debug.LogWarning(failureMessage);
+                        continue;
+                    }
+
+                    ModelWriter.Save(runtimeSentisAbsolutePath, model);
+                    sentisFileCount++;
+                    runtimeFiles.Add(new HfHubImportedRuntimeFileMetadata
+                    {
+                        RepoPath = snapshotFile.RepoPath,
+                        Kind = "sentis",
+                        AssetPath = runtimeSentisAssetPath,
+                        RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath)
+                    });
+                }
+            }
+
+            if (onnxFileCount > 0 && sentisFileCount == 0)
+            {
+                throw new InvalidOperationException(
+                    conversionFailures.Count > 0
+                        ? conversionFailures[0]
+                        : $"Failed to convert ONNX files from repository '{dependency.Repository}'.");
+            }
+
+            var metadata = CreateMetadata(dependency, cachedSnapshot, runtimeFiles);
             WriteMetadata(metadataAbsolutePath, metadata);
 
-            AssetDatabase.ImportAsset(
-                sentisAssetPath,
-                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-            AssetDatabase.SaveAssets();
+            foreach (var runtimeFile in runtimeFiles)
+            {
+                AssetDatabase.ImportAsset(
+                    runtimeFile.AssetPath,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            }
 
-            return Task.FromResult(new HfHubImportedModelArtifact(sentisAssetPath, metadataFilePath, metadata));
+            AssetDatabase.SaveAssets();
+            return Task.FromResult(new HfHubImportedModelArtifact(snapshotRootAssetPath, metadataFilePath, metadata));
         }
 
         internal static bool TryReadMetadata(string metadataAbsolutePath, out HfHubImportedModelMetadata metadata)
@@ -94,38 +135,46 @@ namespace Doji.AI.ModelHub.Editor
         private static bool IsUpToDate(
             HfHubImportedModelMetadata metadata,
             HfHubDiscoveredModelDependency dependency,
-            HfHubCachedRawFile cachedRawFile,
-            string sentisAssetPath,
-            string sentisAbsolutePath)
+            HfHubCachedSnapshot cachedSnapshot,
+            string snapshotRootAssetPath)
         {
-            if (metadata == null || !File.Exists(sentisAbsolutePath))
+            if (metadata == null)
             {
                 return false;
             }
 
-            return string.Equals(metadata.PackageId, dependency.PackageId, StringComparison.Ordinal) &&
-                   string.Equals(metadata.ModelId, dependency.ModelId, StringComparison.Ordinal) &&
-                   string.Equals(metadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) &&
-                   string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
-                   string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
-                   string.Equals(metadata.ResolvedCommitHash, cachedRawFile.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) &&
-                   string.Equals(metadata.SourceFile, dependency.SourceFile, StringComparison.Ordinal) &&
-                   string.Equals(metadata.RawFilePath, cachedRawFile.FilePath, StringComparison.Ordinal) &&
-                   string.Equals(metadata.SentisVersion, GetSentisVersion(), StringComparison.Ordinal) &&
-                   string.Equals(metadata.SentisAssetPath, sentisAssetPath, StringComparison.Ordinal);
+            if (!string.Equals(metadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
+                !string.Equals(metadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
+                !string.Equals(metadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
+                !string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
+                !string.Equals(metadata.SentisVersion, GetSentisVersion(), StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var importedFiles = metadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
+            if (importedFiles.Length == 0)
+            {
+                return false;
+            }
+
+            if (!Directory.Exists(HfHubProjectPaths.ToAbsolutePath(snapshotRootAssetPath)))
+            {
+                return false;
+            }
+
+            return importedFiles.All(file => File.Exists(HfHubProjectPaths.ToAbsolutePath(file.AssetPath)));
         }
 
         private static HfHubImportedModelMetadata CreateMetadata(
             HfHubDiscoveredModelDependency dependency,
-            HfHubCachedRawFile cachedRawFile,
-            string sentisAssetPath)
+            HfHubCachedSnapshot cachedSnapshot,
+            IReadOnlyList<HfHubImportedRuntimeFileMetadata> runtimeFiles)
         {
             var runtimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
-            var runtimeSentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(
-                dependency.Repository,
-                cachedRawFile.Metadata?.ResolvedCommitHash,
-                dependency.SourceFile);
-
             return new HfHubImportedModelMetadata
             {
                 PackageId = dependency.PackageId,
@@ -135,17 +184,14 @@ namespace Doji.AI.ModelHub.Editor
                 ManifestHash = dependency.ManifestHash,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
-                ResolvedCommitHash = cachedRawFile.Metadata?.ResolvedCommitHash,
-                SourceFile = dependency.SourceFile,
-                RawFilePath = cachedRawFile.FilePath,
-                RawMetadataPath = cachedRawFile.MetadataPath,
+                ResolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash,
+                RawSnapshotRootPath = cachedSnapshot.SnapshotRootPath,
+                RawMetadataPath = cachedSnapshot.MetadataPath,
                 SentisVersion = GetSentisVersion(),
                 UnityVersion = Application.unityVersion,
-                SentisAssetPath = runtimeSentisAssetPath,
                 RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
-                RuntimeSentisAssetPath = runtimeSentisAssetPath,
-                RuntimeSentisRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath),
+                RuntimeFiles = runtimeFiles.ToArray(),
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             };
         }
@@ -195,6 +241,5 @@ namespace Doji.AI.ModelHub.Editor
         {
             return UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly)?.version ?? "unknown";
         }
-
     }
 }

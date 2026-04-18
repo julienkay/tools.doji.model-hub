@@ -18,9 +18,9 @@ namespace Doji.AI.ModelHub.Editor
     internal interface IHfHubHttpClient
     {
         /// <summary>
-        /// Resolves a package-declared dependency to a concrete remote file version.
+        /// Resolves a package-declared dependency to a concrete remote repository snapshot.
         /// </summary>
-        Task<HfHubResolvedFileVersion> ResolveFileVersionAsync(
+        Task<HfHubResolvedSnapshotVersion> ResolveSnapshotVersionAsync(
             HfHubDiscoveredModelDependency dependency,
             CancellationToken cancellationToken);
 
@@ -28,7 +28,7 @@ namespace Doji.AI.ModelHub.Editor
         /// Downloads one resolved file into local cache, reporting byte progress while the transfer is active.
         /// </summary>
         Task DownloadFileAsync(
-            HfHubResolvedFileVersion resolvedFile,
+            HfHubResolvedRepoFile resolvedFile,
             string targetPath,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken);
@@ -138,43 +138,58 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Resolves requested file version to concrete commit and download metadata.
+        /// Resolves requested repository snapshot to concrete commit and file list metadata.
         /// </summary>
-        public async Task<HfHubResolvedFileVersion> ResolveFileVersionAsync(
+        public async Task<HfHubResolvedSnapshotVersion> ResolveSnapshotVersionAsync(
             HfHubDiscoveredModelDependency dependency,
             CancellationToken cancellationToken)
         {
-            var fileUrl = BuildResolveUrl(dependency.Repository, dependency.Revision, dependency.SourceFile);
-            var response = await _transport.HeadAsync(fileUrl, cancellationToken);
-
-            var resolvedCommit = response.GetHeader(CommitHeaderName);
+            var apiResponse = await GetModelRevisionApiResponseAsync(
+                dependency.Repository,
+                dependency.Revision,
+                cancellationToken);
+            var resolvedCommit = apiResponse.Value<string>("sha");
             if (string.IsNullOrWhiteSpace(resolvedCommit))
             {
-                resolvedCommit = await ResolveCommitFromModelRevisionApiAsync(
-                    dependency.Repository,
-                    dependency.Revision,
-                    cancellationToken);
+                throw new InvalidOperationException($"Missing `sha` in model revision response for `{dependency.Repository}@{dependency.Revision}`.");
             }
 
-            var entityTag = NormalizeEntityTag(
-                response.GetHeader(LinkedETagHeaderName) ??
-                response.GetHeader(ETagHeaderName));
-            var contentLengthHeader = response.GetHeader(LinkedSizeHeaderName) ?? response.GetHeader(ContentLengthHeaderName);
-            long? sizeInBytes = null;
-            if (!string.IsNullOrWhiteSpace(contentLengthHeader) &&
-                long.TryParse(contentLengthHeader, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSize))
+            var siblings = apiResponse["siblings"] as JArray;
+            if (siblings == null)
             {
-                sizeInBytes = parsedSize;
+                throw new InvalidOperationException($"Missing `siblings` in model revision response for `{dependency.Repository}@{dependency.Revision}`.");
             }
 
-            return new HfHubResolvedFileVersion(
+            var files = new List<HfHubResolvedRepoFile>();
+            foreach (var sibling in siblings.OfType<JObject>())
+            {
+                var repoPath = sibling.Value<string>("rfilename")?.Trim();
+                if (string.IsNullOrWhiteSpace(repoPath))
+                {
+                    continue;
+                }
+
+                var fileUrl = BuildResolveUrl(dependency.Repository, dependency.Revision, repoPath);
+                var response = await _transport.HeadAsync(fileUrl, cancellationToken);
+                var entityTag = NormalizeEntityTag(
+                    response.GetHeader(LinkedETagHeaderName) ??
+                    response.GetHeader(ETagHeaderName));
+                var contentLengthHeader = response.GetHeader(LinkedSizeHeaderName) ?? response.GetHeader(ContentLengthHeaderName);
+                long? sizeInBytes = null;
+                if (!string.IsNullOrWhiteSpace(contentLengthHeader) &&
+                    long.TryParse(contentLengthHeader, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSize))
+                {
+                    sizeInBytes = parsedSize;
+                }
+
+                files.Add(new HfHubResolvedRepoFile(repoPath, response.RequestUrl, entityTag, sizeInBytes));
+            }
+
+            return new HfHubResolvedSnapshotVersion(
                 dependency.Repository,
                 dependency.Revision,
                 resolvedCommit,
-                dependency.SourceFile,
-                response.RequestUrl,
-                entityTag,
-                sizeInBytes);
+                files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray());
         }
 
         /// <summary>
@@ -182,7 +197,7 @@ namespace Doji.AI.ModelHub.Editor
         /// Progress reporting is optional but intended to feed editor background task UI.
         /// </summary>
         public async Task DownloadFileAsync(
-            HfHubResolvedFileVersion resolvedFile,
+            HfHubResolvedRepoFile resolvedFile,
             string targetPath,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
@@ -208,21 +223,14 @@ namespace Doji.AI.ModelHub.Editor
         /// Falls back to the model revision API when HEAD metadata does not include a resolved commit hash.
         /// This keeps the cache keyed by concrete commit even when the CDN response is sparse.
         /// </summary>
-        private async Task<string> ResolveCommitFromModelRevisionApiAsync(
+        private async Task<JObject> GetModelRevisionApiResponseAsync(
             string repository,
             string revision,
             CancellationToken cancellationToken)
         {
             var escapedRevision = UnityWebRequest.EscapeURL(revision);
-            var apiUrl = $"{HubEndpoint}/api/models/{repository}/revision/{escapedRevision}?expand=sha";
-            var response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
-            var sha = response.Value<string>("sha");
-            if (string.IsNullOrWhiteSpace(sha))
-            {
-                throw new InvalidOperationException($"Missing `sha` in model revision response for `{repository}@{revision}`.");
-            }
-
-            return sha;
+            var apiUrl = $"{HubEndpoint}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha&expand[]=siblings";
+            return await _transport.GetJsonAsync(apiUrl, cancellationToken);
         }
 
         /// <summary>

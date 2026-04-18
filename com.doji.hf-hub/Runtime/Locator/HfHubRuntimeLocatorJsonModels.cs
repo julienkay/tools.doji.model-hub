@@ -47,7 +47,7 @@ namespace Doji.AI.ModelHub
     }
 
     /// <summary>
-    /// Stores JSON-serializable runtime locator entry data for one model id.
+    /// Stores JSON-serializable runtime locator entry data for one canonical `repo_id`.
     /// </summary>
     [Serializable]
     internal sealed class HfHubRuntimeLocatorEntryDocument
@@ -59,13 +59,7 @@ namespace Doji.AI.ModelHub
         private HfHubRuntimeLocatorFileDocument[] _files = Array.Empty<HfHubRuntimeLocatorFileDocument>();
 
         [SerializeField]
-        private string _modelId;
-
-        [SerializeField]
-        private string _repository;
-
-        [SerializeField]
-        private string _primarySentisRelativePath;
+        private string _repoId;
 
         public HfHubRuntimeLocatorEntryDocument()
         {
@@ -73,20 +67,16 @@ namespace Doji.AI.ModelHub
 
         public HfHubRuntimeLocatorEntryDocument(HfHubRuntimeLocatorEntry entry)
         {
-            _modelId = entry.ModelId;
-            _repository = entry.Repository;
+            _repoId = entry.RepoId;
             _displayName = entry.DisplayName;
-            _primarySentisRelativePath = entry.PrimarySentisRelativePath;
             _files = entry.Files.Select(file => new HfHubRuntimeLocatorFileDocument(file)).ToArray();
         }
 
         public HfHubRuntimeLocatorEntry ToEntry()
         {
             return new HfHubRuntimeLocatorEntry(
-                _modelId,
-                _repository,
+                _repoId,
                 _displayName,
-                _primarySentisRelativePath,
                 (_files ?? Array.Empty<HfHubRuntimeLocatorFileDocument>())
                 .Select(file => file.ToFile())
                 .ToArray());
@@ -106,7 +96,7 @@ namespace Doji.AI.ModelHub
         private string _relativePath;
 
         [SerializeField]
-        private string _sourceFile;
+        private string _repoPath;
 
         public HfHubRuntimeLocatorFileDocument()
         {
@@ -115,13 +105,13 @@ namespace Doji.AI.ModelHub
         public HfHubRuntimeLocatorFileDocument(HfHubRuntimeLocatorFile file)
         {
             _relativePath = file.RelativePath;
-            _sourceFile = file.SourceFile;
+            _repoPath = file.RepoPath;
             _kind = file.Kind;
         }
 
         public HfHubRuntimeLocatorFile ToFile()
         {
-            return new HfHubRuntimeLocatorFile(_relativePath, _sourceFile, _kind);
+            return new HfHubRuntimeLocatorFile(_relativePath, _repoPath, _kind);
         }
     }
 }

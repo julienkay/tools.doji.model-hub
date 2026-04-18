@@ -130,13 +130,11 @@ namespace Doji.AI.ModelHub.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.PrefixLabel("Source");
-                if (GUILayout.Button(status.Dependency.SourceFile, EditorStyles.linkLabel))
+                if (GUILayout.Button($"{status.Dependency.Repository}@{status.Dependency.Revision}", EditorStyles.linkLabel))
                 {
-                    HfHubProjectSettingsLinks.OpenSourceRepositoryFile(status.Dependency);
+                    HfHubProjectSettingsLinks.OpenSourceRepository(status.Dependency);
                 }
             }
-
-            EditorGUILayout.LabelField("Repository", $"{status.Dependency.Repository}@{status.Dependency.Revision}");
         }
 
         private static void DrawRevealPathRow(string label, string path)

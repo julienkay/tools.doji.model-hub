@@ -26,8 +26,7 @@ namespace Doji.AI.ModelHub
                     model?.Id,
                     model?.DisplayName,
                     model?.Repository,
-                    model?.Revision,
-                    model?.SourceFile))
+                    model?.Revision))
                 .ToArray();
             return HfHubManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
@@ -56,8 +55,6 @@ namespace Doji.AI.ModelHub
         [field: SerializeField]
         public string Revision { get; set; } = "main";
 
-        [field: SerializeField]
-        public string SourceFile { get; set; } = string.Empty;
     }
 
     [Serializable]
@@ -93,16 +90,12 @@ namespace Doji.AI.ModelHub
         [SerializeField]
         private string _revision;
 
-        [SerializeField]
-        private string _sourceFile;
-
         public HfHubProjectManifestAssetEntryDocument(HfHubProjectManifestModelAssetEntry model)
         {
             _id = model?.Id;
             _displayName = model?.DisplayName;
             _repository = model?.Repository;
             _revision = model?.Revision;
-            _sourceFile = model?.SourceFile;
         }
     }
 }

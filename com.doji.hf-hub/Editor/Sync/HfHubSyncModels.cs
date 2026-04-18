@@ -17,7 +17,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public HfHubModelSyncResult(
             HfHubDiscoveredModelDependency dependency,
-            HfHubCachedRawFile cachedFile,
+            HfHubCachedSnapshot cachedFile,
             HfHubImportedModelArtifact importedArtifact,
             string errorMessage)
         {
@@ -28,7 +28,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         public HfHubDiscoveredModelDependency Dependency { get; }
-        public HfHubCachedRawFile CachedFile { get; }
+        public HfHubCachedSnapshot CachedFile { get; }
         public HfHubImportedModelArtifact ImportedArtifact { get; }
         public string ErrorMessage { get; }
         public bool Success => ImportedArtifact != null && string.IsNullOrWhiteSpace(ErrorMessage);
@@ -64,7 +64,7 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal interface IHfHubRawCacheService
     {
-        Task<HfHubCachedRawFile> GetOrDownloadAsync(
+        Task<HfHubCachedSnapshot> GetOrDownloadAsync(
             HfHubDiscoveredModelDependency dependency,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken);
@@ -77,7 +77,7 @@ namespace Doji.AI.ModelHub.Editor
     {
         Task<HfHubImportedModelArtifact> ImportAsync(
             HfHubDiscoveredModelDependency dependency,
-            HfHubCachedRawFile cachedRawFile,
+            HfHubCachedSnapshot cachedSnapshot,
             CancellationToken cancellationToken);
     }
 

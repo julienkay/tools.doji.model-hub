@@ -11,7 +11,10 @@ namespace Doji.AI.ModelHub.Samples
     public sealed class HfHubRuntimeLocatorSample : MonoBehaviour
     {
         [SerializeField]
-        private string _modelId = "onnx-community/tiny-clip-test-ONNX";
+        private string _repoId = "onnx-community/tiny-clip-test-ONNX";
+
+        [SerializeField]
+        private string _modelFile = "onnx/model.onnx";
 
         [SerializeField]
         private bool _loadOnStart = true;
@@ -23,11 +26,14 @@ namespace Doji.AI.ModelHub.Samples
         private Model _loadedModel;
 
         /// <summary>
-        /// Stable HF Hub manifest owner id to resolve against.
-        /// </summary>
         /// Stable HuggingFace model id / repository id declared in project or package manifest.
         /// </summary>
-        public string ModelId => _modelId;
+        public string RepoId => _repoId;
+
+        /// <summary>
+        /// Repository-relative ONNX file to load from generated runtime snapshot.
+        /// </summary>
+        public string ModelFile => _modelFile;
 
         /// <summary>
         /// Last lookup or load status for sample diagnostics.
@@ -55,17 +61,18 @@ namespace Doji.AI.ModelHub.Samples
         {
             _loadedModel = null;
 
-            if (!ModelHub.TryResolveRuntimeModel(_modelId, out var resolvedModel))
+            if (!ModelHub.TryResolveRuntimeModel(_repoId, out var resolvedModel))
             {
-                _status = $"Resolve failed: '{_modelId}' not found. Sync models first.";
+                _status = $"Resolve failed: '{_repoId}' not found. Sync models first.";
                 Debug.LogWarning(_status, this);
                 return;
             }
 
             try
             {
-                _loadedModel = ModelHub.LoadRuntimeModel(_modelId);
-                _status = $"Loaded '{resolvedModel.DisplayName}' from '{resolvedModel.PrimarySentisPath}'.";
+                _loadedModel = ModelHub.LoadRuntimeModel(_repoId, _modelFile);
+                resolvedModel.TryGetSentisPath(_modelFile, out var sentisPath);
+                _status = $"Loaded '{resolvedModel.DisplayName}' from '{sentisPath}'.";
                 Debug.Log(_status, this);
             }
             catch (Exception exception)

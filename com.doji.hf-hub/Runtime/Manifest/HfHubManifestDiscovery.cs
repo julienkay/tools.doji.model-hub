@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Represents one resolved model dependency discovered from one manifest owner.
+    /// Represents one resolved repository dependency discovered from one manifest owner.
     /// </summary>
     internal sealed class HfHubDiscoveredModelDependency
     {
@@ -36,7 +36,6 @@ namespace Doji.AI.ModelHub
             ModelDisplayName = model.DisplayName;
             Repository = model.Repository;
             Revision = model.Revision;
-            SourceFile = model.SourceFile;
         }
 
         /// <summary>
@@ -80,7 +79,7 @@ namespace Doji.AI.ModelHub
         public string ModelDisplayName { get; }
 
         /// <summary>
-        /// HuggingFace repository identifier that hosts model file.
+        /// HuggingFace repository identifier that hosts runtime files for this dependency.
         /// </summary>
         public string Repository { get; }
 
@@ -89,10 +88,6 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public string Revision { get; }
 
-        /// <summary>
-        /// Source file path inside remote repository.
-        /// </summary>
-        public string SourceFile { get; }
     }
 
     /// <summary>
@@ -362,13 +357,7 @@ namespace Doji.AI.ModelHub
                         return false;
                     }
 
-                    var sourceFile = ReadRequiredString(modelElement, "sourceFile", modelIndex, out errorMessage);
-                    if (errorMessage != null)
-                    {
-                        return false;
-                    }
-
-                    models.Add(new HfHubManifestModelDraft(id, displayName, repository, revision, sourceFile));
+                    models.Add(new HfHubManifestModelDraft(id, displayName, repository, revision));
                     modelIndex++;
                 }
 
@@ -435,21 +424,18 @@ namespace Doji.AI.ModelHub
             string id,
             string displayName,
             string repository,
-            string revision,
-            string sourceFile)
+            string revision)
         {
             Id = id;
             DisplayName = displayName;
             Repository = repository;
             Revision = revision;
-            SourceFile = sourceFile;
         }
 
         public string Id { get; }
         public string DisplayName { get; }
         public string Repository { get; }
         public string Revision { get; }
-        public string SourceFile { get; }
     }
 
     /// <summary>
@@ -496,13 +482,12 @@ namespace Doji.AI.ModelHub
 
                 if (!TryValidateRequiredString(model.DisplayName, "displayName", modelIndex, out var displayName, out errorMessage) ||
                     !TryValidateRequiredString(model.Repository, "repository", modelIndex, out var repository, out errorMessage) ||
-                    !TryValidateRequiredString(model.Revision, "revision", modelIndex, out var revision, out errorMessage) ||
-                    !TryValidateRequiredString(model.SourceFile, "sourceFile", modelIndex, out var sourceFile, out errorMessage))
+                    !TryValidateRequiredString(model.Revision, "revision", modelIndex, out var revision, out errorMessage))
                 {
                     return false;
                 }
 
-                finalizedModels.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision, sourceFile));
+                finalizedModels.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision));
             }
 
             manifest = new HfHubPackageManifest(version, finalizedModels);

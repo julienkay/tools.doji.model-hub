@@ -8,10 +8,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class HfHubProjectSettingsLinksTests
     {
         /// <summary>
-        /// Ensures source links open exact HuggingFace repository file for declared revision and nested source path.
+        /// Ensures source links open repository tree view for declared revision.
         /// </summary>
         [Test]
-        public void GetSourceRepositoryUrl_BuildsHuggingFaceBlobUrl()
+        public void GetSourceRepositoryUrl_BuildsHuggingFaceTreeUrl()
         {
             var dependency = new HfHubDiscoveredModelDependency(
                 "com.doji.test",
@@ -24,14 +24,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "test-model",
                     "Test Model",
                     "doji/test-model",
-                    "refs/pr/12",
-                    "models/encoder/model.onnx"));
+                    "refs/pr/12"));
 
             var url = HfHubProjectSettingsLinks.GetSourceRepositoryUrl(dependency);
 
             Assert.That(
                 url,
-                Is.EqualTo("https://huggingface.co/doji/test-model/blob/refs%2Fpr%2F12/models/encoder/model.onnx"));
+                Is.EqualTo("https://huggingface.co/doji/test-model/tree/refs%2Fpr%2F12"));
         }
     }
 }

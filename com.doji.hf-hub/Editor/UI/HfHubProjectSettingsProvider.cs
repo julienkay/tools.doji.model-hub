@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -6,159 +7,85 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Project Settings surface for inspecting local HF Hub dependency state and triggering sync.
+    /// Project Settings surface for project-scoped Model Hub configuration.
     /// </summary>
     internal static class HfHubProjectSettingsProvider
     {
-        private static HfHubStatusReport _statusReport;
-        private static Vector2 _scrollPosition;
+        private static readonly GUIContent UseDefaultCacheLocationContent = new("Use Default Cache Location", "Store raw HuggingFace snapshots in the platform default shared cache folder.");
+        private static readonly GUIContent CustomCacheLocationContent = new("Custom Cache Location", "Override the shared cache root for this Unity project when the default location is disabled.");
+        private static readonly GUIContent RevealCacheFolderContent = new("Reveal Cache Folder", "Reveal the effective shared cache folder used by this project.");
+        private static readonly GUIContent OpenModelHubContent = new("Open Model Hub", "Open the main repository inventory window.");
 
         [SettingsProvider]
         private static SettingsProvider CreateSettingsProvider()
         {
-            var provider = new SettingsProvider(HfHubEditorOperations.ProjectSettingsPath, SettingsScope.Project)
+            return new SettingsProvider(HfHubEditorOperations.ProjectSettingsPath, SettingsScope.Project)
             {
                 label = "AI Model Hub",
                 guiHandler = _ => DrawGui(),
-                activateHandler = (_, _) => Refresh(),
-                keywords = new HashSet<string>(new[]
-                {
-                    "AI",
-                    "Model",
-                    "Hub",
-                    "HuggingFace",
-                    "Sentis",
-                    "Inference",
-                    "Cache"
-                })
+                keywords = new HashSet<string>(new[] { "AI", "Model", "Hub", "HuggingFace", "Sentis", "Inference", "Cache" })
             };
-
-            return provider;
         }
 
         private static void DrawGui()
         {
-            _statusReport ??= HfHubEditorOperations.CreateStatusReport();
+            var settings = HfHubProjectSettings.instance;
 
             EditorGUILayout.LabelField("AI Model Hub", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(HfHubEditorOperations.BuildStatusDialogMessage(_statusReport), GetHelpBoxMessageType(_statusReport));
+            EditorGUILayout.HelpBox(
+                "Project Settings stores configuration. Use Window > AI Model Hub to inspect imported repositories, dependents, and generated files.",
+                MessageType.Info);
 
-            using (new EditorGUILayout.HorizontalScope())
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Cache", EditorStyles.boldLabel);
+
+            var useDefaultCacheLocation = EditorGUILayout.Toggle(UseDefaultCacheLocationContent, settings.UseDefaultCacheLocation);
+            var customCacheLocation = settings.CustomCacheLocation;
+            using (new EditorGUI.DisabledScope(useDefaultCacheLocation))
             {
-                if (GUILayout.Button("Refresh Status", GUILayout.Width(120)))
-                {
-                    Refresh();
-                }
+                customCacheLocation = EditorGUILayout.DelayedTextField(CustomCacheLocationContent, customCacheLocation);
+            }
 
-                if (GUILayout.Button("Sync Models", GUILayout.Width(120)))
-                {
-                    HfHubEditorOperations.StartBackgroundSync();
-                    Refresh();
-                }
+            if (useDefaultCacheLocation != settings.UseDefaultCacheLocation ||
+                !string.Equals(customCacheLocation, settings.CustomCacheLocation, StringComparison.Ordinal))
+            {
+                settings.UpdateCacheLocation(useDefaultCacheLocation, customCacheLocation);
             }
 
             EditorGUILayout.Space();
-
-            if (_statusReport.DependencyStatuses.Count == 0 && _statusReport.DiscoveryIssues.Count == 0)
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                EditorGUILayout.HelpBox("No hf-hub package or project manifests were found.", MessageType.Info);
-                return;
+                EditorGUILayout.LabelField("Default Cache", HfHubCachePaths.GetDefaultCacheRoot());
+                EditorGUILayout.LabelField("Effective Cache", HfHubCachePaths.GetCacheRoot());
+                EditorGUILayout.LabelField("Sentis Version", HfHubStatusService.GetCurrentSentisVersion());
             }
 
-            _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-
-            if (_statusReport.DiscoveryIssues.Count > 0)
+            using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Discovery Issues", EditorStyles.boldLabel);
-                foreach (var issue in _statusReport.DiscoveryIssues.OrderBy(issue => issue.PackageId).ThenBy(issue => issue.ManifestPath))
+                if (GUILayout.Button(RevealCacheFolderContent, GUILayout.Width(150f)))
                 {
-                    EditorGUILayout.HelpBox($"{issue.PackageId}: {issue.Message}", MessageType.Warning);
+                    HfHubProjectSettingsLinks.RevealPath(HfHubCachePaths.GetCacheRoot());
                 }
 
-                EditorGUILayout.Space();
-            }
-
-            EditorGUILayout.LabelField("Model Dependencies", EditorStyles.boldLabel);
-            foreach (var status in _statusReport.DependencyStatuses.OrderBy(item => item.Dependency.PackageId).ThenBy(item => item.Dependency.ModelId))
-            {
-                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                if (GUILayout.Button(OpenModelHubContent, GUILayout.Width(120f)))
                 {
-                    EditorGUILayout.LabelField(
-                        $"{status.Dependency.PackageDisplayName} / {status.Dependency.ModelDisplayName}",
-                        EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField("State", status.State.ToString());
-                    EditorGUILayout.LabelField("Reason", status.Message);
-                    DrawSourceRow(status);
-
-                    if (!string.IsNullOrWhiteSpace(status.RawFilePath))
-                    {
-                        DrawRevealPathRow("Raw Cache", status.RawFilePath);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(status.SentisAssetPath))
-                    {
-                        DrawPingAssetRow("Runtime .sentis", status.SentisAssetPath);
-                    }
+                    HfHubModelHubWindow.OpenWindow();
                 }
             }
-
-            EditorGUILayout.EndScrollView();
         }
 
         internal static void Refresh()
         {
-            _statusReport = HfHubEditorOperations.CreateStatusReport();
-        }
-
-        private static MessageType GetHelpBoxMessageType(HfHubStatusReport report)
-        {
-            if (report.FailedCount > 0 || report.DiscoveryIssues.Count > 0)
+            if (SettingsWindowIsOpen())
             {
-                return MessageType.Warning;
-            }
-
-            if (report.MissingCount > 0 || report.StaleCount > 0)
-            {
-                return MessageType.Info;
-            }
-
-            return MessageType.None;
-        }
-
-        private static void DrawSourceRow(HfHubDependencyStatus status)
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.PrefixLabel("Source");
-                if (GUILayout.Button($"{status.Dependency.Repository}@{status.Dependency.Revision}", EditorStyles.linkLabel))
-                {
-                    HfHubProjectSettingsLinks.OpenSourceRepository(status.Dependency);
-                }
+                SettingsService.OpenProjectSettings(HfHubEditorOperations.ProjectSettingsPath);
             }
         }
 
-        private static void DrawRevealPathRow(string label, string path)
+        private static bool SettingsWindowIsOpen()
         {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.PrefixLabel(label);
-                if (GUILayout.Button(path, EditorStyles.linkLabel))
-                {
-                    HfHubProjectSettingsLinks.RevealPath(path);
-                }
-            }
-        }
-
-        private static void DrawPingAssetRow(string label, string assetPath)
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.PrefixLabel(label);
-                if (GUILayout.Button(assetPath, EditorStyles.linkLabel))
-                {
-                    HfHubProjectSettingsLinks.PingAsset(assetPath);
-                }
-            }
+            return Resources.FindObjectsOfTypeAll<EditorWindow>()
+                .Any(window => string.Equals(window.GetType().FullName, "UnityEditor.SettingsWindow", StringComparison.Ordinal));
         }
     }
 }

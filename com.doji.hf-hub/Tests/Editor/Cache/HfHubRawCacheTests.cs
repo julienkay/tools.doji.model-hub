@@ -178,8 +178,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/com.doji.test/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    "test-model",
-                    "Test Model",
                     "doji/test-model",
                     "main"));
         }

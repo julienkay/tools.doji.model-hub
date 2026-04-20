@@ -54,8 +54,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var dependency = CreateDependency(
                 packageId: "com.doji.integration.dummy",
-                modelId: "dummy-readme",
-                repository: "hf-internal-testing/huggingface-hub-dummy-repository",
+                modelId: "hf-internal-testing/huggingface-hub-dummy-repository",
                 revision: "main");
 
             var rawCacheService = new HfHubRawCacheService();
@@ -80,8 +79,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var dependency = CreateDependency(
                 packageId: "com.doji.integration.clip",
-                modelId: "tiny-clip-onnx",
-                repository: "onnx-community/tiny-clip-test-ONNX",
+                modelId: "onnx-community/tiny-clip-test-ONNX",
                 revision: "main");
 
             var rawCacheService = new HfHubRawCacheService();
@@ -99,7 +97,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static HfHubDiscoveredModelDependency CreateDependency(
             string packageId,
             string modelId,
-            string repository,
             string revision)
         {
             return new HfHubDiscoveredModelDependency(
@@ -111,8 +108,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "integration-manifest-hash",
                 new HfHubModelDependencyDefinition(
                     modelId,
-                    modelId,
-                    repository,
                     revision));
         }
     }

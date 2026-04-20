@@ -14,6 +14,7 @@ namespace Doji.AI.ModelHub.Editor
         public string Kind { get; set; }
         public string AssetPath { get; set; }
         public string RelativePath { get; set; }
+        public long? SizeInBytes { get; set; }
     }
 
     /// <summary>
@@ -25,13 +26,13 @@ namespace Doji.AI.ModelHub.Editor
         public string PackageId { get; set; }
         public string PackageVersion { get; set; }
         public string ModelId { get; set; }
-        public string ModelDisplayName { get; set; }
         public string ManifestHash { get; set; }
         public string Repository { get; set; }
         public string RequestedRevision { get; set; }
         public string ResolvedCommitHash { get; set; }
         public string RawSnapshotRootPath { get; set; }
         public string RawMetadataPath { get; set; }
+        public long? RawCacheSizeInBytes { get; set; }
         public string SentisVersion { get; set; }
         public string UnityVersion { get; set; }
         public string RuntimeRegistryAssetPath { get; set; }

@@ -1,33 +1,19 @@
 using UnityEditor;
-using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Provides a minimal editor status surface for validating package manifest discovery during development.
+    /// Provides menu entry points for the Model Hub window, sync action, and project settings.
     /// </summary>
     internal static class HfHubStatusMenu
     {
         [MenuItem("Tools/Doji/HF Hub/Show Status")]
         private static void ShowStatus()
         {
-            var report = HfHubEditorOperations.CreateStatusReport();
-            var consoleReport = HfHubEditorOperations.BuildStatusConsoleReport(report);
-            var dialogMessage = HfHubEditorOperations.BuildStatusDialogMessage(report);
-
-            if (report.NeedsAttention)
-            {
-                Debug.LogWarning(consoleReport);
-            }
-            else
-            {
-                Debug.Log(consoleReport);
-            }
-
-            EditorUtility.DisplayDialog("HF Hub Status", dialogMessage, "OK");
+            HfHubModelHubWindow.OpenWindow();
         }
 
-        [MenuItem("Tools/Doji/HF Hub/Sync Models")]
+        [MenuItem("Tools/Doji/HF Hub/Import All")]
         private static void SyncModels()
         {
             HfHubEditorOperations.StartBackgroundSync();

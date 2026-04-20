@@ -17,7 +17,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public async Task SyncAsync_ReturnsSuccessForImportedDependencies()
         {
-            var dependency = CreateDependency("ok-model");
+            var dependency = CreateDependency("doji/test-model");
             var discoveryReport = new HfHubDiscoveryReport(
                 new[] { dependency },
                 Array.Empty<HfHubManifestDiscoveryIssue>());
@@ -41,13 +41,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public async Task SyncAsync_CollectsImportFailuresAndDiscoveryIssues()
         {
-            var dependency = CreateDependency("broken-model");
+            var dependency = CreateDependency("doji/broken-model");
             var discoveryIssue = new HfHubManifestDiscoveryIssue("com.doji.bad", "/tmp/hf-hub-manifest.json", "Bad manifest");
             var discoveryReport = new HfHubDiscoveryReport(
                 new[] { dependency },
                 new[] { discoveryIssue });
             var registryService = new FakeRuntimeLocatorRegistryService();
-            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService("broken-model"), registryService);
+            var syncService = new HfHubSyncService(new FakeRawCacheService(), new FakeProjectImportService("doji/broken-model"), registryService);
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -70,8 +70,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
                     modelId,
-                    "Test Model",
-                    "doji/test-model",
                     "main"));
         }
 

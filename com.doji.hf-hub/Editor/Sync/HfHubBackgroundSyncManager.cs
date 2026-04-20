@@ -22,6 +22,8 @@ namespace Doji.AI.ModelHub.Editor
             "Syncing model dependencies",
             GetStatePath());
 
+        public static event Action SyncStateChanged;
+
         static HfHubBackgroundSyncManager()
         {
             EditorApplication.delayCall += ResumeIfNeeded;
@@ -35,16 +37,42 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void StartOrResume()
         {
+            StartOrResume(_ => true);
+        }
+
+        /// <summary>
+        /// Starts a new background sync for dependencies that match one predicate.
+        /// </summary>
+        public static void StartOrResume(Func<HfHubDiscoveredModelDependency, bool> dependencyFilter)
+        {
             if (Runner.IsRunning)
             {
                 return;
             }
 
             var discoveryReport = HfHubEditorManifestDiscovery.DiscoverInstalledManifests();
+            var pendingKeys = discoveryReport.Dependencies
+                .Where(dependencyFilter ?? (_ => true))
+                .Select(GetDependencyKey)
+                .ToArray();
+            if (pendingKeys.Length == 0)
+            {
+                return;
+            }
+
+            NotifySyncStateChanged();
             Runner.StartOrResume(
-                () => PersistentItemQueueState.Create(discoveryReport.Dependencies.Select(GetDependencyKey)),
+                () => PersistentItemQueueState.Create(pendingKeys),
                 RunAsync,
                 exception => UnityEngine.Debug.LogError($"HF Hub background sync failed: {exception.Message}"));
+        }
+
+        /// <summary>
+        /// Starts background sync for one repository/revision item shown in Model Hub.
+        /// </summary>
+        public static void StartForRepository(string repository, string revision)
+        {
+            StartOrResume(dependency => MatchesRepository(dependency, repository, revision));
         }
 
         /// <summary>
@@ -149,6 +177,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             HfHubProjectSettingsProvider.Refresh();
+            NotifySyncStateChanged();
         }
 
         /// <summary>
@@ -160,6 +189,7 @@ namespace Doji.AI.ModelHub.Editor
             Runner.RemoveProgressIfExists();
             UnityEngine.Debug.LogWarning(HfHubEditorOperations.BuildSyncConsoleReport(report));
             HfHubProjectSettingsProvider.Refresh();
+            NotifySyncStateChanged();
         }
 
         /// <summary>
@@ -189,6 +219,18 @@ namespace Doji.AI.ModelHub.Editor
         private static string GetDependencyKey(HfHubDiscoveredModelDependency dependency)
         {
             return $"{dependency.PackageId}:{dependency.ModelId}";
+        }
+
+        internal static bool MatchesRepository(HfHubDiscoveredModelDependency dependency, string repository, string revision)
+        {
+            return dependency != null &&
+                string.Equals(dependency.Repository, repository, StringComparison.Ordinal) &&
+                string.Equals(dependency.Revision, revision, StringComparison.Ordinal);
+        }
+
+        private static void NotifySyncStateChanged()
+        {
+            SyncStateChanged?.Invoke();
         }
     }
 }

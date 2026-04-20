@@ -2,10 +2,7 @@
   "version": 1,
   "models": [
     {
-      "id": "tiny-random-bert",
-      "displayName": "Tiny Random BERT",
-      "repository": "hf-internal-testing/tiny-random-bert",
-      "revision": "main"
+      "id": "hf-internal-testing/tiny-random-bert"
     }
   ]
 }

@@ -43,7 +43,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(artifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
             Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.MetadataFilePath)), Is.True);
             Assert.That(artifact.Metadata.PackageId, Is.EqualTo("com.doji.test"));
-            Assert.That(artifact.Metadata.ModelId, Is.EqualTo("tiny-sample"));
+            Assert.That(artifact.Metadata.ModelId, Is.EqualTo("doji/test-model"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
             Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/com.doji.test/hf-hub-runtime.json"));
             Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
@@ -51,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var sentisFile = artifact.RuntimeFiles.Single(file => file.Kind == "sentis");
             Assert.That(sentisFile.AssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model/SingleInputSingleOuput.sentis"));
             Assert.That(File.Exists(HfHubProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.True);
+            Assert.That(sentisFile.SizeInBytes, Is.GreaterThan(0));
             Assert.That(ModelLoader.Load(HfHubProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.Not.Null);
         }
 
@@ -131,8 +132,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/com.doji.test/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    "tiny-sample",
-                    "Tiny Sample",
                     "doji/test-model",
                     "main"));
         }

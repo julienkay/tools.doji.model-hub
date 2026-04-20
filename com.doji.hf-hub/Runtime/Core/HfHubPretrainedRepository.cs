@@ -32,11 +32,6 @@ namespace Doji.AI.ModelHub
         public string RepoId => _resolvedModel.RepoId;
 
         /// <summary>
-        /// User-facing dependency name from the declaring manifest.
-        /// </summary>
-        public string DisplayName => _resolvedModel.DisplayName;
-
-        /// <summary>
         /// Tries to resolve one generated Sentis payload by repository-relative ONNX path.
         /// </summary>
         public bool TryGetSentisPath(string repoPath, out string filePath)

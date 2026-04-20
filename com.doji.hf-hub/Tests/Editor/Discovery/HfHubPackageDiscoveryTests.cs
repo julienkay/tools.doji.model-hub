@@ -44,9 +44,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
   ""version"": 1,
   ""models"": [
     {
-      ""id"": ""vision-base"",
-      ""displayName"": ""Vision Base"",
-      ""repository"": ""doji/vision-base"",
+      ""id"": ""doji/vision-base"",
       ""revision"": ""refs/tags/v1""
     }
   ]
@@ -56,9 +54,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
   ""version"": 1,
   ""models"": [
     {
-      ""id"": ""text-small"",
-      ""displayName"": ""Text Small"",
-      ""repository"": ""doji/text-small"",
+      ""id"": ""doji/text-small"",
       ""revision"": ""main""
     }
   ]
@@ -75,7 +71,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var alphaDependency = report.Dependencies[0];
             Assert.That(alphaDependency.PackageDisplayName, Is.EqualTo("com.doji.alpha"));
             Assert.That(alphaDependency.PackageVersion, Is.EqualTo("unknown"));
-            Assert.That(alphaDependency.ModelId, Is.EqualTo("text-small"));
+            Assert.That(alphaDependency.ModelId, Is.EqualTo("doji/text-small"));
             Assert.That(alphaDependency.Repository, Is.EqualTo("doji/text-small"));
             Assert.That(alphaDependency.ManifestPath, Is.EqualTo(Path.Combine(alphaPackage.ResolvedPath, ModelHub.ManifestFileName)));
             Assert.That(alphaDependency.ManifestHash, Is.EqualTo(ComputeSha256(secondManifest)));
@@ -83,7 +79,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var zebraDependency = report.Dependencies[1];
             Assert.That(zebraDependency.PackageDisplayName, Is.EqualTo("Zebra Tools"));
             Assert.That(zebraDependency.PackageVersion, Is.EqualTo("1.2.3"));
-            Assert.That(zebraDependency.ModelDisplayName, Is.EqualTo("Vision Base"));
+            Assert.That(zebraDependency.ModelId, Is.EqualTo("doji/vision-base"));
             Assert.That(zebraDependency.Revision, Is.EqualTo("refs/tags/v1"));
             Assert.That(zebraDependency.PackageResolvedPath, Is.EqualTo(zebraPackage.ResolvedPath));
         }
@@ -109,23 +105,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void DiscoverPackageManifests_ReportsInvalidManifestAndContinues()
         {
-            const string invalidManifest = @"{
-  ""version"": 1,
-  ""models"": [
-    {
-      ""id"": ""broken-model"",
-      ""displayName"": ""Broken Model""
-    }
-  ]
-}";
+            const string invalidManifest = "{";
 
             const string validManifest = @"{
   ""version"": 1,
   ""models"": [
     {
-      ""id"": ""kept-model"",
-      ""displayName"": ""Kept Model"",
-      ""repository"": ""doji/kept-model"",
+      ""id"": ""doji/kept-model"",
       ""revision"": ""main""
     }
   ]
@@ -139,7 +125,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
             Assert.That(report.Dependencies[0].PackageId, Is.EqualTo("com.doji.valid"));
             Assert.That(report.Issues.Count, Is.EqualTo(1));
-            Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a string `repository`."));
+            Assert.That(report.Issues[0].Message, Does.Contain("invalid JSON").Or.Contain("JSON"));
         }
 
         /// <summary>
@@ -152,15 +138,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
   ""version"": 1,
   ""models"": [
     {
-      ""id"": ""shared-id"",
-      ""displayName"": ""First"",
-      ""repository"": ""doji/first"",
+      ""id"": ""doji/first"",
       ""revision"": ""main""
     },
     {
-      ""id"": ""shared-id"",
-      ""displayName"": ""Second"",
-      ""repository"": ""doji/second"",
+      ""id"": ""doji/first"",
       ""revision"": ""main""
     }
   ]
@@ -170,7 +152,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(success, Is.False);
             Assert.That(manifest, Is.Null);
-            Assert.That(errorMessage, Is.EqualTo("Manifest model id `shared-id` is declared more than once."));
+            Assert.That(errorMessage, Is.EqualTo("Manifest model id `doji/first` is declared more than once."));
+        }
+
+        /// <summary>
+        /// Verifies manifest parser defaults missing revision to main.
+        /// </summary>
+        [Test]
+        public void TryParse_DefaultsMissingRevisionToMain()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert""
+    }
+  ]
+}";
+
+            var success = HfHubManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(manifest.Models[0].Id, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
+            Assert.That(manifest.Models[0].Revision, Is.EqualTo("main"));
         }
 
         /// <summary>
@@ -184,9 +189,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 new HfHubProjectManifestModelAssetEntry
                 {
-                    Id = "tiny-clip-onnx",
-                    DisplayName = "Tiny CLIP ONNX",
-                    Repository = "onnx-community/tiny-clip-test-ONNX",
+                    Id = "onnx-community/tiny-clip-test-ONNX",
                     Revision = "main"
                 }
             });
@@ -220,9 +223,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 new HfHubProjectManifestModelAssetEntry
                 {
-                    Id = "broken-model",
-                    DisplayName = "Broken Model",
-                    Repository = string.Empty,
+                    Id = string.Empty,
                     Revision = "main"
                 }
             });
@@ -238,7 +239,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Dependencies, Is.Empty);
             Assert.That(report.Issues.Count, Is.EqualTo(1));
             Assert.That(report.Issues[0].PackageId, Is.EqualTo(HfHubProjectManifestDiscovery.ProjectManifestOwnerId));
-            Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a non-empty `repository`."));
+            Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a non-empty `id`."));
         }
 
         private HfHubInstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)
@@ -273,8 +274,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
                 modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = models[i].Id;
-                modelProperty.FindPropertyRelative("<DisplayName>k__BackingField").stringValue = models[i].DisplayName;
-                modelProperty.FindPropertyRelative("<Repository>k__BackingField").stringValue = models[i].Repository;
                 modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
             }
 

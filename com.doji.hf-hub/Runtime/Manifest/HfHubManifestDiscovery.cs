@@ -33,8 +33,7 @@ namespace Doji.AI.ModelHub
             ManifestPath = manifestPath;
             ManifestHash = manifestHash;
             ModelId = model.Id;
-            ModelDisplayName = model.DisplayName;
-            Repository = model.Repository;
+            Repository = model.GetRepositoryId();
             Revision = model.Revision;
         }
 
@@ -69,14 +68,9 @@ namespace Doji.AI.ModelHub
         public string ManifestHash { get; }
 
         /// <summary>
-        /// Stable package-local identifier for model dependency.
+        /// Canonical HuggingFace model id from the manifest, which is also the repository id for current schema.
         /// </summary>
         public string ModelId { get; }
-
-        /// <summary>
-        /// User-facing model name shown in prompts and status output.
-        /// </summary>
-        public string ModelDisplayName { get; }
 
         /// <summary>
         /// HuggingFace repository identifier that hosts runtime files for this dependency.
@@ -279,6 +273,8 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class HfHubManifestParser
     {
+        private const string DefaultRevision = "main";
+
         /// <summary>
         /// Parses one manifest JSON document into immutable runtime manifest model.
         /// </summary>
@@ -339,25 +335,9 @@ namespace Doji.AI.ModelHub
                         return false;
                     }
 
-                    var displayName = ReadRequiredString(modelElement, "displayName", modelIndex, out errorMessage);
-                    if (errorMessage != null)
-                    {
-                        return false;
-                    }
+                    var revision = ReadOptionalString(modelElement, "revision") ?? DefaultRevision;
 
-                    var repository = ReadRequiredString(modelElement, "repository", modelIndex, out errorMessage);
-                    if (errorMessage != null)
-                    {
-                        return false;
-                    }
-
-                    var revision = ReadRequiredString(modelElement, "revision", modelIndex, out errorMessage);
-                    if (errorMessage != null)
-                    {
-                        return false;
-                    }
-
-                    models.Add(new HfHubManifestModelDraft(id, displayName, repository, revision));
+                    models.Add(new HfHubManifestModelDraft(id, revision));
                     modelIndex++;
                 }
 
@@ -413,6 +393,22 @@ namespace Doji.AI.ModelHub
 
             return value;
         }
+
+        private static string ReadOptionalString(JObject modelElement, string propertyName)
+        {
+            if (!modelElement.TryGetValue(propertyName, StringComparison.Ordinal, out var propertyToken))
+            {
+                return null;
+            }
+
+            if (propertyToken.Type != JTokenType.String)
+            {
+                return null;
+            }
+
+            var value = propertyToken.Value<string>()?.Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
     }
 
     /// <summary>
@@ -422,19 +418,13 @@ namespace Doji.AI.ModelHub
     {
         public HfHubManifestModelDraft(
             string id,
-            string displayName,
-            string repository,
             string revision)
         {
             Id = id;
-            DisplayName = displayName;
-            Repository = repository;
             Revision = revision;
         }
 
         public string Id { get; }
-        public string DisplayName { get; }
-        public string Repository { get; }
         public string Revision { get; }
     }
 
@@ -443,6 +433,8 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class HfHubManifestFactory
     {
+        private const string DefaultRevision = "main";
+
         public static bool TryCreateManifest(
             int version,
             IReadOnlyList<HfHubManifestModelDraft> models,
@@ -480,14 +472,11 @@ namespace Doji.AI.ModelHub
                     return false;
                 }
 
-                if (!TryValidateRequiredString(model.DisplayName, "displayName", modelIndex, out var displayName, out errorMessage) ||
-                    !TryValidateRequiredString(model.Repository, "repository", modelIndex, out var repository, out errorMessage) ||
-                    !TryValidateRequiredString(model.Revision, "revision", modelIndex, out var revision, out errorMessage))
-                {
-                    return false;
-                }
+                var revision = string.IsNullOrWhiteSpace(model.Revision)
+                    ? DefaultRevision
+                    : model.Revision.Trim();
 
-                finalizedModels.Add(new HfHubModelDependencyDefinition(id, displayName, repository, revision));
+                finalizedModels.Add(new HfHubModelDependencyDefinition(id, revision));
             }
 
             manifest = new HfHubPackageManifest(version, finalizedModels);

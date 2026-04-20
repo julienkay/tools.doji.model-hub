@@ -20,6 +20,8 @@ Current raw-cache layout:
 
 Revision ref maps requested revision to resolved commit. Snapshot metadata records whole repo file list for that commit.
 
+Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub may delete the selected revision ref and the snapshot only when no other revision ref still points at that resolved commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
+
 ## Download Model
 
 Dependency declaration is repo-level.

@@ -25,11 +25,58 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Builds repository-centric inventory data for the Model Hub window.
+        /// </summary>
+        public static HfHubModelHubReport CreateModelHubReport()
+        {
+            return new HfHubModelHubService().BuildReport(CreateStatusReport());
+        }
+
+        /// <summary>
         /// Starts or resumes background sync using editor progress UI instead of blocking the editor.
         /// </summary>
         public static void StartBackgroundSync()
         {
             HfHubBackgroundSyncManager.StartOrResume();
+        }
+
+        /// <summary>
+        /// Starts background sync for one repository entry from Model Hub.
+        /// </summary>
+        public static void StartBackgroundSync(HfHubModelHubItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            HfHubBackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision);
+        }
+
+        /// <summary>
+        /// Removes one repository entry's generated runtime artifacts from project.
+        /// </summary>
+        public static void RemoveImportedArtifacts(HfHubModelHubItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            new HfHubProjectRemovalService().Remove(item);
+        }
+
+        /// <summary>
+        /// Removes one repository entry's raw cache snapshot from this machine while keeping project assets.
+        /// </summary>
+        public static void RemoveRawCache(HfHubModelHubItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            new HfHubProjectRemovalService().RemoveRawCache(item);
         }
 
         /// <summary>

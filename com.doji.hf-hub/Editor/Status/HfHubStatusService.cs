@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Unity.InferenceEngine;
@@ -39,6 +40,16 @@ namespace Doji.AI.ModelHub.Editor
 
             if (!File.Exists(revisionRefPath))
             {
+                if (TryBuildImportedOnlyStatus(
+                    dependency,
+                    importMetadataAbsolutePath,
+                    importMetadataAssetPath,
+                    "Generated runtime files are present. Raw cache has been removed from this machine.",
+                    out var importedOnlyStatus))
+                {
+                    return importedOnlyStatus;
+                }
+
                 return Missing(dependency, "Raw cache revision ref is missing.", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
@@ -56,11 +67,31 @@ namespace Doji.AI.ModelHub.Editor
             var rawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, resolvedCommitHash);
             if (!Directory.Exists(snapshotRoot))
             {
+                if (TryBuildImportedOnlyStatus(
+                    dependency,
+                    importMetadataAbsolutePath,
+                    importMetadataAssetPath,
+                    "Generated runtime files are present. Raw cache snapshot has been removed from this machine.",
+                    out var importedOnlyStatus))
+                {
+                    return importedOnlyStatus;
+                }
+
                 return Missing(dependency, "Raw snapshot root is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!_rawCacheService.TryReadMetadata(rawMetadataPath, out var rawMetadata))
             {
+                if (TryBuildImportedOnlyStatus(
+                    dependency,
+                    importMetadataAbsolutePath,
+                    importMetadataAssetPath,
+                    "Generated runtime files are present. Raw cache metadata has been removed from this machine.",
+                    out var importedOnlyStatus))
+                {
+                    return importedOnlyStatus;
+                }
+
                 return Failed(dependency, "Raw cache metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
@@ -92,7 +123,16 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
             {
                 runtimePreviewAssetPath = importedMetadata.RuntimeFiles?.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
-                return Stale(dependency, "Import metadata differs from current repo snapshot or Sentis version.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath, importedMetadata);
+                return Stale(
+                    dependency,
+                    BuildImportMetadataMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, importedMetadata),
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    importMetadataAssetPath,
+                    importedMetadata);
             }
 
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
@@ -105,7 +145,15 @@ namespace Doji.AI.ModelHub.Editor
             {
                 if (!File.Exists(HfHubProjectPaths.ToAbsolutePath(runtimeFile.AssetPath)))
                 {
-                    return Missing(dependency, "One or more generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                    return Missing(
+                        dependency,
+                        $"Generated runtime file is missing: {runtimeFile.RelativePath ?? runtimeFile.AssetPath}.",
+                        revisionRefPath,
+                        snapshotRoot,
+                        rawMetadataPath,
+                        rawMetadata,
+                        runtimePreviewAssetPath,
+                        importMetadataAssetPath);
                 }
             }
 
@@ -126,6 +174,91 @@ namespace Doji.AI.ModelHub.Editor
         internal static string GetCurrentSentisVersion()
         {
             return UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly)?.version ?? "unknown";
+        }
+
+        private static bool TryBuildImportedOnlyStatus(
+            HfHubDiscoveredModelDependency dependency,
+            string importMetadataAbsolutePath,
+            string importMetadataAssetPath,
+            string readyMessage,
+            out HfHubDependencyStatus status)
+        {
+            status = null;
+
+            if (!HfHubProjectImportService.TryReadMetadata(importMetadataAbsolutePath, out var importedMetadata))
+            {
+                return false;
+            }
+
+            if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
+            if (runtimeFiles.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var runtimeFile in runtimeFiles)
+            {
+                if (!File.Exists(HfHubProjectPaths.ToAbsolutePath(runtimeFile.AssetPath)))
+                {
+                    return false;
+                }
+            }
+
+            var runtimePreviewAssetPath = runtimeFiles.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
+            status = new HfHubDependencyStatus(
+                dependency,
+                HfHubDependencyState.Ready,
+                readyMessage,
+                null,
+                null,
+                null,
+                null,
+                runtimePreviewAssetPath,
+                importMetadataAssetPath,
+                importedMetadata);
+            return true;
+        }
+
+        private static string BuildImportMetadataMismatchMessage(
+            HfHubDiscoveredModelDependency dependency,
+            string snapshotRoot,
+            string rawMetadataPath,
+            HfHubRawCacheMetadata rawMetadata,
+            HfHubImportedModelMetadata importedMetadata)
+        {
+            var mismatches = new List<string>();
+
+            AddMismatch(mismatches, "package id", importedMetadata.PackageId, dependency.PackageId);
+            AddMismatch(mismatches, "model id", importedMetadata.ModelId, dependency.ModelId);
+            AddMismatch(mismatches, "manifest hash", importedMetadata.ManifestHash, dependency.ManifestHash);
+            AddMismatch(mismatches, "repository", importedMetadata.Repository, dependency.Repository);
+            AddMismatch(mismatches, "requested revision", importedMetadata.RequestedRevision, dependency.Revision);
+            AddMismatch(mismatches, "resolved commit", importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
+            AddMismatch(mismatches, "raw snapshot root", importedMetadata.RawSnapshotRootPath, snapshotRoot);
+            AddMismatch(mismatches, "raw metadata path", importedMetadata.RawMetadataPath, rawMetadataPath);
+            AddMismatch(mismatches, "Sentis version", importedMetadata.SentisVersion, GetCurrentSentisVersion());
+
+            return mismatches.Count == 0
+                ? "Import metadata differs from current repo snapshot or Sentis version."
+                : $"Import metadata is stale: {string.Join("; ", mismatches)}.";
+        }
+
+        private static void AddMismatch(List<string> mismatches, string fieldName, string actualValue, string expectedValue)
+        {
+            if (!string.Equals(actualValue, expectedValue, StringComparison.Ordinal))
+            {
+                mismatches.Add($"{fieldName} expected `{expectedValue}` but found `{actualValue}`");
+            }
         }
 
         private static HfHubDependencyStatus Missing(

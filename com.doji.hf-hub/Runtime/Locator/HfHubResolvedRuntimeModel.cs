@@ -15,20 +15,17 @@ namespace Doji.AI.ModelHub
             string packageId,
             string packageVersion,
             string repoId,
-            string displayName,
             IReadOnlyList<HfHubResolvedRuntimeFile> files)
         {
             PackageId = packageId ?? throw new ArgumentNullException(nameof(packageId));
             PackageVersion = packageVersion ?? throw new ArgumentNullException(nameof(packageVersion));
             RepoId = repoId ?? throw new ArgumentNullException(nameof(repoId));
-            DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
             _files = files?.ToArray() ?? Array.Empty<HfHubResolvedRuntimeFile>();
         }
 
         public string PackageId { get; }
         public string PackageVersion { get; }
         public string RepoId { get; }
-        public string DisplayName { get; }
         public IReadOnlyList<HfHubResolvedRuntimeFile> Files => _files;
 
         public bool TryGetSentisPath(string repoPath, out string filePath)
@@ -44,6 +41,14 @@ namespace Doji.AI.ModelHub
 
             filePath = match.FilePath;
             return true;
+        }
+
+        /// <summary>
+        /// Returns the manifest owner id for compact diagnostics and UI labels.
+        /// </summary>
+        public override string ToString()
+        {
+            return PackageId;
         }
     }
 

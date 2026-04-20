@@ -24,8 +24,6 @@ namespace Doji.AI.ModelHub
             var drafts = (Models ?? Array.Empty<HfHubProjectManifestModelAssetEntry>())
                 .Select(model => new HfHubManifestModelDraft(
                     model?.Id,
-                    model?.DisplayName,
-                    model?.Repository,
                     model?.Revision))
                 .ToArray();
             return HfHubManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
@@ -45,12 +43,6 @@ namespace Doji.AI.ModelHub
     {
         [field: SerializeField]
         public string Id { get; set; }
-
-        [field: SerializeField]
-        public string DisplayName { get; set; }
-
-        [field: SerializeField]
-        public string Repository { get; set; } = string.Empty;
 
         [field: SerializeField]
         public string Revision { get; set; } = "main";
@@ -82,19 +74,11 @@ namespace Doji.AI.ModelHub
         private string _id;
 
         [SerializeField]
-        private string _displayName;
-
-        [SerializeField]
-        private string _repository;
-
-        [SerializeField]
         private string _revision;
 
         public HfHubProjectManifestAssetEntryDocument(HfHubProjectManifestModelAssetEntry model)
         {
             _id = model?.Id;
-            _displayName = model?.DisplayName;
-            _repository = model?.Repository;
             _revision = model?.Revision;
         }
     }

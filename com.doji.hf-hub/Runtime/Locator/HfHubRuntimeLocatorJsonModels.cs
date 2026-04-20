@@ -53,9 +53,6 @@ namespace Doji.AI.ModelHub
     internal sealed class HfHubRuntimeLocatorEntryDocument
     {
         [SerializeField]
-        private string _displayName;
-
-        [SerializeField]
         private HfHubRuntimeLocatorFileDocument[] _files = Array.Empty<HfHubRuntimeLocatorFileDocument>();
 
         [SerializeField]
@@ -68,7 +65,6 @@ namespace Doji.AI.ModelHub
         public HfHubRuntimeLocatorEntryDocument(HfHubRuntimeLocatorEntry entry)
         {
             _repoId = entry.RepoId;
-            _displayName = entry.DisplayName;
             _files = entry.Files.Select(file => new HfHubRuntimeLocatorFileDocument(file)).ToArray();
         }
 
@@ -76,7 +72,6 @@ namespace Doji.AI.ModelHub
         {
             return new HfHubRuntimeLocatorEntry(
                 _repoId,
-                _displayName,
                 (_files ?? Array.Empty<HfHubRuntimeLocatorFileDocument>())
                 .Select(file => file.ToFile())
                 .ToArray());

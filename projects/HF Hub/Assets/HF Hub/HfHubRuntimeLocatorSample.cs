@@ -72,7 +72,7 @@ namespace Doji.AI.ModelHub.Samples
             {
                 _loadedModel = ModelHub.LoadRuntimeModel(_repoId, _modelFile);
                 resolvedModel.TryGetSentisPath(_modelFile, out var sentisPath);
-                _status = $"Loaded '{resolvedModel.DisplayName}' from '{sentisPath}'.";
+                _status = $"Loaded '{resolvedModel}' from '{sentisPath}'.";
                 Debug.Log(_status, this);
             }
             catch (Exception exception)

@@ -24,6 +24,14 @@ namespace Doji.AI.ModelHub.Editor
                 return overrideRoot;
             }
 
+            return HfHubProjectSettings.instance.GetEffectiveCacheLocation();
+        }
+
+        /// <summary>
+        /// Gets platform default shared per-user cache root for this package.
+        /// </summary>
+        public static string GetDefaultCacheRoot()
+        {
             if (UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsEditor)
             {
                 return Path.Combine(

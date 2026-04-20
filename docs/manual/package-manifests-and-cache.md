@@ -11,10 +11,7 @@ Example:
   "version": 1,
   "models": [
     {
-      "id": "tiny-random-bert",
-      "displayName": "Tiny Random BERT",
-      "repository": "hf-internal-testing/tiny-random-bert",
-      "revision": "main"
+      "id": "hf-internal-testing/tiny-random-bert"
     }
   ]
 }
@@ -23,10 +20,8 @@ Example:
 ## Manifest Fields
 
 - `version`: manifest schema version. Current value is `1`.
-- `id`: package-local alias used for editor status, prompts, and import metadata ownership.
-- `displayName`: user-facing dependency name.
-- `repository`: HuggingFace `repo_id`.
-- `revision`: branch, tag, or commit to resolve.
+- `id`: canonical HuggingFace model identifier. In Hub API terms this is the repository id string such as `owner/name`.
+- `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
 
 Model ids must be unique inside one manifest.
 
@@ -53,13 +48,59 @@ Current development build includes:
 - installed-package discovery
 - project-manifest asset discovery
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
-- editor status command at `Tools/Doji/HF Hub/Show Status`
-- editor sync command at `Tools/Doji/HF Hub/Sync Models`
+- first-run auto prompt window when discovered dependencies need attention
+- Model Hub window at `Window > AI Model Hub`
+- editor import command at `Tools/Doji/HF Hub/Import All`
 - Project Settings page at `Project Settings > Doji > AI > AI Model Hub`
 
-## Sync Models
+## Editor Surfaces
 
-Use `Tools/Doji/HF Hub/Sync Models` to resolve discovered repository dependencies, populate shared raw cache, and generate project-owned runtime files.
+HF Hub now splits configuration and inventory into separate editor surfaces.
+
+### Project Settings
+
+Use `Project Settings > Doji > AI > AI Model Hub` for configuration only.
+
+Current setting:
+
+- shared cache location override for this project
+
+The page also shows:
+
+- platform default cache root
+- effective cache root after overrides
+- current Sentis version
+
+### Model Hub Window
+
+Use `Window > AI Model Hub` to inspect declared and imported repositories.
+
+The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
+
+For each repository, the window shows:
+
+- local state
+- which package or project manifests depend on it
+- raw cache location
+- cache size on disk and estimated cache download size when metadata is known
+- generated runtime `.sentis` files
+- generated runtime asset size on disk and estimated runtime size from import metadata when available
+- manifest and import diagnostics
+
+Header actions include:
+
+- clickable repository link to open resolved repository page on HuggingFace
+- `Import` to sync only the selected repository entry when it still needs download or regeneration
+- `Manage` for ready entries, with:
+  - `Remove From Project` to delete generated runtime assets and import metadata from this project
+  - `Remove From Cache` to delete this machine's raw cache entry while keeping generated project assets
+- `Locate` to ping one dependent manifest in Unity; when more than one manifest declares same repository, HF Hub shows a chooser menu first
+
+If raw cache is removed but generated project assets still exist, the repository stays usable in that project. HF Hub keeps it in imported state and downloads raw files again only when a later update or re-import needs cache content.
+
+## Import All
+
+Use `Tools/Doji/HF Hub/Import All` to resolve discovered repository dependencies, populate shared raw cache, and generate project-owned runtime files.
 
 Current sync flow:
 
@@ -170,10 +211,12 @@ Editor-only import provenance lives under:
 Library/Doji/HfHub/import-state/<owner-id>/<model-id>/hf-hub-import.json
 ```
 
+Here `<model-id>` is the sanitized canonical HuggingFace `id` value, so for current schema it matches the repo id path rather than a separate local alias.
+
 Stored import fields include:
 
 - package id and package version
-- model id and display name
+- model id as declared canonical HuggingFace `id`
 - manifest hash
 - repository, revision, and resolved commit hash
 - raw snapshot root and raw metadata path

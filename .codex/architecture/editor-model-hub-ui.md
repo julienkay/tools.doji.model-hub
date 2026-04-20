@@ -1,0 +1,117 @@
+# Editor Model Hub UI
+
+## Intent
+
+The editor UX is split into two surfaces with different jobs:
+
+- `Project Settings > Doji > AI > AI Model Hub` stores project-scoped configuration.
+- `Window > AI Model Hub` is the operational inventory and diagnostics surface.
+
+This keeps settings stable and sparse while giving the Hub window room to behave more like Unity Package Manager.
+
+## Surface Split
+
+### Project Settings
+
+Project Settings should only answer:
+
+- where shared cache lives for this project
+- what effective cache path HF Hub is using
+- how to open the main Model Hub window
+
+Current setting:
+
+- cache location override
+
+Keep environment-variable override support for tests and explicit maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set.
+
+### Model Hub Window
+
+The Model Hub window is repository-centric, not dependency-centric.
+
+Primary item key:
+
+- `repository`
+- requested `revision`
+
+Each row aggregates all manifest dependents that resolve to the same repository dependency unit.
+
+The details pane answers:
+
+- why this repo exists in the project
+- which package or project manifests depend on it
+- where the raw cache snapshot lives
+- where generated runtime files live
+- what diagnostics or stale reasons apply
+
+Ready-state actions are intentionally split by ownership boundary:
+
+- `Remove From Project` deletes generated runtime assets and import metadata for this Unity project only.
+- `Remove From Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
+
+That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
+
+## Aggregation Model
+
+Existing status evaluation still works per discovered dependency because stale checks, import metadata ownership, and package-facing diagnostics are naturally attached to one manifest owner.
+
+The Model Hub layer adds one editor-facing aggregation step:
+
+1. build normal `HfHubStatusReport`
+2. group dependency statuses by `repository + revision`
+3. merge dependents, runtime files, and high-level diagnostics into one `HfHubModelHubItem`
+
+Aggregate state precedence:
+
+1. `Error` if any dependent failed
+2. `ActionRequired` if any dependent is missing or stale
+3. `Ready` otherwise
+
+This keeps lower-level validation unchanged while giving the UI a Package-Manager-style inventory shape.
+
+## Future Status Granularity
+
+Current dependency-level status is still backend-oriented:
+
+- `Ready`
+- `Missing`
+- `Stale`
+- `Failed`
+
+That works for validation, but `Missing` currently covers several user-visible situations:
+
+- raw cache was never downloaded
+- raw cache exists, but import metadata is missing
+- import metadata exists, but generated runtime files are missing
+
+If the UI keeps needing direct lifecycle copy, a better future split would be:
+
+- `DownloadNeeded`
+- `ImportNeeded`
+- `UpdateNeeded`
+- `Ready`
+- `Failed`
+
+That would let prompts and badges choose wording directly from status instead of inferring `download` versus `import` from raw-cache fields.
+
+## Why Repo-Centric
+
+Import, cache, and runtime output are already repo-level:
+
+- raw cache stores repository snapshots
+- import converts all ONNX files in a snapshot
+- runtime output path is shared by repository, not by manifest owner
+
+Showing one row per declared dependency would duplicate entries and hide the actual artifact boundary.
+
+## Future Extensions
+
+The current window is intentionally a local inventory surface first.
+
+Future work can extend the same window with:
+
+- warning badges for revision ambiguity
+- partial ONNX conversion warnings with per-file detail
+- a remote browse tab with thumbnails and richer HuggingFace metadata
+
+Those features should reuse the repo-level item model instead of reintroducing dependency-level top rows.

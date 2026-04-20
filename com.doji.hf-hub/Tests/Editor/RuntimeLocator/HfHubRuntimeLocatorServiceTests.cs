@@ -134,8 +134,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/com.doji.test/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    "tiny-model",
-                    "Tiny Model",
                     "doji/test-model",
                     "main"));
 
@@ -183,8 +181,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/com.doji.test/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    "tiny-model",
-                    "Tiny Model",
                     "doji/test-model",
                     "main"));
 
@@ -271,8 +267,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    modelId,
-                    "Tiny Model",
                     "doji/test-model",
                     "main"));
 
@@ -281,7 +275,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 PackageId = dependency.PackageId,
                 PackageVersion = dependency.PackageVersion,
                 ModelId = dependency.ModelId,
-                ModelDisplayName = dependency.ModelDisplayName,
                 ManifestHash = dependency.ManifestHash,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,

@@ -13,4 +13,8 @@ MonoBehaviour:
   m_Name: HF Hub Project Manifest
   m_EditorClassIdentifier: 
   <Version>k__BackingField: 1
-  <Models>k__BackingField: []
+  <Models>k__BackingField:
+  - <Id>k__BackingField: julienkay/tiny-stable-diffusion-pipe-onnx
+    <Revision>k__BackingField: main
+  - <Id>k__BackingField: onnx-community/test-patchtst
+    <Revision>k__BackingField: 

@@ -48,7 +48,6 @@ namespace Doji.AI.ModelHub
                 manifest.PackageId,
                 manifest.PackageVersion,
                 entry.RepoId,
-                entry.DisplayName,
                 files);
             return true;
         }
@@ -78,7 +77,6 @@ namespace Doji.AI.ModelHub
                         manifest.PackageId,
                         manifest.PackageVersion,
                         entry.RepoId,
-                        entry.DisplayName,
                         files));
                 }
             }

@@ -1,4 +1,3 @@
-using System.Text;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -20,11 +19,23 @@ namespace Doji.AI.ModelHub.Editor
             EditorApplication.projectChanged += QueuePrompt;
         }
 
+        [MenuItem("Tools/Doji/HF Hub/Debug/Show Auto Prompt &2")]
+        private static void ShowPromptFromMenu()
+        {
+            ShowPromptForCurrentStatus();
+        }
+
         internal static bool ShouldPrompt(HfHubStatusReport report)
         {
             return report != null &&
                    report.NeedsAttention &&
                    (report.DependencyStatuses.Count > 0 || report.DiscoveryIssues.Count > 0);
+        }
+
+        internal static void ShowPromptForCurrentStatus()
+        {
+            var statusReport = HfHubEditorOperations.CreateStatusReport();
+            HfHubAutoPromptWindow.ShowWindow(statusReport);
         }
 
         private static void QueuePrompt()
@@ -68,38 +79,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             SessionState.SetBool(PromptShownSessionKey, true);
-
-            var action = EditorUtility.DisplayDialogComplex(
-                "AI Model Hub",
-                BuildPromptMessage(statusReport),
-                "Sync Now",
-                "Later",
-                "Open Settings");
-
-            switch (action)
-            {
-                case 0:
-                    HfHubEditorOperations.StartBackgroundSync();
-                    HfHubProjectSettingsProvider.Refresh();
-                    break;
-                case 2:
-                    SettingsService.OpenProjectSettings(HfHubEditorOperations.ProjectSettingsPath);
-                    break;
-            }
-        }
-
-        private static string BuildPromptMessage(HfHubStatusReport report)
-        {
-            var builder = new StringBuilder();
-            builder.AppendLine("AI Model Hub found package model dependencies that need attention.");
-            builder.AppendLine();
-            builder.AppendLine($"Missing: {report.MissingCount}");
-            builder.AppendLine($"Stale: {report.StaleCount}");
-            builder.AppendLine($"Failed: {report.FailedCount}");
-            builder.AppendLine($"Discovery issues: {report.DiscoveryIssues.Count}");
-            builder.AppendLine();
-            builder.Append("Sync now, postpone until later, or open Project Settings for details.");
-            return builder.ToString();
+            HfHubAutoPromptWindow.ShowWindow(statusReport);
         }
 
         private static bool IsTestRunnerOpen()

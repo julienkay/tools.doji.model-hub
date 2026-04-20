@@ -83,6 +83,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies imported runtime files stay ready after raw cache is removed from this machine.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsReadyWhenRawCacheWasRemovedButImportedFilesRemain()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency);
+            DeleteRawCache(dependency);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.ReadyCount, Is.EqualTo(1));
+            Assert.That(
+                report.DependencyStatuses[0].Message,
+                Is.EqualTo("Generated runtime files are present. Raw cache has been removed from this machine."));
+        }
+
+        /// <summary>
         /// Verifies stale state when import manifest hash differs.
         /// </summary>
         [Test]
@@ -95,7 +114,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.StaleCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata differs from current repo snapshot or Sentis version."));
+            Assert.That(
+                report.DependencyStatuses[0].Message,
+                Is.EqualTo("Import metadata is stale: manifest hash expected `manifesthash` but found `old-manifest-hash`."));
+        }
+
+        /// <summary>
+        /// Verifies missing runtime file reports exact generated asset path.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsMissingWhenGeneratedRuntimeFileIsAbsent()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency);
+            DeleteGeneratedRuntimeFiles(dependency);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(
+                report.DependencyStatuses[0].Message,
+                Is.EqualTo("Generated runtime file is missing: hf-hub/doji/test-model/models/model.sentis."));
         }
 
         /// <summary>
@@ -137,8 +177,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/com.doji.test/hf-hub-manifest.json",
                 "manifesthash",
                 new HfHubModelDependencyDefinition(
-                    "test-model",
-                    "Test Model",
                     "doji/test-model",
                     "main"));
         }
@@ -191,13 +229,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     PackageId = dependency.PackageId,
                     PackageVersion = dependency.PackageVersion,
                     ModelId = dependency.ModelId,
-                    ModelDisplayName = dependency.ModelDisplayName,
                     ManifestHash = importedManifestHash ?? dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,
                     RawSnapshotRootPath = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
                     RawMetadataPath = HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash),
+                    RawCacheSizeInBytes = 4,
                     SentisVersion = HfHubStatusService.GetCurrentSentisVersion(),
                     UnityVersion = UnityEngine.Application.unityVersion,
                     RuntimeFiles = runtimeFiles,
@@ -220,9 +258,19 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RepoPath = "models/model.onnx",
                     Kind = "sentis",
                     AssetPath = sentisAssetPath,
-                    RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(sentisAssetPath)
+                    RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(sentisAssetPath),
+                    SizeInBytes = 6
                 }
             };
+        }
+
+        private static void DeleteRawCache(HfHubDiscoveredModelDependency dependency)
+        {
+            var repositoryRoot = HfHubCachePaths.GetRepositoryRoot(dependency.Repository);
+            if (Directory.Exists(repositoryRoot))
+            {
+                Directory.Delete(repositoryRoot, true);
+            }
         }
 
         private static void CleanupProjectArtifacts()
@@ -246,6 +294,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
             if (Directory.Exists(absolutePath))
             {
                 Directory.Delete(absolutePath, true);
+            }
+        }
+
+        private static void DeleteGeneratedRuntimeFiles(HfHubDiscoveredModelDependency dependency)
+        {
+            var sentisAssetPath = HfHubProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", "models/model.onnx");
+            var sentisAbsolutePath = HfHubProjectPaths.ToAbsolutePath(sentisAssetPath);
+            if (File.Exists(sentisAbsolutePath))
+            {
+                File.Delete(sentisAbsolutePath);
             }
         }
     }

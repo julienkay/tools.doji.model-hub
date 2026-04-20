@@ -4,4 +4,4 @@ This embedded package exists only to exercise local `hf-hub-manifest.json` disco
 
 Current test dependency:
 
-- `onnx-community/tiny-clip-test-ONNX` at `onnx/model.onnx`
+- `onnx-community/tiny-clip-test-ONNX`

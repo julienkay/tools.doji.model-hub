@@ -61,11 +61,9 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public HfHubRuntimeLocatorEntry(
             string repoId,
-            string displayName,
             IReadOnlyList<HfHubRuntimeLocatorFile> files)
         {
             RepoId = repoId ?? throw new ArgumentNullException(nameof(repoId));
-            DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
             _files = files?.ToArray() ?? Array.Empty<HfHubRuntimeLocatorFile>();
         }
 
@@ -73,11 +71,6 @@ namespace Doji.AI.ModelHub
         /// Canonical HuggingFace repository id used by `from_pretrained(...)` style calls.
         /// </summary>
         public string RepoId { get; }
-
-        /// <summary>
-        /// User-facing model name for diagnostics and tooling.
-        /// </summary>
-        public string DisplayName { get; }
 
         /// <summary>
         /// All runtime files generated for repository snapshot under shared StreamingAssets root.

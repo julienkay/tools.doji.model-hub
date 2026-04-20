@@ -7,6 +7,7 @@ Tracked maintainer docs may live here.
 Ignored checkout:
 
 - `references/huggingface_hub`
+- `references/UnityCsReference`
 
 ## huggingface_hub
 
@@ -32,3 +33,4 @@ How future sessions should use it:
 Tracked maintainer notes in this folder:
 
 - [`huggingface-hub-concepts.md`](./huggingface-hub-concepts.md)
+- [`unity-package-manager-ui-reference.md`](./unity-package-manager-ui-reference.md)

@@ -9,14 +9,31 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal enum HfHubDependencyState
     {
+        /// <summary>
+        /// Generated runtime files and the corresponding local cache/import metadata are current.
+        /// </summary>
         Ready,
+
+        /// <summary>
+        /// At least one required local artifact is missing, such as the raw cache ref/snapshot,
+        /// import metadata, or generated runtime files.
+        /// </summary>
         Missing,
+
+        /// <summary>
+        /// Local artifacts exist, but no longer match the manifest, raw snapshot, or current Sentis version.
+        /// </summary>
         Stale,
+
+        /// <summary>
+        /// Status evaluation could not complete because a required file was unreadable or invalid.
+        /// </summary>
         Failed
     }
 
     /// <summary>
     /// Captures the currently known local state of one package-declared model dependency.
+    /// The <see cref="State"/> enum describes overall integrity, not whether raw cache is present on disk.
     /// </summary>
     internal sealed class HfHubDependencyStatus
     {

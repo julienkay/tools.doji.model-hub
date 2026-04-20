@@ -86,7 +86,8 @@ namespace Doji.AI.ModelHub.Editor
                         RepoPath = snapshotFile.RepoPath,
                         Kind = "sentis",
                         AssetPath = runtimeSentisAssetPath,
-                        RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath)
+                        RelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath),
+                        SizeInBytes = new FileInfo(runtimeSentisAbsolutePath).Length
                     });
                 }
             }
@@ -180,13 +181,16 @@ namespace Doji.AI.ModelHub.Editor
                 PackageId = dependency.PackageId,
                 PackageVersion = dependency.PackageVersion,
                 ModelId = dependency.ModelId,
-                ModelDisplayName = dependency.ModelDisplayName,
                 ManifestHash = dependency.ManifestHash,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
                 ResolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash,
                 RawSnapshotRootPath = cachedSnapshot.SnapshotRootPath,
                 RawMetadataPath = cachedSnapshot.MetadataPath,
+                RawCacheSizeInBytes = cachedSnapshot.Metadata?.Files?
+                    .Select(file => file.SizeInBytes)
+                    .Where(size => size.HasValue)
+                    .Sum(size => size.Value),
                 SentisVersion = GetSentisVersion(),
                 UnityVersion = Application.unityVersion,
                 RuntimeRegistryAssetPath = runtimeRegistryAssetPath,

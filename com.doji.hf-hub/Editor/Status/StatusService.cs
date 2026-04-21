@@ -20,8 +20,9 @@ namespace Doji.AI.ModelHub.Editor
 
         public StatusReport BuildStatusReport(DiscoveryReport discoveryReport)
         {
+            var revisionConflicts = RevisionConflictDetector.Detect(discoveryReport?.Dependencies);
             var dependencyStatuses = discoveryReport.Dependencies
-                .Select(BuildDependencyStatus)
+                .Select(dependency => BuildDependencyStatus(dependency, revisionConflicts))
                 .ToArray();
 
             return new StatusReport(
@@ -29,7 +30,9 @@ namespace Doji.AI.ModelHub.Editor
                 dependencyStatuses);
         }
 
-        private DependencyStatus BuildDependencyStatus(DiscoveredModelDependency dependency)
+        private DependencyStatus BuildDependencyStatus(
+            DiscoveredModelDependency dependency,
+            IReadOnlyDictionary<string, RepositoryRevisionConflict> revisionConflicts)
         {
             var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
             string runtimePreviewAssetPath = null;
@@ -37,6 +40,20 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.PackageId,
                 dependency.ModelId);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadataAssetPath);
+
+            if (revisionConflicts != null &&
+                revisionConflicts.TryGetValue(dependency.Repository, out var revisionConflict))
+            {
+                return Failed(
+                    dependency,
+                    DependencyReasonCode.RevisionConflict,
+                    revisionConflict.BuildMaintainerMessage(),
+                    revisionRefPath,
+                    null,
+                    null,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
 
             if (!File.Exists(revisionRefPath))
             {

@@ -99,7 +99,54 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(AssetDatabase.LoadMainAssetAtPath("Assets/StreamingAssets/hf-hub/doji/test-model") == null, Is.True);
         }
 
-        private static ModelHubItem CreateItem(string requestedRevision, string resolvedCommitHash)
+        /// <summary>
+        /// Verifies project removal does nothing while repository row is blocked by requested-revision conflict.
+        /// </summary>
+        [Test]
+        public void Remove_DoesNothingWhenItemHasRevisionConflict()
+        {
+            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test");
+            WriteBinding("com.doji.first", "doji/test-model", "manifest-a", sharedMetadataPath);
+            WriteSharedImport(sharedMetadataPath);
+            var conflictItem = CreateProjectRemovalItem(
+                "com.doji.first",
+                "manifest-a",
+                sharedMetadataPath,
+                DependencyState.Failed,
+                DependencyReasonCode.RevisionConflict);
+
+            new ProjectRemovalService().Remove(conflictItem);
+
+            Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath("com.doji.first", "doji/test-model"))), Is.True);
+            Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath)), Is.True);
+            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis")), Is.True);
+        }
+
+        /// <summary>
+        /// Verifies raw cache removal does nothing while repository row is blocked by requested-revision conflict.
+        /// </summary>
+        [Test]
+        public void RemoveRawCache_DoesNothingWhenItemHasRevisionConflict()
+        {
+            WriteRevisionRef("main", "abc123");
+            WriteSnapshot("abc123");
+            var conflictItem = CreateItem(
+                "main",
+                "abc123",
+                DependencyState.Failed,
+                DependencyReasonCode.RevisionConflict);
+
+            new ProjectRemovalService().RemoveRawCache(conflictItem);
+
+            Assert.That(File.Exists(CachePaths.GetRevisionRefPath(conflictItem.Repository, "main")), Is.True);
+            Assert.That(Directory.Exists(CachePaths.GetSnapshotRoot(conflictItem.Repository, "abc123")), Is.True);
+        }
+
+        private static ModelHubItem CreateItem(
+            string requestedRevision,
+            string resolvedCommitHash,
+            DependencyState state = DependencyState.Ready,
+            DependencyReasonCode reasonCode = DependencyReasonCode.None)
         {
             return new ModelHubItem(
                 "doji/test-model",
@@ -111,13 +158,39 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
-                ModelHubItemState.Ready,
-                Array.Empty<DependencyStatus>(),
+                state == DependencyState.Failed ? ModelHubItemState.Error : ModelHubItemState.Ready,
+                new[]
+                {
+                    new DependencyStatus(
+                        new DiscoveredModelDependency(
+                            "com.doji.test",
+                            "Test Package",
+                            "1.0.0",
+                            "/tmp/com.doji.test",
+                            "/tmp/com.doji.test/hf-hub-manifest.json",
+                            "manifesthash",
+                            new ModelDependencyDefinition("doji/test-model", requestedRevision)),
+                        state,
+                        reasonCode,
+                        state == DependencyState.Failed ? "Revision conflict." : "Ready.",
+                        CachePaths.GetRevisionRefPath("doji/test-model", requestedRevision),
+                        CachePaths.GetSnapshotRoot("doji/test-model", resolvedCommitHash),
+                        CachePaths.GetSnapshotMetadataPath("doji/test-model", resolvedCommitHash),
+                        null,
+                        null,
+                        null,
+                        null)
+                },
                 Array.Empty<ModelHubDiagnostic>(),
                 Array.Empty<ImportedRuntimeFileMetadata>());
         }
 
-        private static ModelHubItem CreateProjectRemovalItem(string packageId, string manifestHash, string sharedMetadataPath)
+        private static ModelHubItem CreateProjectRemovalItem(
+            string packageId,
+            string manifestHash,
+            string sharedMetadataPath,
+            DependencyState state = DependencyState.Ready,
+            DependencyReasonCode reasonCode = DependencyReasonCode.None)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -160,14 +233,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
-                ModelHubItemState.Ready,
+                state == DependencyState.Failed ? ModelHubItemState.Error : ModelHubItemState.Ready,
                 new[]
                 {
                     new DependencyStatus(
                         dependency,
-                        DependencyState.Ready,
-                        DependencyReasonCode.None,
-                        "Ready.",
+                        state,
+                        reasonCode,
+                        state == DependencyState.Failed ? "Revision conflict." : "Ready.",
                         CachePaths.GetRevisionRefPath("doji/test-model", "main"),
                         CachePaths.GetSnapshotRoot("doji/test-model", "abc123"),
                         CachePaths.GetSnapshotMetadataPath("doji/test-model", "abc123"),

@@ -35,6 +35,10 @@ namespace Doji.AI.ModelHub.Editor
             public const string RemoveFromCacheDisabledTooltip = "This repository no longer has raw cache files on this machine.";
             public const string LocateLabel = "Locate";
             public const string LocateTooltip = "Ping manifest asset for selected dependency owner.";
+            public const string CopyConflictSummaryLabel = "Copy Summary";
+            public const string CopyConflictSummaryTooltip = "Copy conflicting owners, revisions, and manifest paths to clipboard.";
+            public const string OpenPackageManagerLabel = "Open Package Manager";
+            public const string OpenPackageManagerTooltip = "Open Unity Package Manager for package-owned conflict resolution.";
             public const string DiscoveryIssuesBannerFormat = "{0} manifest discovery issue(s) need maintainer attention.";
             public const string LastRefreshFormat = "Last refresh {0}";
             public const string NoRepositoriesMatchFilters = "No repositories match the current filters.";
@@ -56,8 +60,10 @@ namespace Doji.AI.ModelHub.Editor
             public const string RuntimeAssetsSizeOnDiskLabel = "Runtime Size";
             public const string EstimatedRuntimeAssetsSizeLabel = "Runtime Estimate";
             public const string OwnerLabel = "Owner";
+            public const string OwnerSourceLabel = "Owner Source";
             public const string ModelIdLabel = "Model Id";
             public const string ManifestLabel = "Manifest";
+            public const string ResolutionHintLabel = "Resolution";
             public const string RuntimeRegistryLabel = "Runtime Registry";
             public const string RuntimeAssetLabel = "Runtime Asset";
             public const string RuntimeRelativeLabel = "Runtime Relative";
@@ -69,6 +75,9 @@ namespace Doji.AI.ModelHub.Editor
             public const string UpdateNeededState = "Update Needed";
             public const string DownloadNeededState = "Download Needed";
             public const string RepairNeededState = "Needs Repair";
+            public const string ConflictState = "Conflict";
+            public const string RevisionConflictTooltip = "This repository is declared at multiple requested revisions. Resolve manifests to one revision before importing or removing files.";
+            public const string RevisionConflictActionTooltip = "This repository is declared at multiple requested revisions. Resolve manifests to one revision before importing.";
             public const string SelectionBorderColor = "#3A72B0";
             public const string ReadyStateGlyph = "✓";
         }
@@ -531,7 +540,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var isSyncRunning = BackgroundSyncManager.IsRunning;
                     var actionContent = GetImportActionContent(item, isSyncRunning);
-                    using (new EditorGUI.DisabledScope(isSyncRunning))
+                    using (new EditorGUI.DisabledScope(isSyncRunning || item.HasRevisionConflict))
                     {
                         if (GUILayout.Button(actionContent, GUILayout.Width(80f)))
                         {
@@ -637,6 +646,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private void DrawSummarySection(ModelHubItem item)
         {
+            if (item.HasRevisionConflict)
+            {
+                DrawRevisionConflictResolutionSection(item);
+            }
+
             DrawRepositoryLinkRow(item);
             EditorGUILayout.LabelField(Content.RequestedRevisionLabel, item.RequestedRevision);
             EditorGUILayout.LabelField(Content.ResolvedCommitLabel, string.IsNullOrWhiteSpace(item.ResolvedCommitHash) ? Content.UnresolvedCommitPlaceholder : item.ResolvedCommitHash);
@@ -688,10 +702,18 @@ namespace Doji.AI.ModelHub.Editor
         {
             foreach (var dependent in item.Dependents)
             {
+                var resolutionInfo = item.HasRevisionConflict
+                    ? ProjectSettingsLinks.GetManifestOwnerResolutionInfo(dependent.Dependency)
+                    : default;
                 EditorGUILayout.LabelField(
                     $"{dependent.Dependency.PackageDisplayName} / {dependent.Dependency.ModelId}",
                     EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(Content.OwnerLabel, $"{dependent.Dependency.PackageId} {dependent.Dependency.PackageVersion}");
+                if (item.HasRevisionConflict)
+                {
+                    EditorGUILayout.LabelField(Content.OwnerSourceLabel, resolutionInfo.OwnerTypeLabel);
+                    EditorGUILayout.LabelField(Content.ResolutionHintLabel, resolutionInfo.ResolutionHint);
+                }
                 EditorGUILayout.LabelField(Content.ModelIdLabel, dependent.Dependency.ModelId);
                 DrawOptionalLinkRow(Content.ManifestLabel, dependent.Dependency.ManifestPath, ProjectSettingsLinks.RevealPath);
                 DrawOptionalLinkRow(Content.RuntimeRegistryLabel, dependent.ImportedMetadata?.RuntimeRegistryAssetPath, ProjectSettingsLinks.PingAsset);
@@ -736,6 +758,32 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             EditorGUILayout.Space();
+        }
+
+        private void DrawRevisionConflictResolutionSection(ModelHubItem item)
+        {
+            EditorGUILayout.HelpBox(ProjectSettingsLinks.BuildRevisionConflictHelpMessage(item), MessageType.Error);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(
+                        new GUIContent(Content.CopyConflictSummaryLabel, Content.CopyConflictSummaryTooltip),
+                        GUILayout.Width(110f)))
+                {
+                    EditorGUIUtility.systemCopyBuffer = ProjectSettingsLinks.BuildRevisionConflictSummary(item);
+                    UnityEngine.Debug.Log($"HF Hub copied revision conflict summary for '{item.Repository}' to clipboard.");
+                }
+
+                if (ProjectSettingsLinks.HasPackageManagerOwnedConflict(item) &&
+                    GUILayout.Button(
+                        new GUIContent(Content.OpenPackageManagerLabel, Content.OpenPackageManagerTooltip),
+                        GUILayout.Width(160f)))
+                {
+                    ProjectSettingsLinks.OpenPackageManager();
+                }
+            }
+
+            EditorGUILayout.Space(8f);
         }
 
         private void DrawDiscoveryIssuesSection()
@@ -913,6 +961,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private static string GetStatusBadgeLabel(ModelHubItem item)
         {
+            if (item.HasRevisionConflict)
+            {
+                return Content.ConflictState;
+            }
+
             if (item.State == ModelHubItemState.Ready)
             {
                 return Content.ImportedState;
@@ -1027,6 +1080,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private static Color GetStatusBadgeColor(ModelHubItem item)
         {
+            if (item.HasRevisionConflict)
+            {
+                return new Color(0.68f, 0.30f, 0.28f, 1f);
+            }
+
             if (item.State == ModelHubItemState.Ready)
             {
                 return new Color(0.34f, 0.55f, 0.36f, 1f);
@@ -1040,6 +1098,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private static string GetStatusBadgeTooltip(ModelHubItem item)
         {
+            if (item.HasRevisionConflict)
+            {
+                return Content.RevisionConflictTooltip;
+            }
+
             var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath);
 
             if (item.State == ModelHubItemState.Ready)
@@ -1070,6 +1133,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private GUIContent GetImportActionContent(ModelHubItem item, bool isSyncRunning = false)
         {
+            if (item != null && item.HasRevisionConflict)
+            {
+                return new GUIContent(Content.ImportLabel, Content.RevisionConflictActionTooltip);
+            }
+
             var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item?.RawSnapshotRootPath);
             if (isSyncRunning)
             {

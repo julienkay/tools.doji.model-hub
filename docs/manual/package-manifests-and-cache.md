@@ -87,12 +87,14 @@ For each repository, the window shows:
 - generated runtime asset size on disk and estimated runtime size from import metadata when available
 - manifest and import diagnostics
 
-The diagnostics tab can also show warnings for cases that are still usable but need maintainer attention:
+The diagnostics tab can also show repository diagnostics for cases that need maintainer attention:
 
-- revision ambiguity when same repository is declared at multiple requested revisions in one project
+- revision conflict when same repository is declared at multiple requested revisions in one project
 - partial ONNX conversion when at least one ONNX file converted successfully but another variant was skipped
 
-Revision ambiguity matters because generated runtime paths are repository-scoped. If multiple revisions of same repo are declared, HF Hub warns so you can decide which revision should own generated artifacts in that project.
+Revision conflict matters because generated runtime paths are repository-scoped. HF Hub does not choose a winner. Conflicting rows show `Conflict`, keep `Locate` available, and block `Import`, `Remove From Project`, and `Remove From Cache` until all manifests agree on one requested revision for that repository.
+
+When a conflict owner comes from an installed package under Unity Package Manager, that manifest may not be directly editable from the current project. Model Hub shows owner source and resolution guidance for each dependent, can copy a conflict summary to clipboard, and opens Package Manager so you can change package versions, embed/localize package sources, or remove one dependency.
 
 Header actions include:
 
@@ -118,9 +120,11 @@ Current sync flow:
 5. Write snapshot metadata and revision ref files.
 6. Convert every cached `.onnx` file in that snapshot through Unity Inference editor conversion code.
 7. Serialize resulting `.sentis` files into generated runtime snapshot.
-8. Write editor-only import metadata under `Library/Doji/HfHub/import-state/`.
+8. Write editor-only import metadata under `Library/Doji/HfHub/imports/`.
 
 Sync runs as an editor background task instead of blocking the editor while downloads are in progress.
+
+If a project declares the same repository at multiple requested revisions, HF Hub marks each conflicting row as error and does not write cache or import changes for that repository. `Import All` can still sync other repositories in the project, but conflicting rows fail until manifests agree on one revision.
 
 If a repo contains multiple ONNX files and Unity Inference cannot convert one variant, HF Hub keeps the repo sync and any successful `.sentis` outputs for the other ONNX files. HF Hub records that skipped file as import warning in Model Hub diagnostics so later refreshes still show what was only partially converted. Sync only fails when a repo contains ONNX files and none of them convert successfully.
 
@@ -215,7 +219,7 @@ Assets/StreamingAssets/hf-hub/registries/<owner-id>/hf-hub-runtime.json
 Editor-only import provenance lives under:
 
 ```text
-Library/Doji/HfHub/import-state/<owner-id>/<model-id>/hf-hub-import.json
+Library/Doji/HfHub/imports/bindings/<owner-id>/<model-id>/hf-hub-binding.json
 ```
 
 Here `<model-id>` is sanitized canonical HuggingFace `id` value.

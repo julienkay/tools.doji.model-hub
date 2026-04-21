@@ -37,7 +37,19 @@ Current generated output includes:
 
 Raw repository files stay in shared cache. Runtime output preserves upstream relative file layout, replacing ONNX extensions with `.sentis`.
 
-Runtime import paths are intentionally human-readable and do not encode resolved commit or revision. Any future ambiguity or multi-revision conflict handling belongs in HF Hub UI/workflow policy, not in the generated runtime path layout.
+Runtime import paths are intentionally human-readable and do not encode resolved commit or revision.
+
+Current policy:
+
+- repo-scoped runtime layout stays stable and human-readable
+- HF Hub does not support multiple requested revisions of same repository in one Unity project
+- if discovery finds same repository at different requested revisions, project must resolve that conflict before HF Hub writes or rewrites generated runtime payload for that repo
+
+Conflict behavior:
+
+- conflicting repo must not report `Ready`
+- conflicting repo must not import, re-import, or remove shared runtime payload through normal Model Hub actions until conflict is resolved
+- existing generated runtime files may remain on disk for inspection, but they are not treated as authoritative while conflict exists
 
 ## Import Metadata
 
@@ -98,3 +110,7 @@ Current rule:
 - owner binding key = `packageId + modelId`
 
 That lets multiple owners reuse one generated repo artifact while keeping per-owner manifest-hash validation and per-owner runtime locator registries.
+
+Current limitation:
+
+- project manifest assets currently all use owner id `project`, so owner binding identity is not yet unique per project manifest asset

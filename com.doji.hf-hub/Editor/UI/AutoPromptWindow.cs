@@ -20,15 +20,21 @@ namespace Doji.AI.ModelHub.Editor
             public const string RequiresText = "requires AI model";
             public const string SingleRepoBody = "AI Model Hub can download it into shared cache and import runtime files into this project.";
             public const string MultiRepoBody = "AI Model Hub can download them into shared cache and import runtime files into this project.";
+            public const string SingleConflictBody = "AI Model Hub found conflicting requested revisions for this repository. Resolve manifests to one revision before importing runtime files.";
+            public const string MultiConflictBody = "AI Model Hub found conflicting requested revisions for these repositories. Resolve each repository to one revision before importing runtime files.";
+            public const string SinglePackageConflictBody = "AI Model Hub found conflicting requested revisions for this repository. Some owners come from installed packages, so resolve by updating package versions, embedding/localizing package, or removing one dependency.";
+            public const string MultiPackageConflictBody = "AI Model Hub found conflicting requested revisions for these repositories. Some owners come from installed packages, so resolve by updating package versions, embedding/localizing package, or removing one dependency.";
             public const string DependencyListLabel = "Dependencies";
             public const string DetailsLineFormat = "Needs attention in {0} manifest dependencies.";
             public const string DetailsIssuesFormat = "{0} discovery issues also need attention.";
             public const string EmptyMessage = "AI Model Hub prompt opened without status data.";
             public const string LaterButton = "Later";
             public const string OpenButton = "Open Model Hub";
+            public const string ResolveConflictButton = "Resolve Conflict";
             public const string ImportAllButton = "Import All";
             public const string ImportButton = "Import";
             public const string DownloadButton = "Download";
+            public const string ResolveConflictTooltip = "Open Model Hub to inspect the conflicting manifests and resolve each repository to one requested revision.";
             public const string ImportAllTooltip = "Downloads any missing models and imports all unresolved models into this project.";
             public const string ImportTooltip = "Imports this model into the project using files already in the shared cache.";
             public const string DownloadTooltip = "Downloads this model into the shared cache and imports it into the project.";
@@ -132,11 +138,14 @@ namespace Doji.AI.ModelHub.Editor
                     string.Empty,
                     new DependentPromptEntry[0],
                     Content.ImportAllButton,
-                    Content.ImportAllTooltip);
+                    Content.ImportAllTooltip,
+                    PromptPrimaryAction.StartSync);
             }
 
-            var dependents = report.DependencyStatuses
+            var attentionStatuses = report.DependencyStatuses
                 .Where(status => status.NeedsAttention)
+                .ToArray();
+            var dependents = attentionStatuses
                 .Select(status => new DependentPromptEntry(
                     BuildOwnerLabel(status.Dependency),
                     status.Dependency.PackageDisplayName,
@@ -154,9 +163,24 @@ namespace Doji.AI.ModelHub.Editor
                 _ => string.Format(Content.MultiDependencyHeadlineFormat, dependents.Length)
             };
 
-            var body = dependents.Length <= 1
-                ? Content.SingleRepoBody
-                : Content.MultiRepoBody;
+            var hasAttentionStatuses = attentionStatuses.Length > 0;
+            var allAttentionStatusesAreRevisionConflicts = hasAttentionStatuses &&
+                attentionStatuses.All(status => status.ReasonCode == DependencyReasonCode.RevisionConflict);
+            var hasPackageManagerOwnedConflicts = allAttentionStatusesAreRevisionConflicts &&
+                attentionStatuses.Any(status => ProjectSettingsLinks
+                    .GetManifestOwnerResolutionInfo(status.Dependency)
+                    .SuggestsPackageManager);
+            var body = allAttentionStatusesAreRevisionConflicts
+                ? hasPackageManagerOwnedConflicts
+                    ? dependents.Length <= 1
+                        ? Content.SinglePackageConflictBody
+                        : Content.MultiPackageConflictBody
+                    : dependents.Length <= 1
+                        ? Content.SingleConflictBody
+                        : Content.MultiConflictBody
+                : dependents.Length <= 1
+                    ? Content.SingleRepoBody
+                    : Content.MultiRepoBody;
 
             var details = dependents.Length > 1
                 ? string.Format(Content.DetailsLineFormat, dependents.Length)
@@ -169,7 +193,7 @@ namespace Doji.AI.ModelHub.Editor
                     : $"{details} {string.Format(Content.DetailsIssuesFormat, report.DiscoveryIssues.Count)}";
             }
 
-            var primaryAction = BuildPrimaryAction(report, dependents);
+            var primaryAction = BuildPrimaryAction(attentionStatuses);
 
             return new PromptViewModel(
                 headline,
@@ -177,18 +201,26 @@ namespace Doji.AI.ModelHub.Editor
                 details,
                 dependents,
                 primaryAction.Label,
-                primaryAction.Tooltip);
+                primaryAction.Tooltip,
+                primaryAction.Action);
+        }
+
+        internal enum PromptPrimaryAction
+        {
+            StartSync,
+            OpenModelHub
         }
 
         internal sealed class PromptViewModel
         {
-            public PromptViewModel(
+            internal PromptViewModel(
                 string headline,
                 string body,
                 string details,
                 IReadOnlyList<DependentPromptEntry> dependents,
                 string primaryActionLabel,
-                string primaryActionTooltip)
+                string primaryActionTooltip,
+                PromptPrimaryAction primaryAction)
             {
                 Headline = headline;
                 Body = body;
@@ -196,6 +228,7 @@ namespace Doji.AI.ModelHub.Editor
                 Dependents = dependents?.ToArray() ?? new DependentPromptEntry[0];
                 PrimaryActionLabel = primaryActionLabel;
                 PrimaryActionTooltip = primaryActionTooltip;
+                PrimaryAction = primaryAction;
             }
 
             public string Headline { get; }
@@ -209,6 +242,8 @@ namespace Doji.AI.ModelHub.Editor
             public string PrimaryActionLabel { get; }
 
             public string PrimaryActionTooltip { get; }
+
+            internal PromptPrimaryAction PrimaryAction { get; }
         }
 
         internal sealed class DependentPromptEntry
@@ -474,11 +509,22 @@ namespace Doji.AI.ModelHub.Editor
                     var primaryActionContent = new GUIContent(
                         _viewModel?.PrimaryActionLabel ?? Content.ImportAllButton,
                         _viewModel?.PrimaryActionTooltip ?? Content.ImportAllTooltip);
-                    if (GUILayout.Button(primaryActionContent, GUILayout.Width(90f)))
+                    var primaryButtonWidth = _viewModel?.PrimaryAction == PromptPrimaryAction.OpenModelHub
+                        ? 120f
+                        : 90f;
+                    if (GUILayout.Button(primaryActionContent, GUILayout.Width(primaryButtonWidth)))
                     {
                         GUI.backgroundColor = previousBackgroundColor;
-                        EditorOperations.StartBackgroundSync();
-                        ProjectSettingsProvider.Refresh();
+                        if (_viewModel?.PrimaryAction == PromptPrimaryAction.OpenModelHub)
+                        {
+                            ModelHubWindow.OpenWindow();
+                        }
+                        else
+                        {
+                            EditorOperations.StartBackgroundSync();
+                            ProjectSettingsProvider.Refresh();
+                        }
+
                         Close();
                     }
                     GUI.backgroundColor = previousBackgroundColor;
@@ -501,24 +547,29 @@ namespace Doji.AI.ModelHub.Editor
                 : Content.PackageLeadText;
         }
 
-        private static (string Label, string Tooltip) BuildPrimaryAction(
-            StatusReport report,
-            IReadOnlyList<DependentPromptEntry> dependents)
+        private static (string Label, string Tooltip, PromptPrimaryAction Action) BuildPrimaryAction(
+            IReadOnlyList<DependencyStatus> attentionStatuses)
         {
-            if (report == null || dependents == null || dependents.Count != 1)
+            if (attentionStatuses == null || attentionStatuses.Count == 0)
             {
-                return (Content.ImportAllButton, Content.ImportAllTooltip);
+                return (Content.ImportAllButton, Content.ImportAllTooltip, PromptPrimaryAction.StartSync);
             }
 
-            var unresolvedStatus = report.DependencyStatuses.FirstOrDefault(status => status.NeedsAttention);
-            if (unresolvedStatus == null)
+            var hasNonConflictAttention = attentionStatuses.Any(status => status.ReasonCode != DependencyReasonCode.RevisionConflict);
+            if (!hasNonConflictAttention)
             {
-                return (Content.ImportAllButton, Content.ImportAllTooltip);
+                return (Content.ResolveConflictButton, Content.ResolveConflictTooltip, PromptPrimaryAction.OpenModelHub);
             }
 
+            if (attentionStatuses.Count != 1)
+            {
+                return (Content.ImportAllButton, Content.ImportAllTooltip, PromptPrimaryAction.StartSync);
+            }
+
+            var unresolvedStatus = attentionStatuses[0];
             return HasRawCache(unresolvedStatus)
-                ? (Content.ImportButton, Content.ImportTooltip)
-                : (Content.DownloadButton, Content.DownloadTooltip);
+                ? (Content.ImportButton, Content.ImportTooltip, PromptPrimaryAction.StartSync)
+                : (Content.DownloadButton, Content.DownloadTooltip, PromptPrimaryAction.StartSync);
         }
 
         private static bool HasRawCache(DependencyStatus status)

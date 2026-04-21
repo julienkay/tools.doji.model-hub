@@ -16,7 +16,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public void Remove(ModelHubItem item)
         {
-            if (item == null)
+            if (item == null || item.HasRevisionConflict)
             {
                 return;
             }
@@ -62,7 +62,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public void RemoveRawCache(ModelHubItem item)
         {
-            if (item == null)
+            if (item == null || item.HasRevisionConflict)
             {
                 return;
             }

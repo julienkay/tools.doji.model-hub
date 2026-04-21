@@ -152,29 +152,45 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies repository rows warn when same repo is declared at multiple requested revisions.
+        /// Verifies repository rows become error entries when same repo is declared at multiple requested revisions.
         /// </summary>
         [Test]
-        public void BuildReport_AddsRevisionAmbiguityWarningWhenRepositoryExistsAtMultipleRevisions()
+        public void BuildReport_AddsRevisionConflictErrorWhenRepositoryExistsAtMultipleRevisions()
         {
             var report = new StatusReport(
                 Array.Empty<ManifestDiscoveryIssue>(),
                 new[]
                 {
-                    CreateDependencyStatus("com.doji.pkg-a", "Package A", "model-a", revision: "main"),
-                    CreateDependencyStatus("com.doji.pkg-b", "Package B", "model-b", revision: "refs/pr/7")
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        DependencyState.Failed,
+                        revision: "main",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        maintainerMessage: "Repository revision conflict."),
+                    CreateDependencyStatus(
+                        "com.doji.pkg-b",
+                        "Package B",
+                        "model-b",
+                        DependencyState.Failed,
+                        revision: "refs/pr/7",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        maintainerMessage: "Repository revision conflict.")
                 });
 
             var hubReport = new ModelHubService().BuildReport(report);
 
             Assert.That(hubReport.Items.Count, Is.EqualTo(2));
-            Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.Ready));
-            Assert.That(hubReport.Items[1].State, Is.EqualTo(ModelHubItemState.Ready));
+            Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.Error));
+            Assert.That(hubReport.Items[1].State, Is.EqualTo(ModelHubItemState.Error));
+            Assert.That(hubReport.Items[0].HasRevisionConflict, Is.True);
+            Assert.That(hubReport.Items[1].HasRevisionConflict, Is.True);
             Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[1].Diagnostics.Count, Is.EqualTo(1));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[1].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("revision ambiguity"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("error"));
+            Assert.That(hubReport.Items[1].Diagnostics[0].Severity, Is.EqualTo("error"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("revision conflict"));
             Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("main"));
             Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("refs/pr/7"));
             Assert.That(hubReport.Items[1].Diagnostics[0].Message, Is.EqualTo(hubReport.Items[0].Diagnostics[0].Message));
@@ -220,7 +236,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string modelId,
             DependencyState state = DependencyState.Ready,
             string revision = "main",
-            ImportDiagnostic[] importedDiagnostics = null)
+            ImportDiagnostic[] importedDiagnostics = null,
+            DependencyReasonCode? reasonCode = null,
+            string maintainerMessage = null)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -263,8 +281,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new DependencyStatus(
                 dependency,
                 state,
-                state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing,
-                state == DependencyState.Ready ? "Ready." : "Import binding metadata file is missing.",
+                reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing),
+                maintainerMessage ?? (state == DependencyState.Ready ? "Ready." : "Import binding metadata file is missing."),
                 $"/cache/doji/test-model/refs/{revision}",
                 "/cache/doji/test-model/abc123",
                 "/cache/doji/test-model/abc123/snapshot.hfhub.json",

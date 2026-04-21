@@ -23,7 +23,7 @@ namespace Doji.AI.ModelHub.Editor
                 .OrderBy(item => item.Repository, StringComparer.Ordinal)
                 .ThenBy(item => item.RequestedRevision, StringComparer.Ordinal)
                 .ToArray();
-            AddRevisionAmbiguityWarnings(items);
+            AddRevisionConflictDiagnostics(items);
 
             return new ModelHubReport(items, statusReport?.DiscoveryIssues ?? Array.Empty<ManifestDiscoveryIssue>());
         }
@@ -136,6 +136,7 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
                 DependencyReasonCode.ImportBindingStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 DependencyReasonCode.SharedImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
+                DependencyReasonCode.RevisionConflict => null,
                 DependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
@@ -156,7 +157,7 @@ namespace Doji.AI.ModelHub.Editor
             return $"Generated runtime file is missing. Re-import this model. ({maintainerMessage.Substring(prefix.Length).Trim()})";
         }
 
-        private static void AddRevisionAmbiguityWarnings(IReadOnlyList<ModelHubItem> items)
+        private static void AddRevisionConflictDiagnostics(IReadOnlyList<ModelHubItem> items)
         {
             foreach (var repositoryGroup in items.GroupBy(item => item.Repository, StringComparer.Ordinal))
             {
@@ -171,11 +172,17 @@ namespace Doji.AI.ModelHub.Editor
                     continue;
                 }
 
-                var warningMessage =
-                    $"Repository revision ambiguity: '{repositoryGroup.Key}' is declared with multiple requested revisions ({string.Join(", ", revisions)}). Runtime output paths are repository-scoped, so verify which revision should own generated artifacts.";
+                var owners = repositoryGroup
+                    .SelectMany(item => item.Dependents)
+                    .Select(status => $"{status.Dependency.PackageDisplayName} / {status.Dependency.ModelId}")
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(label => label, StringComparer.Ordinal)
+                    .ToArray();
+                var errorMessage =
+                    $"Repository revision conflict: '{repositoryGroup.Key}' is declared at multiple requested revisions ({string.Join(", ", revisions)}). HF Hub supports only one revision per repository per project. Resolve manifests to one revision before importing or removing files. Conflicting dependents: {string.Join(", ", owners)}.";
                 foreach (var item in repositoryGroup)
                 {
-                    item.AddDiagnostic(new ModelHubDiagnostic("warning", warningMessage));
+                    item.AddDiagnostic(new ModelHubDiagnostic("error", errorMessage));
                 }
             }
         }

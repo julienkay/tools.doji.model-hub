@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using System;
 using System.Linq;
+using System.IO;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -89,28 +90,109 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }));
         }
 
+        /// <summary>
+        /// Ensures package-cache manifests are treated as package-manager owned rather than directly editable project files.
+        /// </summary>
+        [Test]
+        public void GetManifestOwnerResolutionInfo_ClassifiesInstalledPackageCacheAsPackageManagerOwned()
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "com.doji.pkg@1.2.3");
+            var dependency = new DiscoveredModelDependency(
+                "com.doji.pkg",
+                "Locked Package",
+                "1.2.3",
+                packageRoot,
+                Path.Combine(packageRoot, "hf-hub-manifest.json"),
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "refs/tags/v1"));
+
+            var info = ProjectSettingsLinks.GetManifestOwnerResolutionInfo(dependency);
+
+            Assert.That(info.Kind, Is.EqualTo(ProjectSettingsLinks.ManifestOwnerResolutionKind.InstalledPackage));
+            Assert.That(info.IsDirectlyEditable, Is.False);
+            Assert.That(info.SuggestsPackageManager, Is.True);
+            Assert.That(info.ResolutionHint, Does.Contain("Package Manager"));
+        }
+
+        /// <summary>
+        /// Ensures copied conflict summary includes owner source and package-manager guidance for locked package owners.
+        /// </summary>
+        [Test]
+        public void BuildRevisionConflictSummary_ListsOwnerKindsAndResolutionHints()
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "com.doji.pkg@1.2.3");
+            var item = new ModelHubItem(
+                "doji/test-model",
+                "main",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ModelHubItemState.Error,
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "project",
+                        "Project",
+                        "project-model",
+                        "Assets/HF Hub/HF Hub Project Manifest.asset",
+                        packageResolvedPath: Path.Combine(projectRoot, "Assets", "HF Hub")),
+                    CreateDependencyStatus(
+                        "com.doji.pkg",
+                        "Locked Package",
+                        "package-model",
+                        Path.Combine(packageRoot, "hf-hub-manifest.json"),
+                        packageVersion: "1.2.3",
+                        packageResolvedPath: packageRoot,
+                        revision: "refs/tags/v1",
+                        reasonCode: DependencyReasonCode.RevisionConflict)
+                },
+                Array.Empty<ModelHubDiagnostic>(),
+                Array.Empty<ImportedRuntimeFileMetadata>());
+
+            var summary = ProjectSettingsLinks.BuildRevisionConflictSummary(item);
+
+            Assert.That(summary, Does.Contain("HF Hub revision conflict"));
+            Assert.That(summary, Does.Contain("Project manifest"));
+            Assert.That(summary, Does.Contain("Installed package"));
+            Assert.That(summary, Does.Contain("Package Manager"));
+            Assert.That(summary, Does.Contain("Assets/HF Hub/HF Hub Project Manifest.asset"));
+            Assert.That(summary, Does.Contain("Library/PackageCache"));
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
             string modelId,
-            string manifestPath)
+            string manifestPath,
+            string packageVersion = "1.0.0",
+            string packageResolvedPath = null,
+            string revision = "main",
+            DependencyReasonCode reasonCode = DependencyReasonCode.None)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
                 packageDisplayName,
-                "1.0.0",
-                $"/tmp/{packageId}",
+                packageVersion,
+                packageResolvedPath ?? $"/tmp/{packageId}",
                 manifestPath,
                 $"{packageId}-hash",
                 new ModelDependencyDefinition(
                     modelId,
-                    "main"));
+                    revision));
 
             return new DependencyStatus(
                 dependency,
-                DependencyState.Ready,
-                DependencyReasonCode.None,
-                "Ready",
+                reasonCode == DependencyReasonCode.None ? DependencyState.Ready : DependencyState.Failed,
+                reasonCode,
+                reasonCode == DependencyReasonCode.None ? "Ready" : "Conflict",
                 null,
                 null,
                 null,

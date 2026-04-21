@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,6 +13,46 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class ProjectSettingsLinks
     {
+        /// <summary>
+        /// Describes how directly one manifest owner can be edited from current Unity project.
+        /// </summary>
+        internal enum ManifestOwnerResolutionKind
+        {
+            ProjectManifest,
+            EmbeddedPackage,
+            LocalPackage,
+            InstalledPackage
+        }
+
+        /// <summary>
+        /// Carries owner editability and resolution guidance for one conflicting manifest owner.
+        /// </summary>
+        internal readonly struct ManifestOwnerResolutionInfo
+        {
+            /// <summary>
+            /// Stores owner source kind and resolution guidance used by conflict UX.
+            /// </summary>
+            public ManifestOwnerResolutionInfo(
+                ManifestOwnerResolutionKind kind,
+                string ownerTypeLabel,
+                bool isDirectlyEditable,
+                bool suggestsPackageManager,
+                string resolutionHint)
+            {
+                Kind = kind;
+                OwnerTypeLabel = ownerTypeLabel;
+                IsDirectlyEditable = isDirectlyEditable;
+                SuggestsPackageManager = suggestsPackageManager;
+                ResolutionHint = resolutionHint;
+            }
+
+            public ManifestOwnerResolutionKind Kind { get; }
+            public string OwnerTypeLabel { get; }
+            public bool IsDirectlyEditable { get; }
+            public bool SuggestsPackageManager { get; }
+            public string ResolutionHint { get; }
+        }
+
         /// <summary>
         /// Carries one manifest locate target shown in editor menus.
         /// </summary>
@@ -112,6 +153,17 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Opens Unity Package Manager so package-owned conflict resolution options are nearby.
+        /// </summary>
+        public static void OpenPackageManager()
+        {
+            if (!EditorApplication.ExecuteMenuItem("Window/Package Manager"))
+            {
+                UnityEngine.Debug.LogWarning("HF Hub could not open Unity Package Manager from menu.");
+            }
+        }
+
+        /// <summary>
         /// Builds stable locate targets for one repository item's dependent manifests.
         /// </summary>
         public static IReadOnlyList<ManifestLocateTarget> BuildManifestLocateTargets(ModelHubItem item)
@@ -133,6 +185,139 @@ namespace Doji.AI.ModelHub.Editor
                     .First())
                 .OrderBy(target => target.Label, StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Classifies one manifest owner by how directly it can be edited from current project.
+        /// </summary>
+        internal static ManifestOwnerResolutionInfo GetManifestOwnerResolutionInfo(DiscoveredModelDependency dependency)
+        {
+            if (dependency == null)
+            {
+                throw new ArgumentNullException(nameof(dependency));
+            }
+
+            var normalizedManifestPath = NormalizePath(dependency.ManifestPath);
+            var assetPath = TryGetProjectAssetPath(normalizedManifestPath);
+            if (string.Equals(
+                    dependency.PackageId,
+                    ProjectManifestDiscovery.ProjectManifestOwnerId,
+                    StringComparison.Ordinal) ||
+                IsProjectAssetPath(assetPath))
+            {
+                return new ManifestOwnerResolutionInfo(
+                    ManifestOwnerResolutionKind.ProjectManifest,
+                    "Project manifest",
+                    true,
+                    false,
+                    "Edit project manifest asset so all owners request one revision.");
+            }
+
+            if (IsEmbeddedPackageAssetPath(assetPath))
+            {
+                return new ManifestOwnerResolutionInfo(
+                    ManifestOwnerResolutionKind.EmbeddedPackage,
+                    "Embedded package",
+                    true,
+                    false,
+                    "Edit embedded package manifest or change project package setup so one revision wins.");
+            }
+
+            if (IsInstalledPackageCachePath(normalizedManifestPath) ||
+                IsInstalledPackageCachePath(NormalizePath(dependency.PackageResolvedPath)))
+            {
+                return new ManifestOwnerResolutionInfo(
+                    ManifestOwnerResolutionKind.InstalledPackage,
+                    "Installed package",
+                    false,
+                    true,
+                    "Change package version in Package Manager, embed/localize package, or remove one dependency.");
+            }
+
+            return new ManifestOwnerResolutionInfo(
+                ManifestOwnerResolutionKind.LocalPackage,
+                "Local package",
+                true,
+                false,
+                "Edit local package manifest at source path or change project package setup so one revision wins.");
+        }
+
+        /// <summary>
+        /// Returns true when conflict owners include installed packages that are not directly editable in project.
+        /// </summary>
+        internal static bool HasPackageManagerOwnedConflict(ModelHubItem item)
+        {
+            return (item?.Dependents ?? Array.Empty<DependencyStatus>())
+                .Any(dependent => GetManifestOwnerResolutionInfo(dependent.Dependency).SuggestsPackageManager);
+        }
+
+        /// <summary>
+        /// Builds short conflict guidance for Model Hub summary view.
+        /// </summary>
+        internal static string BuildRevisionConflictHelpMessage(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                throw new ArgumentNullException(nameof(item));
+            }
+
+            var resolutionInfos = item.Dependents
+                .Select(dependent => GetManifestOwnerResolutionInfo(dependent.Dependency))
+                .ToArray();
+            var hasPackageManagerOwners = resolutionInfos.Any(info => info.SuggestsPackageManager);
+            var hasEditableOwners = resolutionInfos.Any(info => info.IsDirectlyEditable);
+
+            if (hasPackageManagerOwners && hasEditableOwners)
+            {
+                return "Conflict spans editable manifests and installed packages. Use Locate for project or local manifests. For installed packages, update package versions, embed/localize package, or remove one dependency. Copy summary if you need exact owners and paths.";
+            }
+
+            if (hasPackageManagerOwners)
+            {
+                return "Conflict comes from installed packages that are not directly editable in this project. Resolve by updating package versions, embedding/localizing package, or removing one dependency. Open Package Manager and copy summary for exact owners.";
+            }
+
+            return "Conflict comes from project or editable package manifests. Use Locate to open each manifest and align all requested revisions to one value.";
+        }
+
+        /// <summary>
+        /// Builds clipboard-ready conflict summary with owners, revisions, and suggested resolution path.
+        /// </summary>
+        internal static string BuildRevisionConflictSummary(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                throw new ArgumentNullException(nameof(item));
+            }
+
+            var revisions = item.Dependents
+                .Select(dependent => dependent.Dependency.Revision)
+                .Where(revision => !string.IsNullOrWhiteSpace(revision))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(revision => revision, StringComparer.Ordinal)
+                .ToArray();
+            var builder = new StringBuilder();
+            builder.AppendLine("HF Hub revision conflict");
+            builder.AppendLine($"Repository: {item.Repository}");
+            builder.AppendLine($"Requested revisions: {string.Join(", ", revisions)}");
+            builder.AppendLine("Owners:");
+
+            foreach (var dependent in item.Dependents
+                         .OrderBy(entry => entry.Dependency.PackageDisplayName, StringComparer.Ordinal)
+                         .ThenBy(entry => entry.Dependency.ModelId, StringComparer.Ordinal))
+            {
+                var dependency = dependent.Dependency;
+                var resolutionInfo = GetManifestOwnerResolutionInfo(dependency);
+                builder.AppendLine(
+                    $"- {resolutionInfo.OwnerTypeLabel}: {dependency.PackageDisplayName} ({dependency.PackageId} {dependency.PackageVersion})");
+                builder.AppendLine($"  model: {dependency.ModelId}");
+                builder.AppendLine($"  requested revision: {dependency.Revision}");
+                builder.AppendLine($"  manifest: {GetDisplayPath(dependency.ManifestPath)}");
+                builder.AppendLine($"  resolve: {resolutionInfo.ResolutionHint}");
+            }
+
+            builder.Append("HF Hub blocks import/remove until one requested revision remains for this repository.");
+            return builder.ToString();
         }
 
         /// <summary>
@@ -168,6 +353,50 @@ namespace Doji.AI.ModelHub.Editor
         public static void OpenSourceRepository(DiscoveredModelDependency dependency)
         {
             Application.OpenURL(GetSourceRepositoryUrl(dependency));
+        }
+
+        private static bool IsProjectAssetPath(string assetPath)
+        {
+            return !string.IsNullOrWhiteSpace(assetPath) &&
+                assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsEmbeddedPackageAssetPath(string assetPath)
+        {
+            return !string.IsNullOrWhiteSpace(assetPath) &&
+                assetPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsInstalledPackageCachePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            var projectRoot = NormalizePath(Path.GetFullPath(Path.Combine(Application.dataPath, ".."))).TrimEnd('/');
+            return path.StartsWith($"{projectRoot}/Library/PackageCache/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetDisplayPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return string.Empty;
+            }
+
+            var normalizedPath = NormalizePath(path);
+            var assetPath = TryGetProjectAssetPath(normalizedPath);
+            return string.IsNullOrWhiteSpace(assetPath)
+                ? normalizedPath
+                : assetPath;
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return string.IsNullOrWhiteSpace(path)
+                ? path
+                : path.Replace('\\', '/');
         }
     }
 }

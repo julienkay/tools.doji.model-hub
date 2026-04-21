@@ -98,6 +98,7 @@ namespace Doji.AI.ModelHub.Editor
                 .OrderBy(dependency => dependency.PackageId, StringComparer.Ordinal)
                 .ThenBy(dependency => dependency.ModelId, StringComparer.Ordinal)
                 .ToArray();
+            var revisionConflicts = RevisionConflictDetector.Detect(discoveryReport.Dependencies);
 
             var rawCacheService = new RawCacheService();
             var importService = new ProjectImportService();
@@ -114,6 +115,16 @@ namespace Doji.AI.ModelHub.Editor
                     async (dependency, index, totalCount, operationContext) =>
                     {
                         activeDependency = dependency;
+
+                        if (revisionConflicts.TryGetValue(dependency.Repository, out var revisionConflict))
+                        {
+                            results.Add(ModelSyncResult.CreateRevisionConflictFailure(dependency, revisionConflict));
+                            operationContext.ReportProgress(
+                                totalCount == 0 ? 1f : (index + 1f) / totalCount,
+                                $"Blocked {dependency.PackageId}/{dependency.ModelId}");
+                            return;
+                        }
+
                         var baseProgress = totalCount == 0 ? 1f : index / (float)totalCount;
                         operationContext.ReportProgress(baseProgress, $"Preparing {dependency.PackageId}/{dependency.ModelId}");
 

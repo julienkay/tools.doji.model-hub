@@ -76,6 +76,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw repo snapshot, import binding, and generated runtime files are current."));
         }
 
+        /// <summary>
+        /// Verifies same repository declared at multiple revisions blocks both dependencies before cache or import checks run.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsFailedWhenRepositoryHasMultipleRequestedRevisions()
+        {
+            var mainDependency = CreateDependency(packageId: "com.doji.main", revision: "main");
+            var releaseDependency = CreateDependency(packageId: "com.doji.release", revision: "refs/tags/v1");
+
+            var report = BuildStatusReport(mainDependency, releaseDependency);
+
+            Assert.That(report.FailedCount, Is.EqualTo(2));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RevisionConflict));
+            Assert.That(report.DependencyStatuses[1].ReasonCode, Is.EqualTo(DependencyReasonCode.RevisionConflict));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("multiple requested revisions"));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("main"));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("refs/tags/v1"));
+        }
+
         [Test]
         public void BuildStatusReport_ReturnsReadyWhenRawCacheWasRemovedButImportedFilesRemain()
         {
@@ -175,26 +194,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import binding metadata is invalid."));
         }
 
-        private static StatusReport BuildStatusReport(DiscoveredModelDependency dependency)
+        private static StatusReport BuildStatusReport(params DiscoveredModelDependency[] dependencies)
         {
             var discoveryReport = new DiscoveryReport(
-                new[] { dependency },
+                dependencies,
                 Array.Empty<ManifestDiscoveryIssue>());
             return new StatusService().BuildStatusReport(discoveryReport);
         }
 
-        private static DiscoveredModelDependency CreateDependency()
+        private static DiscoveredModelDependency CreateDependency(
+            string packageId = "com.doji.test",
+            string revision = "main")
         {
             return new DiscoveredModelDependency(
-                "com.doji.test",
+                packageId,
                 "Test Package",
                 "1.0.0",
-                "/tmp/com.doji.test",
-                "/tmp/com.doji.test/hf-hub-manifest.json",
+                $"/tmp/{packageId}",
+                $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
-                    "main"));
+                    revision));
         }
 
         private static void WriteRawCache(DiscoveredModelDependency dependency, string commitHash = "abc123")

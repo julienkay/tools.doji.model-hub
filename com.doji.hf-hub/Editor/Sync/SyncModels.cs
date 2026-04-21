@@ -32,6 +32,20 @@ namespace Doji.AI.ModelHub.Editor
         public ImportedModelArtifact ImportedArtifact { get; }
         public string ErrorMessage { get; }
         public bool Success => ImportedArtifact != null && string.IsNullOrWhiteSpace(ErrorMessage);
+
+        /// <summary>
+        /// Creates failed sync result for repository revision conflict that must block import work.
+        /// </summary>
+        internal static ModelSyncResult CreateRevisionConflictFailure(
+            DiscoveredModelDependency dependency,
+            RepositoryRevisionConflict revisionConflict)
+        {
+            return new ModelSyncResult(
+                dependency,
+                null,
+                null,
+                revisionConflict?.BuildMaintainerMessage() ?? "Repository revision conflict blocked sync.");
+        }
     }
 
     /// <summary>
@@ -119,8 +133,15 @@ namespace Doji.AI.ModelHub.Editor
             CancellationToken cancellationToken)
         {
             var modelResults = new List<ModelSyncResult>();
+            var revisionConflicts = RevisionConflictDetector.Detect(discoveryReport?.Dependencies);
             foreach (var dependency in discoveryReport.Dependencies)
             {
+                if (revisionConflicts.TryGetValue(dependency.Repository, out var revisionConflict))
+                {
+                    modelResults.Add(ModelSyncResult.CreateRevisionConflictFailure(dependency, revisionConflict));
+                    continue;
+                }
+
                 try
                 {
                     var cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, null, cancellationToken);

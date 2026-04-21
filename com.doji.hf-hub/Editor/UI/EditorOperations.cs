@@ -50,6 +50,13 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (item.HasRevisionConflict)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"HF Hub cannot import '{item.Repository}' because the project declares multiple requested revisions for that repository. Resolve manifests to one revision first.");
+                return;
+            }
+
             BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision);
         }
 
@@ -63,6 +70,13 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (item.HasRevisionConflict)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"HF Hub cannot remove imported artifacts for '{item.Repository}' while the project declares multiple requested revisions for that repository.");
+                return;
+            }
+
             new ProjectRemovalService().Remove(item);
         }
 
@@ -73,6 +87,13 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (item == null)
             {
+                return;
+            }
+
+            if (item.HasRevisionConflict)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"HF Hub cannot remove raw cache for '{item.Repository}' while the project declares multiple requested revisions for that repository.");
                 return;
             }
 

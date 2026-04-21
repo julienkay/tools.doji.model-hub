@@ -42,6 +42,7 @@ namespace Doji.AI.ModelHub.Editor
         RawCacheRevisionRefUnreadable,
         RawSnapshotRootMissing,
         RawCacheMetadataMissingAfterImport,
+        RevisionConflict,
         RawCacheMetadataInvalid,
         RawCacheMetadataMismatch,
         ImportBindingMissing,
@@ -129,5 +130,71 @@ namespace Doji.AI.ModelHub.Editor
         public int StaleCount => _dependencyStatuses.Count(status => status.State == DependencyState.Stale);
         public int FailedCount => _dependencyStatuses.Count(status => status.State == DependencyState.Failed);
         public bool NeedsAttention => DiscoveryIssues.Count > 0 || _dependencyStatuses.Any(status => status.NeedsAttention);
+    }
+
+    /// <summary>
+    /// Describes one unsupported same-repository multi-revision declaration set within one Unity project.
+    /// </summary>
+    internal sealed class RepositoryRevisionConflict
+    {
+        private readonly string[] _requestedRevisions;
+        private readonly DiscoveredModelDependency[] _dependencies;
+
+        public RepositoryRevisionConflict(
+            string repository,
+            IReadOnlyList<string> requestedRevisions,
+            IReadOnlyList<DiscoveredModelDependency> dependencies)
+        {
+            Repository = repository;
+            _requestedRevisions = requestedRevisions?.ToArray() ?? Array.Empty<string>();
+            _dependencies = dependencies?.ToArray() ?? Array.Empty<DiscoveredModelDependency>();
+        }
+
+        public string Repository { get; }
+        public IReadOnlyList<string> RequestedRevisions => _requestedRevisions;
+        public IReadOnlyList<DiscoveredModelDependency> Dependencies => _dependencies;
+
+        public string BuildMaintainerMessage()
+        {
+            return
+                $"Repository '{Repository}' is declared at multiple requested revisions ({string.Join(", ", RequestedRevisions)}). HF Hub supports only one revision per repository per project. Resolve manifests to one revision before importing or removing project artifacts.";
+        }
+    }
+
+    /// <summary>
+    /// Finds repositories that are declared at more than one requested revision in one discovery pass.
+    /// </summary>
+    internal static class RevisionConflictDetector
+    {
+        public static IReadOnlyDictionary<string, RepositoryRevisionConflict> Detect(
+            IReadOnlyList<DiscoveredModelDependency> dependencies)
+        {
+            var conflicts = new Dictionary<string, RepositoryRevisionConflict>(StringComparer.Ordinal);
+            foreach (var repositoryGroup in (dependencies ?? Array.Empty<DiscoveredModelDependency>())
+                         .Where(dependency => dependency != null)
+                         .GroupBy(dependency => dependency.Repository, StringComparer.Ordinal))
+            {
+                var requestedRevisions = repositoryGroup
+                    .Select(dependency => dependency.Revision)
+                    .Where(revision => !string.IsNullOrWhiteSpace(revision))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(revision => revision, StringComparer.Ordinal)
+                    .ToArray();
+                if (requestedRevisions.Length <= 1)
+                {
+                    continue;
+                }
+
+                conflicts[repositoryGroup.Key] = new RepositoryRevisionConflict(
+                    repositoryGroup.Key,
+                    requestedRevisions,
+                    repositoryGroup
+                        .OrderBy(dependency => dependency.PackageId, StringComparer.Ordinal)
+                        .ThenBy(dependency => dependency.ModelId, StringComparer.Ordinal)
+                        .ToArray());
+            }
+
+            return conflicts;
+        }
     }
 }

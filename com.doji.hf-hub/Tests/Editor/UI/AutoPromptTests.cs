@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using NUnit.Framework;
 
@@ -108,26 +109,99 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("all unresolved models"));
         }
 
+        /// <summary>
+        /// Verifies conflict-only prompt opens Model Hub instead of offering blocked import work.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_UsesResolveConflictActionWhenOnlyRevisionConflictsNeedAttention()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Failed,
+                        repository: "alpha/model-a",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        revision: "main"),
+                    CreateStatus(
+                        DependencyState.Failed,
+                        repository: "alpha/model-a",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        revision: "refs/tags/v1")
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Body, Does.Contain("Resolve each repository to one revision"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Resolve Conflict"));
+            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("Open Model Hub"));
+        }
+
+        /// <summary>
+        /// Verifies conflict-only prompt mentions package-version resolution when owners come from installed packages.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_UsesPackageConflictBodyWhenConflictOwnerIsInstalledPackage()
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
+            var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "com.doji.pkg@1.2.3");
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Failed,
+                        repository: "alpha/model-a",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        revision: "main"),
+                    CreateStatus(
+                        DependencyState.Failed,
+                        repository: "alpha/model-a",
+                        reasonCode: DependencyReasonCode.RevisionConflict,
+                        revision: "refs/tags/v1",
+                        packageId: "com.doji.pkg",
+                        packageDisplayName: "Locked Package",
+                        packageVersion: "1.2.3",
+                        packageResolvedPath: packageRoot,
+                        manifestPath: Path.Combine(packageRoot, "hf-hub-manifest.json"))
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Body, Does.Contain("updating package versions"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Resolve Conflict"));
+        }
+
         private static DependencyStatus CreateStatus(
             DependencyState state,
             string repository = "doji/test-model",
-            bool hasRawCache = false)
+            bool hasRawCache = false,
+            DependencyReasonCode? reasonCode = null,
+            string revision = "main",
+            string packageId = "com.doji.test",
+            string packageDisplayName = "Test Package",
+            string packageVersion = "1.0.0",
+            string packageResolvedPath = null,
+            string manifestPath = null)
         {
             var dependency = new DiscoveredModelDependency(
-                "com.doji.test",
-                "Test Package",
-                "1.0.0",
-                "/tmp/com.doji.test",
-                "/tmp/com.doji.test/hf-hub-manifest.json",
+                packageId,
+                packageDisplayName,
+                packageVersion,
+                packageResolvedPath ?? $"/tmp/{packageId}",
+                manifestPath ?? $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new ModelDependencyDefinition(
                     repository,
-                    "main"));
+                    revision));
 
             return new DependencyStatus(
                 dependency,
                 state,
-                state == DependencyState.Missing ? DependencyReasonCode.ImportBindingMissing : DependencyReasonCode.ImportBindingStale,
+                reasonCode ?? (state == DependencyState.Stale
+                    ? DependencyReasonCode.ImportBindingStale
+                    : DependencyReasonCode.ImportBindingMissing),
                 state.ToString(),
                 hasRawCache ? "/tmp/cache/refs/main" : null,
                 hasRawCache ? "/tmp/cache/snapshots/commit" : null,
@@ -135,7 +209,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 hasRawCache ? new RawCacheMetadata
                 {
                     Repository = repository,
-                    RequestedRevision = "main",
+                    RequestedRevision = revision,
                     ResolvedCommitHash = "commit",
                     CachedSnapshotRoot = "/tmp/cache/snapshots/commit",
                     Files = Array.Empty<RawCacheFileMetadata>()

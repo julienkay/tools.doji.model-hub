@@ -83,6 +83,7 @@ namespace Doji.AI.ModelHub.Editor
         public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => _runtimeFiles;
         public int ImportedFileCount => _runtimeFiles.Count(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal));
         public int ManifestOwnerCount => _dependents.Select(item => item.Dependency.PackageId).Distinct(StringComparer.Ordinal).Count();
+        public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
         public bool HasImportedArtifacts => _runtimeFiles.Length > 0;
         public bool NeedsAttention => State != ModelHubItemState.Ready;
 

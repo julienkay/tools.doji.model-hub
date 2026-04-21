@@ -77,6 +77,32 @@ Aggregate state precedence:
 
 This keeps lower-level validation unchanged while giving the UI a Package-Manager-style inventory shape.
 
+## Revision Conflict Policy
+
+HF Hub keeps runtime output repo-scoped and human-readable instead of adding commit-key folders under `StreamingAssets`.
+
+That means one project-level rule is explicit:
+
+- one canonical repository may appear in many owners, but all owners in one project must request same revision
+
+If same repository is declared at multiple requested revisions:
+
+- every affected dependency is conflict state, not `Ready`
+- Model Hub still shows one row per `repository + requested revision` so users can see each conflicting request
+- every conflicting row renders `Error`
+- primary diagnostic should say repo is declared at multiple revisions and HF Hub supports only one revision per repo per project
+- `Locate` stays available so users can jump to conflicting manifests
+- conflict summary UI should classify owners as project, embedded/local package, or installed package so user sees whether fix is direct manifest edit or package-version change
+- conflict UX should offer clipboard summary and `Open Package Manager` when installed packages participate
+- import and manage actions stay disabled for conflicting rows until project resolves conflict to one revision
+- `Import All` must skip or fail those dependencies without touching shared runtime payload for that repo
+
+Later if pain stays common:
+
+- add explicit project-level revision override as opt-in escape hatch
+- keep it loud and inspectable in Model Hub because it violates package-declared revision expectations
+- never silently pick one package winner
+
 ## Future Status Granularity
 
 Current dependency-level status is still backend-oriented:
@@ -136,9 +162,9 @@ Rules:
 - prefer unique `sandbox/...` repo ids so fake artifacts do not collide with real generated content
 - sandbox writes one generated project manifest asset per scenario entry so repeated repo ids simulate multiple manifests depending on the same repo
 - repeated repo ids intentionally still share one project import/runtime slot because real HF Hub imports are repo-scoped by repository
-- prefer `download needed` or `import needed` states when visually testing revision ambiguity unless you deliberately want last-writer-wins imported metadata for the repeated repo
+- prefer explicit revision-conflict scenarios when visually testing repeated repo ids at different requested revisions
 - use sandbox for visual verification of obscure Model Hub states such as `import needed`, `update needed`, `partial conversion`, and invalid metadata
-- use repeated same-repo entries to test both multi-manifest shared dependencies and revision ambiguity warnings before reaching for fake embedded packages
+- use repeated same-repo entries to test both multi-manifest shared dependencies and blocked revision-conflict errors before reaching for fake embedded packages
 
 ## Shared Import Storage
 

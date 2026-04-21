@@ -59,27 +59,60 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
-        private static DiscoveredModelDependency CreateDependency(string modelId)
+        /// <summary>
+        /// Verifies sync blocks repositories that are declared at multiple requested revisions.
+        /// </summary>
+        [Test]
+        public async Task SyncAsync_FailsConflictingRepositoryRevisionsWithoutDownloadingOrImporting()
+        {
+            var mainDependency = CreateDependency("doji/test-model", "com.doji.main", "main");
+            var releaseDependency = CreateDependency("doji/test-model", "com.doji.release", "refs/tags/v1");
+            var discoveryReport = new DiscoveryReport(
+                new[] { mainDependency, releaseDependency },
+                Array.Empty<ManifestDiscoveryIssue>());
+            var rawCacheService = new FakeRawCacheService();
+            var importService = new FakeProjectImportService();
+            var registryService = new FakeRuntimeLocatorRegistryService();
+            var syncService = new SyncService(rawCacheService, importService, registryService);
+
+            var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
+
+            Assert.That(report.SuccessCount, Is.EqualTo(0));
+            Assert.That(report.FailureCount, Is.EqualTo(2));
+            Assert.That(report.ModelResults[0].ErrorMessage, Does.Contain("multiple requested revisions"));
+            Assert.That(report.ModelResults[1].ErrorMessage, Does.Contain("multiple requested revisions"));
+            Assert.That(rawCacheService.CallCount, Is.EqualTo(0));
+            Assert.That(importService.CallCount, Is.EqualTo(0));
+            Assert.That(registryService.CallCount, Is.EqualTo(1));
+        }
+
+        private static DiscoveredModelDependency CreateDependency(
+            string modelId,
+            string packageId = "com.doji.test",
+            string revision = "main")
         {
             return new DiscoveredModelDependency(
-                "com.doji.test",
+                packageId,
                 "Test Package",
                 "1.0.0",
-                "/tmp/com.doji.test",
-                "/tmp/com.doji.test/hf-hub-manifest.json",
+                $"/tmp/{packageId}",
+                $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new ModelDependencyDefinition(
                     modelId,
-                    "main"));
+                    revision));
         }
 
         private sealed class FakeRawCacheService : IRawCacheService
         {
+            public int CallCount { get; private set; }
+
             public Task<CachedSnapshot> GetOrDownloadAsync(
                 DiscoveredModelDependency dependency,
                 IProgress<DownloadProgress> progress,
                 CancellationToken cancellationToken)
             {
+                CallCount++;
                 var metadata = new RawCacheMetadata
                 {
                     Repository = dependency.Repository,
@@ -107,6 +140,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private sealed class FakeProjectImportService : IProjectImportService
         {
             private readonly string _failingModelId;
+            public int CallCount { get; private set; }
 
             public FakeProjectImportService(string failingModelId = null)
             {
@@ -118,6 +152,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 CachedSnapshot cachedSnapshot,
                 CancellationToken cancellationToken)
             {
+                CallCount++;
                 if (dependency.ModelId == _failingModelId)
                 {
                     throw new InvalidOperationException("Simulated import failure");

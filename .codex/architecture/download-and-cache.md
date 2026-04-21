@@ -20,6 +20,10 @@ Current raw-cache layout:
 
 Revision ref maps requested revision to resolved commit. Snapshot metadata records whole repo file list for that commit.
 
+Current implementation note:
+
+- snapshot metadata currently also stores requested revision even though ref files are authoritative for revision-to-commit mapping; treat that revision field as implementation detail, not stable cache identity
+
 Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub may delete the selected revision ref and the snapshot only when no other revision ref still points at that resolved commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
 
 ## Download Model
@@ -34,6 +38,10 @@ Download flow:
 4. Write one repo-level metadata file once snapshot is complete.
 
 This matches upstream snapshot semantics better than file-by-file dependency declarations.
+
+Current implementation note:
+
+- V1 uses the model revision API `siblings` listing directly and downloads whole snapshots; filtered downloads and fallback tree enumeration remain future work
 
 ## Reliability
 

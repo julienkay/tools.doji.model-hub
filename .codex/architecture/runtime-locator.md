@@ -55,6 +55,19 @@ Current generated contents:
 - `<onnx-file>.sentis` for every converted ONNX file
 - `registries/<owner-id>/hf-hub-runtime.json` for owner-scoped locator data
 
+Repo-scoped runtime path is intentional. HF Hub keeps generated runtime folders human-readable and does not encode commit or revision in `StreamingAssets`.
+
+That simplicity depends on one project-level rule:
+
+- one Unity project may publish only one requested revision for one canonical `repo_id`
+- if multiple owners request same `repo_id` at different revisions, HF Hub blocks editor sync for that repo until project resolves conflict to one revision
+
+## Current Implementation Limits
+
+- runtime locator currently reads registry JSON and generated payloads through direct filesystem APIs under `Application.streamingAssetsPath`
+- treat current implementation as desktop/editor-first until HF Hub has a platform-safe runtime loader for cases where `StreamingAssets` is packed or virtualized
+- owner-specific runtime lookup assumes each owner publishes its own registry; package manifests satisfy that, but project manifest assets currently all share owner id `project` and therefore are not distinct runtime owners yet
+
 ## Ambiguity Contract
 
 Single-string lookup by `repo_id` is allowed only when exactly one owner publishes that repo.

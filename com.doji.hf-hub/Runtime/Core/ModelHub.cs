@@ -34,9 +34,9 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Resolves one synchronized model by canonical HuggingFace model id.
         /// </summary>
-        public static bool TryResolveRuntimeModel(string repoId, out HfHubResolvedRuntimeModel model)
+        public static bool TryResolveRuntimeModel(string repoId, out ResolvedRuntimeModel model)
         {
-            return HfHubRuntimeLocatorService.TryResolveModel(repoId, out model);
+            return RuntimeLocatorService.TryResolveModel(repoId, out model);
         }
 
         /// <summary>
@@ -45,15 +45,15 @@ namespace Doji.AI.ModelHub
         public static bool TryResolveRuntimeModel(
             string packageId,
             string repoId,
-            out HfHubResolvedRuntimeModel model)
+            out ResolvedRuntimeModel model)
         {
-            return HfHubRuntimeLocatorService.TryResolveModel(packageId, repoId, out model);
+            return RuntimeLocatorService.TryResolveModel(packageId, repoId, out model);
         }
 
         /// <summary>
         /// Resolves one synchronized model by canonical HuggingFace model id or throws when registry data is missing.
         /// </summary>
-        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string repoId)
+        public static ResolvedRuntimeModel ResolveRuntimeModel(string repoId)
         {
             if (TryResolveRuntimeModel(repoId, out var model))
             {
@@ -67,7 +67,7 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace model id or throws when registry data is missing.
         /// </summary>
-        public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string packageId, string repoId)
+        public static ResolvedRuntimeModel ResolveRuntimeModel(string packageId, string repoId)
         {
             if (TryResolveRuntimeModel(packageId, repoId, out var model))
             {
@@ -81,17 +81,17 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Resolves one synchronized repository snapshot by canonical HuggingFace model id in `from_pretrained(...)` style.
         /// </summary>
-        public static HfHubPretrainedRepository FromPretrained(string repoId)
+        public static PretrainedRepository FromPretrained(string repoId)
         {
-            return new HfHubPretrainedRepository(ResolveRuntimeModel(repoId));
+            return new PretrainedRepository(ResolveRuntimeModel(repoId));
         }
 
         /// <summary>
         /// Resolves one synchronized repository snapshot by manifest owner id plus canonical HuggingFace model id in `from_pretrained(...)` style.
         /// </summary>
-        public static HfHubPretrainedRepository FromPretrained(string packageId, string repoId)
+        public static PretrainedRepository FromPretrained(string packageId, string repoId)
         {
-            return new HfHubPretrainedRepository(ResolveRuntimeModel(packageId, repoId));
+            return new PretrainedRepository(ResolveRuntimeModel(packageId, repoId));
         }
 
         /// <summary>

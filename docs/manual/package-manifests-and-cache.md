@@ -2,7 +2,7 @@
 
 Packages declare HuggingFace dependencies by canonical model id in `hf-hub-manifest.json` at package root.
 
-Projects can declare the same dependency shape with `HfHubProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
+Projects can declare the same dependency shape with `ProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
 
 Example:
 
@@ -111,7 +111,7 @@ Use `Tools/Doji/HF Hub/Import All` to resolve discovered repository dependencies
 
 Current sync flow:
 
-1. Scan installed packages for `hf-hub-manifest.json` and project assets for `HfHubProjectManifestAsset`.
+1. Scan installed packages for `hf-hub-manifest.json` and project assets for `ProjectManifestAsset`.
 2. Validate manifest contents.
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Download all repository files in that snapshot into shared raw cache.

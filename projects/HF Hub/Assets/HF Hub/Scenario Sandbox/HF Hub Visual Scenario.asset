@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f7951fec62e54567b120f7e0264fd165, type: 3}
   m_Name: HF Hub Visual Scenario
-  m_EditorClassIdentifier: Doji.ModelHub.VisualSandbox::Doji.AI.ModelHub.Sandbox.HfHubVisualScenarioAsset
+  m_EditorClassIdentifier: Doji.ModelHub.VisualSandbox::Doji.AI.ModelHub.Sandbox.VisualScenarioAsset
   <Notes>k__BackingField: Use unique sandbox repo ids so fake artifacts do not collide
     with real generated HF Hub content.
   <Entries>k__BackingField:

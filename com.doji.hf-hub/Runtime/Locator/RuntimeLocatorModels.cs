@@ -1,0 +1,112 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Doji.AI.ModelHub
+{
+    /// <summary>
+    /// Describes one generated runtime locator registry for a package's synchronized model files.
+    /// </summary>
+    [Serializable]
+    public sealed class RuntimeLocatorManifest
+    {
+        private readonly RuntimeLocatorEntry[] _models;
+
+        /// <summary>
+        /// Creates immutable runtime locator data for one package.
+        /// </summary>
+        public RuntimeLocatorManifest(
+            int version,
+            string packageId,
+            string packageVersion,
+            IReadOnlyList<RuntimeLocatorEntry> models)
+        {
+            Version = version;
+            PackageId = packageId ?? throw new ArgumentNullException(nameof(packageId));
+            PackageVersion = packageVersion ?? throw new ArgumentNullException(nameof(packageVersion));
+            _models = models?.ToArray() ?? Array.Empty<RuntimeLocatorEntry>();
+        }
+
+        /// <summary>
+        /// Locator schema version used to evolve runtime registry format safely.
+        /// </summary>
+        public int Version { get; }
+
+        /// <summary>
+        /// Package id that owns these generated runtime files.
+        /// </summary>
+        public string PackageId { get; }
+
+        /// <summary>
+        /// Package version associated with generated runtime files.
+        /// </summary>
+        public string PackageVersion { get; }
+
+        /// <summary>
+        /// Runtime-loadable model entries declared for package.
+        /// </summary>
+        public IReadOnlyList<RuntimeLocatorEntry> Models => _models;
+    }
+
+    /// <summary>
+    /// Maps one declared model dependency to runtime-loadable files under shared StreamingAssets root.
+    /// </summary>
+    [Serializable]
+    public sealed class RuntimeLocatorEntry
+    {
+        private readonly RuntimeLocatorFile[] _files;
+
+        /// <summary>
+        /// Creates immutable runtime locator entry for one generated repository snapshot.
+        /// </summary>
+        public RuntimeLocatorEntry(
+            string repoId,
+            IReadOnlyList<RuntimeLocatorFile> files)
+        {
+            RepoId = repoId ?? throw new ArgumentNullException(nameof(repoId));
+            _files = files?.ToArray() ?? Array.Empty<RuntimeLocatorFile>();
+        }
+
+        /// <summary>
+        /// Canonical HuggingFace model id used by `from_pretrained(...)` style calls.
+        /// </summary>
+        public string RepoId { get; }
+
+        /// <summary>
+        /// All runtime files generated for repository snapshot under shared StreamingAssets root.
+        /// </summary>
+        public IReadOnlyList<RuntimeLocatorFile> Files => _files;
+    }
+
+    /// <summary>
+    /// Describes one runtime file emitted for a synchronized model dependency.
+    /// </summary>
+    [Serializable]
+    public sealed class RuntimeLocatorFile
+    {
+        /// <summary>
+        /// Creates immutable runtime file locator metadata.
+        /// </summary>
+        public RuntimeLocatorFile(string relativePath, string repoPath, string kind)
+        {
+            RelativePath = relativePath ?? throw new ArgumentNullException(nameof(relativePath));
+            RepoPath = repoPath ?? throw new ArgumentNullException(nameof(repoPath));
+            Kind = kind ?? throw new ArgumentNullException(nameof(kind));
+        }
+
+        /// <summary>
+        /// Path relative to `Application.streamingAssetsPath`.
+        /// </summary>
+        public string RelativePath { get; }
+
+        /// <summary>
+        /// Original repository-relative file path represented by this generated runtime file.
+        /// </summary>
+        public string RepoPath { get; }
+
+        /// <summary>
+        /// File role such as `sentis` or `source`.
+        /// </summary>
+        public string Kind { get; }
+    }
+}

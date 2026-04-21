@@ -4,7 +4,8 @@
     "references": [
         "Doji.ModelHub",
         "Doji.ModelHub.VisualSandbox",
-        "Unity.InferenceEngine"
+        "Unity.InferenceEngine",
+        "Doji.ModelHub.Editor"
     ],
     "includePlatforms": [
         "Editor"

@@ -301,7 +301,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new HfHubModelSyncResult(
                 dependency,
                 new HfHubCachedSnapshot("/cache/doji/test-model/abc123", "/cache/doji/test-model/abc123/snapshot.hfhub.json", new HfHubRawCacheMetadata()),
-                new HfHubImportedModelArtifact(HfHubProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, "abc123"), $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json", metadata),
+                new HfHubImportedModelArtifact(
+                    HfHubProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, "abc123"),
+                    HfHubProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
+                    metadata,
+                    HfHubProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, "abc123", "2.6.1")),
                 null);
         }
 

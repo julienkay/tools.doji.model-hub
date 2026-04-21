@@ -138,7 +138,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null,
                         null,
                         "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
-                        "Library/Doji/HfHub/import-state/com.doji.pkg-a/model-a/hf-hub-import.json",
+                        HfHubProjectPaths.GetImportBindingMetadataFilePath("com.doji.pkg-a", "model-a"),
                         metadata)
                 });
 
@@ -263,8 +263,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new HfHubDependencyStatus(
                 dependency,
                 state,
-                state == HfHubDependencyState.Ready ? HfHubDependencyReasonCode.None : HfHubDependencyReasonCode.ImportMetadataMissing,
-                state == HfHubDependencyState.Ready ? "Ready." : "Import metadata file is missing.",
+                state == HfHubDependencyState.Ready ? HfHubDependencyReasonCode.None : HfHubDependencyReasonCode.ImportBindingMissing,
+                state == HfHubDependencyState.Ready ? "Ready." : "Import binding metadata file is missing.",
                 $"/cache/doji/test-model/refs/{revision}",
                 "/cache/doji/test-model/abc123",
                 "/cache/doji/test-model/abc123/snapshot.hfhub.json",
@@ -284,7 +284,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     }
                 },
                 "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
-                $"Library/Doji/HfHub/import-state/{packageId}/{modelId}/hf-hub-import.json",
+                HfHubProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
                 state == HfHubDependencyState.Ready ? metadata : null);
         }
     }

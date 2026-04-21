@@ -1,5 +1,4 @@
 using System;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -45,6 +44,12 @@ namespace Doji.AI.ModelHub.Editor
         RawCacheMetadataMissingAfterImport,
         RawCacheMetadataInvalid,
         RawCacheMetadataMismatch,
+        ImportBindingMissing,
+        ImportBindingInvalid,
+        ImportBindingStale,
+        SharedImportMetadataMissing,
+        SharedImportMetadataInvalid,
+        SharedImportMetadataStale,
         ImportMetadataMissing,
         ImportMetadataInvalid,
         ImportMetadataStale,

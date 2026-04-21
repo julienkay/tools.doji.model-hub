@@ -5,29 +5,82 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Centralizes runtime payload and editor-only import-state paths used by HF Hub.
+    /// Centralizes runtime payload, shared import, and owner-binding paths used by HF Hub.
     /// </summary>
     internal static class HfHubProjectPaths
     {
-        private const string ImportMetadataFileName = "hf-hub-import.json";
-        private const string ImportStateRoot = "Library/Doji/HfHub/import-state";
+        private const string SharedImportMetadataFileName = "hf-hub-shared-import.json";
+        private const string BindingMetadataFileName = "hf-hub-binding.json";
+        private const string ImportsRoot = "Library/Doji/HfHub/imports";
+        private const string SharedImportsRoot = ImportsRoot + "/shared";
+        private const string BindingImportsRoot = ImportsRoot + "/bindings";
+        private const string LegacyImportMetadataFileName = "hf-hub-import.json";
+        private const string LegacyImportStateRoot = "Library/Doji/HfHub/import-state";
         private const string RuntimeRegistryFileName = "hf-hub-runtime.json";
         private const string RuntimeRegistriesRoot = ModelHub.RuntimeStreamingAssetsRoot + "/registries";
 
         /// <summary>
-        /// Returns opaque editor-only import-state folder under `Library` for one package model dependency.
+        /// Returns editor-only binding folder under `Library` for one owner dependency.
         /// </summary>
         public static string GetImportStateFolder(string packageId, string modelId)
         {
-            return $"{ImportStateRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
+            return GetImportBindingFolder(packageId, modelId);
         }
 
         /// <summary>
-        /// Returns editor-only import metadata path under `Library`.
+        /// Returns shared import folder for one generated runtime artifact identity.
+        /// </summary>
+        public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion)
+        {
+            return $"{SharedImportsRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(resolvedCommitHash)}/{ModelHub.SanitizePathSegment(sentisVersion)}";
+        }
+
+        /// <summary>
+        /// Returns shared import metadata path under `Library`.
+        /// </summary>
+        public static string GetSharedImportMetadataFilePath(string repository, string resolvedCommitHash, string sentisVersion)
+        {
+            return $"{GetSharedImportFolder(repository, resolvedCommitHash, sentisVersion)}/{SharedImportMetadataFileName}";
+        }
+
+        /// <summary>
+        /// Returns editor-only binding folder under `Library` for one owner dependency.
+        /// </summary>
+        public static string GetImportBindingFolder(string packageId, string modelId)
+        {
+            return $"{BindingImportsRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
+        }
+
+        /// <summary>
+        /// Returns editor-only binding metadata path under `Library`.
+        /// </summary>
+        public static string GetImportBindingMetadataFilePath(string packageId, string modelId)
+        {
+            return $"{GetImportBindingFolder(packageId, modelId)}/{BindingMetadataFileName}";
+        }
+
+        /// <summary>
+        /// Returns owner-binding metadata path. Kept as canonical import metadata entry point.
         /// </summary>
         public static string GetImportMetadataFilePath(string packageId, string modelId)
         {
-            return $"{GetImportStateFolder(packageId, modelId)}/{ImportMetadataFileName}";
+            return GetImportBindingMetadataFilePath(packageId, modelId);
+        }
+
+        /// <summary>
+        /// Returns legacy monolithic import folder used before shared import split.
+        /// </summary>
+        public static string GetLegacyImportStateFolder(string packageId, string modelId)
+        {
+            return $"{LegacyImportStateRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
+        }
+
+        /// <summary>
+        /// Returns legacy monolithic import metadata path used before shared import split.
+        /// </summary>
+        public static string GetLegacyImportMetadataFilePath(string packageId, string modelId)
+        {
+            return $"{GetLegacyImportStateFolder(packageId, modelId)}/{LegacyImportMetadataFileName}";
         }
 
         /// <summary>

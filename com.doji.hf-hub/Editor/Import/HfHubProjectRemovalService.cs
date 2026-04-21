@@ -7,12 +7,12 @@ using UnityEditor;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Removes project-owned runtime artifacts for one repository item and rebuilds runtime registries from remaining imports.
+    /// Removes project-owned owner bindings and garbage-collects shared runtime artifacts when no bindings remain.
     /// </summary>
     internal sealed class HfHubProjectRemovalService
     {
         /// <summary>
-        /// Deletes generated runtime assets and editor import metadata for one repository entry.
+        /// Deletes owner binding metadata for one repository entry and removes shared runtime artifacts only when no bindings still reference them.
         /// </summary>
         public void Remove(HfHubModelHubItem item)
         {
@@ -21,24 +21,38 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            var sharedMetadataPaths = item.Dependents
+                .Select(dependent => dependent.ImportedMetadata?.SharedImportMetadataPath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
             foreach (var dependent in item.Dependents)
             {
-                if (!string.IsNullOrWhiteSpace(dependent.ImportMetadataPath))
+                if (string.IsNullOrWhiteSpace(dependent.ImportMetadataPath))
                 {
-                    var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(dependent.ImportMetadataPath);
-                    if (File.Exists(metadataAbsolutePath))
-                    {
-                        File.Delete(metadataAbsolutePath);
-                    }
+                    continue;
+                }
+
+                var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(dependent.ImportMetadataPath);
+                if (File.Exists(metadataAbsolutePath))
+                {
+                    File.Delete(metadataAbsolutePath);
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(item.RuntimeSnapshotAssetPath))
+            CleanupEmptyBindingFolders(item);
+
+            foreach (var sharedMetadataPath in sharedMetadataPaths)
             {
-                AssetDatabase.DeleteAsset(item.RuntimeSnapshotAssetPath);
+                if (HasAnyBindingReferencing(sharedMetadataPath))
+                {
+                    continue;
+                }
+
+                DeleteSharedImport(sharedMetadataPath);
             }
 
-            CleanupEmptyImportStateFolders(item);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             RebuildRuntimeRegistries();
         }
@@ -73,19 +87,72 @@ namespace Doji.AI.ModelHub.Editor
             CleanupEmptyCacheFolders(item.Repository);
         }
 
-        private static void CleanupEmptyImportStateFolders(HfHubModelHubItem item)
+        private static void CleanupEmptyBindingFolders(HfHubModelHubItem item)
         {
             foreach (var dependent in item.Dependents)
             {
-                var importStateFolder = HfHubProjectPaths.GetImportStateFolder(
+                var bindingFolder = HfHubProjectPaths.GetImportBindingFolder(
                     dependent.Dependency.PackageId,
                     dependent.Dependency.ModelId);
-                var importStateAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(importStateFolder);
-                if (Directory.Exists(importStateAbsolutePath) && !Directory.EnumerateFileSystemEntries(importStateAbsolutePath).Any())
+                var bindingAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(bindingFolder);
+                if (Directory.Exists(bindingAbsolutePath) && !Directory.EnumerateFileSystemEntries(bindingAbsolutePath).Any())
                 {
-                    Directory.Delete(importStateAbsolutePath, false);
+                    Directory.Delete(bindingAbsolutePath, false);
                 }
             }
+        }
+
+        private static bool HasAnyBindingReferencing(string sharedMetadataPath)
+        {
+            var bindingsRoot = HfHubProjectPaths.ToProjectAbsolutePath("Library/Doji/HfHub/imports/bindings");
+            if (!Directory.Exists(bindingsRoot))
+            {
+                return false;
+            }
+
+            foreach (var bindingPath in Directory.EnumerateFiles(bindingsRoot, "hf-hub-binding.json", SearchOption.AllDirectories))
+            {
+                if (!HfHubProjectImportService.TryReadBindingMetadata(bindingPath, out var bindingMetadata))
+                {
+                    continue;
+                }
+
+                if (string.Equals(bindingMetadata.SharedImportMetadataPath, sharedMetadataPath, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void DeleteSharedImport(string sharedMetadataPath)
+        {
+            var sharedMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
+            if (!HfHubProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
+            {
+                if (File.Exists(sharedMetadataAbsolutePath))
+                {
+                    File.Delete(sharedMetadataAbsolutePath);
+                }
+
+                DeleteDirectoryIfEmpty(Path.GetDirectoryName(sharedMetadataAbsolutePath));
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(sharedMetadata.RuntimeSnapshotAssetPath))
+            {
+                AssetDatabase.DeleteAsset(sharedMetadata.RuntimeSnapshotAssetPath);
+            }
+
+            if (File.Exists(sharedMetadataAbsolutePath))
+            {
+                File.Delete(sharedMetadataAbsolutePath);
+            }
+
+            DeleteDirectoryIfEmpty(Path.GetDirectoryName(sharedMetadataAbsolutePath));
+            DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(sharedMetadataAbsolutePath)));
+            DeleteDirectoryIfEmpty(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(sharedMetadataAbsolutePath))));
         }
 
         private static string ResolveCommitHash(HfHubModelHubItem item, string revisionRefPath)
@@ -148,7 +215,9 @@ namespace Doji.AI.ModelHub.Editor
 
         private static void DeleteDirectoryIfEmpty(string path)
         {
-            if (Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any())
+            if (!string.IsNullOrWhiteSpace(path) &&
+                Directory.Exists(path) &&
+                !Directory.EnumerateFileSystemEntries(path).Any())
             {
                 Directory.Delete(path, false);
             }
@@ -166,7 +235,8 @@ namespace Doji.AI.ModelHub.Editor
                     new HfHubImportedModelArtifact(
                         HfHubProjectPaths.GetRuntimeSnapshotFolder(status.Dependency.Repository, status.ImportedMetadata.ResolvedCommitHash),
                         status.ImportMetadataPath,
-                        status.ImportedMetadata),
+                        status.ImportedMetadata,
+                        status.ImportedMetadata.SharedImportMetadataPath),
                     null))
                 .ToArray();
 

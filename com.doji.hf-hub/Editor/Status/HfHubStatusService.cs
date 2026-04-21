@@ -7,7 +7,7 @@ using Unity.InferenceEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Evaluates local cache and generated artifact state for discovered repository dependencies.
+    /// Evaluates local cache, owner binding, and shared generated artifact state for discovered repository dependencies.
     /// </summary>
     internal sealed class HfHubStatusService
     {
@@ -33,17 +33,17 @@ namespace Doji.AI.ModelHub.Editor
         {
             var revisionRefPath = HfHubCachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
             string runtimePreviewAssetPath = null;
-            var importMetadataAssetPath = HfHubProjectPaths.GetImportMetadataFilePath(
+            var bindingMetadataAssetPath = HfHubProjectPaths.GetImportBindingMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
-            var importMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(importMetadataAssetPath);
+            var bindingMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(bindingMetadataAssetPath);
 
             if (!File.Exists(revisionRefPath))
             {
                 if (TryBuildImportedOnlyStatus(
                     dependency,
-                    importMetadataAbsolutePath,
-                    importMetadataAssetPath,
+                    bindingMetadataAbsolutePath,
+                    bindingMetadataAssetPath,
                     HfHubDependencyReasonCode.RawCacheRemovedAfterImport,
                     "Generated runtime files are present. Raw cache has been removed from this machine.",
                     out var importedOnlyStatus))
@@ -51,7 +51,15 @@ namespace Doji.AI.ModelHub.Editor
                     return importedOnlyStatus;
                 }
 
-                return Missing(dependency, HfHubDependencyReasonCode.RawCacheRevisionRefMissing, "Raw cache revision ref is missing.", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(
+                    dependency,
+                    HfHubDependencyReasonCode.RawCacheRevisionRefMissing,
+                    "Raw cache revision ref is missing.",
+                    revisionRefPath,
+                    null,
+                    null,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
             }
 
             string resolvedCommitHash;
@@ -61,7 +69,15 @@ namespace Doji.AI.ModelHub.Editor
             }
             catch (Exception exception)
             {
-                return Failed(dependency, HfHubDependencyReasonCode.RawCacheRevisionRefUnreadable, $"Could not read raw cache revision ref: {exception.Message}", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Failed(
+                    dependency,
+                    HfHubDependencyReasonCode.RawCacheRevisionRefUnreadable,
+                    $"Could not read raw cache revision ref: {exception.Message}",
+                    revisionRefPath,
+                    null,
+                    null,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
             }
 
             var snapshotRoot = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
@@ -70,8 +86,8 @@ namespace Doji.AI.ModelHub.Editor
             {
                 if (TryBuildImportedOnlyStatus(
                     dependency,
-                    importMetadataAbsolutePath,
-                    importMetadataAssetPath,
+                    bindingMetadataAbsolutePath,
+                    bindingMetadataAssetPath,
                     HfHubDependencyReasonCode.RawCacheRemovedAfterImport,
                     "Generated runtime files are present. Raw cache snapshot has been removed from this machine.",
                     out var importedOnlyStatus))
@@ -79,15 +95,23 @@ namespace Doji.AI.ModelHub.Editor
                     return importedOnlyStatus;
                 }
 
-                return Missing(dependency, HfHubDependencyReasonCode.RawSnapshotRootMissing, "Raw snapshot root is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(
+                    dependency,
+                    HfHubDependencyReasonCode.RawSnapshotRootMissing,
+                    "Raw snapshot root is missing.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
             }
 
             if (!_rawCacheService.TryReadMetadata(rawMetadataPath, out var rawMetadata))
             {
                 if (TryBuildImportedOnlyStatus(
                     dependency,
-                    importMetadataAbsolutePath,
-                    importMetadataAssetPath,
+                    bindingMetadataAbsolutePath,
+                    bindingMetadataAssetPath,
                     HfHubDependencyReasonCode.RawCacheMetadataMissingAfterImport,
                     "Generated runtime files are present. Raw cache metadata has been removed from this machine.",
                     out var importedOnlyStatus))
@@ -95,54 +119,155 @@ namespace Doji.AI.ModelHub.Editor
                     return importedOnlyStatus;
                 }
 
-                return Failed(dependency, HfHubDependencyReasonCode.RawCacheMetadataInvalid, "Raw cache metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Failed(
+                    dependency,
+                    HfHubDependencyReasonCode.RawCacheMetadataInvalid,
+                    "Raw cache metadata is invalid.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
             }
 
             if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
             {
-                return Stale(dependency, HfHubDependencyReasonCode.RawCacheMetadataMismatch, "Raw cache metadata differs from manifest or revision ref.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
-            }
-
-            if (!File.Exists(importMetadataAbsolutePath))
-            {
-                return Missing(dependency, HfHubDependencyReasonCode.ImportMetadataMissing, "Import metadata file is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
-            }
-
-            if (!HfHubProjectImportService.TryReadMetadata(importMetadataAbsolutePath, out var importedMetadata))
-            {
-                return Failed(dependency, HfHubDependencyReasonCode.ImportMetadataInvalid, "Import metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
-            }
-
-            if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.RawMetadataPath, rawMetadataPath, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
-            {
-                runtimePreviewAssetPath = importedMetadata.RuntimeFiles?.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
                 return Stale(
                     dependency,
-                    HfHubDependencyReasonCode.ImportMetadataStale,
-                    BuildImportMetadataMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, importedMetadata),
+                    HfHubDependencyReasonCode.RawCacheMetadataMismatch,
+                    "Raw cache metadata differs from manifest or revision ref.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
-                    importMetadataAssetPath,
-                    importedMetadata);
+                    bindingMetadataAssetPath);
             }
 
+            if (!File.Exists(bindingMetadataAbsolutePath))
+            {
+                return Missing(
+                    dependency,
+                    HfHubDependencyReasonCode.ImportBindingMissing,
+                    "Import binding metadata file is missing.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
+            if (!HfHubProjectImportService.TryReadBindingMetadata(bindingMetadataAbsolutePath, out var bindingMetadata))
+            {
+                return Failed(
+                    dependency,
+                    HfHubDependencyReasonCode.ImportBindingInvalid,
+                    "Import binding metadata is invalid.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
+            var expectedSharedMetadataPath = HfHubProjectPaths.GetSharedImportMetadataFilePath(
+                dependency.Repository,
+                resolvedCommitHash,
+                GetCurrentSentisVersion());
+            if (!IsBindingCurrent(bindingMetadata, dependency, rawMetadata, expectedSharedMetadataPath))
+            {
+                return Stale(
+                    dependency,
+                    HfHubDependencyReasonCode.ImportBindingStale,
+                    BuildBindingMismatchMessage(dependency, rawMetadata, bindingMetadata, expectedSharedMetadataPath),
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath,
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+            }
+
+            if (string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
+            {
+                return Failed(
+                    dependency,
+                    HfHubDependencyReasonCode.ImportBindingInvalid,
+                    "Import binding metadata is invalid.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
+            var sharedMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
+            if (!File.Exists(sharedMetadataAbsolutePath))
+            {
+                return Missing(
+                    dependency,
+                    HfHubDependencyReasonCode.SharedImportMetadataMissing,
+                    "Shared import metadata file is missing.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath,
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+            }
+
+            if (!HfHubProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
+            {
+                return Failed(
+                    dependency,
+                    HfHubDependencyReasonCode.SharedImportMetadataInvalid,
+                    "Shared import metadata is invalid.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath,
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+            }
+
+            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot))
+            {
+                return Stale(
+                    dependency,
+                    HfHubDependencyReasonCode.SharedImportMetadataStale,
+                    BuildSharedMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, sharedMetadata),
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath,
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata));
+            }
+
+            var importedMetadata = BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
-                return Missing(dependency, HfHubDependencyReasonCode.RuntimeFilesMissing, "Generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(
+                    dependency,
+                    HfHubDependencyReasonCode.RuntimeFilesMissing,
+                    "Generated runtime files are missing.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath,
+                    importedMetadata);
             }
 
             foreach (var runtimeFile in runtimeFiles)
@@ -158,7 +283,8 @@ namespace Doji.AI.ModelHub.Editor
                         rawMetadataPath,
                         rawMetadata,
                         runtimePreviewAssetPath,
-                        importMetadataAssetPath);
+                        bindingMetadataAssetPath,
+                        importedMetadata);
                 }
             }
 
@@ -167,13 +293,13 @@ namespace Doji.AI.ModelHub.Editor
                 dependency,
                 HfHubDependencyState.Ready,
                 HfHubDependencyReasonCode.None,
-                "Raw repo snapshot and generated runtime files are current.",
+                "Raw repo snapshot, import binding, and generated runtime files are current.",
                 revisionRefPath,
                 snapshotRoot,
                 rawMetadataPath,
                 rawMetadata,
                 runtimePreviewAssetPath,
-                importMetadataAssetPath,
+                bindingMetadataAssetPath,
                 importedMetadata);
         }
 
@@ -184,29 +310,44 @@ namespace Doji.AI.ModelHub.Editor
 
         private static bool TryBuildImportedOnlyStatus(
             HfHubDiscoveredModelDependency dependency,
-            string importMetadataAbsolutePath,
-            string importMetadataAssetPath,
+            string bindingMetadataAbsolutePath,
+            string bindingMetadataAssetPath,
             HfHubDependencyReasonCode reasonCode,
             string maintainerMessage,
             out HfHubDependencyStatus status)
         {
             status = null;
 
-            if (!HfHubProjectImportService.TryReadMetadata(importMetadataAbsolutePath, out var importedMetadata))
+            if (!HfHubProjectImportService.TryReadBindingMetadata(bindingMetadataAbsolutePath, out var bindingMetadata))
             {
                 return false;
             }
 
-            if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !string.Equals(importedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
+            if (!string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
             {
                 return false;
             }
 
+            var sharedMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
+            if (!HfHubProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
+            {
+                return false;
+            }
+
+            if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.ResolvedCommitHash, bindingMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var importedMetadata = BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
@@ -232,33 +373,121 @@ namespace Doji.AI.ModelHub.Editor
                 null,
                 null,
                 runtimePreviewAssetPath,
-                importMetadataAssetPath,
+                bindingMetadataAssetPath,
                 importedMetadata);
             return true;
         }
 
-        private static string BuildImportMetadataMismatchMessage(
+        private static bool IsBindingCurrent(
+            HfHubImportBindingMetadata bindingMetadata,
+            HfHubDiscoveredModelDependency dependency,
+            HfHubRawCacheMetadata rawMetadata,
+            string expectedSharedMetadataPath)
+        {
+            if (bindingMetadata == null)
+            {
+                return false;
+            }
+
+            return string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath, StringComparison.Ordinal);
+        }
+
+        private static bool IsSharedCurrent(
+            HfHubSharedImportMetadata sharedMetadata,
+            HfHubDiscoveredModelDependency dependency,
+            HfHubRawCacheMetadata rawMetadata,
+            string snapshotRoot)
+        {
+            if (sharedMetadata == null)
+            {
+                return false;
+            }
+
+            return string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.RawMetadataPath, HfHubCachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.RuntimeSnapshotAssetPath, HfHubProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal);
+        }
+
+        private static HfHubImportedModelMetadata BuildResolvedImportedMetadata(
+            string bindingMetadataPath,
+            HfHubImportBindingMetadata bindingMetadata,
+            HfHubSharedImportMetadata sharedMetadata)
+        {
+            return new HfHubImportedModelMetadata
+            {
+                PackageId = bindingMetadata?.PackageId,
+                PackageVersion = bindingMetadata?.PackageVersion,
+                ModelId = bindingMetadata?.ModelId,
+                ManifestHash = bindingMetadata?.ManifestHash,
+                Repository = bindingMetadata?.Repository,
+                RequestedRevision = bindingMetadata?.RequestedRevision,
+                ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata?.ResolvedCommitHash,
+                RawSnapshotRootPath = sharedMetadata?.RawSnapshotRootPath,
+                RawMetadataPath = sharedMetadata?.RawMetadataPath,
+                RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
+                SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata?.SentisVersion,
+                UnityVersion = sharedMetadata?.UnityVersion,
+                RuntimeRegistryAssetPath = bindingMetadata?.RuntimeRegistryAssetPath,
+                RuntimeRegistryRelativePath = bindingMetadata?.RuntimeRegistryRelativePath,
+                BindingMetadataPath = bindingMetadataPath,
+                SharedImportMetadataPath = bindingMetadata?.SharedImportMetadataPath,
+                Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<HfHubImportDiagnostic>(),
+                RuntimeFiles = sharedMetadata?.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>(),
+                ImportedAtUtc = sharedMetadata?.ImportedAtUtc
+            };
+        }
+
+        private static string BuildBindingMismatchMessage(
+            HfHubDiscoveredModelDependency dependency,
+            HfHubRawCacheMetadata rawMetadata,
+            HfHubImportBindingMetadata bindingMetadata,
+            string expectedSharedMetadataPath)
+        {
+            var mismatches = new List<string>();
+
+            AddMismatch(mismatches, "package id", bindingMetadata.PackageId, dependency.PackageId);
+            AddMismatch(mismatches, "model id", bindingMetadata.ModelId, dependency.ModelId);
+            AddMismatch(mismatches, "manifest hash", bindingMetadata.ManifestHash, dependency.ManifestHash);
+            AddMismatch(mismatches, "repository", bindingMetadata.Repository, dependency.Repository);
+            AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
+            AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
+            AddMismatch(mismatches, "Sentis version", bindingMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "shared metadata path", bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath);
+
+            return mismatches.Count == 0
+                ? "Import binding metadata differs from current dependency state."
+                : $"Import binding metadata is stale: {string.Join("; ", mismatches)}.";
+        }
+
+        private static string BuildSharedMismatchMessage(
             HfHubDiscoveredModelDependency dependency,
             string snapshotRoot,
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
-            HfHubImportedModelMetadata importedMetadata)
+            HfHubSharedImportMetadata sharedMetadata)
         {
             var mismatches = new List<string>();
 
-            AddMismatch(mismatches, "package id", importedMetadata.PackageId, dependency.PackageId);
-            AddMismatch(mismatches, "model id", importedMetadata.ModelId, dependency.ModelId);
-            AddMismatch(mismatches, "manifest hash", importedMetadata.ManifestHash, dependency.ManifestHash);
-            AddMismatch(mismatches, "repository", importedMetadata.Repository, dependency.Repository);
-            AddMismatch(mismatches, "requested revision", importedMetadata.RequestedRevision, dependency.Revision);
-            AddMismatch(mismatches, "resolved commit", importedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
-            AddMismatch(mismatches, "raw snapshot root", importedMetadata.RawSnapshotRootPath, snapshotRoot);
-            AddMismatch(mismatches, "raw metadata path", importedMetadata.RawMetadataPath, rawMetadataPath);
-            AddMismatch(mismatches, "Sentis version", importedMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "repository", sharedMetadata.Repository, dependency.Repository);
+            AddMismatch(mismatches, "resolved commit", sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
+            AddMismatch(mismatches, "raw snapshot root", sharedMetadata.RawSnapshotRootPath, snapshotRoot);
+            AddMismatch(mismatches, "raw metadata path", sharedMetadata.RawMetadataPath, rawMetadataPath);
+            AddMismatch(mismatches, "Sentis version", sharedMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "runtime snapshot asset path", sharedMetadata.RuntimeSnapshotAssetPath, HfHubProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash));
 
             return mismatches.Count == 0
-                ? "Import metadata differs from current repo snapshot or Sentis version."
-                : $"Import metadata is stale: {string.Join("; ", mismatches)}.";
+                ? "Shared import metadata differs from current repo snapshot or Sentis version."
+                : $"Shared import metadata is stale: {string.Join("; ", mismatches)}.";
         }
 
         private static void AddMismatch(List<string> mismatches, string fieldName, string actualValue, string expectedValue)
@@ -291,7 +520,8 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath)
+            string importMetadataPath,
+            HfHubImportedModelMetadata importedMetadata = null)
         {
             return new HfHubDependencyStatus(
                 dependency,
@@ -304,7 +534,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 sentisAssetPath,
                 importMetadataPath,
-                null);
+                importedMetadata);
         }
 
         private static HfHubDependencyStatus Stale(
@@ -364,7 +594,8 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath)
+            string importMetadataPath,
+            HfHubImportedModelMetadata importedMetadata = null)
         {
             return new HfHubDependencyStatus(
                 dependency,
@@ -377,7 +608,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 sentisAssetPath,
                 importMetadataPath,
-                null);
+                importedMetadata);
         }
     }
 }

@@ -150,8 +150,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
                 return Task.FromResult(new HfHubImportedModelArtifact(
                     "Assets/StreamingAssets/hf-hub/doji/test-model",
-                    $"Library/Doji/HfHub/import-state/{dependency.PackageId}/{dependency.ModelId}/hf-hub-import.json",
-                    metadata));
+                    HfHubProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
+                    metadata,
+                    HfHubProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1")));
             }
         }
 

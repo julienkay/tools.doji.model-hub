@@ -137,10 +137,14 @@ namespace Doji.AI.ModelHub.Editor
             OpenWindow();
         }
 
-        public static void OpenWindow()
+        public static void OpenWindow(bool resetFilters = false)
         {
             var window = GetWindow<HfHubModelHubWindow>(Content.Title);
             window.minSize = new Vector2(840f, 520f);
+            if (resetFilters)
+            {
+                window.ResetFilters();
+            }
             window.Refresh();
             window.Show();
         }
@@ -888,6 +892,13 @@ namespace Doji.AI.ModelHub.Editor
         private void HandleSyncStateChanged()
         {
             Refresh();
+        }
+
+        private void ResetFilters()
+        {
+            _searchText = string.Empty;
+            _selectedIndex = -1;
+            _selectedDetailTab = DetailTab.Summary;
         }
 
         private string GetLastRefreshLabel()

@@ -40,10 +40,10 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                 Directory.Delete(sandboxStreamingRoot, true);
             }
 
-            var importStateRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "Doji", "HfHub", "import-state", "project"));
-            if (Directory.Exists(importStateRoot))
+            var importsRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "Doji", "HfHub", "imports"));
+            if (Directory.Exists(importsRoot))
             {
-                Directory.Delete(importStateRoot, true);
+                Directory.Delete(importsRoot, true);
             }
 
             if (Directory.Exists(_cacheRoot))
@@ -104,7 +104,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
 
             var metadataAbsolutePath = Path.Combine(
                 Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
-                HfHubVisualScenarioService.GetImportMetadataProjectRelativePath(scenario.Entries[0]));
+                HfHubVisualScenarioService.GetSharedImportMetadataProjectRelativePath(scenario.Entries[0]));
             var metadataContents = File.ReadAllText(metadataAbsolutePath);
 
             Assert.That(metadataContents, Does.Contain("Partial ONNX conversion"));

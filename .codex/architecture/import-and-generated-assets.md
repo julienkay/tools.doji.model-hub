@@ -17,7 +17,8 @@ Behavior:
 5. Download all snapshot files into shared raw cache.
 6. Convert every cached `.onnx` file in that snapshot.
 7. Write generated `.sentis` runtime files into shared `StreamingAssets` root.
-8. Write editor-only provenance metadata under `Library/Doji/HfHub/import-state/...`.
+8. Write shared import metadata under `Library/Doji/HfHub/imports/shared/...`.
+9. Write owner binding metadata under `Library/Doji/HfHub/imports/bindings/...`.
 
 ## Generated Layout
 
@@ -31,7 +32,8 @@ Current generated output includes:
 
 - `<onnx-file>.sentis`
 - `Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json`
-- `Library/Doji/HfHub/import-state/<package-id>/<model-id>/hf-hub-import.json`
+- `Library/Doji/HfHub/imports/shared/<repo>/<commit>/<sentis-version>/hf-hub-shared-import.json`
+- `Library/Doji/HfHub/imports/bindings/<package-id>/<model-id>/hf-hub-binding.json`
 
 Raw repository files stay in shared cache. Runtime output preserves upstream relative file layout, replacing ONNX extensions with `.sentis`.
 
@@ -39,29 +41,60 @@ Runtime import paths are intentionally human-readable and do not encode resolved
 
 ## Import Metadata
 
-Import metadata is repo-level, not file-level.
+Import storage is split in two:
 
-It records:
+- shared import metadata is repo-snapshot-level
+- owner binding metadata is owner-dependency-level
 
-- manifest owner id and version
-- dependency id and display name
-- manifest hash
-- repository, requested revision, resolved commit
+Shared import metadata records:
+
+- repository and resolved commit
 - raw snapshot root and raw metadata path
 - persisted import warnings when conversion is partial but still usable
-- generated runtime registry path
+- generated runtime snapshot path
 - generated runtime file list
 - Sentis version
 - Unity version
 
+Owner binding metadata records:
+
+- manifest owner id and version
+- dependency id
+- manifest hash
+- repository and requested revision
+- resolved commit
+- generated runtime registry path
+- pointer to shared import metadata
+
 ## Stale Detection
 
-Repo import is stale when any of these change:
+Owner binding is stale when any of these change:
 
 - manifest content hash
+- requested revision
+- resolved repo commit for requested revision
+- installed Sentis version
+- shared import metadata pointer
+
+Shared import is stale when any of these change:
+
 - resolved repo commit for requested revision
 - raw snapshot metadata path or root
 - generated runtime files missing
 - installed Sentis version
 
-Because import metadata stores whole runtime file list, validation is repo-wide instead of one-file-at-a-time.
+Because shared import metadata stores whole runtime file list, validation stays repo-wide instead of one-file-at-a-time.
+
+## Shared Import Split
+
+Why split:
+
+- generated `.sentis` artifacts are repo-scoped and should convert once per repo snapshot
+- stale checks and runtime registry ownership are package-scoped and must remain owner-specific
+
+Current rule:
+
+- shared import key = `repository + resolvedCommitHash + SentisVersion`
+- owner binding key = `packageId + modelId`
+
+That lets multiple owners reuse one generated repo artifact while keeping per-owner manifest-hash validation and per-owner runtime locator registries.

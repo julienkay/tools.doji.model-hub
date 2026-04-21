@@ -42,9 +42,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(artifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
             Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.MetadataFilePath)), Is.True);
+            Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.SharedMetadataFilePath)), Is.True);
             Assert.That(artifact.Metadata.PackageId, Is.EqualTo("com.doji.test"));
             Assert.That(artifact.Metadata.ModelId, Is.EqualTo("doji/test-model"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
+            Assert.That(artifact.Metadata.BindingMetadataPath, Is.EqualTo(HfHubProjectPaths.GetImportBindingMetadataFilePath("com.doji.test", "doji/test-model")));
+            Assert.That(artifact.Metadata.SharedImportMetadataPath, Is.EqualTo(HfHubProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "commit123", HfHubStatusService.GetCurrentSentisVersion())));
             Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/com.doji.test/hf-hub-runtime.json"));
             Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
 
@@ -71,7 +74,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(secondArtifact.SnapshotRootAssetPath, Is.EqualTo(firstArtifact.SnapshotRootAssetPath));
             Assert.That(secondArtifact.MetadataFilePath, Is.EqualTo(firstArtifact.MetadataFilePath));
+            Assert.That(secondArtifact.SharedMetadataFilePath, Is.EqualTo(firstArtifact.SharedMetadataFilePath));
             Assert.That(secondArtifact.Metadata.ImportedAtUtc, Is.EqualTo(firstTimestamp));
+        }
+
+        /// <summary>
+        /// Verifies second owner reuses shared import metadata and runtime files instead of reconverting same repo snapshot.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReusesSharedImportAcrossOwnersWithoutReconverting()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new HfHubProjectImportService(converter);
+            var firstDependency = CreateDependency();
+            var secondDependency = CreateDependency(packageId: "com.doji.other", manifestHash: "other-manifest-hash");
+            var cachedSnapshot = CreateCachedSnapshot();
+
+            var firstArtifact = await service.ImportAsync(firstDependency, cachedSnapshot, CancellationToken.None);
+            var secondArtifact = await service.ImportAsync(secondDependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(converter.CallCount, Is.EqualTo(1));
+            Assert.That(firstArtifact.SharedMetadataFilePath, Is.EqualTo(secondArtifact.SharedMetadataFilePath));
+            Assert.That(firstArtifact.MetadataFilePath, Is.Not.EqualTo(secondArtifact.MetadataFilePath));
+            Assert.That(secondArtifact.Metadata.PackageId, Is.EqualTo("com.doji.other"));
+            Assert.That(secondArtifact.Metadata.ManifestHash, Is.EqualTo("other-manifest-hash"));
+            Assert.That(secondArtifact.Metadata.SharedImportMetadataPath, Is.EqualTo(firstArtifact.Metadata.SharedImportMetadataPath));
         }
 
         /// <summary>
@@ -145,15 +172,17 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Is.EqualTo("com-doji-bad-name"));
         }
 
-        private static HfHubDiscoveredModelDependency CreateDependency()
+        private static HfHubDiscoveredModelDependency CreateDependency(
+            string packageId = "com.doji.test",
+            string manifestHash = "manifesthash")
         {
             return new HfHubDiscoveredModelDependency(
-                "com.doji.test",
+                packageId,
                 "Test Package",
                 "1.0.0",
-                "/tmp/com.doji.test",
-                "/tmp/com.doji.test/hf-hub-manifest.json",
-                "manifesthash",
+                $"/tmp/{packageId}",
+                $"/tmp/{packageId}/hf-hub-manifest.json",
+                manifestHash,
                 new HfHubModelDependencyDefinition(
                     "doji/test-model",
                     "main"));
@@ -236,7 +265,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static void CleanupProjectArtifacts()
         {
             DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
-            DeleteProjectFolderIfExists("Library/Doji/HfHub/import-state");
+            DeleteProjectFolderIfExists("Library/Doji/HfHub/imports");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
@@ -289,6 +318,19 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     throw new InvalidOperationException("Model contains unsupported operators or data types.");
                 }
 
+                return _inner.ConvertFromFile(onnxFilePath);
+            }
+        }
+
+        private sealed class CountingOnnxConverter : IHfHubOnnxModelConverter
+        {
+            private readonly HfHubEditorOnnxModelConverter _inner = new();
+
+            public int CallCount { get; private set; }
+
+            public Model ConvertFromFile(string onnxFilePath)
+            {
+                CallCount++;
                 return _inner.ConvertFromFile(onnxFilePath);
             }
         }

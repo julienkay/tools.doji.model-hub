@@ -46,7 +46,7 @@ The details pane answers:
 
 Ready-state actions are intentionally split by ownership boundary:
 
-- `Remove From Project` deletes generated runtime assets and import metadata for this Unity project only.
+- `Remove From Project` deletes owner binding metadata for this Unity project and garbage-collects shared runtime assets only when no bindings still reference them.
 - `Remove From Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
 
 That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
@@ -139,3 +139,16 @@ Rules:
 - prefer `download needed` or `import needed` states when visually testing revision ambiguity unless you deliberately want last-writer-wins imported metadata for the repeated repo
 - use sandbox for visual verification of obscure Model Hub states such as `import needed`, `update needed`, `partial conversion`, and invalid metadata
 - use repeated same-repo entries to test both multi-manifest shared dependencies and revision ambiguity warnings before reaching for fake embedded packages
+
+## Shared Import Storage
+
+Import storage now has two layers:
+
+- owner binding metadata under `Library/Doji/HfHub/imports/bindings/...`
+- shared repo import metadata under `Library/Doji/HfHub/imports/shared/...`
+
+Model Hub should still think in repo rows, but maintainer-facing removal and stale reasoning must respect this split:
+
+- owner binding mismatch means one manifest owner needs re-import
+- shared import mismatch means generated repo artifact itself needs re-import
+- removing one owner must not delete shared runtime artifacts while another binding still points at same shared import

@@ -10,7 +10,7 @@ Current runtime contract:
 - editor sync downloads full declared repository snapshot into shared cache and converts every ONNX file to `.sentis` for runtime
 - generated runtime assets use human-readable `Assets/StreamingAssets/hf-hub/<owner>/<model>/...` paths
 - sync writes per-package runtime locator registries under `Assets/StreamingAssets/hf-hub/registries/`
-- sync stores editor-only import provenance under `Library/Doji/HfHub/import-state/`
+- sync stores editor-only shared import and owner binding metadata under `Library/Doji/HfHub/imports/`
 - projects can declare dependencies with `HfHubProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`, while packages stay on plain `hf-hub-manifest.json`
 - editor conversion uses Unity Inference ONNX conversion directly, without temporary ONNX asset imports
 - ONNX conversion now hangs off shared `IHfHubOnnxModelConverter`; runtime placeholder exists for future custom runtime converter package

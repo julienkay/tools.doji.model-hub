@@ -28,7 +28,47 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Editor-only import metadata persisted under `Library` for one synchronized repository snapshot.
+    /// Stores shared generated runtime artifact metadata keyed by repository snapshot identity.
+    /// </summary>
+    [Serializable]
+    internal sealed class HfHubSharedImportMetadata
+    {
+        public string Repository { get; set; }
+        public string ResolvedCommitHash { get; set; }
+        public string RequestedRevisionHint { get; set; }
+        public string RawSnapshotRootPath { get; set; }
+        public string RawMetadataPath { get; set; }
+        public long? RawCacheSizeInBytes { get; set; }
+        public string SentisVersion { get; set; }
+        public string UnityVersion { get; set; }
+        public string RuntimeSnapshotAssetPath { get; set; }
+        public HfHubImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<HfHubImportDiagnostic>();
+        public HfHubImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<HfHubImportedRuntimeFileMetadata>();
+        public string ImportedAtUtc { get; set; }
+    }
+
+    /// <summary>
+    /// Stores owner-specific binding metadata that points at one shared generated runtime artifact.
+    /// </summary>
+    [Serializable]
+    internal sealed class HfHubImportBindingMetadata
+    {
+        public string PackageId { get; set; }
+        public string PackageVersion { get; set; }
+        public string ModelId { get; set; }
+        public string ManifestHash { get; set; }
+        public string Repository { get; set; }
+        public string RequestedRevision { get; set; }
+        public string ResolvedCommitHash { get; set; }
+        public string SentisVersion { get; set; }
+        public string SharedImportMetadataPath { get; set; }
+        public string RuntimeRegistryAssetPath { get; set; }
+        public string RuntimeRegistryRelativePath { get; set; }
+        public string BoundAtUtc { get; set; }
+    }
+
+    /// <summary>
+    /// Resolved import metadata used by status, UI, and registry workflows after binding and shared records are joined.
     /// </summary>
     [Serializable]
     internal sealed class HfHubImportedModelMetadata
@@ -47,28 +87,33 @@ namespace Doji.AI.ModelHub.Editor
         public string UnityVersion { get; set; }
         public string RuntimeRegistryAssetPath { get; set; }
         public string RuntimeRegistryRelativePath { get; set; }
+        public string BindingMetadataPath { get; set; }
+        public string SharedImportMetadataPath { get; set; }
         public HfHubImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<HfHubImportDiagnostic>();
         public HfHubImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<HfHubImportedRuntimeFileMetadata>();
         public string ImportedAtUtc { get; set; }
     }
 
     /// <summary>
-    /// Represents one generated runtime repository snapshot and its editor-only import metadata.
+    /// Represents one generated runtime repository snapshot joined with owner binding metadata.
     /// </summary>
     internal sealed class HfHubImportedModelArtifact
     {
         public HfHubImportedModelArtifact(
             string snapshotRootAssetPath,
             string metadataFilePath,
-            HfHubImportedModelMetadata metadata)
+            HfHubImportedModelMetadata metadata,
+            string sharedMetadataFilePath = null)
         {
             SnapshotRootAssetPath = snapshotRootAssetPath;
             MetadataFilePath = metadataFilePath;
             Metadata = metadata;
+            SharedMetadataFilePath = sharedMetadataFilePath;
         }
 
         public string SnapshotRootAssetPath { get; }
         public string MetadataFilePath { get; }
+        public string SharedMetadataFilePath { get; }
         public HfHubImportedModelMetadata Metadata { get; }
         public string RuntimeRegistryAssetPath => Metadata?.RuntimeRegistryAssetPath;
         public string RuntimeRegistryRelativePath => Metadata?.RuntimeRegistryRelativePath;

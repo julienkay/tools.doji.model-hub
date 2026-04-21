@@ -112,3 +112,5 @@ InitTestScene*.unity*
 # ====== #
 /[Uu]ploads/
 /[Pp]ackages/[Cc]om.unity.asset-store-tools*
+/[Aa]ssets/[Ss]treamingAssets
+/[Aa]ssets/[Ss]treamingAssets.meta

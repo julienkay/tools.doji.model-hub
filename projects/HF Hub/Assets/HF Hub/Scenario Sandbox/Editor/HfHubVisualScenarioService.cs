@@ -6,6 +6,7 @@ using System.Text;
 using Unity.InferenceEngine;
 using UnityEditor;
 using UnityEngine;
+using Doji.AI.ModelHub.Editor;
 
 namespace Doji.AI.ModelHub.Sandbox.Editor
 {
@@ -16,8 +17,11 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
     {
         private const string GeneratedRootAssetPath = "Assets/HF Hub/Scenario Sandbox/Generated";
         private const string GeneratedManifestFileNameSuffix = ".asset";
-        private const string ImportStateRoot = "Library/Doji/HfHub/import-state";
-        private const string ImportMetadataFileName = "hf-hub-import.json";
+        private const string ImportsRoot = "Library/Doji/HfHub/imports";
+        private const string BindingImportsRoot = ImportsRoot + "/bindings";
+        private const string SharedImportsRoot = ImportsRoot + "/shared";
+        private const string BindingMetadataFileName = "hf-hub-binding.json";
+        private const string SharedMetadataFileName = "hf-hub-shared-import.json";
         private const string ProjectOwnerId = "project";
         private const string ProjectOwnerVersion = "project";
         private const string RuntimeStreamingAssetsPrefix = "Assets/StreamingAssets/";
@@ -157,7 +161,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             {
                 DeleteAssetIfExists(GetRuntimeSnapshotFolderAssetPath(repository));
                 DeleteDirectoryIfExists(GetCacheRepositoryRoot(repository));
-                DeleteProjectDirectoryIfExists(GetImportStateFolder(ProjectOwnerId, repository));
+                DeleteProjectDirectoryIfExists(GetImportBindingFolder(ProjectOwnerId, repository));
+                DeleteProjectDirectoryIfExists(GetSharedImportFolder(repository, entryResolvedCommitHash: null, deleteAllForRepository: true));
             }
 
             var generatedFolderAssetPath = GetGeneratedScenarioFolderAssetPath(scenario);
@@ -171,7 +176,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         public static void OpenModelHubWindow()
         {
-            EditorApplication.ExecuteMenuItem("Window/AI Model Hub");
+            HfHubModelHubWindow.OpenWindow(resetFilters: true);
         }
 
         public static string GetGeneratedOutputRootAssetPath(HfHubVisualScenarioAsset scenario)
@@ -199,7 +204,12 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         public static string GetImportMetadataProjectRelativePath(HfHubVisualScenarioEntry entry)
         {
-            return $"{GetImportStateFolder(ProjectOwnerId, entry.Repository)}/{ImportMetadataFileName}";
+            return $"{GetImportBindingFolder(ProjectOwnerId, entry.Repository)}/{BindingMetadataFileName}";
+        }
+
+        public static string GetSharedImportMetadataProjectRelativePath(HfHubVisualScenarioEntry entry)
+        {
+            return $"{GetSharedImportFolder(entry.Repository, entry.ResolvedCommitHash)}/{SharedMetadataFileName}";
         }
 
         public static string GetRuntimeSentisAssetPath(HfHubVisualScenarioEntry entry)
@@ -223,8 +233,10 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             var revisionRefPath = GetRevisionRefPath(entry);
             var runtimeAssetPath = GetRuntimeSentisAssetPath(entry);
             var runtimeAbsolutePath = AssetPathToAbsolutePath(runtimeAssetPath);
-            var importMetadataProjectRelativePath = GetImportMetadataProjectRelativePath(entry);
-            var importMetadataAbsolutePath = ProjectRelativeToAbsolutePath(importMetadataProjectRelativePath);
+            var bindingMetadataProjectRelativePath = GetImportMetadataProjectRelativePath(entry);
+            var bindingMetadataAbsolutePath = ProjectRelativeToAbsolutePath(bindingMetadataProjectRelativePath);
+            var sharedMetadataProjectRelativePath = GetSharedImportMetadataProjectRelativePath(entry);
+            var sharedMetadataAbsolutePath = ProjectRelativeToAbsolutePath(sharedMetadataProjectRelativePath);
 
             if (entry.State != HfHubVisualScenarioState.DownloadNeeded &&
                 entry.State != HfHubVisualScenarioState.ImportedCacheRemoved)
@@ -289,21 +301,18 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                     : Array.Empty<ImportDiagnosticDocument>();
 
                 WriteJson(
-                    importMetadataAbsolutePath,
-                    new ImportedModelMetadataDocument
+                    sharedMetadataAbsolutePath,
+                    new SharedImportMetadataDocument
                     {
-                        PackageId = ProjectOwnerId,
-                        PackageVersion = ProjectOwnerVersion,
-                        ModelId = entry.Repository,
-                        ManifestHash = importedManifestHash,
                         Repository = entry.Repository,
-                        RequestedRevision = entry.Revision,
                         ResolvedCommitHash = entry.ResolvedCommitHash,
+                        RequestedRevisionHint = entry.Revision,
                         RawSnapshotRootPath = snapshotRoot,
                         RawMetadataPath = rawMetadataPath,
                         RawCacheSizeInBytes = entry.State == HfHubVisualScenarioState.ImportedCacheRemoved ? null : new FileInfo(rawFilePath).Length,
                         SentisVersion = GetSentisVersion(),
                         UnityVersion = Application.unityVersion,
+                        RuntimeSnapshotAssetPath = GetRuntimeSnapshotFolderAssetPath(entry.Repository),
                         Diagnostics = diagnostics,
                         RuntimeFiles = new[]
                         {
@@ -320,11 +329,28 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         },
                         ImportedAtUtc = DateTime.UtcNow.ToString("O")
                     });
+                WriteJson(
+                    bindingMetadataAbsolutePath,
+                    new ImportBindingMetadataDocument
+                    {
+                        PackageId = ProjectOwnerId,
+                        PackageVersion = ProjectOwnerVersion,
+                        ModelId = entry.Repository,
+                        ManifestHash = importedManifestHash,
+                        Repository = entry.Repository,
+                        RequestedRevision = entry.Revision,
+                        ResolvedCommitHash = entry.ResolvedCommitHash,
+                        SentisVersion = GetSentisVersion(),
+                        SharedImportMetadataPath = sharedMetadataProjectRelativePath,
+                        RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
+                        RuntimeRegistryRelativePath = $"hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
+                        BoundAtUtc = DateTime.UtcNow.ToString("O")
+                    });
             }
             else if (entry.State == HfHubVisualScenarioState.InvalidImportMetadata)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(importMetadataAbsolutePath) ?? throw new InvalidOperationException("Missing import metadata directory."));
-                File.WriteAllText(importMetadataAbsolutePath, "{ invalid json");
+                Directory.CreateDirectory(Path.GetDirectoryName(bindingMetadataAbsolutePath) ?? throw new InvalidOperationException("Missing import metadata directory."));
+                File.WriteAllText(bindingMetadataAbsolutePath, "{ invalid json");
             }
         }
 
@@ -474,9 +500,20 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return Path.Combine(GetSnapshotRoot(repository, commitHash), repoPath.Replace('/', Path.DirectorySeparatorChar));
         }
 
-        private static string GetImportStateFolder(string packageId, string modelId)
+        private static string GetImportBindingFolder(string packageId, string modelId)
         {
-            return $"{ImportStateRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}";
+            return $"{BindingImportsRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}";
+        }
+
+        private static string GetSharedImportFolder(string repository, string entryResolvedCommitHash, bool deleteAllForRepository = false)
+        {
+            var root = $"{SharedImportsRoot}/{SanitizePathSegment(repository)}";
+            if (deleteAllForRepository || string.IsNullOrWhiteSpace(entryResolvedCommitHash))
+            {
+                return root;
+            }
+
+            return $"{root}/{SanitizePathSegment(entryResolvedCommitHash)}/{SanitizePathSegment(GetSentisVersion())}";
         }
 
         private static string GetCacheRoot()
@@ -702,7 +739,24 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
         }
 
         [Serializable]
-        private sealed class ImportedModelMetadataDocument
+        private sealed class SharedImportMetadataDocument
+        {
+            public string Repository;
+            public string ResolvedCommitHash;
+            public string RequestedRevisionHint;
+            public string RawSnapshotRootPath;
+            public string RawMetadataPath;
+            public long? RawCacheSizeInBytes;
+            public string SentisVersion;
+            public string UnityVersion;
+            public string RuntimeSnapshotAssetPath;
+            public ImportDiagnosticDocument[] Diagnostics = Array.Empty<ImportDiagnosticDocument>();
+            public ImportedRuntimeFileDocument[] RuntimeFiles = Array.Empty<ImportedRuntimeFileDocument>();
+            public string ImportedAtUtc;
+        }
+
+        [Serializable]
+        private sealed class ImportBindingMetadataDocument
         {
             public string PackageId;
             public string PackageVersion;
@@ -711,14 +765,11 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string Repository;
             public string RequestedRevision;
             public string ResolvedCommitHash;
-            public string RawSnapshotRootPath;
-            public string RawMetadataPath;
-            public long? RawCacheSizeInBytes;
             public string SentisVersion;
-            public string UnityVersion;
-            public ImportDiagnosticDocument[] Diagnostics = Array.Empty<ImportDiagnosticDocument>();
-            public ImportedRuntimeFileDocument[] RuntimeFiles = Array.Empty<ImportedRuntimeFileDocument>();
-            public string ImportedAtUtc;
+            public string SharedImportMetadataPath;
+            public string RuntimeRegistryAssetPath;
+            public string RuntimeRegistryRelativePath;
+            public string BoundAtUtc;
         }
     }
 }

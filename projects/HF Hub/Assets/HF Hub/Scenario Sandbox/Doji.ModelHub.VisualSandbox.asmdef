@@ -1,0 +1,16 @@
+{
+    "name": "Doji.ModelHub.VisualSandbox",
+    "rootNamespace": "Doji.AI.ModelHub.Sandbox",
+    "references": [
+        "Doji.ModelHub"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

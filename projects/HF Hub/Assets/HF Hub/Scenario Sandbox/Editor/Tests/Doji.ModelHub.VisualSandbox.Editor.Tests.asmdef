@@ -1,0 +1,27 @@
+{
+    "name": "Doji.ModelHub.VisualSandbox.Editor.Tests",
+    "rootNamespace": "Doji.AI.ModelHub.Sandbox.Editor.Tests",
+    "references": [
+        "Doji.ModelHub",
+        "Doji.ModelHub.VisualSandbox",
+        "Doji.ModelHub.VisualSandbox.Editor",
+        "Unity.InferenceEngine",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

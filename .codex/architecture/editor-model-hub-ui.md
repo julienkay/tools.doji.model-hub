@@ -118,8 +118,24 @@ The current window is intentionally a local inventory surface first.
 
 Future work can extend the same window with:
 
-- warning badges for revision ambiguity
-- partial ONNX conversion warnings with per-file detail
 - a remote browse tab with thumbnails and richer HuggingFace metadata
 
 Those features should reuse the repo-level item model instead of reintroducing dependency-level top rows.
+
+## Visual Sandbox
+
+Companion project now includes maintainer-only visual sandbox under:
+
+- `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`
+
+Use it to generate fake project manifest, cache, import metadata, and runtime files locally without downloading from HuggingFace.
+
+Rules:
+
+- keep sandbox code in companion project only, not package assemblies
+- prefer unique `sandbox/...` repo ids so fake artifacts do not collide with real generated content
+- sandbox writes one generated project manifest asset per scenario entry so repeated repo ids simulate multiple manifests depending on the same repo
+- repeated repo ids intentionally still share one project import/runtime slot because real HF Hub imports are repo-scoped by repository
+- prefer `download needed` or `import needed` states when visually testing revision ambiguity unless you deliberately want last-writer-wins imported metadata for the repeated repo
+- use sandbox for visual verification of obscure Model Hub states such as `import needed`, `update needed`, `partial conversion`, and invalid metadata
+- use repeated same-repo entries to test both multi-manifest shared dependencies and revision ambiguity warnings before reaching for fake embedded packages

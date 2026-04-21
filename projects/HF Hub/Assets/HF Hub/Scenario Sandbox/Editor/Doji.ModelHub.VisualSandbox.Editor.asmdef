@@ -1,0 +1,20 @@
+{
+    "name": "Doji.ModelHub.VisualSandbox.Editor",
+    "rootNamespace": "Doji.AI.ModelHub.Sandbox.Editor",
+    "references": [
+        "Doji.ModelHub",
+        "Doji.ModelHub.VisualSandbox",
+        "Unity.InferenceEngine"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

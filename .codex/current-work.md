@@ -2,13 +2,13 @@
 
 ## Focus
 
-Polish Model Hub destructive-action UX and lifecycle copy, then validate the recent warning-diagnostics and partial-conversion changes in Unity when a session explicitly allows editor testing.
+Use the companion-project visual sandbox to validate Model Hub UX, including multi-manifest shared-repo and revision-ambiguity scenarios, before touching real downloads.
 
 ## Next Tasks
 
+- [ ] Do an in-Editor visual pass with the sandbox sample and confirm repeated-manifest dependents read clearly in Model Hub details.
+- [ ] Decide whether project-manifest duplicates are enough for future UX review or if the sandbox also needs fake package-owner manifests.
 - [ ] Decide whether `Remove From Project` and `Remove From Cache` need confirmation dialogs or stronger warning copy.
-- [ ] Revisit whether dependency status needs a more granular lifecycle split for UI copy, especially `download needed` versus `import needed`.
-- [ ] Run Unity editor validation for Model Hub warning diagnostics and partial ONNX conversion coverage when a session explicitly allows test execution.
 
 ## Blockers And Decisions Needed
 
@@ -17,5 +17,4 @@ Polish Model Hub destructive-action UX and lifecycle copy, then validate the rec
 ## Read Before Editing
 
 - [Editor Model Hub UI](./architecture/editor-model-hub-ui.md)
-- [Import And Generated Assets](./architecture/import-and-generated-assets.md)
-- [Download And Cache](./architecture/download-and-cache.md)
+- `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`

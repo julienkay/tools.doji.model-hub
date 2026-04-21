@@ -27,7 +27,7 @@ namespace Doji.AI.ModelHub
         public string PackageVersion => _resolvedModel.PackageVersion;
 
         /// <summary>
-        /// Canonical HuggingFace repository id for this synchronized snapshot.
+        /// Canonical HuggingFace model id for this synchronized snapshot.
         /// </summary>
         public string RepoId => _resolvedModel.RepoId;
 

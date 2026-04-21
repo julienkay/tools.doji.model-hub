@@ -28,7 +28,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies registry JSON writes canonical repo id and runtime file entries.
+        /// Verifies registry JSON writes canonical model id and runtime file entries.
         /// </summary>
         [Test]
         public void WriteRegistries_WritesPackageScopedRegistryJson()
@@ -70,7 +70,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies single-string repo lookup succeeds when only one owner publishes that repo.
         /// </summary>
         [Test]
-        public void TryResolveRuntimeModel_ByRepositoryId_ReturnsResolvedModel()
+        public void TryResolveRuntimeModel_ByModelId_ReturnsResolvedModel()
         {
             var result = CreateSuccessResult("tiny-model");
             WriteRuntimeFiles(result.ImportedArtifact.Metadata);
@@ -105,7 +105,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies owner-specific `from_pretrained(...)` style wrapper stays deterministic when repo id is ambiguous globally.
         /// </summary>
         [Test]
-        public void FromPretrained_ByOwnerAndRepositoryId_ResolvesChosenOwnerWhenAmbiguous()
+        public void FromPretrained_ByOwnerAndModelId_ResolvesChosenOwnerWhenAmbiguous()
         {
             var first = CreateSuccessResult("tiny-model", "com.doji.first");
             var second = CreateSuccessResult("tiny-model", "com.doji.second");
@@ -205,7 +205,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies single-string repo lookup throws when multiple owners publish same repo.
         /// </summary>
         [Test]
-        public void TryResolveRuntimeModel_ByRepositoryId_ThrowsWhenAmbiguousAcrossOwners()
+        public void TryResolveRuntimeModel_ByModelId_ThrowsWhenAmbiguousAcrossOwners()
         {
             var first = CreateSuccessResult("tiny-model", "com.doji.first");
             var second = CreateSuccessResult("tiny-model", "com.doji.second");
@@ -223,7 +223,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies single-string `from_pretrained(...)` lookup throws when multiple owners publish same repo.
         /// </summary>
         [Test]
-        public void FromPretrained_ByRepositoryId_ThrowsWhenAmbiguousAcrossOwners()
+        public void FromPretrained_ByModelId_ThrowsWhenAmbiguousAcrossOwners()
         {
             var first = CreateSuccessResult("tiny-model", "com.doji.first");
             var second = CreateSuccessResult("tiny-model", "com.doji.second");
@@ -241,7 +241,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies owner-specific repo lookup remains deterministic when repo id is ambiguous globally.
         /// </summary>
         [Test]
-        public void TryResolveRuntimeModel_ByOwnerAndRepositoryId_ResolvesChosenOwnerWhenAmbiguous()
+        public void TryResolveRuntimeModel_ByOwnerAndModelId_ResolvesChosenOwnerWhenAmbiguous()
         {
             var first = CreateSuccessResult("tiny-model", "com.doji.first");
             var second = CreateSuccessResult("tiny-model", "com.doji.second");

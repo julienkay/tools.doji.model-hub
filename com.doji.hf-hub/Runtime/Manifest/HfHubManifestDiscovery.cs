@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Represents one resolved repository dependency discovered from one manifest owner.
+    /// Represents one resolved HuggingFace model dependency discovered from one manifest owner.
     /// </summary>
     internal sealed class HfHubDiscoveredModelDependency
     {
@@ -33,7 +33,7 @@ namespace Doji.AI.ModelHub
             ManifestPath = manifestPath;
             ManifestHash = manifestHash;
             ModelId = model.Id;
-            Repository = model.GetRepositoryId();
+            Repository = model.Id;
             Revision = model.Revision;
         }
 
@@ -68,12 +68,12 @@ namespace Doji.AI.ModelHub
         public string ManifestHash { get; }
 
         /// <summary>
-        /// Canonical HuggingFace model id from the manifest, which is also the repository id for current schema.
+        /// Canonical HuggingFace model id declared in manifest.
         /// </summary>
         public string ModelId { get; }
 
         /// <summary>
-        /// HuggingFace repository identifier that hosts runtime files for this dependency.
+        /// Canonical HuggingFace model id reused as repo snapshot key and runtime lookup id.
         /// </summary>
         public string Repository { get; }
 

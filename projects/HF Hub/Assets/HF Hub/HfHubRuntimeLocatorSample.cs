@@ -26,7 +26,7 @@ namespace Doji.AI.ModelHub.Samples
         private Model _loadedModel;
 
         /// <summary>
-        /// Stable HuggingFace model id / repository id declared in project or package manifest.
+        /// Stable HuggingFace model id declared in project or package manifest.
         /// </summary>
         public string RepoId => _repoId;
 

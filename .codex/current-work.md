@@ -2,11 +2,10 @@
 
 ## Focus
 
-Manifest schema now uses canonical Hugging Face model ids directly; active work is Model Hub status polish, including separate cache-versus-project lifecycle handling, plus cleanup of stale tests, docs, and comments.
+Manifest schema cleanup is complete; active work is Model Hub status polish, including separate cache-versus-project lifecycle handling and stronger diagnostics/warning copy.
 
 ## Next Tasks
 
-- [ ] Finish the canonical-model-id cleanup across remaining stale tests, docs, generated docs, and editor/runtime comments.
 - [ ] Add warning surfaces for revision ambiguity and partial ONNX conversion outcomes inside the Model Hub diagnostics flow.
 - [ ] Decide whether `Remove From Project` and `Remove From Cache` need confirmation dialogs or stronger warning copy.
 - [ ] Revisit whether dependency status needs a more granular lifecycle split for UI copy, especially `download needed` versus `import needed`.

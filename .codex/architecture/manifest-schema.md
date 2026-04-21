@@ -15,11 +15,8 @@ Initial schema:
   "version": 1,
   "models": [
     {
-      "id": "distilbert-base-uncased",
-      "displayName": "Tiny Random BERT",
-      "repository": "hf-internal-testing/tiny-random-bert",
-      "revision": "main",
-      "sourceFile": "model.onnx"
+      "id": "hf-internal-testing/tiny-random-bert",
+      "revision": "main"
     }
   ]
 }
@@ -28,14 +25,17 @@ Initial schema:
 Field intent:
 
 - `version`: manifest format version
-- `id`: stable package-local alias used for generated paths and package-facing lookup
-- `repository`: HuggingFace model id / repo id used as upstream source identity
-- `displayName`: user-facing name shown in download prompts
-- `repository`: HuggingFace repo id
+- `id`: canonical HuggingFace model id, also used as repo snapshot identity and runtime lookup key
 - `revision`: branch, tag, or commit to resolve from HuggingFace
-- `sourceFile`: ONNX file path inside the repo
 
-V1 deliberately supports one source file per model entry. Multi-file models and richer import settings can come later.
+Canonical HuggingFace model id definition:
+
+- exact upstream HuggingFace `repo_id` string, usually `owner/name`
+- store it unchanged in manifests, metadata, and runtime registries
+- only serialize or sanitize it when deriving local folder names or paths
+- do not invent separate display ids, package-local aliases, or duplicate `repository` fields for same identity
+
+V1 deliberately keeps manifest entry minimal. One entry resolves one remote repo snapshot, downloads full snapshot, then converts every ONNX file inside it. Multi-file filtering and richer import settings can come later.
 
 ## Important Next Extension
 

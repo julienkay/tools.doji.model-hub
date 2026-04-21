@@ -3,7 +3,7 @@ using System;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Describes one remote repository snapshot that a Unity package requires from the HuggingFace Hub.
+    /// Describes one canonical HuggingFace model id that a Unity package requires from the Hub.
     /// </summary>
     [Serializable]
     public sealed class HfHubModelDependencyDefinition
@@ -22,7 +22,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Canonical HuggingFace model identifier used for generated paths and runtime lookup.
+        /// Canonical HuggingFace model identifier used for generated paths, cache snapshots, and runtime lookup.
         /// </summary>
         public string Id { get; }
 

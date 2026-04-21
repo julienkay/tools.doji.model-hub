@@ -4,6 +4,8 @@
 
 Runtime code should resolve one HuggingFace repository snapshot by canonical `repo_id`, then address individual files inside that snapshot by repository-relative path.
 
+Canonical model id here means exact HuggingFace `repo_id` string such as `owner/name`. HF Hub treats that string as source identity and only sanitizes it when mapping to local filesystem paths.
+
 Desired usage:
 
 - repo-level resolution by stable `repo_id`

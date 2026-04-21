@@ -12,7 +12,7 @@ namespace Doji.AI.ModelHub
     internal static class HfHubRuntimeLocatorService
     {
         /// <summary>
-        /// Resolves one synchronized model by package id and canonical HuggingFace repository id.
+        /// Resolves one synchronized model by package id and canonical HuggingFace model id.
         /// </summary>
         public static bool TryResolveModel(
             string packageId,
@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub
             if (matches.Count > 1)
             {
                 throw new InvalidOperationException(
-                    $"HF Hub runtime model '{repoId}' is ambiguous across multiple registries. Use owner-specific lookup or keep repository ids unique.");
+                    $"HF Hub runtime model '{repoId}' is ambiguous across multiple registries. Use owner-specific lookup or keep model ids unique per owner when using global lookup.");
             }
 
             return false;

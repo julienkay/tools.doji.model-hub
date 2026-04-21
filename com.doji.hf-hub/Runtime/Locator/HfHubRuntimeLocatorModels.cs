@@ -68,7 +68,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Canonical HuggingFace repository id used by `from_pretrained(...)` style calls.
+        /// Canonical HuggingFace model id used by `from_pretrained(...)` style calls.
         /// </summary>
         public string RepoId { get; }
 

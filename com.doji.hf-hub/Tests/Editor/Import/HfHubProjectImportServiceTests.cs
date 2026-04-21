@@ -94,7 +94,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies ONNX conversion failures include repo file path and repository id for easier diagnostics.
+        /// Verifies ONNX conversion failures include repo file path and canonical model id for easier diagnostics.
         /// </summary>
         [Test]
         public void ImportAsync_WrapsOnnxConversionFailuresWithRepoFileContext()

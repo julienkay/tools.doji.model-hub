@@ -40,8 +40,8 @@ Prefer working in the package folder when functionality is package-owned.
 
 ## Internal Docs
 
-Read `.codex/current-work.md` first for most sessions.
-Treat `.codex/index.md` as the main entry point for internal maintainer docs when you need the broader doc map beyond the active handoff.
+Read `.codex/current-work.md` first for most sessions as handoff doc.
+Treat `.codex/index.md` as the main entry point for internal maintainer docs when you need the broader doc map beyond that.
 Keep maintainer-only planning and backlog notes under `.codex/`.
 Use the `current-work-maintenance` skill whenever updating `.codex/current-work.md` or when a task changes the active project focus, blockers, or next steps enough that the next session needs an updated handoff.
 

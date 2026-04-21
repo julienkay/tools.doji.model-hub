@@ -32,7 +32,7 @@ namespace Doji.AI.ModelHub
         public const string RuntimeStreamingRelativeRoot = "hf-hub";
 
         /// <summary>
-        /// Resolves one synchronized model by canonical HuggingFace repository id.
+        /// Resolves one synchronized model by canonical HuggingFace model id.
         /// </summary>
         public static bool TryResolveRuntimeModel(string repoId, out HfHubResolvedRuntimeModel model)
         {
@@ -40,7 +40,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace repository id.
+        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace model id.
         /// </summary>
         public static bool TryResolveRuntimeModel(
             string packageId,
@@ -51,7 +51,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized model by canonical HuggingFace repository id or throws when registry data is missing.
+        /// Resolves one synchronized model by canonical HuggingFace model id or throws when registry data is missing.
         /// </summary>
         public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string repoId)
         {
@@ -65,7 +65,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace repository id or throws when registry data is missing.
+        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace model id or throws when registry data is missing.
         /// </summary>
         public static HfHubResolvedRuntimeModel ResolveRuntimeModel(string packageId, string repoId)
         {
@@ -79,7 +79,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot by canonical HuggingFace repository id in `from_pretrained(...)` style.
+        /// Resolves one synchronized repository snapshot by canonical HuggingFace model id in `from_pretrained(...)` style.
         /// </summary>
         public static HfHubPretrainedRepository FromPretrained(string repoId)
         {
@@ -87,7 +87,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot by manifest owner id plus canonical HuggingFace repository id in `from_pretrained(...)` style.
+        /// Resolves one synchronized repository snapshot by manifest owner id plus canonical HuggingFace model id in `from_pretrained(...)` style.
         /// </summary>
         public static HfHubPretrainedRepository FromPretrained(string packageId, string repoId)
         {
@@ -95,7 +95,7 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot by canonical HuggingFace repository id and loads one serialized Sentis payload.
+        /// Resolves one synchronized repository snapshot by canonical HuggingFace model id and loads one serialized Sentis payload.
         /// </summary>
         public static Model LoadRuntimeModel(string repoId, string repoPath)
         {

@@ -1,6 +1,6 @@
 # Package Manifests, Cache, and Generated Runtime Files
 
-Packages declare HuggingFace dependencies at repository level in `hf-hub-manifest.json` at package root.
+Packages declare HuggingFace dependencies by canonical model id in `hf-hub-manifest.json` at package root.
 
 Projects can declare the same dependency shape with `HfHubProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
 
@@ -20,14 +20,14 @@ Example:
 ## Manifest Fields
 
 - `version`: manifest schema version. Current value is `1`.
-- `id`: canonical HuggingFace model identifier. In Hub API terms this is the repository id string such as `owner/name`.
+- `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
 
 Model ids must be unique inside one manifest.
 
 ## Dependency Scope
 
-One manifest entry means one HuggingFace repository snapshot.
+One manifest entry means one HuggingFace model id and one resolved repository snapshot.
 
 During sync HF Hub:
 
@@ -36,7 +36,7 @@ During sync HF Hub:
 3. keeps that raw repository snapshot in shared cache as source of truth
 4. converts every `.onnx` file in that snapshot to `.sentis`
 
-This keeps package and project manifests simple. Runtime code chooses individual files from the resolved repo snapshot the same way upstream workflows choose files inside one `repo_id`.
+This keeps package and project manifests simple. No separate local alias or `repository` field exists in v1 schema. Runtime code chooses individual files from resolved snapshot the same way upstream workflows choose files inside one `repo_id`.
 
 ## Discovery
 
@@ -211,14 +211,14 @@ Editor-only import provenance lives under:
 Library/Doji/HfHub/import-state/<owner-id>/<model-id>/hf-hub-import.json
 ```
 
-Here `<model-id>` is the sanitized canonical HuggingFace `id` value, so for current schema it matches the repo id path rather than a separate local alias.
+Here `<model-id>` is sanitized canonical HuggingFace `id` value.
 
 Stored import fields include:
 
 - package id and package version
 - model id as declared canonical HuggingFace `id`
 - manifest hash
-- repository, revision, and resolved commit hash
+- model id, revision, and resolved commit hash
 - raw snapshot root and raw metadata path
 - Sentis version
 - Unity version for diagnostics

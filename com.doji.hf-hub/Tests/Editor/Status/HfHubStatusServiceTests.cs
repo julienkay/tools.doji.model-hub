@@ -48,7 +48,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw cache revision ref is missing."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.RawCacheRevisionRefMissing));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw cache revision ref is missing."));
         }
 
         /// <summary>
@@ -63,7 +64,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata file is missing."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.ImportMetadataMissing));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import metadata file is missing."));
         }
 
         /// <summary>
@@ -79,7 +81,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.ReadyCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Raw repo snapshot and generated runtime files are current."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.None));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw repo snapshot and generated runtime files are current."));
         }
 
         /// <summary>
@@ -97,8 +100,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.ReadyCount, Is.EqualTo(1));
             Assert.That(
-                report.DependencyStatuses[0].Message,
+                report.DependencyStatuses[0].MaintainerMessage,
                 Is.EqualTo("Generated runtime files are present. Raw cache has been removed from this machine."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.RawCacheRemovedAfterImport));
         }
 
         /// <summary>
@@ -115,8 +119,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.StaleCount, Is.EqualTo(1));
             Assert.That(
-                report.DependencyStatuses[0].Message,
+                report.DependencyStatuses[0].MaintainerMessage,
                 Is.EqualTo("Import metadata is stale: manifest hash expected `manifesthash` but found `old-manifest-hash`."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.ImportMetadataStale));
         }
 
         /// <summary>
@@ -134,8 +139,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(
-                report.DependencyStatuses[0].Message,
+                report.DependencyStatuses[0].MaintainerMessage,
                 Is.EqualTo("Generated runtime file is missing: hf-hub/doji/test-model/models/model.sentis."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.RuntimeFileMissing));
         }
 
         /// <summary>
@@ -156,7 +162,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.FailedCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].Message, Is.EqualTo("Import metadata is invalid."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.ImportMetadataInvalid));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import metadata is invalid."));
         }
 
         private static HfHubStatusReport BuildStatusReport(HfHubDiscoveredModelDependency dependency)

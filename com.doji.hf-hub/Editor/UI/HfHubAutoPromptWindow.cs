@@ -441,8 +441,6 @@ namespace Doji.AI.ModelHub.Editor
                     }
 
                     GUILayout.Space(2f);
-                    GUILayout.Label(Content.RequiresText, _repositoryStyle);
-                    GUILayout.Space(2f);
                     GUILayout.Label(
                         dependent.Repository,
                         _modelNameStyle);

@@ -91,6 +91,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out var sentisFile), Is.True);
             Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
             Assert.That(File.Exists(HfHubProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.True);
+            Assert.That(artifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
+            Assert.That(artifact.Metadata.Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(artifact.Metadata.Diagnostics[0].Message, Does.Contain("model_bnb4.onnx"));
+            Assert.That(artifact.Metadata.Diagnostics[0].Message, Does.Contain("unsupported operators or data types"));
+        }
+
+        /// <summary>
+        /// Verifies partial ONNX conversion warnings survive metadata reuse on later imports.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReusesPersistedPartialConversionWarningsWhenMetadataMatches()
+        {
+            var dependency = CreateDependency();
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+            var service = new HfHubProjectImportService(new PartiallyThrowingOnnxConverter("model_bnb4.onnx"));
+
+            var firstArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+            var secondArtifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(firstArtifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
+            Assert.That(secondArtifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
+            Assert.That(secondArtifact.Metadata.Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(secondArtifact.Metadata.Diagnostics[0].Message, Is.EqualTo(firstArtifact.Metadata.Diagnostics[0].Message));
         }
 
         /// <summary>

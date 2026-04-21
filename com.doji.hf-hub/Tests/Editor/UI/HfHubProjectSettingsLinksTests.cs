@@ -72,7 +72,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     CreateDependencyStatus("com.doji.alpha", "Alpha", "alpha-model", sharedManifestPath),
                     CreateDependencyStatus("project", "Project", "project-model", "Assets/HF Hub/HF Hub Project Manifest.asset")
                 },
-                Array.Empty<string>(),
+                Array.Empty<HfHubModelHubDiagnostic>(),
                 Array.Empty<HfHubImportedRuntimeFileMetadata>());
 
             var targets = HfHubProjectSettingsLinks.BuildManifestLocateTargets(item);
@@ -109,6 +109,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Ready,
+                HfHubDependencyReasonCode.None,
                 "Ready",
                 null,
                 null,

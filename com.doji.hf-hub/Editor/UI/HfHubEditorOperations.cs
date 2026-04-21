@@ -127,7 +127,7 @@ namespace Doji.AI.ModelHub.Editor
                 foreach (var status in packageGroup.OrderBy(item => item.Dependency.ModelId))
                 {
                     builder.AppendLine($"  - [{status.State}] {status.Dependency.ModelId}");
-                    builder.AppendLine($"    {status.Message}");
+                    builder.AppendLine($"    {status.MaintainerMessage}");
                 }
             }
 

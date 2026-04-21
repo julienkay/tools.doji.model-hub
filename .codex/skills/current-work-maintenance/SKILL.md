@@ -35,8 +35,7 @@ The file should let the next agent answer three questions in under a minute:
 - the current focus
 - still-open tasks that are next in line
 - blockers or decisions that are actively constraining current work
-- exact docs or code areas the next agent should read first
-- concrete exit criteria for the active slice
+- exact docs or code areas the next agent should read first, but only when they are directly relevant to the active slice
 
 ## What Does Not Belong Here
 
@@ -45,6 +44,7 @@ The file should let the next agent answer three questions in under a minute:
 - detailed architecture rationale that belongs in `.codex/architecture/`
 - long narrative status updates
 - duplicate content already captured in stable maintainer docs
+- separate "exit criteria" or "definition of done" sections that tend to rot when the active slice changes
 
 ## Update Workflow
 
@@ -53,9 +53,10 @@ The file should let the next agent answer three questions in under a minute:
 3. If the user reports that written tests passed, treat the covered task as complete and remove it from `Next Tasks` unless another explicit action is still pending.
 4. Rewrite focus if the active slice has changed.
 5. Keep only the next actionable tasks.
-6. Move durable implementation detail to `.codex/architecture/` if it matters later.
-7. Move non-active ideas, longer-scoped epics, or lower-priority work to `.codex/backlog.md` if they should be kept.
-8. Confirm the file is still short and scannable.
+6. Prune `Read Before Editing` to the minimum set of docs or files the next agent truly needs for the current slice.
+7. Move durable implementation detail to `.codex/architecture/` if it matters later.
+8. Move non-active ideas, longer-scoped epics, or lower-priority work to `.codex/backlog.md` if they should be kept.
+9. Confirm the file is still short and scannable.
 
 ## Default Shape
 
@@ -77,9 +78,6 @@ Short sentence.
 ## Read Before Editing
 - .codex/architecture/runtime-locator.md
 - com.doji.hf-hub/...
-
-## Exit Criteria
-- ...
 ```
 
 ## Editing Standard
@@ -87,7 +85,11 @@ Short sentence.
 - Prefer replacing vague bullets with concrete next actions.
 - Keep section names stable so agents can scan quickly.
 - If a section has nothing useful to say, keep it brief instead of padding it.
-- When a task is fully done, remove it from `Next Tasks` and update `Focus` or `Exit Criteria` to match the remaining active slice.
+- Treat `Read Before Editing` as a prerequisite list, not a general reading list.
+- Keep only files that are necessary to avoid mistakes on the current task; remove broad context docs once they stop being directly relevant.
+- Prefer the smallest useful list. If two or three entries cover the active slice, stop there.
+- Do not keep a separate completion-state section; if the stopping point for the current slice matters, express it in `Focus` or as the last concrete `Next Tasks` item.
+- When a task is fully done, remove it from `Next Tasks` and update `Focus` to match the remaining active slice.
 - When the user verifies that tests passed for a task, that validation is enough to remove the corresponding TODO from `Next Tasks` unless the task still has non-test follow-up work.
 - Move lower-priority or longer-running items to `.codex/backlog.md` instead of leaving them in `current-work.md`.
 - If all active work changed, rewrite the file to fit the new slice instead of incrementally preserving stale context.

@@ -61,6 +61,14 @@ The Model Hub layer adds one editor-facing aggregation step:
 2. group dependency statuses by `repository + revision`
 3. merge dependents, runtime files, and high-level diagnostics into one `HfHubModelHubItem`
 
+UI diagnostic requirement:
+
+- dependency-level status should expose structured `ReasonCode` plus optional maintainer-facing detail text
+- Model Hub must map `ReasonCode` into user-helpful lifecycle copy before rendering it
+- raw maintainer detail is fallback/debug text, not primary user copy
+- prefer action-oriented wording such as `needs download`, `needs import`, `needs re-import`, or `is out of date`
+- reserve error-severity rendering for true failed/invalid states, not normal `import needed` or `update needed` cases
+
 Aggregate state precedence:
 
 1. `Error` if any dependent failed

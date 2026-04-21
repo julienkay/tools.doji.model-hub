@@ -51,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor
             var onnxFileCount = 0;
             var sentisFileCount = 0;
             var conversionFailures = new List<string>();
+            var diagnostics = new List<HfHubImportDiagnostic>();
             foreach (var snapshotFile in cachedSnapshot.Metadata?.Files ?? Array.Empty<HfHubRawCacheFileMetadata>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -75,6 +76,11 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
                         conversionFailures.Add(failureMessage);
+                        diagnostics.Add(new HfHubImportDiagnostic
+                        {
+                            Severity = "warning",
+                            Message = $"Partial ONNX conversion: skipped {snapshotFile.RepoPath} because {exception.Message}"
+                        });
                         Debug.LogWarning(failureMessage);
                         continue;
                     }
@@ -100,7 +106,7 @@ namespace Doji.AI.ModelHub.Editor
                         : $"Failed to convert ONNX files from repository '{dependency.Repository}'.");
             }
 
-            var metadata = CreateMetadata(dependency, cachedSnapshot, runtimeFiles);
+            var metadata = CreateMetadata(dependency, cachedSnapshot, runtimeFiles, diagnostics);
             WriteMetadata(metadataAbsolutePath, metadata);
 
             foreach (var runtimeFile in runtimeFiles)
@@ -173,7 +179,8 @@ namespace Doji.AI.ModelHub.Editor
         private static HfHubImportedModelMetadata CreateMetadata(
             HfHubDiscoveredModelDependency dependency,
             HfHubCachedSnapshot cachedSnapshot,
-            IReadOnlyList<HfHubImportedRuntimeFileMetadata> runtimeFiles)
+            IReadOnlyList<HfHubImportedRuntimeFileMetadata> runtimeFiles,
+            IReadOnlyList<HfHubImportDiagnostic> diagnostics)
         {
             var runtimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
             return new HfHubImportedModelMetadata
@@ -195,6 +202,7 @@ namespace Doji.AI.ModelHub.Editor
                 UnityVersion = Application.unityVersion,
                 RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
+                Diagnostics = diagnostics?.ToArray() ?? Array.Empty<HfHubImportDiagnostic>(),
                 RuntimeFiles = runtimeFiles.ToArray(),
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             };

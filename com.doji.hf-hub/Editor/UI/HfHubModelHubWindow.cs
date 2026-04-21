@@ -728,7 +728,7 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var diagnostic in item.Diagnostics)
             {
-                EditorGUILayout.HelpBox(diagnostic, item.State == HfHubModelHubItemState.Error ? MessageType.Error : MessageType.Info);
+                EditorGUILayout.HelpBox(diagnostic.Message, GetDiagnosticMessageType(diagnostic));
             }
 
             EditorGUILayout.Space();
@@ -1147,6 +1147,16 @@ namespace Doji.AI.ModelHub.Editor
             return unitIndex == 0
                 ? $"{size:0} {units[unitIndex]}"
                 : $"{size:0.0} {units[unitIndex]}";
+        }
+
+        private static MessageType GetDiagnosticMessageType(HfHubModelHubDiagnostic diagnostic)
+        {
+            return diagnostic?.Severity switch
+            {
+                "error" => MessageType.Error,
+                "warning" => MessageType.Warning,
+                _ => MessageType.Info
+            };
         }
 
         private void InitializeGuiContent()

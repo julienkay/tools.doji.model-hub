@@ -44,13 +44,14 @@ namespace Doji.AI.ModelHub.Editor
                     dependency,
                     importMetadataAbsolutePath,
                     importMetadataAssetPath,
+                    HfHubDependencyReasonCode.RawCacheRemovedAfterImport,
                     "Generated runtime files are present. Raw cache has been removed from this machine.",
                     out var importedOnlyStatus))
                 {
                     return importedOnlyStatus;
                 }
 
-                return Missing(dependency, "Raw cache revision ref is missing.", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(dependency, HfHubDependencyReasonCode.RawCacheRevisionRefMissing, "Raw cache revision ref is missing.", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             string resolvedCommitHash;
@@ -60,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor
             }
             catch (Exception exception)
             {
-                return Failed(dependency, $"Could not read raw cache revision ref: {exception.Message}", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Failed(dependency, HfHubDependencyReasonCode.RawCacheRevisionRefUnreadable, $"Could not read raw cache revision ref: {exception.Message}", revisionRefPath, null, null, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             var snapshotRoot = HfHubCachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
@@ -71,13 +72,14 @@ namespace Doji.AI.ModelHub.Editor
                     dependency,
                     importMetadataAbsolutePath,
                     importMetadataAssetPath,
+                    HfHubDependencyReasonCode.RawCacheRemovedAfterImport,
                     "Generated runtime files are present. Raw cache snapshot has been removed from this machine.",
                     out var importedOnlyStatus))
                 {
                     return importedOnlyStatus;
                 }
 
-                return Missing(dependency, "Raw snapshot root is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(dependency, HfHubDependencyReasonCode.RawSnapshotRootMissing, "Raw snapshot root is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!_rawCacheService.TryReadMetadata(rawMetadataPath, out var rawMetadata))
@@ -86,30 +88,31 @@ namespace Doji.AI.ModelHub.Editor
                     dependency,
                     importMetadataAbsolutePath,
                     importMetadataAssetPath,
+                    HfHubDependencyReasonCode.RawCacheMetadataMissingAfterImport,
                     "Generated runtime files are present. Raw cache metadata has been removed from this machine.",
                     out var importedOnlyStatus))
                 {
                     return importedOnlyStatus;
                 }
 
-                return Failed(dependency, "Raw cache metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Failed(dependency, HfHubDependencyReasonCode.RawCacheMetadataInvalid, "Raw cache metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
             {
-                return Stale(dependency, "Raw cache metadata differs from manifest or revision ref.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Stale(dependency, HfHubDependencyReasonCode.RawCacheMetadataMismatch, "Raw cache metadata differs from manifest or revision ref.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!File.Exists(importMetadataAbsolutePath))
             {
-                return Missing(dependency, "Import metadata file is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(dependency, HfHubDependencyReasonCode.ImportMetadataMissing, "Import metadata file is missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!HfHubProjectImportService.TryReadMetadata(importMetadataAbsolutePath, out var importedMetadata))
             {
-                return Failed(dependency, "Import metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Failed(dependency, HfHubDependencyReasonCode.ImportMetadataInvalid, "Import metadata is invalid.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             if (!string.Equals(importedMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
@@ -125,6 +128,7 @@ namespace Doji.AI.ModelHub.Editor
                 runtimePreviewAssetPath = importedMetadata.RuntimeFiles?.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
                 return Stale(
                     dependency,
+                    HfHubDependencyReasonCode.ImportMetadataStale,
                     BuildImportMetadataMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, importedMetadata),
                     revisionRefPath,
                     snapshotRoot,
@@ -138,7 +142,7 @@ namespace Doji.AI.ModelHub.Editor
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<HfHubImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
-                return Missing(dependency, "Generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
+                return Missing(dependency, HfHubDependencyReasonCode.RuntimeFilesMissing, "Generated runtime files are missing.", revisionRefPath, snapshotRoot, rawMetadataPath, rawMetadata, runtimePreviewAssetPath, importMetadataAssetPath);
             }
 
             foreach (var runtimeFile in runtimeFiles)
@@ -147,6 +151,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     return Missing(
                         dependency,
+                        HfHubDependencyReasonCode.RuntimeFileMissing,
                         $"Generated runtime file is missing: {runtimeFile.RelativePath ?? runtimeFile.AssetPath}.",
                         revisionRefPath,
                         snapshotRoot,
@@ -161,6 +166,7 @@ namespace Doji.AI.ModelHub.Editor
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Ready,
+                HfHubDependencyReasonCode.None,
                 "Raw repo snapshot and generated runtime files are current.",
                 revisionRefPath,
                 snapshotRoot,
@@ -180,7 +186,8 @@ namespace Doji.AI.ModelHub.Editor
             HfHubDiscoveredModelDependency dependency,
             string importMetadataAbsolutePath,
             string importMetadataAssetPath,
-            string readyMessage,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             out HfHubDependencyStatus status)
         {
             status = null;
@@ -218,7 +225,8 @@ namespace Doji.AI.ModelHub.Editor
             status = new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Ready,
-                readyMessage,
+                reasonCode,
+                maintainerMessage,
                 null,
                 null,
                 null,
@@ -263,19 +271,21 @@ namespace Doji.AI.ModelHub.Editor
 
         private static HfHubDependencyStatus Missing(
             HfHubDiscoveredModelDependency dependency,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
             string sentisAssetPath,
             string importMetadataPath)
         {
-            return Missing(dependency, message, revisionRefPath, rawFilePath, rawMetadataPath, null, sentisAssetPath, importMetadataPath);
+            return Missing(dependency, reasonCode, maintainerMessage, revisionRefPath, rawFilePath, rawMetadataPath, null, sentisAssetPath, importMetadataPath);
         }
 
         private static HfHubDependencyStatus Missing(
             HfHubDiscoveredModelDependency dependency,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
@@ -286,7 +296,8 @@ namespace Doji.AI.ModelHub.Editor
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Missing,
-                message,
+                reasonCode,
+                maintainerMessage,
                 revisionRefPath,
                 rawFilePath,
                 rawMetadataPath,
@@ -298,7 +309,8 @@ namespace Doji.AI.ModelHub.Editor
 
         private static HfHubDependencyStatus Stale(
             HfHubDiscoveredModelDependency dependency,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
@@ -310,7 +322,8 @@ namespace Doji.AI.ModelHub.Editor
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Stale,
-                message,
+                reasonCode,
+                maintainerMessage,
                 revisionRefPath,
                 rawFilePath,
                 rawMetadataPath,
@@ -322,7 +335,8 @@ namespace Doji.AI.ModelHub.Editor
 
         private static HfHubDependencyStatus Failed(
             HfHubDiscoveredModelDependency dependency,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
@@ -331,7 +345,8 @@ namespace Doji.AI.ModelHub.Editor
         {
             return Failed(
                 dependency,
-                message,
+                reasonCode,
+                maintainerMessage,
                 revisionRefPath,
                 rawFilePath,
                 rawMetadataPath,
@@ -342,7 +357,8 @@ namespace Doji.AI.ModelHub.Editor
 
         private static HfHubDependencyStatus Failed(
             HfHubDiscoveredModelDependency dependency,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
@@ -353,7 +369,8 @@ namespace Doji.AI.ModelHub.Editor
             return new HfHubDependencyStatus(
                 dependency,
                 HfHubDependencyState.Failed,
-                message,
+                reasonCode,
+                maintainerMessage,
                 revisionRefPath,
                 rawFilePath,
                 rawMetadataPath,

@@ -127,6 +127,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new HfHubDependencyStatus(
                 dependency,
                 state,
+                state == HfHubDependencyState.Missing ? HfHubDependencyReasonCode.ImportMetadataMissing : HfHubDependencyReasonCode.ImportMetadataStale,
                 state.ToString(),
                 hasRawCache ? "/tmp/cache/refs/main" : null,
                 hasRawCache ? "/tmp/cache/snapshots/commit" : null,

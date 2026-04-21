@@ -81,7 +81,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 HfHubModelHubItemState.Ready,
                 Array.Empty<HfHubDependencyStatus>(),
-                Array.Empty<string>(),
+                Array.Empty<HfHubModelHubDiagnostic>(),
                 Array.Empty<HfHubImportedRuntimeFileMetadata>());
         }
 

@@ -48,6 +48,7 @@ It records:
 - manifest hash
 - repository, requested revision, resolved commit
 - raw snapshot root and raw metadata path
+- persisted import warnings when conversion is partial but still usable
 - generated runtime registry path
 - generated runtime file list
 - Sentis version

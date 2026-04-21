@@ -23,6 +23,7 @@ namespace Doji.AI.ModelHub.Editor
                 .OrderBy(item => item.Repository, StringComparer.Ordinal)
                 .ThenBy(item => item.RequestedRevision, StringComparer.Ordinal)
                 .ToArray();
+            AddRevisionAmbiguityWarnings(items);
 
             return new HfHubModelHubReport(items, statusReport?.DiscoveryIssues ?? Array.Empty<HfHubManifestDiscoveryIssue>());
         }
@@ -41,9 +42,21 @@ namespace Doji.AI.ModelHub.Editor
                 .OrderBy(file => file.AssetPath, StringComparer.Ordinal)
                 .ToArray();
             var diagnostics = dependents
-                .Where(item => item.NeedsAttention && !string.IsNullOrWhiteSpace(item.Message))
-                .Select(item => $"{item.Dependency.PackageDisplayName} / {item.Dependency.ModelId}: {item.Message}")
-                .Distinct(StringComparer.Ordinal)
+                .Where(item => item.NeedsAttention && !string.IsNullOrWhiteSpace(GetUserFacingDependencyMessage(item)))
+                .Select(item => new HfHubModelHubDiagnostic(
+                    GetDependencyDiagnosticSeverity(item.State),
+                    $"{item.Dependency.PackageDisplayName} / {item.Dependency.ModelId}: {GetUserFacingDependencyMessage(item)}"))
+                .Concat(
+                    dependents
+                        .SelectMany(item => item.ImportedMetadata?.Diagnostics ?? Array.Empty<HfHubImportDiagnostic>())
+                        .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic?.Message))
+                        .Select(diagnostic => new HfHubModelHubDiagnostic(
+                            string.IsNullOrWhiteSpace(diagnostic.Severity) ? "info" : diagnostic.Severity,
+                            diagnostic.Message)))
+                .GroupBy(
+                    diagnostic => $"{diagnostic.Severity}\n{diagnostic.Message}",
+                    StringComparer.Ordinal)
+                .Select(grouped => grouped.First())
                 .ToArray();
 
             var runtimeSnapshotAssetPath = primary.ImportedMetadata != null
@@ -96,6 +109,72 @@ namespace Doji.AI.ModelHub.Editor
                 dependents,
                 diagnostics,
                 runtimeFiles);
+        }
+
+        private static string GetDependencyDiagnosticSeverity(HfHubDependencyState state)
+        {
+            return state == HfHubDependencyState.Failed ? "error" : "warning";
+        }
+
+        private static string GetUserFacingDependencyMessage(HfHubDependencyStatus status)
+        {
+            if (status == null)
+            {
+                return null;
+            }
+
+            return status.ReasonCode switch
+            {
+                HfHubDependencyReasonCode.ImportMetadataMissing => "Model needs import into this project.",
+                HfHubDependencyReasonCode.RuntimeFilesMissing => "Generated runtime files are missing. Re-import this model.",
+                HfHubDependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
+                HfHubDependencyReasonCode.RawSnapshotRootMissing => "Cached source files are missing. Download this model again before importing.",
+                HfHubDependencyReasonCode.RawCacheMetadataInvalid => "Cached source metadata is invalid. Download this model again.",
+                HfHubDependencyReasonCode.ImportMetadataInvalid => "Project import metadata is invalid. Re-import this model.",
+                HfHubDependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
+                HfHubDependencyReasonCode.ImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
+                HfHubDependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
+                HfHubDependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
+                HfHubDependencyReasonCode.RawCacheRemovedAfterImport => null,
+                HfHubDependencyReasonCode.RawCacheMetadataMissingAfterImport => null,
+                _ => status.MaintainerMessage
+            };
+        }
+
+        private static string BuildRuntimeFileMissingMessage(string maintainerMessage)
+        {
+            const string prefix = "Generated runtime file is missing:";
+            if (string.IsNullOrWhiteSpace(maintainerMessage) ||
+                !maintainerMessage.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return "Generated runtime file is missing. Re-import this model.";
+            }
+
+            return $"Generated runtime file is missing. Re-import this model. ({maintainerMessage.Substring(prefix.Length).Trim()})";
+        }
+
+        private static void AddRevisionAmbiguityWarnings(IReadOnlyList<HfHubModelHubItem> items)
+        {
+            foreach (var repositoryGroup in items.GroupBy(item => item.Repository, StringComparer.Ordinal))
+            {
+                var revisions = repositoryGroup
+                    .Select(item => item.RequestedRevision)
+                    .Where(revision => !string.IsNullOrWhiteSpace(revision))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(revision => revision, StringComparer.Ordinal)
+                    .ToArray();
+                if (revisions.Length <= 1)
+                {
+                    continue;
+                }
+
+                var warningMessage =
+                    $"Repository revision ambiguity: '{repositoryGroup.Key}' is declared with multiple requested revisions ({string.Join(", ", revisions)}). Runtime output paths are repository-scoped, so verify which revision should own generated artifacts.";
+                foreach (var item in repositoryGroup)
+                {
+                    item.AddDiagnostic(new HfHubModelHubDiagnostic("warning", warningMessage));
+                }
+            }
         }
 
         private static long? CalculateCacheSizeOnDisk(IReadOnlyList<HfHubDependencyStatus> dependents)

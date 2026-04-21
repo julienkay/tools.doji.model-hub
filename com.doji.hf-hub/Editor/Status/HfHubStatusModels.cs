@@ -1,4 +1,5 @@
 using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -32,6 +33,26 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
+    /// Structured explanation for dependency state used by UI and future workflows.
+    /// </summary>
+    internal enum HfHubDependencyReasonCode
+    {
+        None,
+        RawCacheRemovedAfterImport,
+        RawCacheRevisionRefMissing,
+        RawCacheRevisionRefUnreadable,
+        RawSnapshotRootMissing,
+        RawCacheMetadataMissingAfterImport,
+        RawCacheMetadataInvalid,
+        RawCacheMetadataMismatch,
+        ImportMetadataMissing,
+        ImportMetadataInvalid,
+        ImportMetadataStale,
+        RuntimeFilesMissing,
+        RuntimeFileMissing
+    }
+
+    /// <summary>
     /// Captures the currently known local state of one package-declared model dependency.
     /// The <see cref="State"/> enum describes overall integrity, not whether raw cache is present on disk.
     /// </summary>
@@ -43,7 +64,8 @@ namespace Doji.AI.ModelHub.Editor
         public HfHubDependencyStatus(
             HfHubDiscoveredModelDependency dependency,
             HfHubDependencyState state,
-            string message,
+            HfHubDependencyReasonCode reasonCode,
+            string maintainerMessage,
             string revisionRefPath,
             string rawFilePath,
             string rawMetadataPath,
@@ -54,7 +76,8 @@ namespace Doji.AI.ModelHub.Editor
         {
             Dependency = dependency;
             State = state;
-            Message = message;
+            ReasonCode = reasonCode;
+            MaintainerMessage = maintainerMessage;
             RevisionRefPath = revisionRefPath;
             RawFilePath = rawFilePath;
             RawMetadataPath = rawMetadataPath;
@@ -66,7 +89,8 @@ namespace Doji.AI.ModelHub.Editor
 
         public HfHubDiscoveredModelDependency Dependency { get; }
         public HfHubDependencyState State { get; }
-        public string Message { get; }
+        public HfHubDependencyReasonCode ReasonCode { get; }
+        public string MaintainerMessage { get; }
         public string RevisionRefPath { get; }
         public string RawFilePath { get; }
         public string RawMetadataPath { get; }

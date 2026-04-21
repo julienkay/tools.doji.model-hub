@@ -5,6 +5,16 @@ using System.Linq;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
+    /// Stores import-time warnings or errors that should survive later status refreshes.
+    /// </summary>
+    [Serializable]
+    internal sealed class HfHubImportDiagnostic
+    {
+        public string Severity { get; set; }
+        public string Message { get; set; }
+    }
+
+    /// <summary>
     /// Records one generated runtime file inside imported repository snapshot.
     /// </summary>
     [Serializable]
@@ -37,6 +47,7 @@ namespace Doji.AI.ModelHub.Editor
         public string UnityVersion { get; set; }
         public string RuntimeRegistryAssetPath { get; set; }
         public string RuntimeRegistryRelativePath { get; set; }
+        public HfHubImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<HfHubImportDiagnostic>();
         public HfHubImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<HfHubImportedRuntimeFileMetadata>();
         public string ImportedAtUtc { get; set; }
     }

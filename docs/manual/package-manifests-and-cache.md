@@ -87,6 +87,13 @@ For each repository, the window shows:
 - generated runtime asset size on disk and estimated runtime size from import metadata when available
 - manifest and import diagnostics
 
+The diagnostics tab can also show warnings for cases that are still usable but need maintainer attention:
+
+- revision ambiguity when same repository is declared at multiple requested revisions in one project
+- partial ONNX conversion when at least one ONNX file converted successfully but another variant was skipped
+
+Revision ambiguity matters because generated runtime paths are repository-scoped. If multiple revisions of same repo are declared, HF Hub warns so you can decide which revision should own generated artifacts in that project.
+
 Header actions include:
 
 - clickable repository link to open resolved repository page on HuggingFace
@@ -115,7 +122,7 @@ Current sync flow:
 
 Sync runs as an editor background task instead of blocking the editor while downloads are in progress.
 
-If a repo contains multiple ONNX files and Unity Inference cannot convert one variant, HF Hub keeps the repo sync and any successful `.sentis` outputs for the other ONNX files. Sync only fails when a repo contains ONNX files and none of them convert successfully.
+If a repo contains multiple ONNX files and Unity Inference cannot convert one variant, HF Hub keeps the repo sync and any successful `.sentis` outputs for the other ONNX files. HF Hub records that skipped file as import warning in Model Hub diagnostics so later refreshes still show what was only partially converted. Sync only fails when a repo contains ONNX files and none of them convert successfully.
 
 ## Runtime Use
 
@@ -222,6 +229,7 @@ Stored import fields include:
 - raw snapshot root and raw metadata path
 - Sentis version
 - Unity version for diagnostics
+- persisted import warnings such as partial ONNX conversion outcomes
 - generated runtime registry path
 - generated runtime file list
 - import timestamp

@@ -78,6 +78,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(hubReport.Items.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].State, Is.EqualTo(HfHubModelHubItemState.ActionRequired));
+            Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("Model needs import into this project."));
         }
 
         /// <summary>
@@ -128,6 +131,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new HfHubDependencyStatus(
                         dependency,
                         HfHubDependencyState.Ready,
+                        HfHubDependencyReasonCode.RawCacheRemovedAfterImport,
                         "Generated runtime files are present. Raw cache has been removed from this machine.",
                         null,
                         null,
@@ -147,11 +151,76 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].EstimatedRuntimeSizeBytes, Is.EqualTo(6));
         }
 
+        /// <summary>
+        /// Verifies repository rows warn when same repo is declared at multiple requested revisions.
+        /// </summary>
+        [Test]
+        public void BuildReport_AddsRevisionAmbiguityWarningWhenRepositoryExistsAtMultipleRevisions()
+        {
+            var report = new HfHubStatusReport(
+                Array.Empty<HfHubManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus("com.doji.pkg-a", "Package A", "model-a", revision: "main"),
+                    CreateDependencyStatus("com.doji.pkg-b", "Package B", "model-b", revision: "refs/pr/7")
+                });
+
+            var hubReport = new HfHubModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(2));
+            Assert.That(hubReport.Items[0].State, Is.EqualTo(HfHubModelHubItemState.Ready));
+            Assert.That(hubReport.Items[1].State, Is.EqualTo(HfHubModelHubItemState.Ready));
+            Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[1].Diagnostics.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(hubReport.Items[1].Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("revision ambiguity"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("main"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("refs/pr/7"));
+            Assert.That(hubReport.Items[1].Diagnostics[0].Message, Is.EqualTo(hubReport.Items[0].Diagnostics[0].Message));
+        }
+
+        /// <summary>
+        /// Verifies ready dependencies can still surface persisted import warnings in Model Hub diagnostics.
+        /// </summary>
+        [Test]
+        public void BuildReport_IncludesPersistedImportWarningsForReadyRepositoryItems()
+        {
+            var report = new HfHubStatusReport(
+                Array.Empty<HfHubManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        importedDiagnostics: new[]
+                        {
+                            new HfHubImportDiagnostic
+                            {
+                                Severity = "warning",
+                                Message = "Partial ONNX conversion: skipped model_bnb4.onnx because unsupported operators remain."
+                            }
+                        })
+                });
+
+            var hubReport = new HfHubModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].State, Is.EqualTo(HfHubModelHubItemState.Ready));
+            Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("Partial ONNX conversion"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("model_bnb4.onnx"));
+        }
+
         private static HfHubDependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
             string modelId,
-            HfHubDependencyState state = HfHubDependencyState.Ready)
+            HfHubDependencyState state = HfHubDependencyState.Ready,
+            string revision = "main",
+            HfHubImportDiagnostic[] importedDiagnostics = null)
         {
             var dependency = new HfHubDiscoveredModelDependency(
                 packageId,
@@ -162,7 +231,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 $"{packageId}-hash",
                 new HfHubModelDependencyDefinition(
                     "doji/test-model",
-                    "main"));
+                    revision));
 
             var metadata = new HfHubImportedModelMetadata
             {
@@ -171,12 +240,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ModelId = modelId,
                 ManifestHash = $"{packageId}-hash",
                 Repository = "doji/test-model",
-                RequestedRevision = "main",
+                RequestedRevision = revision,
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                 RawCacheSizeInBytes = 12,
                 RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{packageId}/hf-hub-runtime.json",
+                Diagnostics = importedDiagnostics ?? Array.Empty<HfHubImportDiagnostic>(),
                 RuntimeFiles = new[]
                 {
                     new HfHubImportedRuntimeFileMetadata
@@ -193,14 +263,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new HfHubDependencyStatus(
                 dependency,
                 state,
-                state == HfHubDependencyState.Ready ? "Ready." : "Missing import metadata file is missing.",
-                "/cache/doji/test-model/refs/main",
+                state == HfHubDependencyState.Ready ? HfHubDependencyReasonCode.None : HfHubDependencyReasonCode.ImportMetadataMissing,
+                state == HfHubDependencyState.Ready ? "Ready." : "Import metadata file is missing.",
+                $"/cache/doji/test-model/refs/{revision}",
                 "/cache/doji/test-model/abc123",
                 "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                 new HfHubRawCacheMetadata
                 {
                     Repository = "doji/test-model",
-                    RequestedRevision = "main",
+                    RequestedRevision = revision,
                     ResolvedCommitHash = "abc123",
                     Files = new[]
                     {

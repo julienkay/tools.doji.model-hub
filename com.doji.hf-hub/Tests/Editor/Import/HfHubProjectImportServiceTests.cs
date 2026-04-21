@@ -41,7 +41,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
 
             Assert.That(artifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
-            Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.MetadataFilePath)), Is.True);
+            Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.BindingMetadataFilePath)), Is.True);
             Assert.That(File.Exists(HfHubProjectPaths.ToProjectAbsolutePath(artifact.SharedMetadataFilePath)), Is.True);
             Assert.That(artifact.Metadata.PackageId, Is.EqualTo("com.doji.test"));
             Assert.That(artifact.Metadata.ModelId, Is.EqualTo("doji/test-model"));
@@ -73,7 +73,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var secondArtifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
 
             Assert.That(secondArtifact.SnapshotRootAssetPath, Is.EqualTo(firstArtifact.SnapshotRootAssetPath));
-            Assert.That(secondArtifact.MetadataFilePath, Is.EqualTo(firstArtifact.MetadataFilePath));
+            Assert.That(secondArtifact.BindingMetadataFilePath, Is.EqualTo(firstArtifact.BindingMetadataFilePath));
             Assert.That(secondArtifact.SharedMetadataFilePath, Is.EqualTo(firstArtifact.SharedMetadataFilePath));
             Assert.That(secondArtifact.Metadata.ImportedAtUtc, Is.EqualTo(firstTimestamp));
         }
@@ -95,10 +95,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(converter.CallCount, Is.EqualTo(1));
             Assert.That(firstArtifact.SharedMetadataFilePath, Is.EqualTo(secondArtifact.SharedMetadataFilePath));
-            Assert.That(firstArtifact.MetadataFilePath, Is.Not.EqualTo(secondArtifact.MetadataFilePath));
+            Assert.That(firstArtifact.BindingMetadataFilePath, Is.Not.EqualTo(secondArtifact.BindingMetadataFilePath));
             Assert.That(secondArtifact.Metadata.PackageId, Is.EqualTo("com.doji.other"));
             Assert.That(secondArtifact.Metadata.ManifestHash, Is.EqualTo("other-manifest-hash"));
             Assert.That(secondArtifact.Metadata.SharedImportMetadataPath, Is.EqualTo(firstArtifact.Metadata.SharedImportMetadataPath));
+        }
+
+        /// <summary>
+        /// Verifies invalid shared import metadata triggers fresh conversion on next import.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReconvertsWhenSharedMetadataJsonIsInvalid()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new HfHubProjectImportService(converter);
+            var dependency = CreateDependency();
+            var cachedSnapshot = CreateCachedSnapshot();
+
+            var firstArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+            File.WriteAllText(HfHubProjectPaths.ToProjectAbsolutePath(firstArtifact.SharedMetadataFilePath), "{ invalid json");
+
+            var secondArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(converter.CallCount, Is.EqualTo(2));
+            Assert.That(secondArtifact.SharedMetadataFilePath, Is.EqualTo(firstArtifact.SharedMetadataFilePath));
+            Assert.That(secondArtifact.Metadata.BindingMetadataPath, Is.EqualTo(firstArtifact.Metadata.BindingMetadataPath));
         }
 
         /// <summary>

@@ -506,9 +506,9 @@ namespace Doji.AI.ModelHub.Editor
             string rawFilePath,
             string rawMetadataPath,
             string sentisAssetPath,
-            string importMetadataPath)
+            string bindingMetadataPath)
         {
-            return Missing(dependency, reasonCode, maintainerMessage, revisionRefPath, rawFilePath, rawMetadataPath, null, sentisAssetPath, importMetadataPath);
+            return Missing(dependency, reasonCode, maintainerMessage, revisionRefPath, rawFilePath, rawMetadataPath, null, sentisAssetPath, bindingMetadataPath);
         }
 
         private static HfHubDependencyStatus Missing(
@@ -520,7 +520,7 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath,
+            string bindingMetadataPath,
             HfHubImportedModelMetadata importedMetadata = null)
         {
             return new HfHubDependencyStatus(
@@ -533,7 +533,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadataPath,
                 rawMetadata,
                 sentisAssetPath,
-                importMetadataPath,
+                bindingMetadataPath,
                 importedMetadata);
         }
 
@@ -546,7 +546,7 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath,
+            string bindingMetadataPath,
             HfHubImportedModelMetadata importedMetadata = null)
         {
             return new HfHubDependencyStatus(
@@ -559,7 +559,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadataPath,
                 rawMetadata,
                 sentisAssetPath,
-                importMetadataPath,
+                bindingMetadataPath,
                 importedMetadata);
         }
 
@@ -571,7 +571,7 @@ namespace Doji.AI.ModelHub.Editor
             string rawFilePath,
             string rawMetadataPath,
             string sentisAssetPath,
-            string importMetadataPath)
+            string bindingMetadataPath)
         {
             return Failed(
                 dependency,
@@ -582,7 +582,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadataPath,
                 null,
                 sentisAssetPath,
-                importMetadataPath);
+                bindingMetadataPath);
         }
 
         private static HfHubDependencyStatus Failed(
@@ -594,7 +594,7 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath,
+            string bindingMetadataPath,
             HfHubImportedModelMetadata importedMetadata = null)
         {
             return new HfHubDependencyStatus(
@@ -607,7 +607,7 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadataPath,
                 rawMetadata,
                 sentisAssetPath,
-                importMetadataPath,
+                bindingMetadataPath,
                 importedMetadata);
         }
     }

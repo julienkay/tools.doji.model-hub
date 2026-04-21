@@ -125,6 +125,21 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         [Test]
+        public void BuildStatusReport_ReturnsFailedWhenSharedImportMetadataIsInvalid()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency);
+            WriteInvalidSharedMetadata(dependency);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.FailedCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(HfHubDependencyReasonCode.SharedImportMetadataInvalid));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Shared import metadata is invalid."));
+        }
+
+        [Test]
         public void BuildStatusReport_ReturnsMissingWhenGeneratedRuntimeFileIsAbsent()
         {
             var dependency = CreateDependency();
@@ -305,6 +320,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 File.Delete(sharedMetadataAbsolutePath);
             }
+        }
+
+        private static void WriteInvalidSharedMetadata(HfHubDiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var sharedMetadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(
+                HfHubProjectPaths.GetSharedImportMetadataFilePath(
+                    dependency.Repository,
+                    commitHash,
+                    HfHubStatusService.GetCurrentSentisVersion()));
+            File.WriteAllText(sharedMetadataAbsolutePath, "{ invalid json");
         }
 
         private static void CleanupProjectArtifacts()

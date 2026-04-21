@@ -126,7 +126,6 @@ namespace Doji.AI.ModelHub.Editor
             return status.ReasonCode switch
             {
                 HfHubDependencyReasonCode.ImportBindingMissing => "Model needs import into this project.",
-                HfHubDependencyReasonCode.ImportMetadataMissing => "Model needs import into this project.",
                 HfHubDependencyReasonCode.SharedImportMetadataMissing => "Generated runtime artifacts are missing. Re-import this model.",
                 HfHubDependencyReasonCode.RuntimeFilesMissing => "Generated runtime files are missing. Re-import this model.",
                 HfHubDependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
@@ -134,11 +133,9 @@ namespace Doji.AI.ModelHub.Editor
                 HfHubDependencyReasonCode.RawCacheMetadataInvalid => "Cached source metadata is invalid. Download this model again.",
                 HfHubDependencyReasonCode.ImportBindingInvalid => "Project import binding metadata is invalid. Re-import this model.",
                 HfHubDependencyReasonCode.SharedImportMetadataInvalid => "Generated runtime metadata is invalid. Re-import this model.",
-                HfHubDependencyReasonCode.ImportMetadataInvalid => "Project import metadata is invalid. Re-import this model.",
                 HfHubDependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
                 HfHubDependencyReasonCode.ImportBindingStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 HfHubDependencyReasonCode.SharedImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
-                HfHubDependencyReasonCode.ImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 HfHubDependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
                 HfHubDependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
                 HfHubDependencyReasonCode.RawCacheRemovedAfterImport => null,

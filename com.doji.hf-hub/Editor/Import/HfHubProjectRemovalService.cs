@@ -29,12 +29,12 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var dependent in item.Dependents)
             {
-                if (string.IsNullOrWhiteSpace(dependent.ImportMetadataPath))
+                if (string.IsNullOrWhiteSpace(dependent.BindingMetadataPath))
                 {
                     continue;
                 }
 
-                var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(dependent.ImportMetadataPath);
+                var metadataAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(dependent.BindingMetadataPath);
                 if (File.Exists(metadataAbsolutePath))
                 {
                     File.Delete(metadataAbsolutePath);
@@ -234,7 +234,7 @@ namespace Doji.AI.ModelHub.Editor
                     null,
                     new HfHubImportedModelArtifact(
                         HfHubProjectPaths.GetRuntimeSnapshotFolder(status.Dependency.Repository, status.ImportedMetadata.ResolvedCommitHash),
-                        status.ImportMetadataPath,
+                        status.BindingMetadataPath,
                         status.ImportedMetadata,
                         status.ImportedMetadata.SharedImportMetadataPath),
                     null))

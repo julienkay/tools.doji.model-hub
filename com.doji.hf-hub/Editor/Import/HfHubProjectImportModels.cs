@@ -101,18 +101,18 @@ namespace Doji.AI.ModelHub.Editor
     {
         public HfHubImportedModelArtifact(
             string snapshotRootAssetPath,
-            string metadataFilePath,
+            string bindingMetadataFilePath,
             HfHubImportedModelMetadata metadata,
             string sharedMetadataFilePath = null)
         {
             SnapshotRootAssetPath = snapshotRootAssetPath;
-            MetadataFilePath = metadataFilePath;
+            BindingMetadataFilePath = bindingMetadataFilePath;
             Metadata = metadata;
             SharedMetadataFilePath = sharedMetadataFilePath;
         }
 
         public string SnapshotRootAssetPath { get; }
-        public string MetadataFilePath { get; }
+        public string BindingMetadataFilePath { get; }
         public string SharedMetadataFilePath { get; }
         public HfHubImportedModelMetadata Metadata { get; }
         public string RuntimeRegistryAssetPath => Metadata?.RuntimeRegistryAssetPath;

@@ -50,9 +50,6 @@ namespace Doji.AI.ModelHub.Editor
         SharedImportMetadataMissing,
         SharedImportMetadataInvalid,
         SharedImportMetadataStale,
-        ImportMetadataMissing,
-        ImportMetadataInvalid,
-        ImportMetadataStale,
         RuntimeFilesMissing,
         RuntimeFileMissing
     }
@@ -76,7 +73,7 @@ namespace Doji.AI.ModelHub.Editor
             string rawMetadataPath,
             HfHubRawCacheMetadata rawMetadata,
             string sentisAssetPath,
-            string importMetadataPath,
+            string bindingMetadataPath,
             HfHubImportedModelMetadata importedMetadata)
         {
             Dependency = dependency;
@@ -88,7 +85,7 @@ namespace Doji.AI.ModelHub.Editor
             RawMetadataPath = rawMetadataPath;
             RawMetadata = rawMetadata;
             SentisAssetPath = sentisAssetPath;
-            ImportMetadataPath = importMetadataPath;
+            BindingMetadataPath = bindingMetadataPath;
             ImportedMetadata = importedMetadata;
         }
 
@@ -101,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RawMetadataPath { get; }
         public HfHubRawCacheMetadata RawMetadata { get; }
         public string SentisAssetPath { get; }
-        public string ImportMetadataPath { get; }
+        public string BindingMetadataPath { get; }
         public HfHubImportedModelMetadata ImportedMetadata { get; }
         public bool NeedsAttention => State != HfHubDependencyState.Ready;
     }

@@ -60,14 +60,6 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns owner-binding metadata path. Kept as canonical import metadata entry point.
-        /// </summary>
-        public static string GetImportMetadataFilePath(string packageId, string modelId)
-        {
-            return GetImportBindingMetadataFilePath(packageId, modelId);
-        }
-
-        /// <summary>
         /// Returns legacy monolithic import folder used before shared import split.
         /// </summary>
         public static string GetLegacyImportStateFolder(string packageId, string modelId)

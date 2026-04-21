@@ -195,7 +195,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             File.WriteAllText(Path.Combine(snapshotRoot, "model.onnx"), "onnx");
         }
 
-        private static void WriteBinding(string packageId, string modelId, string manifestHash, string sharedMetadataPath)
+        private static void WriteBinding(string packageId, string modelId, string manifestHash, string sharedMetadataPath, string sentisVersion = "sentis-test")
         {
             var bindingAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(HfHubProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId));
             Directory.CreateDirectory(Path.GetDirectoryName(bindingAbsolutePath) ?? throw new InvalidOperationException());
@@ -208,7 +208,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Repository = modelId,
                 RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
-                SentisVersion = "sentis-test",
+                SentisVersion = sentisVersion,
                 SharedImportMetadataPath = sharedMetadataPath,
                 RuntimeRegistryAssetPath = HfHubProjectPaths.GetRuntimeRegistryAssetPath(packageId),
                 RuntimeRegistryRelativePath = HfHubProjectPaths.ToStreamingAssetsRelativePath(HfHubProjectPaths.GetRuntimeRegistryAssetPath(packageId)),
@@ -216,7 +216,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }));
         }
 
-        private static void WriteSharedImport(string sharedMetadataPath)
+        private static void WriteSharedImport(string sharedMetadataPath, string sentisVersion = "sentis-test")
         {
             var sharedAbsolutePath = HfHubProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
             Directory.CreateDirectory(Path.GetDirectoryName(sharedAbsolutePath) ?? throw new InvalidOperationException());
@@ -231,7 +231,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
-                SentisVersion = "sentis-test",
+                SentisVersion = sentisVersion,
                 RuntimeSnapshotAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model",
                 RuntimeFiles = new[]
                 {
@@ -246,6 +246,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             }));
         }
+
 
         private static void DeleteAssetIfExists(string assetPath)
         {

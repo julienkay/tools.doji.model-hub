@@ -2,13 +2,11 @@
 
 ## Focus
 
-Refactor runtime IO and path access so package-owned core code stays runtime-safe outside editor-only adapters.
+No active implementation slice locked yet. Next session should pick one item from backlog instead of resuming stale planned work.
 
 ## Next Tasks
 
-- [ ] Replace editor-coupled file/path access in package-owned core flow with runtime-safe abstractions and keep UnityEditor adapters at the edges.
-- [ ] Audit discovery, cache, and import code for editor-only path assumptions after the IO split so future runtime download work can reuse the same services.
-- [ ] Then do manifest v2 for filtered snapshot download so large HuggingFace repos do not require full snapshot pulls.
+- [ ] Choose next active slice from `.codex/backlog.md` before editing code.
 
 ## Blockers And Decisions Needed
 
@@ -16,5 +14,4 @@ Refactor runtime IO and path access so package-owned core code stays runtime-saf
 
 ## Read Before Editing
 
-- [Import And Generated Assets](./architecture/import-and-generated-assets.md)
-- [Runtime Locator](./architecture/runtime-locator.md)
+- [.codex/backlog.md](./backlog.md)

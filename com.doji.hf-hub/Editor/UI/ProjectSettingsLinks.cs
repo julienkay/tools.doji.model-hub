@@ -199,10 +199,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var normalizedManifestPath = NormalizePath(dependency.ManifestPath);
             var assetPath = TryGetProjectAssetPath(normalizedManifestPath);
-            if (string.Equals(
-                    dependency.PackageId,
-                    ProjectManifestDiscovery.ProjectManifestOwnerId,
-                    StringComparison.Ordinal) ||
+            if (ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId) ||
                 IsProjectAssetPath(assetPath))
             {
                 return new ManifestOwnerResolutionInfo(
@@ -308,8 +305,11 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var dependency = dependent.Dependency;
                 var resolutionInfo = GetManifestOwnerResolutionInfo(dependency);
+                var ownerLabel = ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId)
+                    ? ProjectManifestDiscovery.GetOwnerDisplayName(dependency.PackageId, dependency.PackageDisplayName)
+                    : $"{dependency.PackageId} {dependency.PackageVersion}";
                 builder.AppendLine(
-                    $"- {resolutionInfo.OwnerTypeLabel}: {dependency.PackageDisplayName} ({dependency.PackageId} {dependency.PackageVersion})");
+                    $"- {resolutionInfo.OwnerTypeLabel}: {dependency.PackageDisplayName} ({ownerLabel})");
                 builder.AppendLine($"  model: {dependency.ModelId}");
                 builder.AppendLine($"  requested revision: {dependency.Revision}");
                 builder.AppendLine($"  manifest: {GetDisplayPath(dependency.ManifestPath)}");

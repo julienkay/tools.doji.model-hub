@@ -40,11 +40,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void BuildReport_PreservesOwnerSpecificRuntimeRegistryPathsOnDependents()
         {
+            var projectOwnerId = ProjectManifestDiscovery.GetOwnerId(
+                "5a899f24b6fd4a1ba127ab1a1b267c7e",
+                "Assets/HF Hub/HF Hub Project Manifest.asset",
+                null);
             var report = new StatusReport(
                 Array.Empty<ManifestDiscoveryIssue>(),
                 new[]
                 {
-                    CreateDependencyStatus("project", "Project", "model-a"),
+                    CreateDependencyStatus(projectOwnerId, "Project", "model-a"),
                     CreateDependencyStatus("com.doji.pkg-b", "Package B", "model-b")
                 });
 
@@ -57,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/com.doji.pkg-b/hf-hub-runtime.json"));
             Assert.That(
                 hubReport.Items[0].Dependents[1].ImportedMetadata?.RuntimeRegistryAssetPath,
-                Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/project/hf-hub-runtime.json"));
+                Is.EqualTo(ProjectPaths.GetRuntimeRegistryAssetPath(projectOwnerId)));
         }
 
         /// <summary>

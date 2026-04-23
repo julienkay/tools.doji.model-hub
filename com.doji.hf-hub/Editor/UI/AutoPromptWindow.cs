@@ -382,11 +382,8 @@ namespace Doji.AI.ModelHub.Editor
                 return string.Empty;
             }
 
-            return string.Equals(
-                dependency.PackageId,
-                ProjectManifestDiscovery.ProjectManifestOwnerId,
-                System.StringComparison.Ordinal)
-                ? dependency.PackageDisplayName
+            return ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId)
+                ? ProjectManifestDiscovery.GetOwnerDisplayName(dependency.PackageId, dependency.PackageDisplayName)
                 : dependency.PackageId;
         }
 
@@ -539,10 +536,7 @@ namespace Doji.AI.ModelHub.Editor
                 return string.Empty;
             }
 
-            return string.Equals(
-                dependent.PackageId,
-                ProjectManifestDiscovery.ProjectManifestOwnerId,
-                System.StringComparison.Ordinal)
+            return ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
                 ? Content.ProjectLeadText
                 : Content.PackageLeadText;
         }
@@ -590,20 +584,14 @@ namespace Doji.AI.ModelHub.Editor
                 return string.Empty;
             }
 
-            return string.Equals(
-                dependent.PackageId,
-                ProjectManifestDiscovery.ProjectManifestOwnerId,
-                System.StringComparison.Ordinal)
+            return ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
                 ? "The "
                 : "Package ";
         }
 
         private void DrawSentenceLink(DependentPromptEntry dependent)
         {
-            var ownerText = string.Equals(
-                dependent.PackageId,
-                ProjectManifestDiscovery.ProjectManifestOwnerId,
-                System.StringComparison.Ordinal)
+            var ownerText = ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
                 ? "project manifest"
                 : dependent.DisplayLabel;
 

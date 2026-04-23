@@ -2,13 +2,13 @@
 
 ## Focus
 
-Fix project-manifest owner ids now that strict same-repo revision conflicts are blocked in status, sync, editor UX, and tests.
+Refactor runtime IO and path access so package-owned core code stays runtime-safe outside editor-only adapters.
 
 ## Next Tasks
 
-- [ ] Give each project manifest asset a stable owner id so bindings, registries, and sync keys stop collapsing to `project`.
-- [ ] Fix runtime IO abstraction next. Mission says runtime-safe core; current path contract fights that.
-- [ ] Then do manifest v2 for filtered snapshot download. Without this, real HF repos get painful fast.
+- [ ] Replace editor-coupled file/path access in package-owned core flow with runtime-safe abstractions and keep UnityEditor adapters at the edges.
+- [ ] Audit discovery, cache, and import code for editor-only path assumptions after the IO split so future runtime download work can reuse the same services.
+- [ ] Then do manifest v2 for filtered snapshot download so large HuggingFace repos do not require full snapshot pulls.
 
 ## Blockers And Decisions Needed
 
@@ -16,7 +16,5 @@ Fix project-manifest owner ids now that strict same-repo revision conflicts are 
 
 ## Read Before Editing
 
-- [Backlog](./backlog.md)
 - [Import And Generated Assets](./architecture/import-and-generated-assets.md)
-- [Editor Model Hub UI](./architecture/editor-model-hub-ui.md)
 - [Runtime Locator](./architecture/runtime-locator.md)

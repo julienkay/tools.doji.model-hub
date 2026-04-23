@@ -77,6 +77,8 @@ Use `Window > AI Model Hub` to inspect declared and imported repositories.
 
 The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
 
+Project manifest assets still show as `Project` in editor UI, but HF Hub now tracks each manifest asset as its own owner for bindings, registries, and stale/removal checks.
+
 For each repository, the window shows:
 
 - local state

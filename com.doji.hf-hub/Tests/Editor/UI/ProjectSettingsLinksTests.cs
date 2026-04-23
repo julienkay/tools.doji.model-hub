@@ -56,6 +56,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void BuildManifestLocateTargets_DeduplicatesManifestPaths()
         {
             var sharedManifestPath = "Packages/com.doji.pkg/hf-hub-manifest.json";
+            var projectOwnerId = CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e");
             var item = new ModelHubItem(
                 "hf-internal-testing/tiny-random-bert",
                 "main",
@@ -71,7 +72,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     CreateDependencyStatus("com.doji.beta", "Beta", "beta-model", sharedManifestPath),
                     CreateDependencyStatus("com.doji.alpha", "Alpha", "alpha-model", sharedManifestPath),
-                    CreateDependencyStatus("project", "Project", "project-model", "Assets/HF Hub/HF Hub Project Manifest.asset")
+                    CreateDependencyStatus(projectOwnerId, "Project", "project-model", "Assets/HF Hub/HF Hub Project Manifest.asset")
                 },
                 Array.Empty<ModelHubDiagnostic>(),
                 Array.Empty<ImportedRuntimeFileMetadata>());
@@ -125,6 +126,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "com.doji.pkg@1.2.3");
+            var projectOwnerId = CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e");
             var item = new ModelHubItem(
                 "doji/test-model",
                 "main",
@@ -139,7 +141,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new[]
                 {
                     CreateDependencyStatus(
-                        "project",
+                        projectOwnerId,
                         "Project",
                         "project-model",
                         "Assets/HF Hub/HF Hub Project Manifest.asset",
@@ -200,6 +202,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null);
+        }
+
+        private static string CreateProjectOwnerId(string assetGuid)
+        {
+            return ProjectManifestDiscovery.GetOwnerId(assetGuid, "Assets/HF Hub/HF Hub Project Manifest.asset", null);
         }
     }
 }

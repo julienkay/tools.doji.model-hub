@@ -143,7 +143,10 @@ namespace Doji.AI.ModelHub.Editor
             foreach (var packageGroup in report.DependencyStatuses.GroupBy(status => status.Dependency.PackageId).OrderBy(group => group.Key))
             {
                 var firstStatus = packageGroup.First();
-                builder.AppendLine($"- {firstStatus.Dependency.PackageDisplayName} ({firstStatus.Dependency.PackageId} {firstStatus.Dependency.PackageVersion})");
+                var ownerLabel = ProjectManifestDiscovery.IsProjectManifestOwnerId(firstStatus.Dependency.PackageId)
+                    ? ProjectManifestDiscovery.GetOwnerDisplayName(firstStatus.Dependency.PackageId, firstStatus.Dependency.PackageDisplayName)
+                    : $"{firstStatus.Dependency.PackageDisplayName} ({firstStatus.Dependency.PackageId} {firstStatus.Dependency.PackageVersion})";
+                builder.AppendLine($"- {ownerLabel}");
 
                 foreach (var status in packageGroup.OrderBy(item => item.Dependency.ModelId))
                 {
@@ -157,7 +160,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.AppendLine("Discovery issues:");
                 foreach (var issue in report.DiscoveryIssues.OrderBy(issue => issue.PackageId).ThenBy(issue => issue.ManifestPath))
                 {
-                    builder.AppendLine($"- {issue.PackageId}: {issue.Message}");
+                    builder.AppendLine($"- {ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId)}: {issue.Message}");
                 }
             }
 
@@ -193,6 +196,9 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var result in report.ModelResults.OrderBy(result => result.Dependency.PackageId).ThenBy(result => result.Dependency.ModelId))
             {
+                var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(
+                    result.Dependency.PackageId,
+                    result.Dependency.PackageId);
                 if (result.Success)
                 {
                     var rawSnapshotPath = result.CachedFile?.SnapshotRootPath;
@@ -200,13 +206,13 @@ namespace Doji.AI.ModelHub.Editor
                         .FirstOrDefault(file => file.Kind == "sentis")
                         ?.AssetPath;
 
-                    builder.AppendLine($"- OK {result.Dependency.PackageId}/{result.Dependency.ModelId}");
+                    builder.AppendLine($"- OK {ownerLabel}/{result.Dependency.ModelId}");
                     builder.AppendLine($"  raw snapshot: {rawSnapshotPath ?? "<unknown>"}");
                     builder.AppendLine($"  runtime sentis: {sentisArtifactPath ?? "<none generated>"}");
                 }
                 else
                 {
-                    builder.AppendLine($"- FAIL {result.Dependency.PackageId}/{result.Dependency.ModelId}");
+                    builder.AppendLine($"- FAIL {ownerLabel}/{result.Dependency.ModelId}");
                     builder.AppendLine($"  {result.ErrorMessage}");
                 }
             }
@@ -216,7 +222,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.AppendLine("Discovery issues:");
                 foreach (var issue in report.DiscoveryIssues.OrderBy(issue => issue.PackageId).ThenBy(issue => issue.ManifestPath))
                 {
-                    builder.AppendLine($"- {issue.PackageId}: {issue.Message}");
+                    builder.AppendLine($"- {ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId)}: {issue.Message}");
                 }
             }
 

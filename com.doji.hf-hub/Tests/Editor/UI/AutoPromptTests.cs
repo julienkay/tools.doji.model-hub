@@ -36,6 +36,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies stable project owner ids still render as Project in prompt UI.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_UsesProjectLabelForProjectManifestOwners()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Missing,
+                        packageId: ProjectManifestDiscovery.GetOwnerId(
+                            "5a899f24b6fd4a1ba127ab1a1b267c7e",
+                            "Assets/HF Hub/HF Hub Project Manifest.asset",
+                            null),
+                        packageDisplayName: "Project",
+                        packageVersion: "project",
+                        packageResolvedPath: "/tmp/project",
+                        manifestPath: "/tmp/project/Assets/HF Hub/HF Hub Project Manifest.asset")
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("Project"));
+        }
+
+        /// <summary>
         /// Verifies single-repository prompt uses import wording when files already exist in cache.
         /// </summary>
         [Test]
@@ -82,7 +110,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = new StatusReport(
                 new[]
                 {
-                    new ManifestDiscoveryIssue("project", "manifest", "Issue")
+                    new ManifestDiscoveryIssue(
+                        ProjectManifestDiscovery.GetOwnerId(
+                            "5a899f24b6fd4a1ba127ab1a1b267c7e",
+                            "Assets/HF Hub/HF Hub Project Manifest.asset",
+                            null),
+                        "manifest",
+                        "Issue")
                 },
                 new[]
                 {

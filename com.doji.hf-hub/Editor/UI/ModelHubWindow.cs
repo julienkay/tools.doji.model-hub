@@ -705,10 +705,13 @@ namespace Doji.AI.ModelHub.Editor
                 var resolutionInfo = item.HasRevisionConflict
                     ? ProjectSettingsLinks.GetManifestOwnerResolutionInfo(dependent.Dependency)
                     : default;
+                var ownerLabel = ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.Dependency.PackageId)
+                    ? ProjectManifestDiscovery.GetOwnerDisplayName(dependent.Dependency.PackageId, dependent.Dependency.PackageDisplayName)
+                    : $"{dependent.Dependency.PackageId} {dependent.Dependency.PackageVersion}";
                 EditorGUILayout.LabelField(
                     $"{dependent.Dependency.PackageDisplayName} / {dependent.Dependency.ModelId}",
                     EditorStyles.boldLabel);
-                EditorGUILayout.LabelField(Content.OwnerLabel, $"{dependent.Dependency.PackageId} {dependent.Dependency.PackageVersion}");
+                EditorGUILayout.LabelField(Content.OwnerLabel, ownerLabel);
                 if (item.HasRevisionConflict)
                 {
                     EditorGUILayout.LabelField(Content.OwnerSourceLabel, resolutionInfo.OwnerTypeLabel);
@@ -796,7 +799,8 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var issue in _report.DiscoveryIssues)
             {
-                EditorGUILayout.HelpBox($"{issue.PackageId}: {issue.Message}", MessageType.Warning);
+                var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId);
+                EditorGUILayout.HelpBox($"{ownerLabel}: {issue.Message}", MessageType.Warning);
             }
         }
 

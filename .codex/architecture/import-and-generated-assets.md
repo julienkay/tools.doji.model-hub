@@ -110,7 +110,4 @@ Current rule:
 - owner binding key = `packageId + modelId`
 
 That lets multiple owners reuse one generated repo artifact while keeping per-owner manifest-hash validation and per-owner runtime locator registries.
-
-Current limitation:
-
-- project manifest assets currently all use owner id `project`, so owner binding identity is not yet unique per project manifest asset
+- project manifest assets use stable per-asset owner ids, so repeated project manifests can share repo artifacts without collapsing binding identity

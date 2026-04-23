@@ -121,12 +121,12 @@ namespace Doji.AI.ModelHub.Editor
                             results.Add(ModelSyncResult.CreateRevisionConflictFailure(dependency, revisionConflict));
                             operationContext.ReportProgress(
                                 totalCount == 0 ? 1f : (index + 1f) / totalCount,
-                                $"Blocked {dependency.PackageId}/{dependency.ModelId}");
+                                $"Blocked {GetDependencyDisplayLabel(dependency)}");
                             return;
                         }
 
                         var baseProgress = totalCount == 0 ? 1f : index / (float)totalCount;
-                        operationContext.ReportProgress(baseProgress, $"Preparing {dependency.PackageId}/{dependency.ModelId}");
+                        operationContext.ReportProgress(baseProgress, $"Preparing {GetDependencyDisplayLabel(dependency)}");
 
                         var downloadProgress = new Progress<DownloadProgress>(progress =>
                         {
@@ -158,7 +158,7 @@ namespace Doji.AI.ModelHub.Editor
                     results.Add(new ModelSyncResult(activeDependency, null, null, exception.Message));
                     context.QueueOnMainThread(() =>
                     {
-                        UnityEngine.Debug.LogError($"HF Hub sync failed for {activeDependency.PackageId}/{activeDependency.ModelId}: {exception.Message}");
+                        UnityEngine.Debug.LogError($"HF Hub sync failed for {GetDependencyDisplayLabel(activeDependency)}: {exception.Message}");
                         Fail(state, new SyncReport(discoveryReport.Issues, results));
                     });
                     return false;
@@ -214,6 +214,19 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return $"Downloading {dependency.ModelId} ({progress.DownloadedBytes / 1024f / 1024f:0.0} MB)";
+        }
+
+        internal static string GetDependencyDisplayLabel(DiscoveredModelDependency dependency)
+        {
+            if (dependency == null)
+            {
+                return string.Empty;
+            }
+
+            var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(
+                dependency.PackageId,
+                dependency.PackageId);
+            return $"{ownerLabel}/{dependency.ModelId}";
         }
 
         /// <summary>

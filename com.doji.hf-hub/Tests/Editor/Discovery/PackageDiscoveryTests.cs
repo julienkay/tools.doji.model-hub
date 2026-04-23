@@ -206,7 +206,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
 
             var dependency = report.Dependencies[0];
-            Assert.That(dependency.PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectManifestOwnerId));
+            Assert.That(
+                dependency.PackageId,
+                Is.EqualTo(ProjectManifestDiscovery.GetOwnerId(null, snapshot.AssetPath, snapshot.ManifestPath)));
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId), Is.True);
             Assert.That(dependency.PackageDisplayName, Is.EqualTo("Project"));
             Assert.That(dependency.PackageVersion, Is.EqualTo("project"));
             Assert.That(dependency.Repository, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
@@ -218,6 +221,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void DiscoverProjectManifests_ReportsInvalidProjectManifestAsset()
         {
+            const string assetGuid = "d8adf79a35f94f26a1bd188d74e7298f";
             var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
             SetProjectManifest(asset, 1, new[]
             {
@@ -232,14 +236,66 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Assets/HF Hub/Broken Manifest.asset",
                 Path.Combine(_rootDirectory, "Assets", "HF Hub", "Broken Manifest.asset"),
                 _rootDirectory,
-                asset);
+                asset,
+                assetGuid);
 
             var report = ProjectManifestDiscovery.DiscoverProjectManifests(new[] { snapshot });
 
             Assert.That(report.Dependencies, Is.Empty);
             Assert.That(report.Issues.Count, Is.EqualTo(1));
-            Assert.That(report.Issues[0].PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectManifestOwnerId));
+            Assert.That(
+                report.Issues[0].PackageId,
+                Is.EqualTo(ProjectManifestDiscovery.GetOwnerId(assetGuid, snapshot.AssetPath, snapshot.ManifestPath)));
             Assert.That(report.Issues[0].Message, Is.EqualTo("Manifest model at index 0 must define a non-empty `id`."));
+        }
+
+        /// <summary>
+        /// Verifies different project manifest assets keep distinct owner ids even when they declare same repository.
+        /// </summary>
+        [Test]
+        public void DiscoverProjectManifests_AssignsUniqueOwnerIdsPerProjectAsset()
+        {
+            const string firstGuid = "5a899f24b6fd4a1ba127ab1a1b267c7e";
+            const string secondGuid = "2c1a6095dfaa45b2b4f16a2de4db9107";
+            var firstAsset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
+            var secondAsset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
+            var models = new[]
+            {
+                new ProjectManifestModelAssetEntry
+                {
+                    Id = "onnx-community/tiny-clip-test-ONNX",
+                    Revision = "main"
+                }
+            };
+
+            SetProjectManifest(firstAsset, 1, models);
+            SetProjectManifest(secondAsset, 1, models);
+
+            var report = ProjectManifestDiscovery.DiscoverProjectManifests(new[]
+            {
+                new ProjectManifestAssetSnapshot(
+                    "Assets/HF Hub/Project Manifest A.asset",
+                    Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest A.asset"),
+                    _rootDirectory,
+                    firstAsset,
+                    firstGuid),
+                new ProjectManifestAssetSnapshot(
+                    "Assets/HF Hub/Project Manifest B.asset",
+                    Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest B.asset"),
+                    _rootDirectory,
+                    secondAsset,
+                    secondGuid)
+            });
+
+            Assert.That(report.Issues, Is.Empty);
+            Assert.That(report.Dependencies.Count, Is.EqualTo(2));
+            Assert.That(
+                report.Dependencies.Select(dependency => dependency.PackageId).Distinct().ToArray(),
+                Is.EqualTo(new[]
+                {
+                    ProjectManifestDiscovery.GetOwnerId(firstGuid, "Assets/HF Hub/Project Manifest A.asset", Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest A.asset")),
+                    ProjectManifestDiscovery.GetOwnerId(secondGuid, "Assets/HF Hub/Project Manifest B.asset", Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest B.asset"))
+                }));
         }
 
         private InstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)

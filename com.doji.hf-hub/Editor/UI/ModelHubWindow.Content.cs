@@ -40,7 +40,6 @@ namespace Doji.AI.ModelHub.Editor
             public const string DiscoveryIssuesSection = "Discovery Issues";
             public const string RepositoryLabel = "Repository";
             public const string RequestedRevisionLabel = "Requested Revision";
-            public const string ResolvedCommitLabel = "Resolved Commit";
             public const string ManifestOwnersLabel = "Manifest Owners";
             public const string GeneratedSentisFilesLabel = "Generated .sentis Files";
             public const string SourceSizeLabel = "Size";
@@ -49,6 +48,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string RuntimeFolderLabel = "Runtime Folder";
             public const string RuntimeAssetsSizeOnDiskLabel = "Runtime Size";
             public const string StorageStateLabel = "State";
+            public const string RequestedRevisionTooltipFormat = "Resolved commit: {0}";
             public const string SourceSizeTooltip = "Total size of the source model files as reported by HuggingFace for this repository revision. This is remote source content size, not current local disk usage in this project.";
             public const string CacheSizeOnDiskTooltip = "Current disk usage of the downloaded raw repository snapshot in this machine's shared cache.";
             public const string CacheSizeEstimateTooltip = "Estimated download size for the raw repository snapshot before it is cached locally. Actual size can differ by revision and upstream file changes.";

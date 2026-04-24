@@ -230,8 +230,15 @@ namespace Doji.AI.ModelHub.Editor
         {
             EnsureCacheSizeEstimateLookup(item);
             EditorGUILayout.LabelField(Content.RepositoryLabel, item.Repository);
-            DrawOptionalValueRow(Content.RequestedRevisionLabel, item.RequestedRevision);
-            DrawOptionalValueRow(Content.ResolvedCommitLabel, string.IsNullOrWhiteSpace(item.ResolvedCommitHash) ? Content.UnresolvedCommitPlaceholder : item.ResolvedCommitHash);
+            DrawOptionalValueRow(
+                Content.RequestedRevisionLabel,
+                item.RequestedRevision,
+                null,
+                string.Format(
+                    Content.RequestedRevisionTooltipFormat,
+                    string.IsNullOrWhiteSpace(item.ResolvedCommitHash)
+                        ? Content.UnresolvedCommitPlaceholder
+                        : item.ResolvedCommitHash));
             DrawOptionalValueRow(Content.ManifestOwnersLabel, item.ManifestOwnerCount.ToString());
             DrawOptionalValueRow(Content.GeneratedSentisFilesLabel, item.ImportedFileCount.ToString());
             DrawOptionalValueRow(Content.SourceSizeLabel, FormatByteSize(item.SourceSizeBytes), Content.SourceSizeTooltip);
@@ -322,14 +329,14 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static void DrawOptionalValueRow(string label, string value, string labelTooltip = null)
+        private static void DrawOptionalValueRow(string label, string value, string labelTooltip = null, string valueTooltip = null)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
                 return;
             }
 
-            EditorGUILayout.LabelField(new GUIContent(label, labelTooltip), new GUIContent(value));
+            EditorGUILayout.LabelField(new GUIContent(label, labelTooltip), new GUIContent(value, valueTooltip));
         }
 
         /// <summary>

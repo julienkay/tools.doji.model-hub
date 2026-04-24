@@ -16,6 +16,7 @@ namespace Doji.AI.ModelHub.Editor
         private enum DetailTab
         {
             Summary,
+            Storage,
             Dependents,
             Files,
             Diagnostics,

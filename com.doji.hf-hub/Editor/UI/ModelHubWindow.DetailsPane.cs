@@ -151,6 +151,9 @@ namespace Doji.AI.ModelHub.Editor
                         case DetailTab.Summary:
                             DrawSummarySection(item);
                             break;
+                        case DetailTab.Storage:
+                            DrawStorageSection(item);
+                            break;
                         case DetailTab.Dependents:
                             DrawDependentsSection(item);
                             break;
@@ -231,10 +234,7 @@ namespace Doji.AI.ModelHub.Editor
             DrawOptionalValueRow(Content.ResolvedCommitLabel, string.IsNullOrWhiteSpace(item.ResolvedCommitHash) ? Content.UnresolvedCommitPlaceholder : item.ResolvedCommitHash);
             DrawOptionalValueRow(Content.ManifestOwnersLabel, item.ManifestOwnerCount.ToString());
             DrawOptionalValueRow(Content.GeneratedSentisFilesLabel, item.ImportedFileCount.ToString());
-            DrawOptionalLinkRow(Content.RawSnapshotLabel, item.RawSnapshotRootPath, ProjectSettingsLinks.RevealPath);
-            DrawCacheSizeRow(item);
-            DrawOptionalLinkRow(Content.RuntimeFolderLabel, item.RuntimeSnapshotAssetPath, ProjectSettingsLinks.PingAsset);
-            DrawOptionalValueRow(Content.RuntimeAssetsSizeOnDiskLabel, FormatByteSize(item.RuntimeSizeOnDiskBytes), Content.RuntimeAssetsSizeOnDiskTooltip);
+            DrawOptionalValueRow(Content.SourceSizeLabel, FormatByteSize(item.SourceSizeBytes), Content.SourceSizeTooltip);
             DrawRepositoryLinkRow(item);
 
             if (item.HasRevisionConflict)
@@ -245,9 +245,23 @@ namespace Doji.AI.ModelHub.Editor
             EditorGUILayout.Space();
         }
 
+        /// <summary>
+        /// Shows local storage footprint so users can distinguish remote source size from current disk usage.
+        /// </summary>
+        private void DrawStorageSection(ModelHubItem item)
+        {
+            EnsureCacheSizeEstimateLookup(item);
+            DrawOptionalValueRow(Content.StorageStateLabel, GetStorageStateLabel(item));
+            DrawOptionalLinkRow(Content.RawSnapshotLabel, item.RawSnapshotRootPath, ProjectSettingsLinks.RevealPath);
+            DrawCacheSizeRow(item);
+            DrawOptionalLinkRow(Content.RuntimeFolderLabel, item.RuntimeSnapshotAssetPath, ProjectSettingsLinks.PingAsset);
+            DrawOptionalValueRow(Content.RuntimeAssetsSizeOnDiskLabel, FormatByteSize(item.RuntimeSizeOnDiskBytes), Content.RuntimeAssetsSizeOnDiskTooltip);
+            EditorGUILayout.Space();
+        }
+
         private void DrawCacheSizeRow(ModelHubItem item)
         {
-            var displayBytes = item.CacheSizeOnDiskBytes ?? item.EstimatedCacheSizeBytes;
+            var displayBytes = item.CacheSizeOnDiskBytes ?? item.SourceSizeBytes;
             var tooltip = item.CacheSizeOnDiskBytes.HasValue
                 ? Content.CacheSizeOnDiskTooltip
                 : Content.CacheSizeEstimateTooltip;
@@ -270,6 +284,30 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             _remoteSnapshotSizeEstimateService.EnsureEstimateLookup(dependency, Refresh);
+        }
+
+        private static string GetStorageStateLabel(ModelHubItem item)
+        {
+            var hasCache = item?.CacheSizeOnDiskBytes.HasValue == true || !string.IsNullOrWhiteSpace(item?.RawSnapshotRootPath);
+            var hasRuntime = item?.RuntimeSizeOnDiskBytes.HasValue == true || !string.IsNullOrWhiteSpace(item?.RuntimeSnapshotAssetPath);
+            if (hasCache && hasRuntime)
+            {
+                return Content.StorageStateCachedAndImported;
+            }
+
+            if (hasCache)
+            {
+                return Content.StorageStateCached;
+            }
+
+            if (hasRuntime)
+            {
+                return Content.StorageStateImportedOnly;
+            }
+
+            return item?.SourceSizeBytes.HasValue == true
+                ? Content.StorageStateRemoteOnly
+                : Content.StorageStateUnknown;
         }
 
         private void DrawRepositoryLinkRow(ModelHubItem item)

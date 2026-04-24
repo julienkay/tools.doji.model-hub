@@ -157,7 +157,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
-                null,
                 state == DependencyState.Failed ? ModelHubItemState.Error : ModelHubItemState.Ready,
                 new[]
                 {
@@ -230,7 +229,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "abc123",
                 CachePaths.GetSnapshotRoot("doji/test-model", "abc123"),
                 "Assets/StreamingAssets/hf-hub/doji/test-model",
-                null,
                 null,
                 null,
                 null,

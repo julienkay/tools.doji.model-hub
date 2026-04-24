@@ -113,6 +113,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RuntimeSnapshotAssetPath { get; }
         public long? CacheSizeOnDiskBytes { get; }
         public long? EstimatedCacheSizeBytes { get; }
+        public long? SourceSizeBytes => EstimatedCacheSizeBytes;
         public long? RuntimeSizeOnDiskBytes { get; }
         public ModelHubItemState State { get; }
         public IReadOnlyList<DependencyStatus> Dependents => _dependents;

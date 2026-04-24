@@ -66,7 +66,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
-                null,
                 ModelHubItemState.Ready,
                 new[]
                 {
@@ -131,7 +130,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var item = new ModelHubItem(
                 "doji/test-model",
                 "main",
-                null,
                 null,
                 null,
                 null,

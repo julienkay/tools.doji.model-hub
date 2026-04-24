@@ -101,6 +101,15 @@ namespace Doji.AI.ModelHub.Editor
                 DetailTab.Files
             };
 
+            if (item != null &&
+                (!string.IsNullOrWhiteSpace(item.RawSnapshotRootPath) ||
+                 item.CacheSizeOnDiskBytes.HasValue ||
+                 !string.IsNullOrWhiteSpace(item.RuntimeSnapshotAssetPath) ||
+                 item.RuntimeSizeOnDiskBytes.HasValue))
+            {
+                tabs.Add(DetailTab.Storage);
+            }
+
             if (item != null && item.Diagnostics.Count > 0)
             {
                 tabs.Add(DetailTab.Diagnostics);
@@ -128,6 +137,7 @@ namespace Doji.AI.ModelHub.Editor
             return tab switch
             {
                 DetailTab.Summary => Content.SummarySection,
+                DetailTab.Storage => Content.StorageSection,
                 DetailTab.Dependents => Content.DependentsSection,
                 DetailTab.Files => Content.FilesSection,
                 DetailTab.Diagnostics => Content.DiagnosticsSection,
@@ -144,6 +154,8 @@ namespace Doji.AI.ModelHub.Editor
                     Content.NoFilesTabTooltip,
                 DetailTab.Files =>
                     Content.FilesTabTooltip,
+                DetailTab.Storage =>
+                    Content.StorageTabTooltip,
                 _ => null
             };
         }

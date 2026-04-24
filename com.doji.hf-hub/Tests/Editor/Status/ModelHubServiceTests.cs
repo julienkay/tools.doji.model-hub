@@ -31,7 +31,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].ImportedFileCount, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.Ready));
             Assert.That(hubReport.Items[0].EstimatedCacheSizeBytes, Is.EqualTo(12));
-            Assert.That(hubReport.Items[0].EstimatedRuntimeSizeBytes, Is.EqualTo(6));
+            Assert.That(hubReport.Items[0].RuntimeSizeOnDiskBytes, Is.Null);
         }
 
         /// <summary>
@@ -152,7 +152,35 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.Ready));
             Assert.That(hubReport.Items[0].CacheSizeOnDiskBytes, Is.Null);
             Assert.That(hubReport.Items[0].EstimatedCacheSizeBytes, Is.EqualTo(12));
-            Assert.That(hubReport.Items[0].EstimatedRuntimeSizeBytes, Is.EqualTo(6));
+            Assert.That(hubReport.Items[0].RuntimeSizeOnDiskBytes, Is.Null);
+        }
+
+        /// <summary>
+        /// Verifies persisted pre-download cache estimates fill the repository size field before raw cache exists.
+        /// </summary>
+        [Test]
+        public void BuildReport_UsesPersistedCacheEstimateWhenCacheAndImportMetadataAreMissing()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        DependencyState.Missing,
+                        reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing,
+                        maintainerMessage: "Raw cache revision ref is missing.")
+                });
+
+            var hubReport = new ModelHubService(
+                remoteSnapshotSizeEstimateService: new FakeRemoteSnapshotSizeEstimateService(42))
+                .BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].CacheSizeOnDiskBytes, Is.Null);
+            Assert.That(hubReport.Items[0].EstimatedCacheSizeBytes, Is.EqualTo(42));
         }
 
         /// <summary>
@@ -362,6 +390,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public bool RemoveProjectOverride(string repository, string repoPath)
         {
             return true;
+        }
+    }
+
+    internal sealed class FakeRemoteSnapshotSizeEstimateService : IRemoteSnapshotSizeEstimateService
+    {
+        private readonly long? _estimatedCacheSizeBytes;
+
+        public FakeRemoteSnapshotSizeEstimateService(long? estimatedCacheSizeBytes)
+        {
+            _estimatedCacheSizeBytes = estimatedCacheSizeBytes;
+        }
+
+        public bool TryGetEstimatedCacheSize(string repository, string requestedRevision, out long? estimatedCacheSizeBytes)
+        {
+            estimatedCacheSizeBytes = _estimatedCacheSizeBytes;
+            return _estimatedCacheSizeBytes.HasValue;
+        }
+
+        public void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null)
+        {
         }
     }
 }

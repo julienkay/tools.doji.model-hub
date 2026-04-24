@@ -37,7 +37,7 @@ Current implementation is split by editor task area instead of keeping one large
 - `Editor/UI/ModelHubWindow.StatusRendering.cs`: row badges, icons, and color helpers
 - `Editor/UI/ModelHubWindow.Layout.cs`: pane math and draggable splitter behavior
 - `Editor/UI/ModelHubWindow.ListPane.cs`: sidebar search, grouping, and row rendering
-- `Editor/UI/ModelHubWindow.DetailsPane.cs`: details header, tabs, summary, dependents, diagnostics
+- `Editor/UI/ModelHubWindow.DetailsPane.cs`: details header, tabs, details/storage sections, dependents, diagnostics
 - `Editor/UI/ModelHubWindow.FilesTab.cs`: file recipe editing UI and apply/revert flow
 - `Editor/UI/ModelHubWindow.Navigation.cs`: selection, filtering, and tab-availability helpers
 - `Editor/UI/ModelHubWindow.Actions.cs`: refresh, locate, and manage actions
@@ -58,13 +58,25 @@ Primary item key:
 
 Each row aggregates all manifest dependents that resolve to the same repository dependency unit.
 
-The details pane answers:
+The `Details` tab answers:
 
 - why this repo exists in the project
 - which package or project manifests depend on it
+- what source revision metadata HF Hub resolved
+- how large the source model files are according to HuggingFace
+- what diagnostics or stale reasons apply
+
+The `Storage` tab answers:
+
+- what local storage state this repo is currently in
 - where the raw cache snapshot lives
 - where generated runtime files live
-- what diagnostics or stale reasons apply
+- how much disk space the cache and generated runtime assets currently use
+
+Maintainer rule for size labels:
+
+- `Details > Size` means source model size reported by HuggingFace, not local disk usage
+- `Storage` is the only place that should describe current local cache/runtime footprint
 
 Ready-state actions are intentionally split by ownership boundary:
 

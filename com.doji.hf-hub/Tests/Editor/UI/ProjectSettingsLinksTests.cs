@@ -75,7 +75,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     CreateDependencyStatus(projectOwnerId, "Project", "project-model", "Assets/HF Hub/HF Hub Project Manifest.asset")
                 },
                 Array.Empty<ModelHubDiagnostic>(),
-                Array.Empty<ImportedRuntimeFileMetadata>());
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
 
             var targets = ProjectSettingsLinks.BuildManifestLocateTargets(item);
 
@@ -157,7 +158,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         reasonCode: DependencyReasonCode.RevisionConflict)
                 },
                 Array.Empty<ModelHubDiagnostic>(),
-                Array.Empty<ImportedRuntimeFileMetadata>());
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
 
             var summary = ProjectSettingsLinks.BuildRevisionConflictSummary(item);
 

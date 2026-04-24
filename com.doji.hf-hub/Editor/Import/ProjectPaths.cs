@@ -30,17 +30,17 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Returns shared import folder for one generated runtime artifact identity.
         /// </summary>
-        public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion)
+        public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
-            return $"{SharedImportsRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(resolvedCommitHash)}/{ModelHub.SanitizePathSegment(sentisVersion)}";
+            return $"{SharedImportsRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(resolvedCommitHash)}/{ModelHub.SanitizePathSegment(sentisVersion)}/{ModelHub.SanitizePathSegment(recipeSetHash)}";
         }
 
         /// <summary>
         /// Returns shared import metadata path under `Library`.
         /// </summary>
-        public static string GetSharedImportMetadataFilePath(string repository, string resolvedCommitHash, string sentisVersion)
+        public static string GetSharedImportMetadataFilePath(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
-            return $"{GetSharedImportFolder(repository, resolvedCommitHash, sentisVersion)}/{SharedImportMetadataFileName}";
+            return $"{GetSharedImportFolder(repository, resolvedCommitHash, sentisVersion, recipeSetHash)}/{SharedImportMetadataFileName}";
         }
 
         /// <summary>

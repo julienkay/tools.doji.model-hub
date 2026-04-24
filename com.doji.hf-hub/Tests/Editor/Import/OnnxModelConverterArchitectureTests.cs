@@ -16,7 +16,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var converter = new RuntimeOnnxModelConverter();
 
             Assert.That(
-                () => converter.ConvertFromFile("/tmp/model.onnx"),
+                () => converter.Convert(new OnnxConversionRequest("/tmp/model.onnx")),
                 Throws.TypeOf<System.NotImplementedException>());
         }
     }

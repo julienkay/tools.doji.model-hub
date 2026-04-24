@@ -30,6 +30,43 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
+    /// Represents one repository-relative ONNX file row in Model Hub details.
+    /// </summary>
+    internal sealed class ModelHubFileItem
+    {
+        public ModelHubFileItem(
+            string repoPath,
+            string rawCachedFilePath,
+            long? rawSizeInBytes,
+            ImportedRuntimeFileMetadata runtimeFile,
+            OnnxConversionRecipe recipe,
+            string recipeSourceLabel,
+            string overrideAssetPath,
+            bool hasProjectOverride)
+        {
+            RepoPath = repoPath;
+            RawCachedFilePath = rawCachedFilePath;
+            RawSizeInBytes = rawSizeInBytes;
+            RuntimeFile = runtimeFile;
+            Recipe = recipe;
+            RecipeSourceLabel = recipeSourceLabel;
+            OverrideAssetPath = overrideAssetPath;
+            HasProjectOverride = hasProjectOverride;
+        }
+
+        public string RepoPath { get; }
+        public string RawCachedFilePath { get; }
+        public long? RawSizeInBytes { get; }
+        public ImportedRuntimeFileMetadata RuntimeFile { get; }
+        public OnnxConversionRecipe Recipe { get; }
+        public string RecipeSourceLabel { get; }
+        public string OverrideAssetPath { get; }
+        public bool HasProjectOverride { get; }
+        public bool HasRawFile => !string.IsNullOrWhiteSpace(RawCachedFilePath);
+        public bool HasRuntimeFile => RuntimeFile != null;
+    }
+
+    /// <summary>
     /// Represents one repository-centric item in the Model Hub inventory view.
     /// </summary>
     internal sealed class ModelHubItem
@@ -37,6 +74,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly DependencyStatus[] _dependents;
         private ModelHubDiagnostic[] _diagnostics;
         private readonly ImportedRuntimeFileMetadata[] _runtimeFiles;
+        private readonly ModelHubFileItem[] _files;
 
         public ModelHubItem(
             string repository,
@@ -51,7 +89,8 @@ namespace Doji.AI.ModelHub.Editor
             ModelHubItemState state,
             IReadOnlyList<DependencyStatus> dependents,
             IReadOnlyList<ModelHubDiagnostic> diagnostics,
-            IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles)
+            IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
+            IReadOnlyList<ModelHubFileItem> files)
         {
             Repository = repository;
             RequestedRevision = requestedRevision;
@@ -66,6 +105,7 @@ namespace Doji.AI.ModelHub.Editor
             _dependents = dependents?.ToArray() ?? Array.Empty<DependencyStatus>();
             _diagnostics = diagnostics?.ToArray() ?? Array.Empty<ModelHubDiagnostic>();
             _runtimeFiles = runtimeFiles?.ToArray() ?? Array.Empty<ImportedRuntimeFileMetadata>();
+            _files = files?.ToArray() ?? Array.Empty<ModelHubFileItem>();
         }
 
         public string Repository { get; }
@@ -81,6 +121,7 @@ namespace Doji.AI.ModelHub.Editor
         public IReadOnlyList<DependencyStatus> Dependents => _dependents;
         public IReadOnlyList<ModelHubDiagnostic> Diagnostics => _diagnostics;
         public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => _runtimeFiles;
+        public IReadOnlyList<ModelHubFileItem> Files => _files;
         public int ImportedFileCount => _runtimeFiles.Count(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal));
         public int ManifestOwnerCount => _dependents.Select(item => item.Dependency.PackageId).Distinct(StringComparer.Ordinal).Count();
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);

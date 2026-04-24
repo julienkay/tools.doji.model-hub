@@ -37,13 +37,13 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void StartOrResume()
         {
-            StartOrResume(_ => true);
+            StartOrResume(_ => true, SyncOperationMode.Full);
         }
 
         /// <summary>
         /// Starts a new background sync for dependencies that match one predicate.
         /// </summary>
-        public static void StartOrResume(Func<DiscoveredModelDependency, bool> dependencyFilter)
+        public static void StartOrResume(Func<DiscoveredModelDependency, bool> dependencyFilter, SyncOperationMode mode = SyncOperationMode.Full)
         {
             if (Runner.IsRunning)
             {
@@ -62,7 +62,7 @@ namespace Doji.AI.ModelHub.Editor
 
             NotifySyncStateChanged();
             Runner.StartOrResume(
-                () => PersistentItemQueueState.Create(pendingKeys),
+                () => PersistentItemQueueState.Create(pendingKeys.Select(key => BuildStateKey(mode, key))),
                 RunAsync,
                 exception => UnityEngine.Debug.LogError($"HF Hub background sync failed: {exception.Message}"));
         }
@@ -70,9 +70,9 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Starts background sync for one repository/revision item shown in Model Hub.
         /// </summary>
-        public static void StartForRepository(string repository, string revision)
+        public static void StartForRepository(string repository, string revision, SyncOperationMode mode)
         {
-            StartOrResume(dependency => MatchesRepository(dependency, repository, revision));
+            StartOrResume(dependency => MatchesRepository(dependency, repository, revision), mode);
         }
 
         /// <summary>
@@ -93,8 +93,13 @@ namespace Doji.AI.ModelHub.Editor
         private static async Task<bool> RunAsync(PersistentItemQueueState state, EditorPersistentOperationContext context)
         {
             var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
+            var pendingStates = state.PendingItemKeys
+                .Select(ParseStateKey)
+                .Where(item => item.HasValue)
+                .Select(item => item.Value)
+                .ToArray();
             var dependencies = discoveryReport.Dependencies
-                .Where(dependency => state.PendingItemKeys.Contains(GetDependencyKey(dependency)))
+                .Where(dependency => pendingStates.Any(item => string.Equals(item.dependencyKey, GetDependencyKey(dependency), StringComparison.Ordinal)))
                 .OrderBy(dependency => dependency.PackageId, StringComparer.Ordinal)
                 .ThenBy(dependency => dependency.ModelId, StringComparer.Ordinal)
                 .ToArray();
@@ -110,7 +115,9 @@ namespace Doji.AI.ModelHub.Editor
                 await EditorPersistentItemQueueExecutor.ExecuteAsync(
                     state,
                     dependencies,
-                    GetDependencyKey,
+                    dependency => pendingStates
+                        .First(item => string.Equals(item.dependencyKey, GetDependencyKey(dependency), StringComparison.Ordinal))
+                        .stateKey,
                     Runner.SaveState,
                     async (dependency, index, totalCount, operationContext) =>
                     {
@@ -139,15 +146,40 @@ namespace Doji.AI.ModelHub.Editor
                             operationContext.ReportProgress(overallProgress, BuildProgressDescription(dependency, progress));
                         });
 
-                        var cachedFile = await rawCacheService.GetOrDownloadAsync(
-                            dependency,
-                            downloadProgress,
-                            operationContext.CancellationToken);
-                        var importedArtifact = await importService.ImportAsync(
-                            dependency,
-                            cachedFile,
-                            operationContext.CancellationToken);
-                        results.Add(new ModelSyncResult(dependency, cachedFile, importedArtifact, null));
+                        var operationMode = pendingStates
+                            .First(item => string.Equals(item.dependencyKey, GetDependencyKey(dependency), StringComparison.Ordinal))
+                            .mode;
+
+                        CachedSnapshot cachedFile = null;
+                        ImportedModelArtifact importedArtifact = null;
+                        switch (operationMode)
+                        {
+                            case SyncOperationMode.DownloadOnly:
+                                cachedFile = await rawCacheService.GetOrDownloadAsync(
+                                    dependency,
+                                    downloadProgress,
+                                    operationContext.CancellationToken);
+                                break;
+                            case SyncOperationMode.MaterializeOnly:
+                                cachedFile = rawCacheService.GetCachedOrThrow(dependency);
+                                importedArtifact = await importService.ImportAsync(
+                                    dependency,
+                                    cachedFile,
+                                    operationContext.CancellationToken);
+                                break;
+                            default:
+                                cachedFile = await rawCacheService.GetOrDownloadAsync(
+                                    dependency,
+                                    downloadProgress,
+                                    operationContext.CancellationToken);
+                                importedArtifact = await importService.ImportAsync(
+                                    dependency,
+                                    cachedFile,
+                                    operationContext.CancellationToken);
+                                break;
+                        }
+
+                        results.Add(new ModelSyncResult(operationMode, dependency, cachedFile, importedArtifact, null));
                     },
                     context);
             }
@@ -155,7 +187,10 @@ namespace Doji.AI.ModelHub.Editor
             {
                 if (activeDependency != null)
                 {
-                    results.Add(new ModelSyncResult(activeDependency, null, null, exception.Message));
+                    var operationMode = pendingStates
+                        .FirstOrDefault(item => string.Equals(item.dependencyKey, GetDependencyKey(activeDependency), StringComparison.Ordinal))
+                        .mode;
+                    results.Add(new ModelSyncResult(operationMode, activeDependency, null, null, exception.Message));
                     context.QueueOnMainThread(() =>
                     {
                         UnityEngine.Debug.LogError($"HF Hub sync failed for {GetDependencyDisplayLabel(activeDependency)}: {exception.Message}");
@@ -243,6 +278,31 @@ namespace Doji.AI.ModelHub.Editor
         private static string GetDependencyKey(DiscoveredModelDependency dependency)
         {
             return $"{dependency.PackageId}:{dependency.ModelId}";
+        }
+
+        private static string BuildStateKey(SyncOperationMode mode, string dependencyKey)
+        {
+            return $"{mode}|{dependencyKey}";
+        }
+
+        private static (SyncOperationMode mode, string dependencyKey, string stateKey)? ParseStateKey(string stateKey)
+        {
+            if (string.IsNullOrWhiteSpace(stateKey))
+            {
+                return null;
+            }
+
+            var separatorIndex = stateKey.IndexOf('|');
+            if (separatorIndex <= 0)
+            {
+                return (SyncOperationMode.Full, stateKey, stateKey);
+            }
+
+            var modeText = stateKey.Substring(0, separatorIndex);
+            var dependencyKey = stateKey.Substring(separatorIndex + 1);
+            return Enum.TryParse(modeText, out SyncOperationMode mode)
+                ? (mode, dependencyKey, stateKey)
+                : (SyncOperationMode.Full, dependencyKey, stateKey);
         }
 
         internal static bool MatchesRepository(DiscoveredModelDependency dependency, string repository, string revision)

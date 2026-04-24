@@ -10,6 +10,13 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ModelHubService
     {
+        private readonly IProjectModelRecipeSource _recipeSource;
+
+        public ModelHubService(IProjectModelRecipeSource recipeSource = null)
+        {
+            _recipeSource = recipeSource ?? new ProjectModelRecipeSource();
+        }
+
         /// <summary>
         /// Collapses dependency-level status into one row per repository and requested revision for Model Hub.
         /// </summary>
@@ -19,7 +26,7 @@ namespace Doji.AI.ModelHub.Editor
                 .GroupBy(
                     status => $"{status.Dependency.Repository}\n{status.Dependency.Revision}",
                     StringComparer.Ordinal)
-                .Select(BuildItem)
+                .Select(group => BuildItem(group))
                 .OrderBy(item => item.Repository, StringComparer.Ordinal)
                 .ThenBy(item => item.RequestedRevision, StringComparer.Ordinal)
                 .ToArray();
@@ -28,7 +35,7 @@ namespace Doji.AI.ModelHub.Editor
             return new ModelHubReport(items, statusReport?.DiscoveryIssues ?? Array.Empty<ManifestDiscoveryIssue>());
         }
 
-        private static ModelHubItem BuildItem(IGrouping<string, DependencyStatus> group)
+        private ModelHubItem BuildItem(IGrouping<string, DependencyStatus> group)
         {
             var dependents = group
                 .OrderBy(item => item.Dependency.PackageDisplayName, StringComparer.Ordinal)
@@ -94,6 +101,7 @@ namespace Doji.AI.ModelHub.Editor
                 .Where(size => size.HasValue)
                 .Sum(size => size.Value);
             var runtimeSizeOnDiskBytes = CalculateRuntimeSizeOnDisk(runtimeFiles);
+            var fileItems = BuildFileItems(primary.Dependency.Repository, dependents, runtimeFiles);
 
             return new ModelHubItem(
                 primary.Dependency.Repository,
@@ -108,7 +116,45 @@ namespace Doji.AI.ModelHub.Editor
                 GetAggregateState(dependents),
                 dependents,
                 diagnostics,
-                runtimeFiles);
+                runtimeFiles,
+                fileItems);
+        }
+
+        private IReadOnlyList<ModelHubFileItem> BuildFileItems(
+            string repository,
+            IReadOnlyList<DependencyStatus> dependents,
+            IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles)
+        {
+            var rawFilesByRepoPath = dependents
+                .SelectMany(item => item.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => string.Equals(Path.GetExtension(file.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var runtimeFilesByRepoPath = (runtimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+            return rawFilesByRepoPath.Keys
+                .Concat(runtimeFilesByRepoPath.Keys)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(repoPath =>
+                {
+                    rawFilesByRepoPath.TryGetValue(repoPath, out var rawFile);
+                    runtimeFilesByRepoPath.TryGetValue(repoPath, out var runtimeFile);
+                    var effectiveRecipe = _recipeSource.GetEffectiveRecipe(repository, repoPath);
+                    return new ModelHubFileItem(
+                        repoPath,
+                        rawFile?.CachedFilePath,
+                        rawFile?.SizeInBytes,
+                        runtimeFile,
+                        effectiveRecipe.Recipe,
+                        effectiveRecipe.SourceLabel,
+                        effectiveRecipe.OverrideAssetPath,
+                        effectiveRecipe.HasProjectOverride);
+                })
+                .ToArray();
         }
 
         private static string GetDependencyDiagnosticSeverity(DependencyState state)

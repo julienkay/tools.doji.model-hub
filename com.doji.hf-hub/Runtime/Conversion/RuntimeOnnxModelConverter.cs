@@ -1,5 +1,4 @@
 using System;
-using Unity.InferenceEngine;
 
 namespace Doji.AI.ModelHub
 {
@@ -11,7 +10,7 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Converts one ONNX file on disk into a Sentis model.
         /// </summary>
-        public Model ConvertFromFile(string onnxFilePath)
+        public OnnxConversionResult Convert(OnnxConversionRequest request)
         {
             throw new NotImplementedException(
                 "Runtime ONNX conversion is not implemented yet. Add a runtime-capable converter package and wire it into HF Hub.");

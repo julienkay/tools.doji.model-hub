@@ -46,7 +46,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 },
                 new[]
                 {
-                    new ModelSyncResult(dependency, null, null, "Import failed")
+                    new ModelSyncResult(SyncOperationMode.Full, dependency, null, null, "Import failed")
                 });
 
             var consoleReport = EditorOperations.BuildSyncConsoleReport(report);

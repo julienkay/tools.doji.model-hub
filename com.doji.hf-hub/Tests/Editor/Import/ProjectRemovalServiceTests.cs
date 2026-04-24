@@ -77,7 +77,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void Remove_KeepsSharedImportUntilLastBindingIsRemoved()
         {
-            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test");
+            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test", "recipe-test");
             WriteBinding("com.doji.first", "doji/test-model", "manifest-a", sharedMetadataPath);
             WriteBinding("com.doji.second", "doji/test-model", "manifest-b", sharedMetadataPath);
             WriteSharedImport(sharedMetadataPath);
@@ -105,7 +105,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void Remove_DoesNothingWhenItemHasRevisionConflict()
         {
-            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test");
+            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test", "recipe-test");
             WriteBinding("com.doji.first", "doji/test-model", "manifest-a", sharedMetadataPath);
             WriteSharedImport(sharedMetadataPath);
             var conflictItem = CreateProjectRemovalItem(
@@ -182,7 +182,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null)
                 },
                 Array.Empty<ModelHubDiagnostic>(),
-                Array.Empty<ImportedRuntimeFileMetadata>());
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
         }
 
         private static ModelHubItem CreateProjectRemovalItem(
@@ -250,7 +251,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         importedMetadata)
                 },
                 Array.Empty<ModelHubDiagnostic>(),
-                importedMetadata.RuntimeFiles);
+                importedMetadata.RuntimeFiles,
+                Array.Empty<ModelHubFileItem>());
         }
 
         private static void WriteRevisionRef(string revision, string commitHash)

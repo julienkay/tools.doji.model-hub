@@ -1,5 +1,3 @@
-using Unity.InferenceEngine;
-
 namespace Doji.AI.ModelHub
 {
     /// <summary>
@@ -10,6 +8,6 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Converts one ONNX file on disk into a Sentis model.
         /// </summary>
-        Model ConvertFromFile(string onnxFilePath);
+        OnnxConversionResult Convert(OnnxConversionRequest request);
     }
 }

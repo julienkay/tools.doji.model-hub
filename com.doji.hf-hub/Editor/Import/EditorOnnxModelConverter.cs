@@ -1,5 +1,5 @@
+using System;
 using Doji.AI.ModelHub.Editor.Bridge;
-using Unity.InferenceEngine;
 
 namespace Doji.AI.ModelHub.Editor
 {
@@ -11,9 +11,13 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Converts one ONNX file on disk into a Sentis model.
         /// </summary>
-        public Model ConvertFromFile(string onnxFilePath)
+        public OnnxConversionResult Convert(OnnxConversionRequest request)
         {
-            return OnnxModelConverterBridge.ConvertFromFile(onnxFilePath);
+            var effectiveRequest = request ?? throw new ArgumentNullException(nameof(request));
+            return new OnnxConversionResult(
+                OnnxModelConverterBridge.ConvertFromFile(effectiveRequest.OnnxFilePath),
+                effectiveRequest.Recipe,
+                OnnxImportMetadataUtility.DefaultConversionPipelineVersion);
         }
     }
 }

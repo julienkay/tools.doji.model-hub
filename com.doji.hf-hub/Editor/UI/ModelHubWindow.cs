@@ -67,7 +67,19 @@ namespace Doji.AI.ModelHub.Editor
             public const string RuntimeRegistryLabel = "Runtime Registry";
             public const string RuntimeAssetLabel = "Runtime Asset";
             public const string RuntimeRelativeLabel = "Runtime Relative";
-            public const string NoRuntimeFilesMessage = "No generated runtime files are registered for this repository yet.";
+            public const string RawCachedFileLabel = "Raw Cached File";
+            public const string RawSizeLabel = "Raw Size";
+            public const string RecipeSourceLabel = "Recipe Source";
+            public const string QuantizationModeLabel = "Quantization";
+            public const string DynamicInputShapeDimensionsLabel = "Dynamic Input Shape Dimensions";
+            public const string OverrideAssetLabel = "Override Asset";
+            public const string RevertLabel = "Revert";
+            public const string ApplyLabel = "Apply";
+            public const string DynamicDimsTooltip = "Specify dynamic dimension size on import. -1 keeps dimension dynamic.";
+            public const string NoRuntimeFilesMessage = "No ONNX or generated runtime files are registered for this repository yet.";
+            public const string UnsavedImportSettingsTitle = "Unapplied Import Settings";
+            public const string UnsavedImportSettingsFormat = "Unapplied import settings for {0}.";
+            public const string InvalidImportSettingsMessage = "Current import settings are invalid. Fix them or discard changes.";
             public const string NoDiagnosticsMessage = "No diagnostics for this repository.";
             public const string UnresolvedCommitPlaceholder = "<not resolved>";
             public const string ImportedState = "Imported";
@@ -119,6 +131,13 @@ namespace Doji.AI.ModelHub.Editor
         private float _listPaneWidth = DefaultListPaneWidth;
         private bool _isDraggingSplitter;
         private readonly Dictionary<string, bool> _sectionExpandedStates = new Dictionary<string, bool>(StringComparer.Ordinal);
+        private readonly Dictionary<string, RepoFileEditSession> _fileEditSessions = new Dictionary<string, RepoFileEditSession>(StringComparer.Ordinal);
+        private static readonly QuantizationOption[] DefaultQuantizationOptions =
+        {
+            new("none", "None"),
+            new("float16", "Float16"),
+            new("int8", "Int8")
+        };
         private const float HeaderHeight = 24f;
         private const float StatusBadgeWidth = 110f;
         private const float SearchRowHeight = 40f;
@@ -138,7 +157,9 @@ namespace Doji.AI.ModelHub.Editor
         private const float DetailsTabWidth = 96f;
         private const float DetailsContentPadding = 6f;
         private const float DetailsContentLeftPadding = 12f;
+        private const float FilesBottomBarHeight = 36f;
         private const float ManageButtonWidth = 80f;
+        private const float FileActionButtonWidth = 110f;
 
         [MenuItem("Window/AI Model Hub")]
         private static void OpenFromWindowMenu()
@@ -300,7 +321,7 @@ namespace Doji.AI.ModelHub.Editor
             EditorGUILayout.Space(4f);
         }
 
-        private void DrawListItem(int index, ModelHubItem item, bool isChildRow = false)
+        private void DrawListItem(IReadOnlyList<ModelHubItem> items, int index, ModelHubItem item, bool isChildRow = false)
         {
             var itemRect = GUILayoutUtility.GetRect(0f, ListItemHeight, GUILayout.ExpandWidth(true));
             var isSelected = _selectedIndex == index;
@@ -323,6 +344,11 @@ namespace Doji.AI.ModelHub.Editor
 
             if (GUI.Button(itemRect, GUIContent.none, GUIStyle.none))
             {
+                if (!TryChangeSelectedItem(items, index))
+                {
+                    return;
+                }
+
                 _selectedIndex = index;
                 GUI.FocusControl(null);
             }
@@ -386,7 +412,7 @@ namespace Doji.AI.ModelHub.Editor
                     var index = IndexOfItem(items, item);
                     if (index >= 0)
                     {
-                        DrawListItem(index, item, true);
+                        DrawListItem(items, index, item, true);
                     }
                 }
 
@@ -403,7 +429,7 @@ namespace Doji.AI.ModelHub.Editor
             var selectedIndex = IndexOfItem(items, selectedItem);
             if (selectedIndex >= 0)
             {
-                DrawListItem(selectedIndex, selectedItem, true);
+                DrawListItem(items, selectedIndex, selectedItem, true);
             }
         }
 
@@ -412,10 +438,9 @@ namespace Doji.AI.ModelHub.Editor
             GUILayout.BeginArea(rect);
             using (new EditorGUILayout.VerticalScope())
             {
-                _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition);
-
                 if (items.Count == 0)
                 {
+                    _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition);
                     EditorGUILayout.HelpBox(Content.EmptyStateMessage, MessageType.Info);
                     EditorGUILayout.EndScrollView();
                 }
@@ -426,8 +451,21 @@ namespace Doji.AI.ModelHub.Editor
                         _selectedIndex = 0;
                     }
 
-                    DrawDetails(items[_selectedIndex]);
-                    EditorGUILayout.EndScrollView();
+                    var selectedItem = items[_selectedIndex];
+                    var showFilesBottomBar = _selectedDetailTab == DetailTab.Files && selectedItem.Files.Count > 0;
+                    if (showFilesBottomBar)
+                    {
+                        _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition, GUILayout.ExpandHeight(true));
+                        DrawDetails(selectedItem);
+                        EditorGUILayout.EndScrollView();
+                        DrawFilesBottomBar(selectedItem);
+                    }
+                    else
+                    {
+                        _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition);
+                        DrawDetails(items[_selectedIndex]);
+                        EditorGUILayout.EndScrollView();
+                    }
                 }
             }
             GUILayout.EndArea();
@@ -619,7 +657,7 @@ namespace Doji.AI.ModelHub.Editor
                 // hover correctly, but their boxed visuals do not match Package Manager's detail tabs.
                 if (GUI.Button(tabRect, new GUIContent(string.Empty, tooltip), GUIStyle.none) && isEnabled)
                 {
-                    _selectedDetailTab = tab;
+                    TryChangeDetailTab(item, tab);
                 }
 
                 var labelRect = new Rect(tabRect.x, tabRect.y, tabRect.width, tabRect.height - DetailsTabUnderlineHeight);
@@ -728,22 +766,141 @@ namespace Doji.AI.ModelHub.Editor
 
         private void DrawFilesSection(ModelHubItem item)
         {
-            if (item.RuntimeFiles.Count == 0)
+            if (item.Files.Count == 0)
             {
                 EditorGUILayout.HelpBox(Content.NoRuntimeFilesMessage, MessageType.Info);
                 EditorGUILayout.Space();
                 return;
             }
 
-            foreach (var runtimeFile in item.RuntimeFiles)
+            var session = GetOrCreateFileEditSession(item);
+            foreach (var file in item.Files)
             {
-                EditorGUILayout.LabelField(runtimeFile.RepoPath, EditorStyles.boldLabel);
-                DrawOptionalLinkRow(Content.RuntimeAssetLabel, runtimeFile.AssetPath, ProjectSettingsLinks.PingAsset);
-                EditorGUILayout.LabelField(Content.RuntimeRelativeLabel, runtimeFile.RelativePath);
+                var fileState = session.GetOrCreateFileState(file);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    EditorGUILayout.LabelField(file.RepoPath, EditorStyles.boldLabel);
+                    DrawOptionalLinkRow(Content.RawCachedFileLabel, file.RawCachedFilePath, ProjectSettingsLinks.RevealPath);
+                    DrawOptionalValueRow(Content.RawSizeLabel, FormatByteSize(file.RawSizeInBytes));
+                    DrawOptionalValueRow(Content.RecipeSourceLabel, file.RecipeSourceLabel);
+                    DrawOptionalLinkRow(Content.OverrideAssetLabel, file.OverrideAssetPath, ProjectSettingsLinks.PingAsset);
+                    DrawOptionalLinkRow(Content.RuntimeAssetLabel, file.RuntimeFile?.AssetPath, ProjectSettingsLinks.PingAsset);
+                    DrawOptionalValueRow(Content.RuntimeRelativeLabel, file.RuntimeFile?.RelativePath);
+
+                    DrawQuantizationEditor(fileState);
+                    DrawDynamicDimsEditor(fileState);
+                    fileState.RefreshValidation();
+
+                    if (!string.IsNullOrWhiteSpace(fileState.ValidationMessage))
+                    {
+                        EditorGUILayout.HelpBox(fileState.ValidationMessage, MessageType.Warning);
+                    }
+                }
+
                 EditorGUILayout.Space(8f);
             }
 
             EditorGUILayout.Space();
+        }
+
+        private void DrawQuantizationEditor(FileRecipeEditState fileState)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel(Content.QuantizationModeLabel);
+                var options = BuildQuantizationOptions(fileState.QuantizationMode);
+                var normalizedMode = NormalizeQuantizationMode(fileState.QuantizationMode);
+                var currentIndex = Array.FindIndex(options, option => string.Equals(option.Value, normalizedMode, StringComparison.Ordinal));
+                if (currentIndex < 0)
+                {
+                    currentIndex = 0;
+                }
+
+                var nextIndex = EditorGUILayout.Popup(currentIndex, options.Select(option => option.Label).ToArray());
+                if (nextIndex >= 0 && nextIndex < options.Length)
+                {
+                    fileState.QuantizationMode = options[nextIndex].Value;
+                }
+            }
+        }
+
+        private void DrawDynamicDimsEditor(FileRecipeEditState fileState)
+        {
+            var dynamicDims = fileState.DynamicDimensions;
+            var foldoutLabel = $"{Content.DynamicInputShapeDimensionsLabel} ({dynamicDims.Count})";
+            fileState.DynamicDimensionsExpanded = EditorGUILayout.Foldout(
+                fileState.DynamicDimensionsExpanded,
+                new GUIContent(foldoutLabel, Content.DynamicDimsTooltip),
+                true);
+            if (!fileState.DynamicDimensionsExpanded)
+            {
+                return;
+            }
+
+            using (new EditorGUI.DisabledScope(dynamicDims.Count == 0))
+            {
+                if (dynamicDims.Count == 0)
+                {
+                    EditorGUILayout.LabelField("No dynamic dimensions discovered.", EditorStyles.miniLabel);
+                    return;
+                }
+
+                foreach (var dynamicDim in dynamicDims)
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.PrefixLabel(dynamicDim.Label);
+                        dynamicDim.Value = EditorGUILayout.IntField(dynamicDim.Value);
+                    }
+                }
+            }
+        }
+
+        private void DrawFilesActionBar(ModelHubItem item, RepoFileEditSession session)
+        {
+            var hasValidationErrors = session.HasValidationErrors;
+            var isDirty = session.IsDirty;
+            var isSyncRunning = BackgroundSyncManager.IsRunning;
+            var actionLabel = string.IsNullOrWhiteSpace(item.RawSnapshotRootPath)
+                ? "Apply And Download"
+                : "Apply And Reimport";
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(!isDirty))
+                {
+                    if (GUILayout.Button(Content.RevertLabel, GUILayout.Width(FileActionButtonWidth)))
+                    {
+                        ResetFileEditSession(item);
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(!isDirty || hasValidationErrors || isSyncRunning || item.HasRevisionConflict))
+                {
+                    if (GUILayout.Button(actionLabel, GUILayout.Width(150f)))
+                    {
+                        EditorOperations.ApplyProjectOverridesAndReimport(item, session.BuildRecipesByRepoPath());
+                        _fileEditSessions.Remove(GetFileEditSessionKey(item));
+                        Refresh();
+                    }
+                }
+            }
+        }
+
+        private void DrawFilesBottomBar(ModelHubItem item)
+        {
+            if (item == null || _selectedDetailTab != DetailTab.Files)
+            {
+                return;
+            }
+
+            var session = GetOrCreateFileEditSession(item);
+            GUILayout.Space(4f);
+            using (new EditorGUILayout.HorizontalScope(GUILayout.Height(FilesBottomBarHeight)))
+            {
+                GUILayout.FlexibleSpace();
+                DrawFilesActionBar(item, session);
+            }
         }
 
         private void DrawDiagnosticsSection(ModelHubItem item)
@@ -802,6 +959,150 @@ namespace Doji.AI.ModelHub.Editor
                 var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId);
                 EditorGUILayout.HelpBox($"{ownerLabel}: {issue.Message}", MessageType.Warning);
             }
+        }
+
+        private RepoFileEditSession GetOrCreateFileEditSession(ModelHubItem item)
+        {
+            var key = GetFileEditSessionKey(item);
+            if (_fileEditSessions.TryGetValue(key, out var existingSession) &&
+                existingSession.Matches(item))
+            {
+                return existingSession;
+            }
+
+            var session = RepoFileEditSession.Create(item);
+            _fileEditSessions[key] = session;
+            return session;
+        }
+
+        private bool TryChangeSelectedItem(IReadOnlyList<ModelHubItem> items, int nextIndex)
+        {
+            if (nextIndex == _selectedIndex)
+            {
+                return true;
+            }
+
+            var currentItem = GetCurrentSelectedItem(items);
+            return TryResolvePendingFileEdits(currentItem);
+        }
+
+        private void TryChangeDetailTab(ModelHubItem item, DetailTab nextTab)
+        {
+            if (nextTab == _selectedDetailTab)
+            {
+                return;
+            }
+
+            if (!TryResolvePendingFileEdits(item))
+            {
+                return;
+            }
+
+            _selectedDetailTab = nextTab;
+        }
+
+        private bool TryResolvePendingFileEdits(ModelHubItem item)
+        {
+            if (_selectedDetailTab != DetailTab.Files || item == null)
+            {
+                return true;
+            }
+
+            var session = GetOrCreateFileEditSession(item);
+            if (!session.IsDirty)
+            {
+                return true;
+            }
+
+            var choice = EditorUtility.DisplayDialogComplex(
+                Content.UnsavedImportSettingsTitle,
+                string.Format(Content.UnsavedImportSettingsFormat, item.Repository),
+                "Save",
+                "Discard",
+                "Cancel");
+            switch (choice)
+            {
+                case 0:
+                    if (session.HasValidationErrors)
+                    {
+                        EditorUtility.DisplayDialog(
+                            Content.UnsavedImportSettingsTitle,
+                            Content.InvalidImportSettingsMessage,
+                            "OK");
+                        return false;
+                    }
+
+                    EditorOperations.ApplyProjectOverridesAndReimport(item, session.BuildRecipesByRepoPath());
+                    _fileEditSessions.Remove(GetFileEditSessionKey(item));
+                    Refresh();
+                    return true;
+                case 1:
+                    _fileEditSessions.Remove(GetFileEditSessionKey(item));
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private ModelHubItem GetCurrentSelectedItem(IReadOnlyList<ModelHubItem> items)
+        {
+            return _selectedIndex >= 0 && _selectedIndex < items.Count
+                ? items[_selectedIndex]
+                : null;
+        }
+
+        private void ResetFileEditSession(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            _fileEditSessions[GetFileEditSessionKey(item)] = RepoFileEditSession.Create(item);
+            Repaint();
+        }
+
+        private static string GetFileEditSessionKey(ModelHubItem item)
+        {
+            return item == null
+                ? string.Empty
+                : $"{item.Repository}\n{item.RequestedRevision}";
+        }
+
+        private static QuantizationOption[] BuildQuantizationOptions(string currentMode)
+        {
+            var normalizedMode = NormalizeQuantizationMode(currentMode);
+            return DefaultQuantizationOptions
+                .Concat(string.IsNullOrWhiteSpace(normalizedMode) || DefaultQuantizationOptions.Any(option => string.Equals(option.Value, normalizedMode, StringComparison.Ordinal))
+                    ? Array.Empty<QuantizationOption>()
+                    : new[] { new QuantizationOption(normalizedMode, normalizedMode) })
+                .GroupBy(option => option.Value, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToArray();
+        }
+
+        private static string NormalizeQuantizationMode(string quantizationMode)
+        {
+            return string.IsNullOrWhiteSpace(quantizationMode)
+                ? "none"
+                : quantizationMode.Trim();
+        }
+
+        private static OnnxConversionRecipe CloneRecipe(OnnxConversionRecipe recipe)
+        {
+            var source = recipe ?? new OnnxConversionRecipe();
+            return new OnnxConversionRecipe
+            {
+                QuantizationMode = NormalizeQuantizationMode(source.QuantizationMode),
+                StaticInputShapeOverrides = (source.StaticInputShapeOverrides ?? Array.Empty<OnnxStaticInputShapeOverride>())
+                    .Where(item => item != null)
+                    .Select(item => new OnnxStaticInputShapeOverride
+                    {
+                        InputName = item.InputName,
+                        Dimensions = (item.Dimensions ?? Array.Empty<int>()).ToArray()
+                    })
+                    .ToArray()
+            };
         }
 
         private IReadOnlyList<ModelHubItem> GetFilteredItems()
@@ -904,7 +1205,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             return tab switch
             {
-                DetailTab.Files => item != null && item.RuntimeFiles.Count > 0,
+                DetailTab.Files => item != null && item.Files.Count > 0,
                 _ => true
             };
         }
@@ -926,10 +1227,10 @@ namespace Doji.AI.ModelHub.Editor
         {
             return tab switch
             {
-                DetailTab.Files when item == null || item.RuntimeFiles.Count == 0 =>
-                    "Files appear here after this repository has been downloaded and imported.",
+                DetailTab.Files when item == null || item.Files.Count == 0 =>
+                    "Files appear here after this repository has been downloaded or imported.",
                 DetailTab.Files =>
-                    "Shows generated runtime files for this repository.",
+                    "Shows raw ONNX files, effective recipes, and generated runtime files for this repository.",
                 _ => null
             };
         }
@@ -1412,6 +1713,349 @@ namespace Doji.AI.ModelHub.Editor
                 stretchHeight = false,
                 alignment = TextAnchor.MiddleLeft
             };
+        }
+
+        private sealed class RepoFileEditSession
+        {
+            private readonly Dictionary<string, FileRecipeEditState> _filesByRepoPath;
+
+            private RepoFileEditSession(
+                string repository,
+                string requestedRevision,
+                IReadOnlyDictionary<string, FileRecipeEditState> filesByRepoPath)
+            {
+                Repository = repository;
+                RequestedRevision = requestedRevision;
+                _filesByRepoPath = new Dictionary<string, FileRecipeEditState>(filesByRepoPath, StringComparer.Ordinal);
+            }
+
+            public string Repository { get; }
+            public string RequestedRevision { get; }
+            public bool IsDirty => _filesByRepoPath.Values.Any(file => file.IsDirty);
+            public bool HasValidationErrors => _filesByRepoPath.Values.Any(file => !string.IsNullOrWhiteSpace(file.ValidationMessage));
+
+            public static RepoFileEditSession Create(ModelHubItem item)
+            {
+                var filesByRepoPath = (item?.Files ?? Array.Empty<ModelHubFileItem>())
+                    .ToDictionary(
+                        file => file.RepoPath,
+                        file => FileRecipeEditState.Create(file),
+                        StringComparer.Ordinal);
+                return new RepoFileEditSession(item?.Repository, item?.RequestedRevision, filesByRepoPath);
+            }
+
+            public bool Matches(ModelHubItem item)
+            {
+                if (!string.Equals(Repository, item?.Repository, StringComparison.Ordinal) ||
+                    !string.Equals(RequestedRevision, item?.RequestedRevision, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                var itemPaths = (item?.Files ?? Array.Empty<ModelHubFileItem>())
+                    .Select(file => file.RepoPath)
+                    .OrderBy(path => path, StringComparer.Ordinal)
+                    .ToArray();
+                var sessionPaths = _filesByRepoPath.Keys
+                    .OrderBy(path => path, StringComparer.Ordinal)
+                    .ToArray();
+                return itemPaths.SequenceEqual(sessionPaths, StringComparer.Ordinal);
+            }
+
+            public FileRecipeEditState GetOrCreateFileState(ModelHubFileItem file)
+            {
+                if (!_filesByRepoPath.TryGetValue(file.RepoPath, out var fileState))
+                {
+                    fileState = FileRecipeEditState.Create(file);
+                    _filesByRepoPath[file.RepoPath] = fileState;
+                }
+
+                fileState.RefreshValidation();
+                return fileState;
+            }
+
+            public IReadOnlyDictionary<string, OnnxConversionRecipe> BuildRecipesByRepoPath()
+            {
+                var recipes = new Dictionary<string, OnnxConversionRecipe>(StringComparer.Ordinal);
+                foreach (var pair in _filesByRepoPath)
+                {
+                    recipes[pair.Key] = pair.Value.BuildRecipe();
+                }
+
+                return recipes;
+            }
+        }
+
+        private sealed class FileRecipeEditState
+        {
+            private readonly string _originalRecipeHash;
+            private readonly OnnxInspectedModel _inspectedModel;
+
+            private FileRecipeEditState(string repoPath, string originalRecipeHash, OnnxConversionRecipe recipe, OnnxInspectedModel inspectedModel)
+            {
+                RepoPath = repoPath;
+                _originalRecipeHash = originalRecipeHash;
+                _inspectedModel = inspectedModel;
+                QuantizationMode = NormalizeQuantizationMode(recipe?.QuantizationMode);
+                DynamicDimensions = BuildDynamicDimensions(recipe, inspectedModel);
+                DynamicDimensionsExpanded = DynamicDimensions.Count > 0;
+                RefreshValidation();
+            }
+
+            public string RepoPath { get; }
+            public string QuantizationMode { get; set; }
+            public List<DynamicDimensionEditState> DynamicDimensions { get; }
+            public bool DynamicDimensionsExpanded { get; set; }
+            public string ValidationMessage { get; private set; }
+            public bool IsDirty
+            {
+                get
+                {
+                    if (!TryBuildRecipe(out var recipe))
+                    {
+                        return true;
+                    }
+
+                    return !string.Equals(_originalRecipeHash, OnnxImportMetadataUtility.ComputeRecipeHash(recipe), StringComparison.Ordinal);
+                }
+            }
+
+            public static FileRecipeEditState Create(ModelHubFileItem file)
+            {
+                var recipe = CloneRecipe(file?.Recipe);
+                var inspectedModel = OnnxModelInspector.Inspect(file?.RawCachedFilePath);
+                return new FileRecipeEditState(
+                    file?.RepoPath,
+                    OnnxImportMetadataUtility.ComputeRecipeHash(recipe),
+                    recipe,
+                    inspectedModel);
+            }
+
+            public void RefreshValidation()
+            {
+                ValidationMessage = ValidateStaticDims();
+            }
+
+            public OnnxConversionRecipe BuildRecipe()
+            {
+                return TryBuildRecipe(out var recipe)
+                    ? recipe
+                    : new OnnxConversionRecipe
+                    {
+                        QuantizationMode = NormalizeQuantizationMode(QuantizationMode),
+                        StaticInputShapeOverrides = Array.Empty<OnnxStaticInputShapeOverride>()
+                    };
+            }
+
+            private bool TryBuildRecipe(out OnnxConversionRecipe recipe)
+            {
+                var staticOverrides = BuildStaticInputShapeOverrides();
+
+                recipe = new OnnxConversionRecipe
+                {
+                    QuantizationMode = NormalizeQuantizationMode(QuantizationMode),
+                    StaticInputShapeOverrides = staticOverrides.ToArray()
+                };
+                return true;
+            }
+
+            private string ValidateStaticDims()
+            {
+                foreach (var dynamicDim in DynamicDimensions)
+                {
+                    if (dynamicDim == null)
+                    {
+                        continue;
+                    }
+
+                    if (dynamicDim.Value < -1)
+                    {
+                        return "Dynamic dimensions must be -1 or non-negative.";
+                    }
+                }
+
+                return null;
+            }
+
+            private List<OnnxStaticInputShapeOverride> BuildStaticInputShapeOverrides()
+            {
+                var configuredInputs = new Dictionary<string, int[]>(StringComparer.Ordinal);
+                foreach (var input in _inspectedModel?.Inputs ?? Array.Empty<OnnxInspectedInput>())
+                {
+                    var dimensions = input.Dimensions
+                        .Select(dimension => dimension.DefaultValue)
+                        .ToArray();
+                    var changed = false;
+
+                    foreach (var dynamicDim in DynamicDimensions.Where(dimension =>
+                                 dimension.Bindings.Any(binding =>
+                                     string.Equals(binding.InputName, input.Name, StringComparison.Ordinal))))
+                    {
+                        var binding = dynamicDim.Bindings.FirstOrDefault(candidate =>
+                            string.Equals(candidate.InputName, input.Name, StringComparison.Ordinal));
+                        if (binding == null || binding.DimensionIndex < 0 || binding.DimensionIndex >= dimensions.Length)
+                        {
+                            continue;
+                        }
+
+                        dimensions[binding.DimensionIndex] = dynamicDim.Value;
+                        changed |= dynamicDim.Value != -1;
+                    }
+
+                    if (changed)
+                    {
+                        configuredInputs[input.Name] = dimensions;
+                    }
+                }
+
+                foreach (var existingOverride in BuildFallbackOverridesFromCurrentState())
+                {
+                    configuredInputs[existingOverride.InputName] = existingOverride.Dimensions;
+                }
+
+                return configuredInputs
+                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                    .Select(pair => new OnnxStaticInputShapeOverride
+                    {
+                        InputName = pair.Key,
+                        Dimensions = pair.Value
+                    })
+                    .ToList();
+            }
+
+            private List<OnnxStaticInputShapeOverride> BuildFallbackOverridesFromCurrentState()
+            {
+                if (_inspectedModel != null)
+                {
+                    return new List<OnnxStaticInputShapeOverride>();
+                }
+
+                return DynamicDimensions
+                    .SelectMany(dimension => dimension.Bindings.Select(binding => new { dimension.Value, binding.InputName, binding.DimensionIndex }))
+                    .GroupBy(dimension => dimension.InputName, StringComparer.Ordinal)
+                    .Select(group => new OnnxStaticInputShapeOverride
+                    {
+                        InputName = group.Key,
+                        Dimensions = group
+                            .OrderBy(dimension => dimension.DimensionIndex)
+                            .Select(dimension => dimension.Value)
+                            .ToArray()
+                    })
+                    .Where(overrideEntry => overrideEntry.Dimensions.Any(value => value != -1))
+                    .ToList();
+            }
+
+            private static List<DynamicDimensionEditState> BuildDynamicDimensions(OnnxConversionRecipe recipe, OnnxInspectedModel inspectedModel)
+            {
+                var overrideLookup = (recipe?.StaticInputShapeOverrides ?? Array.Empty<OnnxStaticInputShapeOverride>())
+                    .Where(item => item != null && !string.IsNullOrWhiteSpace(item.InputName))
+                    .ToDictionary(item => item.InputName, item => item.Dimensions ?? Array.Empty<int>(), StringComparer.Ordinal);
+
+                if (inspectedModel != null)
+                {
+                    var dynamicDimensions = inspectedModel.Inputs
+                        .SelectMany(input => input.Dimensions
+                            .Where(dimension => dimension.IsDynamicByDefault)
+                            .Select(dimension => new InspectedDynamicDimensionRef
+                            {
+                                InputName = input.Name,
+                                Dimension = dimension
+                            }))
+                        .ToArray();
+
+                    return dynamicDimensions
+                        .GroupBy(item => item.Dimension.IsNamed
+                            ? item.Dimension.Label
+                            : $"{item.InputName}[{item.Dimension.Index}]",
+                            StringComparer.Ordinal)
+                        .Select(group => new DynamicDimensionEditState
+                        {
+                            Label = group.Key,
+                            Value = GetSharedOverrideValue(group, overrideLookup),
+                            Bindings = group
+                                .Select(item => new DynamicDimensionBinding
+                                {
+                                    InputName = item.InputName,
+                                    DimensionIndex = item.Dimension.Index
+                                })
+                                .ToList()
+                        })
+                        .ToList();
+                }
+
+                return overrideLookup
+                    .SelectMany(pair => pair.Value.Select((value, index) => new DynamicDimensionEditState
+                    {
+                        Label = $"{pair.Key}[{index}]",
+                        Value = value,
+                        Bindings = new List<DynamicDimensionBinding>
+                        {
+                            new()
+                            {
+                                InputName = pair.Key,
+                                DimensionIndex = index
+                            }
+                        }
+                    }))
+                    .ToList();
+            }
+
+            private static int GetSharedOverrideValue(
+                IEnumerable<InspectedDynamicDimensionRef> groupedDimensions,
+                IReadOnlyDictionary<string, int[]> overrideLookup)
+            {
+                foreach (var item in groupedDimensions)
+                {
+                    var value = TryGetOverrideValue(overrideLookup, item.InputName, item.Dimension.Index);
+                    if (value != -1)
+                    {
+                        return value;
+                    }
+                }
+
+                return -1;
+            }
+
+            private static int TryGetOverrideValue(IReadOnlyDictionary<string, int[]> overrideLookup, string inputName, int dimensionIndex)
+            {
+                return overrideLookup.TryGetValue(inputName, out var dimensions) &&
+                    dimensions != null &&
+                    dimensionIndex >= 0 &&
+                    dimensionIndex < dimensions.Length
+                    ? dimensions[dimensionIndex]
+                    : -1;
+            }
+        }
+
+        private sealed class DynamicDimensionEditState
+        {
+            public string Label { get; set; }
+            public int Value { get; set; }
+            public List<DynamicDimensionBinding> Bindings { get; set; } = new();
+        }
+
+        private sealed class DynamicDimensionBinding
+        {
+            public string InputName { get; set; }
+            public int DimensionIndex { get; set; }
+        }
+
+        private sealed class InspectedDynamicDimensionRef
+        {
+            public string InputName { get; set; }
+            public OnnxInspectedDimension Dimension { get; set; }
+        }
+
+        private readonly struct QuantizationOption
+        {
+            public QuantizationOption(string value, string label)
+            {
+                Value = value;
+                Label = label;
+            }
+
+            public string Value { get; }
+            public string Label { get; }
         }
 
         private readonly struct PaneLayout

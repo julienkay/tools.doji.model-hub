@@ -49,10 +49,6 @@ Use the `current-work-maintenance` skill whenever updating `.codex/current-work.
 
 When adding code:
 
-- keep editor-only code in `Editor` folders or editor-only assemblies
-- use asmdefs deliberately and keep assembly references explicit
-- keep namespaces, folders, and asmdef boundaries coherent for Unity and Rider
-- preserve `.meta` files when moving Unity assets or scripts
 - organize future scripts by task area; prefer colocated or clearly scoped folders such as docs-, tooling-, or workflow-specific script locations over a shared miscellaneous scripts bucket
 
 ## C# Style (Unity)

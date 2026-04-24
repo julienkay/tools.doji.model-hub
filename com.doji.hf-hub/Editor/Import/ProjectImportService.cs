@@ -17,10 +17,14 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class ProjectImportService : IProjectImportService
     {
         private readonly IOnnxModelConverter _onnxModelConverter;
+        private readonly IProjectModelRecipeSource _recipeSource;
 
-        public ProjectImportService(IOnnxModelConverter onnxModelConverter = null)
+        public ProjectImportService(
+            IOnnxModelConverter onnxModelConverter = null,
+            IProjectModelRecipeSource recipeSource = null)
         {
             _onnxModelConverter = onnxModelConverter ?? new EditorOnnxModelConverter();
+            _recipeSource = recipeSource ?? new ProjectModelRecipeSource();
         }
 
         /// <summary>
@@ -43,14 +47,20 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.PackageId,
                 dependency.ModelId);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadataFilePath);
+            var recipeSetHash = _recipeSource.ComputeRecipeSetHash(
+                dependency.Repository,
+                (cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => string.Equals(Path.GetExtension(file.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
+                .Select(file => file.RepoPath));
             var sharedMetadataFilePath = ProjectPaths.GetSharedImportMetadataFilePath(
                 dependency.Repository,
                 resolvedCommitHash,
-                sentisVersion);
+                sentisVersion,
+                recipeSetHash);
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataFilePath);
 
             if (TryReadResolvedMetadata(bindingMetadataAbsolutePath, out var existingMetadata) &&
-                IsUpToDate(existingMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sharedMetadataFilePath))
+                IsUpToDate(existingMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sharedMetadataFilePath, recipeSetHash))
             {
                 return Task.FromResult(new ImportedModelArtifact(
                     snapshotRootAssetPath,
@@ -60,13 +70,14 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             if (TryReadSharedMetadata(sharedMetadataAbsolutePath, out var existingSharedMetadata) &&
-                IsSharedUpToDate(existingSharedMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sentisVersion))
+                IsSharedUpToDate(existingSharedMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sentisVersion, recipeSetHash))
             {
                 var reusedBindingMetadata = CreateBindingMetadata(
                     dependency,
                     cachedSnapshot,
                     sentisVersion,
-                    sharedMetadataFilePath);
+                    sharedMetadataFilePath,
+                    recipeSetHash);
                 WriteBindingMetadata(bindingMetadataAbsolutePath, reusedBindingMetadata);
 
                 var reusedResolvedMetadata = CreateResolvedMetadata(
@@ -103,10 +114,12 @@ namespace Doji.AI.ModelHub.Editor
                 EnsureAssetFolderExists(Path.GetDirectoryName(runtimeSentisAssetPath)?.Replace('\\', '/')
                     ?? throw new InvalidOperationException("Missing runtime sentis output directory."));
 
-                Model model;
+                var recipe = _recipeSource.GetEffectiveRecipe(dependency.Repository, snapshotFile.RepoPath).Recipe;
+                OnnxConversionResult conversionResult;
                 try
                 {
-                    model = _onnxModelConverter.ConvertFromFile(snapshotFile.CachedFilePath);
+                    conversionResult = _onnxModelConverter.Convert(
+                        new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe));
                 }
                 catch (Exception exception)
                 {
@@ -121,7 +134,7 @@ namespace Doji.AI.ModelHub.Editor
                     continue;
                 }
 
-                ModelWriter.Save(runtimeSentisAbsolutePath, model);
+                ModelWriter.Save(runtimeSentisAbsolutePath, conversionResult.Model);
                 sentisFileCount++;
                 runtimeFiles.Add(new ImportedRuntimeFileMetadata
                 {
@@ -129,8 +142,25 @@ namespace Doji.AI.ModelHub.Editor
                     Kind = "sentis",
                     AssetPath = runtimeSentisAssetPath,
                     RelativePath = ProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath),
-                    SizeInBytes = new FileInfo(runtimeSentisAbsolutePath).Length
+                    SizeInBytes = new FileInfo(runtimeSentisAbsolutePath).Length,
+                    RecipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(conversionResult.AppliedRecipe),
+                    ConversionPipelineVersion = conversionResult.ConversionPipelineVersion,
+                    InputSignatureHash = OnnxImportMetadataUtility.ComputeInputSignatureHash(conversionResult.InputSignature)
                 });
+
+                foreach (var conversionDiagnostic in conversionResult.Diagnostics ?? Array.Empty<OnnxConversionDiagnostic>())
+                {
+                    if (string.IsNullOrWhiteSpace(conversionDiagnostic?.Message))
+                    {
+                        continue;
+                    }
+
+                    diagnostics.Add(new ImportDiagnostic
+                    {
+                        Severity = string.IsNullOrWhiteSpace(conversionDiagnostic.Severity) ? "warning" : conversionDiagnostic.Severity,
+                        Message = conversionDiagnostic.Message
+                    });
+                }
             }
 
             if (onnxFileCount > 0 && sentisFileCount == 0)
@@ -154,14 +184,16 @@ namespace Doji.AI.ModelHub.Editor
                 snapshotRootAssetPath,
                 runtimeFiles,
                 diagnostics,
-                sentisVersion);
+                sentisVersion,
+                recipeSetHash);
             WriteSharedMetadata(sharedMetadataAbsolutePath, sharedMetadata);
 
             var bindingMetadata = CreateBindingMetadata(
                 dependency,
                 cachedSnapshot,
                 sentisVersion,
-                sharedMetadataFilePath);
+                sharedMetadataFilePath,
+                recipeSetHash);
             WriteBindingMetadata(bindingMetadataAbsolutePath, bindingMetadata);
 
             AssetDatabase.SaveAssets();
@@ -246,7 +278,8 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
             string snapshotRootAssetPath,
-            string sharedMetadataFilePath)
+            string sharedMetadataFilePath,
+            string recipeSetHash)
         {
             if (metadata == null)
             {
@@ -261,6 +294,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.SentisVersion, GetSentisVersion(), StringComparison.Ordinal) ||
+                !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.SharedImportMetadataPath, sharedMetadataFilePath, StringComparison.Ordinal))
             {
                 return false;
@@ -285,7 +319,8 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
             string snapshotRootAssetPath,
-            string sentisVersion)
+            string sentisVersion,
+            string recipeSetHash)
         {
             if (metadata == null)
             {
@@ -297,6 +332,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawMetadataPath, cachedSnapshot.MetadataPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.SentisVersion, sentisVersion, StringComparison.Ordinal) ||
+                !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RuntimeSnapshotAssetPath, snapshotRootAssetPath, StringComparison.Ordinal))
             {
                 return false;
@@ -313,7 +349,10 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            return runtimeFiles.All(file => File.Exists(ProjectPaths.ToAbsolutePath(file.AssetPath)));
+            return runtimeFiles.All(file =>
+                File.Exists(ProjectPaths.ToAbsolutePath(file.AssetPath)) &&
+                !string.IsNullOrWhiteSpace(file.RecipeHash) &&
+                !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion));
         }
 
         private static SharedImportMetadata CreateSharedMetadata(
@@ -322,7 +361,8 @@ namespace Doji.AI.ModelHub.Editor
             string snapshotRootAssetPath,
             IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
             IReadOnlyList<ImportDiagnostic> diagnostics,
-            string sentisVersion)
+            string sentisVersion,
+            string recipeSetHash)
         {
             return new SharedImportMetadata
             {
@@ -337,6 +377,7 @@ namespace Doji.AI.ModelHub.Editor
                     .Sum(size => size.Value),
                 SentisVersion = sentisVersion,
                 UnityVersion = Application.unityVersion,
+                RecipeSetHash = recipeSetHash,
                 RuntimeSnapshotAssetPath = snapshotRootAssetPath,
                 Diagnostics = diagnostics?.ToArray() ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = runtimeFiles.ToArray(),
@@ -348,7 +389,8 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
             string sentisVersion,
-            string sharedMetadataFilePath)
+            string sharedMetadataFilePath,
+            string recipeSetHash)
         {
             var runtimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
             return new ImportBindingMetadata
@@ -361,6 +403,7 @@ namespace Doji.AI.ModelHub.Editor
                 RequestedRevision = dependency.Revision,
                 ResolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash,
                 SentisVersion = sentisVersion,
+                RecipeSetHash = recipeSetHash,
                 SharedImportMetadataPath = sharedMetadataFilePath,
                 RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
@@ -392,6 +435,7 @@ namespace Doji.AI.ModelHub.Editor
                 RawCacheSizeInBytes = sharedMetadata.RawCacheSizeInBytes,
                 SentisVersion = sharedMetadata.SentisVersion,
                 UnityVersion = sharedMetadata.UnityVersion,
+                RecipeSetHash = sharedMetadata.RecipeSetHash ?? bindingMetadata.RecipeSetHash,
                 RuntimeRegistryAssetPath = bindingMetadata.RuntimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = bindingMetadata.RuntimeRegistryRelativePath,
                 BindingMetadataPath = bindingMetadataFilePath,

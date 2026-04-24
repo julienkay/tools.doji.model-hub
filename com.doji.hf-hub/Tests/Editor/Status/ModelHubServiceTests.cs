@@ -234,6 +234,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("model_bnb4.onnx"));
         }
 
+        [Test]
+        public void BuildReport_IncludesRawOnnxFileRowsAndProjectOverrideSource()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus("com.doji.pkg-a", "Package A", "model-a")
+                });
+
+            var hubReport = new ModelHubService(new FakeRecipeSource()).BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Files.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Files[0].RepoPath, Is.EqualTo("model.onnx"));
+            Assert.That(hubReport.Items[0].Files[0].RawCachedFilePath, Is.EqualTo("/cache/doji/test-model/abc123/model.onnx"));
+            Assert.That(hubReport.Items[0].Files[0].RecipeSourceLabel, Is.EqualTo("Project Override"));
+            Assert.That(hubReport.Items[0].Files[0].Recipe.QuantizationMode, Is.EqualTo("int8"));
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
@@ -308,6 +328,40 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
                 ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
                 state == DependencyState.Ready ? metadata : null);
+        }
+    }
+
+    internal sealed class FakeRecipeSource : IProjectModelRecipeSource
+    {
+        public EffectiveOnnxConversionRecipe GetEffectiveRecipe(string repository, string repoPath)
+        {
+            return new EffectiveOnnxConversionRecipe(
+                new OnnxConversionRecipe
+                {
+                    QuantizationMode = "int8"
+                },
+                "Project Override",
+                "Assets/Doji/HfHub/HF Hub Conversion Overrides.asset",
+                true);
+        }
+
+        public string ComputeRecipeSetHash(string repository, System.Collections.Generic.IEnumerable<string> repoPaths)
+        {
+            return "fake-recipe-set-hash";
+        }
+
+        public void SetProjectOverride(string repository, string repoPath, OnnxConversionRecipe recipe)
+        {
+        }
+
+        public string EnsureProjectOverride(string repository, string repoPath)
+        {
+            return "Assets/Doji/HfHub/HF Hub Conversion Overrides.asset";
+        }
+
+        public bool RemoveProjectOverride(string repository, string repoPath)
+        {
+            return true;
         }
     }
 }

@@ -12,10 +12,12 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class StatusService
     {
         private readonly RawCacheService _rawCacheService;
+        private readonly IProjectModelRecipeSource _recipeSource;
 
-        public StatusService(RawCacheService rawCacheService = null)
+        public StatusService(RawCacheService rawCacheService = null, IProjectModelRecipeSource recipeSource = null)
         {
             _rawCacheService = rawCacheService ?? new RawCacheService();
+            _recipeSource = recipeSource ?? new ProjectModelRecipeSource();
         }
 
         public StatusReport BuildStatusReport(DiscoveryReport discoveryReport)
@@ -163,6 +165,12 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
+            var expectedRecipeSetHash = _recipeSource.ComputeRecipeSetHash(
+                dependency.Repository,
+                (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => string.Equals(Path.GetExtension(file.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
+                .Select(file => file.RepoPath));
+
             if (!File.Exists(bindingMetadataAbsolutePath))
             {
                 return Missing(
@@ -194,13 +202,14 @@ namespace Doji.AI.ModelHub.Editor
             var expectedSharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(
                 dependency.Repository,
                 resolvedCommitHash,
-                GetCurrentSentisVersion());
-            if (!IsBindingCurrent(bindingMetadata, dependency, rawMetadata, expectedSharedMetadataPath))
+                GetCurrentSentisVersion(),
+                expectedRecipeSetHash);
+            if (!IsBindingCurrent(bindingMetadata, dependency, rawMetadata, expectedSharedMetadataPath, expectedRecipeSetHash))
             {
                 return Stale(
                     dependency,
                     DependencyReasonCode.ImportBindingStale,
-                    BuildBindingMismatchMessage(dependency, rawMetadata, bindingMetadata, expectedSharedMetadataPath),
+                    BuildBindingMismatchMessage(dependency, rawMetadata, bindingMetadata, expectedSharedMetadataPath, expectedRecipeSetHash),
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -255,12 +264,12 @@ namespace Doji.AI.ModelHub.Editor
                     BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
             }
 
-            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot))
+            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash))
             {
                 return Stale(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataStale,
-                    BuildSharedMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, sharedMetadata),
+                    BuildSharedMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, sharedMetadata, expectedRecipeSetHash),
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -346,6 +355,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(bindingMetadata.RecipeSetHash) ||
                 string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
             {
                 return false;
@@ -359,7 +369,8 @@ namespace Doji.AI.ModelHub.Editor
 
             if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.ResolvedCommitHash, bindingMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal))
+                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.RecipeSetHash, bindingMetadata.RecipeSetHash, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -399,7 +410,8 @@ namespace Doji.AI.ModelHub.Editor
             ImportBindingMetadata bindingMetadata,
             DiscoveredModelDependency dependency,
             RawCacheMetadata rawMetadata,
-            string expectedSharedMetadataPath)
+            string expectedSharedMetadataPath,
+            string expectedRecipeSetHash)
         {
             if (bindingMetadata == null)
             {
@@ -413,6 +425,7 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath, StringComparison.Ordinal);
         }
 
@@ -420,7 +433,8 @@ namespace Doji.AI.ModelHub.Editor
             SharedImportMetadata sharedMetadata,
             DiscoveredModelDependency dependency,
             RawCacheMetadata rawMetadata,
-            string snapshotRoot)
+            string snapshotRoot,
+            string expectedRecipeSetHash)
         {
             if (sharedMetadata == null)
             {
@@ -432,6 +446,10 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) &&
                 string.Equals(sharedMetadata.RawMetadataPath, CachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) &&
                 string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
+                (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
+                    !string.IsNullOrWhiteSpace(file?.RecipeHash) &&
+                    !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)) &&
                 string.Equals(sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal);
         }
 
@@ -454,6 +472,7 @@ namespace Doji.AI.ModelHub.Editor
                 RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
                 SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata?.SentisVersion,
                 UnityVersion = sharedMetadata?.UnityVersion,
+                RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata?.RecipeSetHash,
                 RuntimeRegistryAssetPath = bindingMetadata?.RuntimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = bindingMetadata?.RuntimeRegistryRelativePath,
                 BindingMetadataPath = bindingMetadataPath,
@@ -468,7 +487,8 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             RawCacheMetadata rawMetadata,
             ImportBindingMetadata bindingMetadata,
-            string expectedSharedMetadataPath)
+            string expectedSharedMetadataPath,
+            string expectedRecipeSetHash)
         {
             var mismatches = new List<string>();
 
@@ -479,6 +499,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
             AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
             AddMismatch(mismatches, "Sentis version", bindingMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "recipe set hash", bindingMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(mismatches, "shared metadata path", bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath);
 
             return mismatches.Count == 0
@@ -491,7 +512,8 @@ namespace Doji.AI.ModelHub.Editor
             string snapshotRoot,
             string rawMetadataPath,
             RawCacheMetadata rawMetadata,
-            SharedImportMetadata sharedMetadata)
+            SharedImportMetadata sharedMetadata,
+            string expectedRecipeSetHash)
         {
             var mismatches = new List<string>();
 
@@ -500,6 +522,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "raw snapshot root", sharedMetadata.RawSnapshotRootPath, snapshotRoot);
             AddMismatch(mismatches, "raw metadata path", sharedMetadata.RawMetadataPath, rawMetadataPath);
             AddMismatch(mismatches, "Sentis version", sharedMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "recipe set hash", sharedMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(mismatches, "runtime snapshot asset path", sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash));
 
             return mismatches.Count == 0

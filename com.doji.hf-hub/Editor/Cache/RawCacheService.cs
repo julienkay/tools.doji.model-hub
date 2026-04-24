@@ -105,6 +105,34 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
+        public CachedSnapshot GetCachedOrThrow(DiscoveredModelDependency dependency)
+        {
+            var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
+            if (!File.Exists(revisionRefPath))
+            {
+                throw new InvalidOperationException(
+                    $"Raw cache revision ref is missing for '{dependency.Repository}' at '{dependency.Revision}'. Download it first.");
+            }
+
+            var resolvedCommitHash = File.ReadAllText(revisionRefPath).Trim();
+            if (string.IsNullOrWhiteSpace(resolvedCommitHash))
+            {
+                throw new InvalidOperationException(
+                    $"Raw cache revision ref is invalid for '{dependency.Repository}' at '{dependency.Revision}'. Download it again.");
+            }
+
+            var snapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
+            var metadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, resolvedCommitHash);
+            if (!TryReadMetadata(metadataPath, out var metadata) ||
+                !IsLocalCacheSnapshotCurrent(snapshotRoot, dependency, resolvedCommitHash, metadata))
+            {
+                throw new InvalidOperationException(
+                    $"Raw cache snapshot is not available for '{dependency.Repository}' at '{dependency.Revision}'. Download it first.");
+            }
+
+            return new CachedSnapshot(snapshotRoot, metadataPath, metadata);
+        }
+
         private static bool IsCacheHit(
             string snapshotRoot,
             RawCacheMetadata metadata,
@@ -148,6 +176,31 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return true;
+        }
+
+        private static bool IsLocalCacheSnapshotCurrent(
+            string snapshotRoot,
+            DiscoveredModelDependency dependency,
+            string resolvedCommitHash,
+            RawCacheMetadata metadata)
+        {
+            if (metadata == null || !Directory.Exists(snapshotRoot))
+            {
+                return false;
+            }
+
+            if (!string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
+                !string.Equals(metadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(metadata.CachedSnapshotRoot, snapshotRoot, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .All(file =>
+                    !string.IsNullOrWhiteSpace(file.CachedFilePath) &&
+                    File.Exists(file.CachedFilePath));
         }
 
         private static void WriteMetadata(string metadataPath, RawCacheMetadata metadata)

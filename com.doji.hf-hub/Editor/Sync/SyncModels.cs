@@ -7,6 +7,13 @@ using Doji.Downloads;
 
 namespace Doji.AI.ModelHub.Editor
 {
+    internal enum SyncOperationMode
+    {
+        Full,
+        DownloadOnly,
+        MaterializeOnly
+    }
+
     /// <summary>
     /// Result for one dependency sync attempt.
     /// </summary>
@@ -16,22 +23,25 @@ namespace Doji.AI.ModelHub.Editor
         /// Stores outcome for one model dependency sync.
         /// </summary>
         public ModelSyncResult(
+            SyncOperationMode mode,
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedFile,
             ImportedModelArtifact importedArtifact,
             string errorMessage)
         {
+            Mode = mode;
             Dependency = dependency;
             CachedFile = cachedFile;
             ImportedArtifact = importedArtifact;
             ErrorMessage = errorMessage;
         }
 
+        public SyncOperationMode Mode { get; }
         public DiscoveredModelDependency Dependency { get; }
         public CachedSnapshot CachedFile { get; }
         public ImportedModelArtifact ImportedArtifact { get; }
         public string ErrorMessage { get; }
-        public bool Success => ImportedArtifact != null && string.IsNullOrWhiteSpace(ErrorMessage);
+        public bool Success => string.IsNullOrWhiteSpace(ErrorMessage) && (ImportedArtifact != null || CachedFile != null);
 
         /// <summary>
         /// Creates failed sync result for repository revision conflict that must block import work.
@@ -41,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor
             RepositoryRevisionConflict revisionConflict)
         {
             return new ModelSyncResult(
+                SyncOperationMode.Full,
                 dependency,
                 null,
                 null,
@@ -82,6 +93,8 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken);
+
+        CachedSnapshot GetCachedOrThrow(DiscoveredModelDependency dependency);
     }
 
     /// <summary>
@@ -132,6 +145,14 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveryReport discoveryReport,
             CancellationToken cancellationToken)
         {
+            return await SyncAsync(discoveryReport, SyncOperationMode.Full, cancellationToken);
+        }
+
+        public async Task<SyncReport> SyncAsync(
+            DiscoveryReport discoveryReport,
+            SyncOperationMode mode,
+            CancellationToken cancellationToken)
+        {
             var modelResults = new List<ModelSyncResult>();
             var revisionConflicts = RevisionConflictDetector.Detect(discoveryReport?.Dependencies);
             foreach (var dependency in discoveryReport.Dependencies)
@@ -144,13 +165,29 @@ namespace Doji.AI.ModelHub.Editor
 
                 try
                 {
-                    var cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, null, cancellationToken);
-                    var importedArtifact = await _projectImportService.ImportAsync(dependency, cachedFile, cancellationToken);
-                    modelResults.Add(new ModelSyncResult(dependency, cachedFile, importedArtifact, null));
+                    CachedSnapshot cachedFile = null;
+                    ImportedModelArtifact importedArtifact = null;
+
+                    switch (mode)
+                    {
+                        case SyncOperationMode.DownloadOnly:
+                            cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, null, cancellationToken);
+                            break;
+                        case SyncOperationMode.MaterializeOnly:
+                            cachedFile = _rawCacheService.GetCachedOrThrow(dependency);
+                            importedArtifact = await _projectImportService.ImportAsync(dependency, cachedFile, cancellationToken);
+                            break;
+                        default:
+                            cachedFile = await _rawCacheService.GetOrDownloadAsync(dependency, null, cancellationToken);
+                            importedArtifact = await _projectImportService.ImportAsync(dependency, cachedFile, cancellationToken);
+                            break;
+                    }
+
+                    modelResults.Add(new ModelSyncResult(mode, dependency, cachedFile, importedArtifact, null));
                 }
                 catch (Exception exception)
                 {
-                    modelResults.Add(new ModelSyncResult(dependency, null, null, exception.Message));
+                    modelResults.Add(new ModelSyncResult(mode, dependency, null, null, exception.Message));
                 }
             }
 

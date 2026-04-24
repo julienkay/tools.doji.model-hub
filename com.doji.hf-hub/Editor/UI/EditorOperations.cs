@@ -10,6 +10,8 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class EditorOperations
     {
+        private static readonly IProjectModelRecipeSource RecipeSource = new ProjectModelRecipeSource();
+
         /// <summary>
         /// Canonical Project Settings path for the package's editor surface.
         /// </summary>
@@ -57,7 +59,7 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision);
+            BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision, SyncOperationMode.Full);
         }
 
         /// <summary>
@@ -98,6 +100,61 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             new ProjectRemovalService().RemoveRawCache(item);
+        }
+
+        /// <summary>
+        /// Ensures one file-level override entry exists and selects the owning asset for editing in Inspector.
+        /// </summary>
+        public static void EnsureProjectOverride(ModelHubItem item, ModelHubFileItem file)
+        {
+            if (item == null || file == null)
+            {
+                return;
+            }
+
+            var assetPath = RecipeSource.EnsureProjectOverride(item.Repository, file.RepoPath);
+            var asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
+            if (asset != null)
+            {
+                Selection.activeObject = asset;
+                EditorGUIUtility.PingObject(asset);
+            }
+        }
+
+        /// <summary>
+        /// Removes one file-level override entry from the project-owned override asset.
+        /// </summary>
+        public static void RemoveProjectOverride(ModelHubItem item, ModelHubFileItem file)
+        {
+            if (item == null || file == null)
+            {
+                return;
+            }
+
+            RecipeSource.RemoveProjectOverride(item.Repository, file.RepoPath);
+        }
+
+        /// <summary>
+        /// Persists repo file recipe edits and starts background sync so generated artifacts match new settings.
+        /// </summary>
+        public static void ApplyProjectOverridesAndReimport(ModelHubItem item, System.Collections.Generic.IReadOnlyDictionary<string, OnnxConversionRecipe> recipesByRepoPath)
+        {
+            if (item == null || recipesByRepoPath == null)
+            {
+                return;
+            }
+
+            foreach (var file in item.Files)
+            {
+                if (!recipesByRepoPath.TryGetValue(file.RepoPath, out var recipe))
+                {
+                    continue;
+                }
+
+                RecipeSource.SetProjectOverride(item.Repository, file.RepoPath, recipe);
+            }
+
+            StartBackgroundSync(item);
         }
 
         /// <summary>
@@ -208,6 +265,7 @@ namespace Doji.AI.ModelHub.Editor
 
                     builder.AppendLine($"- OK {ownerLabel}/{result.Dependency.ModelId}");
                     builder.AppendLine($"  raw snapshot: {rawSnapshotPath ?? "<unknown>"}");
+                    builder.AppendLine($"  mode: {result.Mode}");
                     builder.AppendLine($"  runtime sentis: {sentisArtifactPath ?? "<none generated>"}");
                 }
                 else

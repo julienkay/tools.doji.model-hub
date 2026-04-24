@@ -230,6 +230,7 @@ namespace Doji.AI.ModelHub.Editor
             var readyResults = statusReport.DependencyStatuses
                 .Where(status => status.State == DependencyState.Ready && status.ImportedMetadata != null)
                 .Select(status => new ModelSyncResult(
+                    SyncOperationMode.Full,
                     status.Dependency,
                     null,
                     new ImportedModelArtifact(

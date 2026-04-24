@@ -85,9 +85,22 @@ For each repository, the window shows:
 - which package or project manifests depend on it
 - raw cache location
 - cache size on disk and estimated cache download size when metadata is known
+- raw ONNX file rows in the `Files` tab when cache metadata is available
 - generated runtime `.sentis` files
 - generated runtime asset size on disk and estimated runtime size from import metadata when available
 - manifest and import diagnostics
+
+The `Files` tab is now source-aware. For each ONNX file it can show:
+
+- repository-relative ONNX path
+- raw cached file location and size when source files are present locally
+- effective conversion recipe source such as built-in default or project override
+- editable quantization and static-dims import settings for that file
+- generated `.sentis` output path when the file has been materialized into the project
+
+The `Files` tab now behaves more like a traditional importer. Each repository keeps one edit buffer with repo-wide `Revert` and `Apply` actions. `Apply` saves project-owned overrides and immediately reimports that repository. If raw cache is missing, HF Hub downloads source files first and then imports with the applied settings.
+
+Project-owned file overrides live in `ProjectModelConversionOverridesAsset`. HF Hub creates or updates that asset automatically when you apply file-level conversion changes. You can also create it manually from `Assets > Create > Doji > AI > HF Hub Conversion Overrides`.
 
 The diagnostics tab can also show repository diagnostics for cases that need maintainer attention:
 
@@ -101,7 +114,8 @@ When a conflict owner comes from an installed package under Unity Package Manage
 Header actions include:
 
 - clickable repository link to open resolved repository page on HuggingFace
-- `Import` to sync only the selected repository entry when it still needs download or regeneration
+- `Download` when the repository is not cached on this machine yet; current behavior downloads and imports in one action
+- `Import` when raw cache already exists and HF Hub needs to materialize `.sentis` output into the project
 - `Manage` for ready entries, with:
   - `Remove From Project` to delete generated runtime assets and import metadata from this project
   - `Remove From Cache` to delete this machine's raw cache entry while keeping generated project assets
@@ -120,7 +134,7 @@ Current sync flow:
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Download all repository files in that snapshot into shared raw cache.
 5. Write snapshot metadata and revision ref files.
-6. Convert every cached `.onnx` file in that snapshot through Unity Inference editor conversion code.
+6. Materialize cached `.onnx` files into project-owned `.sentis` output through Unity Inference editor conversion code.
 7. Serialize resulting `.sentis` files into generated runtime snapshot.
 8. Write editor-only import metadata under `Library/Doji/HfHub/imports/`.
 

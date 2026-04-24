@@ -86,6 +86,48 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
+        [Test]
+        public async Task SyncAsync_DownloadOnly_SkipsMaterialization()
+        {
+            var dependency = CreateDependency("doji/test-model");
+            var discoveryReport = new DiscoveryReport(
+                new[] { dependency },
+                Array.Empty<ManifestDiscoveryIssue>());
+            var rawCacheService = new FakeRawCacheService();
+            var importService = new FakeProjectImportService();
+            var syncService = new SyncService(rawCacheService, importService, new FakeRuntimeLocatorRegistryService());
+
+            var report = await syncService.SyncAsync(discoveryReport, SyncOperationMode.DownloadOnly, CancellationToken.None);
+
+            Assert.That(report.SuccessCount, Is.EqualTo(1));
+            Assert.That(report.ModelResults[0].Mode, Is.EqualTo(SyncOperationMode.DownloadOnly));
+            Assert.That(report.ModelResults[0].CachedFile, Is.Not.Null);
+            Assert.That(report.ModelResults[0].ImportedArtifact, Is.Null);
+            Assert.That(rawCacheService.CallCount, Is.EqualTo(1));
+            Assert.That(importService.CallCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task SyncAsync_MaterializeOnly_UsesCachedSnapshotWithoutDownload()
+        {
+            var dependency = CreateDependency("doji/test-model");
+            var discoveryReport = new DiscoveryReport(
+                new[] { dependency },
+                Array.Empty<ManifestDiscoveryIssue>());
+            var rawCacheService = new FakeRawCacheService();
+            var importService = new FakeProjectImportService();
+            var syncService = new SyncService(rawCacheService, importService, new FakeRuntimeLocatorRegistryService());
+
+            var report = await syncService.SyncAsync(discoveryReport, SyncOperationMode.MaterializeOnly, CancellationToken.None);
+
+            Assert.That(report.SuccessCount, Is.EqualTo(1));
+            Assert.That(report.ModelResults[0].Mode, Is.EqualTo(SyncOperationMode.MaterializeOnly));
+            Assert.That(report.ModelResults[0].ImportedArtifact, Is.Not.Null);
+            Assert.That(rawCacheService.CallCount, Is.EqualTo(0));
+            Assert.That(rawCacheService.GetCachedCallCount, Is.EqualTo(1));
+            Assert.That(importService.CallCount, Is.EqualTo(1));
+        }
+
         private static DiscoveredModelDependency CreateDependency(
             string modelId,
             string packageId = "com.doji.test",
@@ -106,6 +148,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private sealed class FakeRawCacheService : IRawCacheService
         {
             public int CallCount { get; private set; }
+            public int GetCachedCallCount { get; private set; }
 
             public Task<CachedSnapshot> GetOrDownloadAsync(
                 DiscoveredModelDependency dependency,
@@ -134,6 +177,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "/cache/doji/test-model/abc123",
                     "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                     metadata));
+            }
+
+            public CachedSnapshot GetCachedOrThrow(DiscoveredModelDependency dependency)
+            {
+                GetCachedCallCount++;
+                var metadata = new RawCacheMetadata
+                {
+                    Repository = dependency.Repository,
+                    RequestedRevision = dependency.Revision,
+                    ResolvedCommitHash = "abc123",
+                    CachedSnapshotRoot = "/cache/doji/test-model/abc123",
+                    Files = new[]
+                    {
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            CachedFilePath = "/cache/doji/test-model/abc123/models/model.onnx"
+                        }
+                    },
+                    DownloadedAtUtc = DateTime.UtcNow.ToString("O")
+                };
+
+                return new CachedSnapshot(
+                    "/cache/doji/test-model/abc123",
+                    "/cache/doji/test-model/abc123/snapshot.hfhub.json",
+                    metadata);
             }
         }
 
@@ -187,7 +256,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     "Assets/StreamingAssets/hf-hub/doji/test-model",
                     ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
                     metadata,
-                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1")));
+                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1", OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" }))));
             }
         }
 

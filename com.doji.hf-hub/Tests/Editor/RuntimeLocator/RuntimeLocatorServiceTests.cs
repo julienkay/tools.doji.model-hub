@@ -146,7 +146,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             _registryService.WriteRegistries(new[]
             {
-                new ModelSyncResult(dependency, cachedSnapshot, importedArtifact, null)
+                new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
             });
 
             var repository = ModelHub.FromPretrained("doji/test-model");
@@ -193,7 +193,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             _registryService.WriteRegistries(new[]
             {
-                new ModelSyncResult(dependency, cachedSnapshot, importedArtifact, null)
+                new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
             });
 
             var model = ModelHub.LoadRuntimeModel("doji/test-model", "SingleInputSingleOuput.onnx");
@@ -299,13 +299,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             };
 
             return new ModelSyncResult(
+                SyncOperationMode.Full,
                 dependency,
                 new CachedSnapshot("/cache/doji/test-model/abc123", "/cache/doji/test-model/abc123/snapshot.hfhub.json", new RawCacheMetadata()),
                 new ImportedModelArtifact(
                     ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, "abc123"),
                     ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
                     metadata,
-                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, "abc123", "2.6.1")),
+                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, "abc123", "2.6.1", OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "SingleInputSingleOuput.onnx" }))),
                 null);
         }
 

@@ -21,12 +21,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             _service = new ProjectImportService();
             CleanupProjectArtifacts();
+            CleanupRecipeOverrideAsset();
         }
 
         [TearDown]
         public void TearDown()
         {
             CleanupProjectArtifacts();
+            CleanupRecipeOverrideAsset();
         }
 
         /// <summary>
@@ -47,14 +49,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(artifact.Metadata.ModelId, Is.EqualTo("doji/test-model"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
             Assert.That(artifact.Metadata.BindingMetadataPath, Is.EqualTo(ProjectPaths.GetImportBindingMetadataFilePath("com.doji.test", "doji/test-model")));
-            Assert.That(artifact.Metadata.SharedImportMetadataPath, Is.EqualTo(ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "commit123", StatusService.GetCurrentSentisVersion())));
+            var expectedRecipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(cachedSnapshot.Metadata.Files);
+            Assert.That(artifact.Metadata.SharedImportMetadataPath, Is.EqualTo(ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "commit123", StatusService.GetCurrentSentisVersion(), expectedRecipeSetHash)));
             Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/com.doji.test/hf-hub-runtime.json"));
             Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
+            Assert.That(artifact.Metadata.RecipeSetHash, Is.EqualTo(expectedRecipeSetHash));
 
             var sentisFile = artifact.RuntimeFiles.Single(file => file.Kind == "sentis");
             Assert.That(sentisFile.AssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model/SingleInputSingleOuput.sentis"));
             Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.True);
             Assert.That(sentisFile.SizeInBytes, Is.GreaterThan(0));
+            Assert.That(sentisFile.RecipeHash, Is.EqualTo(OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe())));
+            Assert.That(sentisFile.ConversionPipelineVersion, Is.EqualTo(OnnxImportMetadataUtility.DefaultConversionPipelineVersion));
             Assert.That(ModelLoader.Load(ProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.Not.Null);
         }
 
@@ -193,6 +199,80 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Is.EqualTo("com-doji-bad-name"));
         }
 
+        [Test]
+        public void ProjectModelRecipeSource_EnsureProjectOverride_CreatesAssetAndEntry()
+        {
+            var source = new ProjectModelRecipeSource();
+
+            var assetPath = source.EnsureProjectOverride("doji/test-model", "model.onnx");
+
+            Assert.That(assetPath, Is.EqualTo(ProjectModelRecipeSource.DefaultAssetPath));
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(assetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Overrides, Has.Length.EqualTo(1));
+            Assert.That(asset.Overrides[0].Repository, Is.EqualTo("doji/test-model"));
+            Assert.That(asset.Overrides[0].RepoPath, Is.EqualTo("model.onnx"));
+            Assert.That(asset.Overrides[0].Recipe, Is.Not.Null);
+            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("none"));
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_RemoveProjectOverride_RemovesMatchingEntry()
+        {
+            var source = new ProjectModelRecipeSource();
+            source.EnsureProjectOverride("doji/test-model", "model.onnx");
+
+            var removed = source.RemoveProjectOverride("doji/test-model", "model.onnx");
+
+            Assert.That(removed, Is.True);
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Overrides, Is.Empty);
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_SetProjectOverride_RemovesEntryWhenRecipeMatchesDefault()
+        {
+            var source = new ProjectModelRecipeSource();
+            source.EnsureProjectOverride("doji/test-model", "model.onnx");
+
+            source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe());
+
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Overrides, Is.Empty);
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_SetProjectOverride_UpsertsRecipeValues()
+        {
+            var source = new ProjectModelRecipeSource();
+
+            source.SetProjectOverride(
+                "doji/test-model",
+                "model.onnx",
+                new OnnxConversionRecipe
+                {
+                    QuantizationMode = "int8",
+                    StaticInputShapeOverrides = new[]
+                    {
+                        new OnnxStaticInputShapeOverride
+                        {
+                            InputName = "input_ids",
+                            Dimensions = new[] { 1, 128 }
+                        }
+                    }
+                });
+
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Overrides, Has.Length.EqualTo(1));
+            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("int8"));
+            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides, Has.Length.EqualTo(1));
+            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides[0].InputName, Is.EqualTo("input_ids"));
+            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 128 }));
+        }
+
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "com.doji.test",
             string manifestHash = "manifesthash")
@@ -290,9 +370,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
+        private static void CleanupRecipeOverrideAsset()
+        {
+            DeleteAssetIfExists(ProjectModelRecipeSource.DefaultAssetPath);
+            DeleteEmptyAssetFolderIfExists("Assets/Doji/HfHub");
+            DeleteEmptyAssetFolderIfExists("Assets/Doji");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        }
+
         private static void DeleteAssetIfExists(string assetPath)
         {
             if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(ProjectPaths.ToAbsolutePath(assetPath)))
+            {
+                AssetDatabase.DeleteAsset(assetPath);
+            }
+        }
+
+        private static void DeleteEmptyAssetFolderIfExists(string assetPath)
+        {
+            if (!AssetDatabase.IsValidFolder(assetPath))
+            {
+                return;
+            }
+
+            var absolutePath = ProjectPaths.ToAbsolutePath(assetPath);
+            if (Directory.Exists(absolutePath) &&
+                !Directory.EnumerateFileSystemEntries(absolutePath).Any())
             {
                 AssetDatabase.DeleteAsset(assetPath);
             }
@@ -316,7 +419,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 _message = message;
             }
 
-            public Model ConvertFromFile(string onnxFilePath)
+            public OnnxConversionResult Convert(OnnxConversionRequest request)
             {
                 throw new InvalidOperationException(_message);
             }
@@ -332,14 +435,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 _failingFileName = failingFileName;
             }
 
-            public Model ConvertFromFile(string onnxFilePath)
+            public OnnxConversionResult Convert(OnnxConversionRequest request)
             {
-                if (string.Equals(Path.GetFileName(onnxFilePath), _failingFileName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetFileName(request.OnnxFilePath), _failingFileName, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException("Model contains unsupported operators or data types.");
                 }
 
-                return _inner.ConvertFromFile(onnxFilePath);
+                return _inner.Convert(request);
             }
         }
 
@@ -349,10 +452,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             public int CallCount { get; private set; }
 
-            public Model ConvertFromFile(string onnxFilePath)
+            public OnnxConversionResult Convert(OnnxConversionRequest request)
             {
                 CallCount++;
-                return _inner.ConvertFromFile(onnxFilePath);
+                return _inner.Convert(request);
             }
         }
     }

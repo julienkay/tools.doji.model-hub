@@ -1,0 +1,102 @@
+namespace Doji.AI.ModelHub.Editor
+{
+    internal sealed partial class ModelHubWindow
+    {
+        private static class Content
+        {
+            public const string Title = "AI Model Hub";
+            public const string SearchStyleName = "ToolbarSeachTextField";
+            public const string SearchCancelStyleName = "ToolbarSeachCancelButton";
+            public const string SearchCancelEmptyStyleName = "ToolbarSeachCancelButtonEmpty";
+            public const string RefreshTooltip = "Refresh Model Hub status and repository inventory.";
+            public const string ImportAllLabel = "Import All";
+            public const string ImportAllTooltip = "Resolve declared repositories, download missing raw snapshots, and import generated runtime assets.";
+            public const string ImportLabel = "Import";
+            public const string ImportTooltip = "Resolve and import only this repository entry.";
+            public const string DownloadLabel = "Download";
+            public const string DownloadTooltip = "Download this repository into cache first, then import it into the project.";
+            public const string SyncInProgressTooltip = "A model sync is already running. Wait for it to finish before starting another import or download.";
+            public const string ManageLabel = "Manage";
+            public const string RemoveLabel = "Remove From Project";
+            public const string RemoveTooltip = "Remove generated runtime assets and import metadata from this project.";
+            public const string RemoveFromCacheLabel = "Remove From Cache";
+            public const string RemoveFromCacheTooltip = "Remove downloaded raw repository files from this machine's shared cache and keep generated project assets.";
+            public const string RemoveFromCacheDisabledTooltip = "This repository no longer has raw cache files on this machine.";
+            public const string LocateLabel = "Locate";
+            public const string LocateTooltip = "Ping manifest asset for selected dependency owner.";
+            public const string CopyConflictSummaryLabel = "Copy Summary";
+            public const string CopyConflictSummaryTooltip = "Copy conflicting owners, revisions, and manifest paths to clipboard.";
+            public const string OpenPackageManagerLabel = "Open Package Manager";
+            public const string OpenPackageManagerTooltip = "Open Unity Package Manager for package-owned conflict resolution.";
+            public const string DiscoveryIssuesBannerFormat = "{0} manifest discovery issue(s) need maintainer attention.";
+            public const string LastRefreshFormat = "Last refresh {0}";
+            public const string NoRepositoriesMatchFilters = "No repositories match the current filters.";
+            public const string EmptyStateMessage = "Declare or sync a manifest dependency to populate Model Hub.";
+            public const string SummarySection = "Details";
+            public const string DependentsSection = "Dependents";
+            public const string FilesSection = "Files";
+            public const string DiagnosticsSection = "Diagnostics";
+            public const string DiscoveryIssuesSection = "Discovery Issues";
+            public const string RepositoryLabel = "Repository";
+            public const string RequestedRevisionLabel = "Requested Revision";
+            public const string ResolvedCommitLabel = "Resolved Commit";
+            public const string ManifestOwnersLabel = "Manifest Owners";
+            public const string GeneratedSentisFilesLabel = "Generated .sentis Files";
+            public const string RawSnapshotLabel = "Cache Location";
+            public const string CacheSizeOnDiskLabel = "Cache Size";
+            public const string EstimatedCacheDownloadSizeLabel = "Cache Estimate";
+            public const string RuntimeFolderLabel = "Runtime Folder";
+            public const string RuntimeAssetsSizeOnDiskLabel = "Runtime Size";
+            public const string EstimatedRuntimeAssetsSizeLabel = "Runtime Estimate";
+            public const string OwnerLabel = "Owner";
+            public const string OwnerSourceLabel = "Owner Source";
+            public const string ModelIdLabel = "Model Id";
+            public const string ManifestLabel = "Manifest";
+            public const string ResolutionHintLabel = "Resolution";
+            public const string RuntimeRegistryLabel = "Runtime Registry";
+            public const string RuntimeAssetLabel = "Runtime Asset";
+            public const string RuntimeRelativeLabel = "Runtime Relative";
+            public const string RawCachedFileLabel = "Raw Cached File";
+            public const string RawSizeLabel = "Raw Size";
+            public const string RecipeSourceLabel = "Recipe Source";
+            public const string QuantizationModeLabel = "Quantization";
+            public const string DynamicInputShapeDimensionsLabel = "Dynamic Input Shape Dimensions";
+            public const string OverrideAssetLabel = "Override Asset";
+            public const string RevertLabel = "Revert";
+            public const string SaveLabel = "Save";
+            public const string DiscardLabel = "Discard";
+            public const string CancelLabel = "Cancel";
+            public const string OkLabel = "OK";
+            public const string DynamicDimsTooltip = "Specify dynamic dimension size on import. -1 keeps dimension dynamic.";
+            public const string NoDynamicDimensionsMessage = "No dynamic dimensions discovered.";
+            public const string ApplyAndDownloadLabel = "Apply And Download";
+            public const string ApplyAndReimportLabel = "Apply And Reimport";
+            public const string NoRuntimeFilesMessage = "No ONNX or generated runtime files are registered for this repository yet.";
+            public const string UnsavedImportSettingsTitle = "Unapplied Import Settings";
+            public const string UnsavedImportSettingsFormat = "Unapplied import settings for {0}.";
+            public const string InvalidImportSettingsMessage = "Current import settings are invalid. Fix them or discard changes.";
+            public const string NoDiagnosticsMessage = "No diagnostics for this repository.";
+            public const string NoDiscoveryIssuesMessage = "No discovery issues for this project.";
+            public const string NoFilesTabTooltip = "Files appear here after this repository has been downloaded or imported.";
+            public const string FilesTabTooltip = "Shows raw ONNX files, effective recipes, and generated runtime files for this repository.";
+            public const string UnresolvedCommitPlaceholder = "<not resolved>";
+            public const string UnknownRepositoryPlaceholder = "<unknown>";
+            public const string ImportedState = "Imported";
+            public const string ImportNeededState = "Import Needed";
+            public const string UpdateNeededState = "Update Needed";
+            public const string DownloadNeededState = "Download Needed";
+            public const string RepairNeededState = "Needs Repair";
+            public const string ConflictState = "Conflict";
+            public const string RevisionConflictTooltip = "This repository is declared at multiple requested revisions. Resolve manifests to one revision before importing or removing files.";
+            public const string RevisionConflictActionTooltip = "This repository is declared at multiple requested revisions. Resolve manifests to one revision before importing.";
+            public const string ImportedTooltip = "This model is downloaded and imported into this project.";
+            public const string ImportedWithoutCacheTooltip = "This model is imported into this project. Raw cache was removed from this machine.";
+            public const string DownloadNeededTooltip = "This model has not been downloaded yet.";
+            public const string RepairNeededTooltip = "This model is in the project, but something is wrong and it needs to be fixed.";
+            public const string ImportFailedTooltip = "This model is downloaded, but it could not be imported into the project.";
+            public const string UpdateNeededTooltip = "This model is downloaded and in the project, but it needs to be updated.";
+            public const string ImportNeededTooltip = "This model is downloaded in cache, but not yet imported into the project.";
+            public const string ReadyStateGlyph = "âœ“";
+        }
+    }
+}

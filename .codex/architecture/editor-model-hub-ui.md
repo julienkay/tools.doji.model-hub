@@ -29,6 +29,28 @@ Keep environment-variable override support for tests and explicit maintainer wor
 
 The Model Hub window is repository-centric, not dependency-centric.
 
+Current implementation is split by editor task area instead of keeping one large IMGUI file:
+
+- `Editor/UI/ModelHubWindow.cs`: lifecycle, top-level orchestration, shared state fields
+- `Editor/UI/ModelHubWindow.Content.cs`: window-local labels and tooltips
+- `Editor/UI/ModelHubWindow.Styles.cs`: lazy GUI content and style initialization
+- `Editor/UI/ModelHubWindow.StatusRendering.cs`: row badges, icons, and color helpers
+- `Editor/UI/ModelHubWindow.Layout.cs`: pane math and draggable splitter behavior
+- `Editor/UI/ModelHubWindow.ListPane.cs`: sidebar search, grouping, and row rendering
+- `Editor/UI/ModelHubWindow.DetailsPane.cs`: details header, tabs, summary, dependents, diagnostics
+- `Editor/UI/ModelHubWindow.FilesTab.cs`: file recipe editing UI and apply/revert flow
+- `Editor/UI/ModelHubWindow.Navigation.cs`: selection, filtering, and tab-availability helpers
+- `Editor/UI/ModelHubWindow.Actions.cs`: refresh, locate, and manage actions
+- `Editor/UI/ModelHubWindow.Formatting.cs`: path/size formatting helpers used by details UI
+- `Editor/UI/ModelHubFileEditing.cs`: extracted per-file edit session and recipe state models
+
+Maintainer rule:
+
+- keep display-only helpers out of edit-state classes
+- keep recipe-building logic out of generic list/details rendering partials
+- add new UI work to existing task-area partials before creating new ones
+- prefer new partials only when ownership boundary is stable enough to name clearly
+
 Primary item key:
 
 - `repository`

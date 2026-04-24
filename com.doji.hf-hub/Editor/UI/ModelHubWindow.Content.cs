@@ -44,10 +44,11 @@ namespace Doji.AI.ModelHub.Editor
             public const string GeneratedSentisFilesLabel = "Generated .sentis Files";
             public const string RawSnapshotLabel = "Cache Location";
             public const string CacheSizeOnDiskLabel = "Cache Size";
-            public const string EstimatedCacheDownloadSizeLabel = "Cache Estimate";
             public const string RuntimeFolderLabel = "Runtime Folder";
             public const string RuntimeAssetsSizeOnDiskLabel = "Runtime Size";
-            public const string EstimatedRuntimeAssetsSizeLabel = "Runtime Estimate";
+            public const string CacheSizeOnDiskTooltip = "Current disk usage of the downloaded raw repository snapshot in this machine's shared cache.";
+            public const string CacheSizeEstimateTooltip = "Estimated download size for the raw repository snapshot before it is cached locally. Actual size can differ by revision and upstream file changes.";
+            public const string RuntimeAssetsSizeOnDiskTooltip = "Current disk usage of generated project runtime assets, including imported .sentis files and related metadata.";
             public const string OwnerLabel = "Owner";
             public const string OwnerSourceLabel = "Owner Source";
             public const string ModelIdLabel = "Model Id";
@@ -62,6 +63,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string QuantizationModeLabel = "Quantization";
             public const string DynamicInputShapeDimensionsLabel = "Dynamic Input Shape Dimensions";
             public const string OverrideAssetLabel = "Override Asset";
+            public const string ApplyLabel = "Apply";
             public const string RevertLabel = "Revert";
             public const string SaveLabel = "Save";
             public const string DiscardLabel = "Discard";
@@ -69,8 +71,8 @@ namespace Doji.AI.ModelHub.Editor
             public const string OkLabel = "OK";
             public const string DynamicDimsTooltip = "Specify dynamic dimension size on import. -1 keeps dimension dynamic.";
             public const string NoDynamicDimensionsMessage = "No dynamic dimensions discovered.";
-            public const string ApplyAndDownloadLabel = "Apply And Download";
-            public const string ApplyAndReimportLabel = "Apply And Reimport";
+            public const string ApplyAndDownloadTooltip = "Save file import settings, then download and import this repository.";
+            public const string ApplyAndReimportTooltip = "Save file import settings, then reimport this repository.";
             public const string NoRuntimeFilesMessage = "No ONNX or generated runtime files are registered for this repository yet.";
             public const string UnsavedImportSettingsTitle = "Unapplied Import Settings";
             public const string UnsavedImportSettingsFormat = "Unapplied import settings for {0}.";
@@ -96,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string ImportFailedTooltip = "This model is downloaded, but it could not be imported into the project.";
             public const string UpdateNeededTooltip = "This model is downloaded and in the project, but it needs to be updated.";
             public const string ImportNeededTooltip = "This model is downloaded in cache, but not yet imported into the project.";
-            public const string ReadyStateGlyph = "âœ“";
+            public const string ReadyStateGlyph = "\u2713";
         }
     }
 }

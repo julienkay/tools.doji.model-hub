@@ -16,6 +16,8 @@ namespace Doji.AI.ModelHub.Editor
         private const string BindingImportsRoot = ImportsRoot + "/bindings";
         private const string LegacyImportMetadataFileName = "hf-hub-import.json";
         private const string LegacyImportStateRoot = "Library/Doji/HfHub/import-state";
+        private const string CacheEstimateFileName = "hf-hub-cache-size.json";
+        private const string CacheEstimatesRoot = "Library/Doji/HfHub/cache-size-estimates";
         private const string RuntimeRegistryFileName = "hf-hub-runtime.json";
         private const string RuntimeRegistriesRoot = ModelHub.RuntimeStreamingAssetsRoot + "/registries";
 
@@ -73,6 +75,14 @@ namespace Doji.AI.ModelHub.Editor
         public static string GetLegacyImportMetadataFilePath(string packageId, string modelId)
         {
             return $"{GetLegacyImportStateFolder(packageId, modelId)}/{LegacyImportMetadataFileName}";
+        }
+
+        /// <summary>
+        /// Returns project-local sidecar metadata path for one requested repository revision cache-size lookup.
+        /// </summary>
+        public static string GetCacheSizeEstimateMetadataPath(string repository, string requestedRevision)
+        {
+            return $"{CacheEstimatesRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(requestedRevision)}/{CacheEstimateFileName}";
         }
 
         /// <summary>

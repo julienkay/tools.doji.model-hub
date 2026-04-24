@@ -11,10 +11,12 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class ModelHubService
     {
         private readonly IProjectModelRecipeSource _recipeSource;
+        private readonly IRemoteSnapshotSizeEstimateService _remoteSnapshotSizeEstimateService;
 
-        public ModelHubService(IProjectModelRecipeSource recipeSource = null)
+        public ModelHubService(IProjectModelRecipeSource recipeSource = null, IRemoteSnapshotSizeEstimateService remoteSnapshotSizeEstimateService = null)
         {
             _recipeSource = recipeSource ?? new ProjectModelRecipeSource();
+            _remoteSnapshotSizeEstimateService = remoteSnapshotSizeEstimateService ?? new RemoteSnapshotSizeEstimateService();
         }
 
         /// <summary>
@@ -95,11 +97,18 @@ namespace Doji.AI.ModelHub.Editor
                     .DefaultIfEmpty(0)
                     .Max();
             }
+
+            if (estimatedCacheSizeBytes <= 0 &&
+                _remoteSnapshotSizeEstimateService.TryGetEstimatedCacheSize(
+                    primary.Dependency.Repository,
+                    primary.Dependency.Revision,
+                    out var persistedEstimate) &&
+                persistedEstimate.HasValue)
+            {
+                estimatedCacheSizeBytes = persistedEstimate.Value;
+            }
+
             var cacheSizeOnDiskBytes = CalculateCacheSizeOnDisk(dependents);
-            var estimatedRuntimeSizeBytes = runtimeFiles
-                .Select(file => file.SizeInBytes)
-                .Where(size => size.HasValue)
-                .Sum(size => size.Value);
             var runtimeSizeOnDiskBytes = CalculateRuntimeSizeOnDisk(runtimeFiles);
             var fileItems = BuildFileItems(primary.Dependency.Repository, dependents, runtimeFiles);
 
@@ -112,7 +121,6 @@ namespace Doji.AI.ModelHub.Editor
                 cacheSizeOnDiskBytes,
                 estimatedCacheSizeBytes > 0 ? estimatedCacheSizeBytes : null,
                 runtimeSizeOnDiskBytes,
-                estimatedRuntimeSizeBytes > 0 ? estimatedRuntimeSizeBytes : null,
                 GetAggregateState(dependents),
                 dependents,
                 diagnostics,

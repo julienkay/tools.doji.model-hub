@@ -85,7 +85,6 @@ namespace Doji.AI.ModelHub.Editor
             long? cacheSizeOnDiskBytes,
             long? estimatedCacheSizeBytes,
             long? runtimeSizeOnDiskBytes,
-            long? estimatedRuntimeSizeBytes,
             ModelHubItemState state,
             IReadOnlyList<DependencyStatus> dependents,
             IReadOnlyList<ModelHubDiagnostic> diagnostics,
@@ -100,7 +99,6 @@ namespace Doji.AI.ModelHub.Editor
             CacheSizeOnDiskBytes = cacheSizeOnDiskBytes;
             EstimatedCacheSizeBytes = estimatedCacheSizeBytes;
             RuntimeSizeOnDiskBytes = runtimeSizeOnDiskBytes;
-            EstimatedRuntimeSizeBytes = estimatedRuntimeSizeBytes;
             State = state;
             _dependents = dependents?.ToArray() ?? Array.Empty<DependencyStatus>();
             _diagnostics = diagnostics?.ToArray() ?? Array.Empty<ModelHubDiagnostic>();
@@ -116,7 +114,6 @@ namespace Doji.AI.ModelHub.Editor
         public long? CacheSizeOnDiskBytes { get; }
         public long? EstimatedCacheSizeBytes { get; }
         public long? RuntimeSizeOnDiskBytes { get; }
-        public long? EstimatedRuntimeSizeBytes { get; }
         public ModelHubItemState State { get; }
         public IReadOnlyList<DependencyStatus> Dependents => _dependents;
         public IReadOnlyList<ModelHubDiagnostic> Diagnostics => _diagnostics;

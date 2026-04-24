@@ -71,7 +71,7 @@ namespace Doji.AI.ModelHub.Editor
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(_locateContent, GUILayout.Width(90f)))
+                if (GUILayout.Button(_locateContent, GUILayout.Width(76f)))
                 {
                     LocateManifest(item);
                 }
@@ -85,7 +85,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
 
                     var arrowRect = new Rect(manageRect.xMax - 14f, manageRect.y + 1f, 10f, manageRect.height - 2f);
-                    GUI.Label(arrowRect, "â–¾", _manageDropdownArrowStyle);
+                    GUI.Label(arrowRect, "\u25BE", _manageDropdownArrowStyle);
                 }
                 else
                 {
@@ -122,12 +122,23 @@ namespace Doji.AI.ModelHub.Editor
             var topPaddingRect = GUILayoutUtility.GetRect(0f, DetailsContentPadding + 6f, GUILayout.ExpandWidth(true));
             if (Event.current.type == EventType.Repaint)
             {
-                var contentBackgroundRect = new Rect(
+                var viewportBackgroundRect = new Rect(
                     0f,
                     topPaddingRect.y,
                     Mathf.Max(0f, position.width),
                     Mathf.Max(0f, position.height - topPaddingRect.y));
-                EditorGUI.DrawRect(contentBackgroundRect, GetDetailsContentBackgroundColor());
+                EditorGUI.DrawRect(viewportBackgroundRect, GetDetailsContentBackgroundColor());
+            }
+
+            var contentContainerRect = EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+            if (Event.current.type == EventType.Repaint)
+            {
+                var overflowBackgroundRect = new Rect(
+                    0f,
+                    contentContainerRect.y,
+                    Mathf.Max(0f, position.width),
+                    contentContainerRect.height);
+                EditorGUI.DrawRect(overflowBackgroundRect, GetDetailsContentBackgroundColor());
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -155,6 +166,8 @@ namespace Doji.AI.ModelHub.Editor
                     }
                 }
             }
+
+            EditorGUILayout.EndVertical();
         }
 
         /// <summary>
@@ -212,17 +225,16 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         private void DrawSummarySection(ModelHubItem item)
         {
+            EnsureCacheSizeEstimateLookup(item);
             EditorGUILayout.LabelField(Content.RepositoryLabel, item.Repository);
             DrawOptionalValueRow(Content.RequestedRevisionLabel, item.RequestedRevision);
             DrawOptionalValueRow(Content.ResolvedCommitLabel, string.IsNullOrWhiteSpace(item.ResolvedCommitHash) ? Content.UnresolvedCommitPlaceholder : item.ResolvedCommitHash);
             DrawOptionalValueRow(Content.ManifestOwnersLabel, item.ManifestOwnerCount.ToString());
             DrawOptionalValueRow(Content.GeneratedSentisFilesLabel, item.ImportedFileCount.ToString());
             DrawOptionalLinkRow(Content.RawSnapshotLabel, item.RawSnapshotRootPath, ProjectSettingsLinks.RevealPath);
-            DrawOptionalValueRow(Content.CacheSizeOnDiskLabel, FormatByteSize(item.CacheSizeOnDiskBytes));
-            DrawOptionalValueRow(Content.EstimatedCacheDownloadSizeLabel, FormatByteSize(item.EstimatedCacheSizeBytes));
+            DrawCacheSizeRow(item);
             DrawOptionalLinkRow(Content.RuntimeFolderLabel, item.RuntimeSnapshotAssetPath, ProjectSettingsLinks.PingAsset);
-            DrawOptionalValueRow(Content.RuntimeAssetsSizeOnDiskLabel, FormatByteSize(item.RuntimeSizeOnDiskBytes));
-            DrawOptionalValueRow(Content.EstimatedRuntimeAssetsSizeLabel, FormatByteSize(item.EstimatedRuntimeSizeBytes));
+            DrawOptionalValueRow(Content.RuntimeAssetsSizeOnDiskLabel, FormatByteSize(item.RuntimeSizeOnDiskBytes), Content.RuntimeAssetsSizeOnDiskTooltip);
             DrawRepositoryLinkRow(item);
 
             if (item.HasRevisionConflict)
@@ -231,6 +243,33 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             EditorGUILayout.Space();
+        }
+
+        private void DrawCacheSizeRow(ModelHubItem item)
+        {
+            var displayBytes = item.CacheSizeOnDiskBytes ?? item.EstimatedCacheSizeBytes;
+            var tooltip = item.CacheSizeOnDiskBytes.HasValue
+                ? Content.CacheSizeOnDiskTooltip
+                : Content.CacheSizeEstimateTooltip;
+            DrawOptionalValueRow(Content.CacheSizeOnDiskLabel, FormatByteSize(displayBytes), tooltip);
+        }
+
+        private void EnsureCacheSizeEstimateLookup(ModelHubItem item)
+        {
+            if (item == null ||
+                item.CacheSizeOnDiskBytes.HasValue ||
+                item.EstimatedCacheSizeBytes.HasValue)
+            {
+                return;
+            }
+
+            var dependency = item.Dependents.FirstOrDefault()?.Dependency;
+            if (dependency == null)
+            {
+                return;
+            }
+
+            _remoteSnapshotSizeEstimateService.EnsureEstimateLookup(dependency, Refresh);
         }
 
         private void DrawRepositoryLinkRow(ModelHubItem item)
@@ -245,14 +284,14 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static void DrawOptionalValueRow(string label, string value)
+        private static void DrawOptionalValueRow(string label, string value, string labelTooltip = null)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
                 return;
             }
 
-            EditorGUILayout.LabelField(label, value);
+            EditorGUILayout.LabelField(new GUIContent(label, labelTooltip), new GUIContent(value));
         }
 
         /// <summary>

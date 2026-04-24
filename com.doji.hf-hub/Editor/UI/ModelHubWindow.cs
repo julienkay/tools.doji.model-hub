@@ -51,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor
         private bool _isDraggingSplitter;
         private readonly Dictionary<string, bool> _sectionExpandedStates = new(StringComparer.Ordinal);
         private readonly Dictionary<string, RepoFileEditSession> _fileEditSessions = new(StringComparer.Ordinal);
+        private readonly IRemoteSnapshotSizeEstimateService _remoteSnapshotSizeEstimateService = new RemoteSnapshotSizeEstimateService();
         private static readonly QuantizationOption[] DefaultQuantizationOptions =
         {
             new("none", "None"),
@@ -78,7 +79,7 @@ namespace Doji.AI.ModelHub.Editor
         private const float DetailsContentPadding = 6f;
         private const float DetailsContentLeftPadding = 12f;
         private const float FilesBottomBarHeight = 36f;
-        private const float ManageButtonWidth = 80f;
+        private const float ManageButtonWidth = 72f;
         private const float FileActionButtonWidth = 110f;
 
         [MenuItem("Window/AI Model Hub")]

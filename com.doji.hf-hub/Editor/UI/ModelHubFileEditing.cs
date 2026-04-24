@@ -99,6 +99,7 @@ namespace Doji.AI.ModelHub.Editor
             RepoPath = repoPath;
             _originalRecipeHash = originalRecipeHash;
             _inspectedModel = inspectedModel;
+            IsExpanded = true;
             QuantizationMode = ModelHubWindow.NormalizeQuantizationMode(recipe?.QuantizationMode);
             DynamicDimensions = BuildDynamicDimensions(recipe, inspectedModel);
             DynamicDimensionsExpanded = DynamicDimensions.Count > 0;
@@ -106,6 +107,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         public string RepoPath { get; }
+        public bool IsExpanded { get; set; }
         public string QuantizationMode { get; set; }
         public List<DynamicDimensionEditState> DynamicDimensions { get; }
         public bool DynamicDimensionsExpanded { get; set; }

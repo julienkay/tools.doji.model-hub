@@ -10,6 +10,15 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed partial class ModelHubWindow
     {
+        private const string InferenceModelDarkIconPath = "Packages/com.unity.ai.inference/Editor/d_InferenceEngineModel.png";
+        private const string InferenceModelLightIconPath = "Packages/com.unity.ai.inference/Editor/InferenceEngineModel.png";
+        private const float FileTitleIconSize = 14f;
+        private const float FileTitleLeftGap = 3f;
+        private const float FileTitleIconGap = 4f;
+
+        private static Texture2D _inferenceModelIcon;
+        private static bool _didResolveInferenceModelIcon;
+
         /// <summary>
         /// Small popup option model for quantization mode selection.
         /// </summary>
@@ -43,21 +52,33 @@ namespace Doji.AI.ModelHub.Editor
                 var fileState = session.GetOrCreateFileState(file);
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
-                    EditorGUILayout.LabelField(file.RepoPath, EditorStyles.boldLabel);
-                    DrawOptionalLinkRow(Content.RawCachedFileLabel, file.RawCachedFilePath, ProjectSettingsLinks.RevealPath);
-                    DrawOptionalValueRow(Content.RawSizeLabel, FormatByteSize(file.RawSizeInBytes));
-                    DrawOptionalValueRow(Content.RecipeSourceLabel, file.RecipeSourceLabel);
-                    DrawOptionalLinkRow(Content.OverrideAssetLabel, file.OverrideAssetPath, ProjectSettingsLinks.PingAsset);
-                    DrawOptionalLinkRow(Content.RuntimeAssetLabel, file.RuntimeFile?.AssetPath, ProjectSettingsLinks.PingAsset);
-                    DrawOptionalValueRow(Content.RuntimeRelativeLabel, file.RuntimeFile?.RelativePath);
-
-                    DrawQuantizationEditor(fileState);
-                    DrawDynamicDimsEditor(fileState);
-                    fileState.RefreshValidation();
-
-                    if (!string.IsNullOrWhiteSpace(fileState.ValidationMessage))
+                    DrawFileHeader(fileState, file.RepoPath);
+                    if (fileState.IsExpanded)
                     {
-                        EditorGUILayout.HelpBox(fileState.ValidationMessage, MessageType.Warning);
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            GUILayout.Space(4f);
+                            using (new EditorGUILayout.VerticalScope())
+                            {
+                                DrawOptionalLinkRow(Content.RawCachedFileLabel, file.RawCachedFilePath, ProjectSettingsLinks.RevealPath);
+                                DrawOptionalValueRow(Content.RawSizeLabel, FormatByteSize(file.RawSizeInBytes));
+                                DrawOptionalValueRow(Content.RecipeSourceLabel, file.RecipeSourceLabel);
+                                DrawOptionalLinkRow(Content.OverrideAssetLabel, file.OverrideAssetPath, ProjectSettingsLinks.PingAsset);
+                                DrawOptionalLinkRow(Content.RuntimeAssetLabel, file.RuntimeFile?.AssetPath, ProjectSettingsLinks.PingAsset);
+                                DrawOptionalValueRow(Content.RuntimeRelativeLabel, file.RuntimeFile?.RelativePath);
+
+                                DrawQuantizationEditor(fileState);
+                                DrawDynamicDimsEditor(fileState);
+                                fileState.RefreshValidation();
+
+                                if (!string.IsNullOrWhiteSpace(fileState.ValidationMessage))
+                                {
+                                    EditorGUILayout.HelpBox(fileState.ValidationMessage, MessageType.Warning);
+                                }
+                            }
+
+                            GUILayout.Space(4f);
+                        }
                     }
                 }
 
@@ -67,6 +88,51 @@ namespace Doji.AI.ModelHub.Editor
             EditorGUILayout.Space();
         }
 
+        /// <summary>
+        /// Draws the file block title row with the same model icon used by the inference package when available.
+        /// </summary>
+        private static void DrawFileHeader(FileRecipeEditState fileState, string repoPath)
+        {
+            var rowRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+            var foldoutRect = new Rect(rowRect.x, rowRect.y, 14f, rowRect.height);
+            var contentRect = new Rect(rowRect.x + 14f + FileTitleLeftGap, rowRect.y, rowRect.width - 14f - FileTitleLeftGap, rowRect.height);
+
+            fileState.IsExpanded = EditorGUI.Foldout(foldoutRect, fileState.IsExpanded, GUIContent.none, true);
+
+            var icon = GetInferenceModelIcon();
+            if (icon == null)
+            {
+                EditorGUI.LabelField(contentRect, repoPath, EditorStyles.boldLabel);
+                return;
+            }
+
+            var iconY = contentRect.y + ((contentRect.height - FileTitleIconSize) * 0.5f);
+            var iconRect = new Rect(contentRect.x, iconY, FileTitleIconSize, FileTitleIconSize);
+            var labelOffset = FileTitleIconSize + FileTitleIconGap;
+            var labelRect = new Rect(contentRect.x + labelOffset, contentRect.y, contentRect.width - labelOffset, contentRect.height);
+            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
+            EditorGUI.LabelField(labelRect, repoPath, EditorStyles.boldLabel);
+        }
+
+        private static Texture2D GetInferenceModelIcon()
+        {
+            if (_didResolveInferenceModelIcon)
+            {
+                return _inferenceModelIcon;
+            }
+
+            _didResolveInferenceModelIcon = true;
+            var preferredIconPath = EditorGUIUtility.isProSkin ? InferenceModelDarkIconPath : InferenceModelLightIconPath;
+            _inferenceModelIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(preferredIconPath);
+            if (_inferenceModelIcon != null)
+            {
+                return _inferenceModelIcon;
+            }
+
+            var fallbackIconPath = EditorGUIUtility.isProSkin ? InferenceModelLightIconPath : InferenceModelDarkIconPath;
+            _inferenceModelIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(fallbackIconPath);
+            return _inferenceModelIcon;
+        }
         private void DrawQuantizationEditor(FileRecipeEditState fileState)
         {
             using (new EditorGUILayout.HorizontalScope())
@@ -103,9 +169,11 @@ namespace Doji.AI.ModelHub.Editor
 
             using (new EditorGUI.DisabledScope(dynamicDims.Count == 0))
             {
+                EditorGUI.indentLevel++;
                 if (dynamicDims.Count == 0)
                 {
                     EditorGUILayout.LabelField(Content.NoDynamicDimensionsMessage, EditorStyles.miniLabel);
+                    EditorGUI.indentLevel--;
                     return;
                 }
 
@@ -117,6 +185,8 @@ namespace Doji.AI.ModelHub.Editor
                         dynamicDim.Value = EditorGUILayout.IntField(dynamicDim.Value);
                     }
                 }
+
+                EditorGUI.indentLevel--;
             }
         }
 
@@ -128,23 +198,26 @@ namespace Doji.AI.ModelHub.Editor
             var hasValidationErrors = session.HasValidationErrors;
             var isDirty = session.IsDirty;
             var isSyncRunning = BackgroundSyncManager.IsRunning;
-            var actionLabel = string.IsNullOrWhiteSpace(item.RawSnapshotRootPath)
-                ? Content.ApplyAndDownloadLabel
-                : Content.ApplyAndReimportLabel;
+            var actionContent = new GUIContent(
+                Content.ApplyLabel,
+                string.IsNullOrWhiteSpace(item.RawSnapshotRootPath)
+                    ? Content.ApplyAndDownloadTooltip
+                    : Content.ApplyAndReimportTooltip);
 
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUI.DisabledScope(!isDirty))
                 {
-                    if (GUILayout.Button(Content.RevertLabel, GUILayout.Width(FileActionButtonWidth)))
+                    if (GUILayout.Button(Content.RevertLabel, GUILayout.Width(84f)))
                     {
+                        GUI.FocusControl(null);
                         ResetFileEditSession(item);
                     }
                 }
 
                 using (new EditorGUI.DisabledScope(!isDirty || hasValidationErrors || isSyncRunning || item.HasRevisionConflict))
                 {
-                    if (GUILayout.Button(actionLabel, GUILayout.Width(150f)))
+                    if (GUILayout.Button(actionContent, GUILayout.Width(110f)))
                     {
                         EditorOperations.ApplyProjectOverridesAndReimport(item, session.BuildRecipesByRepoPath());
                         _fileEditSessions.Remove(GetFileEditSessionKey(item));
@@ -165,12 +238,22 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var session = GetOrCreateFileEditSession(item);
-            GUILayout.Space(4f);
-            using (new EditorGUILayout.HorizontalScope(GUILayout.Height(FilesBottomBarHeight)))
+            GUILayout.Space(8f);
+            var barRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(FilesBottomBarHeight));
+            if (Event.current.type == EventType.Repaint)
             {
-                GUILayout.FlexibleSpace();
-                DrawFilesActionBar(item, session);
+                EditorGUI.DrawRect(barRect, GetDetailsContentBackgroundColor());
             }
+
+            GUILayout.Space(6f);
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginVertical();
+            GUILayout.FlexibleSpace();
+            DrawFilesActionBar(item, session);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+            GUILayout.Space(DetailsContentLeftPadding);
+            EditorGUILayout.EndHorizontal();
         }
 
         private RepoFileEditSession GetOrCreateFileEditSession(ModelHubItem item)

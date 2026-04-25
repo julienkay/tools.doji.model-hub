@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -8,6 +10,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class ModelHubServiceTests
     {
+        private readonly List<string> _tempPaths = new();
+
+        [TearDown]
+        public void TearDown()
+        {
+            foreach (var path in _tempPaths)
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+
+            _tempPaths.Clear();
+        }
+
         /// <summary>
         /// Verifies multiple manifest dependents for one repo collapse into one Model Hub item.
         /// </summary>
@@ -282,6 +300,45 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].Files[0].Recipe.QuantizationMode, Is.EqualTo("int8"));
         }
 
+        [Test]
+        public void BuildReport_BuildsStorageTreemapTilesFromCombinedRawAndRuntimeDiskUsage()
+        {
+            var rawPath = CreateTempFileWithSize(12);
+            var runtimeAssetPath = CreateRuntimeAssetFileWithSize("Assets/StreamingAssets/hf-hub/tests/model.sentis", 7);
+            var dependency = CreateDependencyStatus(
+                "com.doji.pkg-a",
+                "Package A",
+                "model-a",
+                rawCachedFilePath: rawPath,
+                runtimeAssetPath: runtimeAssetPath);
+            var report = new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), new[] { dependency });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RepoPath, Is.EqualTo("model.onnx"));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RawSizeOnDiskBytes, Is.EqualTo(12));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RuntimeSizeOnDiskBytes, Is.EqualTo(7));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].TotalSizeOnDiskBytes, Is.EqualTo(19));
+        }
+
+        [Test]
+        public void BuildReport_SkipsStorageTreemapTilesWhenFilesAreNotOnDisk()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus("com.doji.pkg-a", "Package A", "model-a")
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].StorageTreemapTiles, Is.Empty);
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
@@ -290,7 +347,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string revision = "main",
             ImportDiagnostic[] importedDiagnostics = null,
             DependencyReasonCode? reasonCode = null,
-            string maintainerMessage = null)
+            string maintainerMessage = null,
+            string rawCachedFilePath = "/cache/doji/test-model/abc123/model.onnx",
+            string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis")
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -323,7 +382,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         RepoPath = "model.onnx",
                         Kind = "sentis",
-                        AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
+                        AssetPath = runtimeAssetPath,
                         RelativePath = "hf-hub/doji/test-model/model.sentis",
                         SizeInBytes = 6
                     }
@@ -348,14 +407,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         new RawCacheFileMetadata
                         {
                             RepoPath = "model.onnx",
-                            CachedFilePath = "/cache/doji/test-model/abc123/model.onnx",
+                            CachedFilePath = rawCachedFilePath,
                             SizeInBytes = 12
                         }
                     }
                 },
-                "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
+                runtimeAssetPath,
                 ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
                 state == DependencyState.Ready ? metadata : null);
+        }
+
+        private string CreateTempFileWithSize(int sizeInBytes)
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"hf-hub-modelhub-test-{Guid.NewGuid():N}.bin");
+            File.WriteAllBytes(path, new byte[sizeInBytes]);
+            _tempPaths.Add(path);
+            return path;
+        }
+
+        private string CreateRuntimeAssetFileWithSize(string assetPath, int sizeInBytes)
+        {
+            var absolutePath = ProjectPaths.ToAbsolutePath(assetPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(absolutePath) ?? throw new InvalidOperationException("Expected runtime directory."));
+            File.WriteAllBytes(absolutePath, new byte[sizeInBytes]);
+            _tempPaths.Add(absolutePath);
+            return assetPath;
         }
     }
 

@@ -156,7 +156,9 @@ namespace Doji.AI.ModelHub.Editor
                         repoPath,
                         rawFile?.CachedFilePath,
                         rawFile?.SizeInBytes,
+                        GetFileSizeOnDisk(rawFile?.CachedFilePath),
                         runtimeFile,
+                        GetRuntimeFileSizeOnDisk(runtimeFile),
                         effectiveRecipe.Recipe,
                         effectiveRecipe.SourceLabel,
                         effectiveRecipe.OverrideAssetPath,
@@ -298,6 +300,26 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return foundAny ? totalBytes : null;
+        }
+
+        private static long? GetFileSizeOnDisk(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return null;
+            }
+
+            return new FileInfo(path).Length;
+        }
+
+        private static long? GetRuntimeFileSizeOnDisk(ImportedRuntimeFileMetadata runtimeFile)
+        {
+            if (runtimeFile == null || string.IsNullOrWhiteSpace(runtimeFile.AssetPath))
+            {
+                return null;
+            }
+
+            return GetFileSizeOnDisk(ProjectPaths.ToAbsolutePath(runtimeFile.AssetPath));
         }
 
         private static ModelHubItemState GetAggregateState(IReadOnlyList<DependencyStatus> dependents)

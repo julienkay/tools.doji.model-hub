@@ -23,6 +23,12 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveryIssues
         }
 
+        private enum StorageTreemapMode
+        {
+            Combined,
+            SplitByStorage
+        }
+
         private ModelHubReport _report;
         private DateTime _lastRefreshLocalTime;
         private Vector2 _listScrollPosition;
@@ -30,9 +36,11 @@ namespace Doji.AI.ModelHub.Editor
         private string _searchText = string.Empty;
         private int _selectedIndex = -1;
         private DetailTab _selectedDetailTab = DetailTab.Summary;
+        private StorageTreemapMode _storageTreemapMode = StorageTreemapMode.SplitByStorage;
         private GUIContent _refreshIconContent;
         private GUIContent _importAllContent;
         private GUIContent _importContent;
+        private GUIContent _jumpToStorageContent;
         private GUIContent _manageContent;
         private GUIContent _locateContent;
         private GUIContent _actionRequiredStateIconContent;
@@ -48,6 +56,11 @@ namespace Doji.AI.ModelHub.Editor
         private GUIStyle _detailsTabLabelStyle;
         private GUIStyle _manageButtonStyle;
         private GUIStyle _manageDropdownArrowStyle;
+        private GUIStyle _treemapTileLabelStyle;
+        private GUIStyle _treemapModeSegmentStyle;
+        private string _hoveredSplitTreemapRepoPath;
+        private string _previousHoveredSplitTreemapRepoPath;
+        private double _hoveredSplitTreemapChangedAtTime;
         private float _listPaneWidth = DefaultListPaneWidth;
         private bool _isDraggingSplitter;
         private readonly Dictionary<string, bool> _sectionExpandedStates = new(StringComparer.Ordinal);
@@ -82,6 +95,8 @@ namespace Doji.AI.ModelHub.Editor
         private const float FilesBottomBarHeight = 36f;
         private const float ManageButtonWidth = 72f;
         private const float FileActionButtonWidth = 110f;
+        private const float StorageTreemapAspectRatio = 2.2f;
+        private const double StorageTreemapHoverTransitionDuration = 0.16d;
 
         [MenuItem("Window/AI Model Hub")]
         private static void OpenFromWindowMenu()
@@ -105,6 +120,7 @@ namespace Doji.AI.ModelHub.Editor
         private void OnEnable()
         {
             InitializeGuiContent();
+            wantsMouseMove = true;
             BackgroundSyncManager.SyncStateChanged += HandleSyncStateChanged;
             Refresh();
         }
@@ -117,6 +133,7 @@ namespace Doji.AI.ModelHub.Editor
         private void CreateGUI()
         {
             InitializeGuiContent();
+            wantsMouseMove = true;
         }
 
         private void OnGUI()

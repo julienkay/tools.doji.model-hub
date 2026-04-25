@@ -2,21 +2,21 @@
 
 ## Focus
 
-Model Hub window information architecture is being tightened so `Details` answers source-model questions and `Storage` answers local footprint questions.
+Model Hub `Storage` tab now includes per-file footprint treemap; next pass is visual polish and wording validation across mixed cache/import states.
 
 ## Next Tasks
 
-- [ ] Re-check `Storage` tab wording and row set after visual use with remote-only, cached-only, and imported-only model states.
-- [ ] Decide whether cache-size sidecar lookups should ever be refreshed after first success/failure or remain strictly one-shot per repository revision.
-- [ ] Extend ONNX inspection/signature surfacing beyond current dynamic-dimension UI so file rows can show richer input shape context.
+- [ ] Visually verify treemap readability for remote-only, cached-only, imported-only, and cached-plus-imported scenarios in companion project sandbox.
+- [ ] Decide whether treemap needs explicit legend or summary chips for cache/runtime split.
+- [ ] Re-check `Storage` tab wording and row order after treemap is in place.
 
 ## Blockers And Decisions Needed
 
-- Decide whether `Storage` should later show combined total footprint row in addition to cache/runtime breakdown.
-- Decide future static-dims UX once input signature inspection exists.
+- Decide whether `Storage` should add explicit combined-total row now that treemap shows mixed footprint.
+- Decide whether cache-size sidecar lookups should ever refresh after first success/failure or remain one-shot per repository revision.
 
 ## Read Before Editing
 
 - [.codex/architecture/editor-model-hub-ui.md](./architecture/editor-model-hub-ui.md)
 - [com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs](../com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs)
-- [com.doji.hf-hub/Editor/Cache/RemoteSnapshotSizeEstimateService.cs](../com.doji.hf-hub/Editor/Cache/RemoteSnapshotSizeEstimateService.cs)
+- [com.doji.hf-hub/Editor/Status/ModelHubModels.cs](../com.doji.hf-hub/Editor/Status/ModelHubModels.cs)

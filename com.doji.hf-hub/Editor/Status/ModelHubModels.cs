@@ -38,7 +38,9 @@ namespace Doji.AI.ModelHub.Editor
             string repoPath,
             string rawCachedFilePath,
             long? rawSizeInBytes,
+            long? rawSizeOnDiskBytes,
             ImportedRuntimeFileMetadata runtimeFile,
+            long? runtimeSizeOnDiskBytes,
             OnnxConversionRecipe recipe,
             string recipeSourceLabel,
             string overrideAssetPath,
@@ -47,7 +49,9 @@ namespace Doji.AI.ModelHub.Editor
             RepoPath = repoPath;
             RawCachedFilePath = rawCachedFilePath;
             RawSizeInBytes = rawSizeInBytes;
+            RawSizeOnDiskBytes = rawSizeOnDiskBytes;
             RuntimeFile = runtimeFile;
+            RuntimeSizeOnDiskBytes = runtimeSizeOnDiskBytes;
             Recipe = recipe;
             RecipeSourceLabel = recipeSourceLabel;
             OverrideAssetPath = overrideAssetPath;
@@ -57,13 +61,50 @@ namespace Doji.AI.ModelHub.Editor
         public string RepoPath { get; }
         public string RawCachedFilePath { get; }
         public long? RawSizeInBytes { get; }
+        public long? RawSizeOnDiskBytes { get; }
         public ImportedRuntimeFileMetadata RuntimeFile { get; }
+        public long? RuntimeSizeOnDiskBytes { get; }
         public OnnxConversionRecipe Recipe { get; }
         public string RecipeSourceLabel { get; }
         public string OverrideAssetPath { get; }
         public bool HasProjectOverride { get; }
         public bool HasRawFile => !string.IsNullOrWhiteSpace(RawCachedFilePath);
         public bool HasRuntimeFile => RuntimeFile != null;
+    }
+
+    /// <summary>
+    /// Describes one rectangle in Storage treemap for repository-relative file footprint.
+    /// </summary>
+    internal sealed class ModelHubStorageTreemapTile
+    {
+        public ModelHubStorageTreemapTile(
+            string repoPath,
+            long rawSizeOnDiskBytes,
+            long runtimeSizeOnDiskBytes,
+            string displayLabel = null,
+            string revealPath = null,
+            string rawDisplayPath = null,
+            string runtimeDisplayPath = null)
+        {
+            RepoPath = repoPath;
+            RawSizeOnDiskBytes = Math.Max(0, rawSizeOnDiskBytes);
+            RuntimeSizeOnDiskBytes = Math.Max(0, runtimeSizeOnDiskBytes);
+            DisplayLabel = string.IsNullOrWhiteSpace(displayLabel) ? repoPath : displayLabel;
+            RevealPath = revealPath;
+            RawDisplayPath = rawDisplayPath;
+            RuntimeDisplayPath = runtimeDisplayPath;
+        }
+
+        public string RepoPath { get; }
+        public string DisplayLabel { get; }
+        public string RevealPath { get; }
+        public string RawDisplayPath { get; }
+        public string RuntimeDisplayPath { get; }
+        public long RawSizeOnDiskBytes { get; }
+        public long RuntimeSizeOnDiskBytes { get; }
+        public long TotalSizeOnDiskBytes => RawSizeOnDiskBytes + RuntimeSizeOnDiskBytes;
+        public bool HasRawBytes => RawSizeOnDiskBytes > 0;
+        public bool HasRuntimeBytes => RuntimeSizeOnDiskBytes > 0;
     }
 
     /// <summary>
@@ -75,6 +116,7 @@ namespace Doji.AI.ModelHub.Editor
         private ModelHubDiagnostic[] _diagnostics;
         private readonly ImportedRuntimeFileMetadata[] _runtimeFiles;
         private readonly ModelHubFileItem[] _files;
+        private readonly ModelHubStorageTreemapTile[] _storageTreemapTiles;
 
         public ModelHubItem(
             string repository,
@@ -104,6 +146,15 @@ namespace Doji.AI.ModelHub.Editor
             _diagnostics = diagnostics?.ToArray() ?? Array.Empty<ModelHubDiagnostic>();
             _runtimeFiles = runtimeFiles?.ToArray() ?? Array.Empty<ImportedRuntimeFileMetadata>();
             _files = files?.ToArray() ?? Array.Empty<ModelHubFileItem>();
+            _storageTreemapTiles = _files
+                .Select(file => new ModelHubStorageTreemapTile(
+                    file.RepoPath,
+                    file.RawSizeOnDiskBytes ?? 0,
+                    file.RuntimeSizeOnDiskBytes ?? 0))
+                .Where(tile => tile.TotalSizeOnDiskBytes > 0)
+                .OrderByDescending(tile => tile.TotalSizeOnDiskBytes)
+                .ThenBy(tile => tile.RepoPath, StringComparer.Ordinal)
+                .ToArray();
         }
 
         public string Repository { get; }
@@ -120,6 +171,7 @@ namespace Doji.AI.ModelHub.Editor
         public IReadOnlyList<ModelHubDiagnostic> Diagnostics => _diagnostics;
         public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => _runtimeFiles;
         public IReadOnlyList<ModelHubFileItem> Files => _files;
+        public IReadOnlyList<ModelHubStorageTreemapTile> StorageTreemapTiles => _storageTreemapTiles;
         public int ImportedFileCount => _runtimeFiles.Count(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal));
         public int ManifestOwnerCount => _dependents.Select(item => item.Dependency.PackageId).Distinct(StringComparer.Ordinal).Count();
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);

@@ -11,6 +11,11 @@ namespace Doji.AI.ModelHub.Editor
             _refreshIconContent.tooltip = Content.RefreshTooltip;
             _importAllContent ??= new GUIContent(Content.ImportAllLabel, Content.ImportAllTooltip);
             _importContent ??= new GUIContent(Content.ImportLabel, Content.ImportTooltip);
+            _jumpToStorageContent ??= EditorGUIUtility.IconContent(
+                EditorGUIUtility.isProSkin
+                    ? "d_AnalyticsTracker Icon"
+                    : "AnalyticsTracker Icon");
+            _jumpToStorageContent.tooltip = Content.JumpToStorageTooltip;
             _manageContent ??= new GUIContent(Content.ManageLabel);
             _locateContent ??= new GUIContent(Content.LocateLabel, Content.LocateTooltip);
             _actionRequiredStateIconContent ??= EditorGUIUtility.IconContent("info");
@@ -101,6 +106,29 @@ namespace Doji.AI.ModelHub.Editor
                 stretchHeight = false,
                 alignment = TextAnchor.MiddleLeft
             };
+            _treemapTileLabelStyle ??= new GUIStyle(EditorStyles.whiteMiniLabel)
+            {
+                alignment = TextAnchor.UpperLeft,
+                wordWrap = true,
+                clipping = TextClipping.Clip,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0)
+            };
+            _treemapModeSegmentStyle ??= new GUIStyle(EditorStyles.miniLabel)
+            {
+                fixedHeight = 22f,
+                padding = new RectOffset(6, 6, 3, 3),
+                margin = new RectOffset(0, 0, 0, 0),
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold
+            };
+            var neutralTextColor = EditorGUIUtility.isProSkin
+                ? new Color(0.90f, 0.92f, 0.94f, 1f)
+                : new Color(0.18f, 0.20f, 0.22f, 1f);
+            _treemapModeSegmentStyle.normal.textColor = neutralTextColor;
+            _treemapModeSegmentStyle.hover.textColor = neutralTextColor;
+            _treemapModeSegmentStyle.active.textColor = neutralTextColor;
+            _treemapModeSegmentStyle.focused.textColor = neutralTextColor;
         }
     }
 }

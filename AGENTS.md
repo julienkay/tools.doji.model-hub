@@ -68,6 +68,7 @@ When adding code:
 ## Documentation Style
 
 - Document every public type and any non-obvious internal type with an XML summary.
+- Non-obvious private methods may also get brief comments when that improves readability or preserves important UI, rendering, path, or state-management intent.
 - Start summaries high-level: explain role and intent before mechanics.
 - Do not narrate obvious code. Avoid filler like `Gets or sets`, `Helper for`, or comments that restate the method name.
 - Add detail only where behavior is surprising, constrained by Unity/serialization, or shaped by a workaround.

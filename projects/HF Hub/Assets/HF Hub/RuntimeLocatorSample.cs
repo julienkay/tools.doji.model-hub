@@ -61,7 +61,7 @@ namespace Doji.AI.ModelHub.Samples
         {
             _loadedModel = null;
 
-            if (!ModelHub.TryResolveRuntimeModel(_repoId, out var resolvedModel))
+            if (!Hub.TryResolveRuntimeModel(_repoId, out var resolvedModel))
             {
                 _status = $"Resolve failed: '{_repoId}' not found. Sync models first.";
                 Debug.LogWarning(_status, this);
@@ -70,7 +70,7 @@ namespace Doji.AI.ModelHub.Samples
 
             try
             {
-                _loadedModel = ModelHub.LoadRuntimeModel(_repoId, _modelFile);
+                _loadedModel = Hub.LoadRuntimeModel(_repoId, _modelFile);
                 resolvedModel.TryGetSentisPath(_modelFile, out var sentisPath);
                 _status = $"Loaded '{resolvedModel}' from '{sentisPath}'.";
                 Debug.Log(_status, this);

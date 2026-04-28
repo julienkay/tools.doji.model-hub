@@ -73,7 +73,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(alphaDependency.PackageVersion, Is.EqualTo("unknown"));
             Assert.That(alphaDependency.ModelId, Is.EqualTo("doji/text-small"));
             Assert.That(alphaDependency.Repository, Is.EqualTo("doji/text-small"));
-            Assert.That(alphaDependency.ManifestPath, Is.EqualTo(Path.Combine(alphaPackage.ResolvedPath, ModelHub.ManifestFileName)));
+            Assert.That(alphaDependency.ManifestPath, Is.EqualTo(Path.Combine(alphaPackage.ResolvedPath, Hub.ManifestFileName)));
             Assert.That(alphaDependency.ManifestHash, Is.EqualTo(ComputeSha256(secondManifest)));
 
             var zebraDependency = report.Dependencies[1];
@@ -305,7 +305,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             if (manifestContents != null)
             {
-                File.WriteAllText(Path.Combine(packageDirectory, ModelHub.ManifestFileName), manifestContents);
+                File.WriteAllText(Path.Combine(packageDirectory, Hub.ManifestFileName), manifestContents);
             }
 
             return new InstalledPackageSnapshot(packageId, displayName, version, packageDirectory);

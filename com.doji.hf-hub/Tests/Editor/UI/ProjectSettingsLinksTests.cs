@@ -169,6 +169,33 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(summary, Does.Contain("Library/PackageCache"));
         }
 
+        /// <summary>
+        /// Ensures reminder context stays null when unresolved dependencies come from more than one manifest path.
+        /// </summary>
+        [Test]
+        public void TryGetSingleManifestContextObject_ReturnsNullForMultipleManifestPaths()
+        {
+            var statuses = new[]
+            {
+                CreateDependencyStatus(
+                    CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e"),
+                    "Project",
+                    "project-model",
+                    "Assets/HF Hub/HF Hub Project Manifest.asset",
+                    reasonCode: DependencyReasonCode.ImportBindingMissing),
+                CreateDependencyStatus(
+                    "com.doji.pkg",
+                    "Locked Package",
+                    "package-model",
+                    "Packages/com.doji.pkg/hf-hub-manifest.json",
+                    reasonCode: DependencyReasonCode.ImportBindingMissing)
+            };
+
+            var context = ProjectSettingsLinks.TryGetSingleManifestContextObject(statuses);
+
+            Assert.That(context, Is.Null);
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,

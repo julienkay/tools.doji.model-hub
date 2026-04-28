@@ -12,6 +12,7 @@ namespace Doji.AI.ModelHub.Editor
     {
         private const string PromptShownSessionKey = "Doji.AI.ModelHub.AutoPromptShown";
         private static bool _isQueued;
+        private static bool _loggedForCurrentDomain;
 
         static AutoPrompt()
         {
@@ -67,19 +68,35 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            if (SessionState.GetBool(PromptShownSessionKey, false))
-            {
-                return;
-            }
-
             var statusReport = EditorOperations.CreateStatusReport();
             if (!ShouldPrompt(statusReport))
             {
                 return;
             }
 
+            LogReminderIfNeeded(statusReport);
+
+            if (SessionState.GetBool(PromptShownSessionKey, false))
+            {
+                return;
+            }
+
             SessionState.SetBool(PromptShownSessionKey, true);
             AutoPromptWindow.ShowWindow(statusReport);
+        }
+
+        private static void LogReminderIfNeeded(StatusReport statusReport)
+        {
+            if (_loggedForCurrentDomain || statusReport == null || !statusReport.NeedsAttention)
+            {
+                return;
+            }
+
+            _loggedForCurrentDomain = true;
+            var contextObject = ProjectSettingsLinks.TryGetSingleManifestContextObject(statusReport.DependencyStatuses);
+            Debug.Log(
+                EditorOperations.BuildUnresolvedDependencyReminder(statusReport),
+                contextObject);
         }
 
         private static bool IsTestRunnerOpen()

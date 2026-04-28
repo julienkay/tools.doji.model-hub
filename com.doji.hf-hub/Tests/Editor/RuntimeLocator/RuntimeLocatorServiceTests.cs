@@ -55,7 +55,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRuntimeFiles(result.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { result });
 
-            var found = ModelHub.TryResolveRuntimeModel("com.doji.test", "doji/test-model", out var model);
+            var found = Hub.TryResolveRuntimeModel("com.doji.test", "doji/test-model", out var model);
 
             Assert.That(found, Is.True);
             Assert.That(model, Is.Not.Null);
@@ -76,7 +76,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRuntimeFiles(result.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { result });
 
-            var found = ModelHub.TryResolveRuntimeModel("doji/test-model", out var model);
+            var found = Hub.TryResolveRuntimeModel("doji/test-model", out var model);
 
             Assert.That(found, Is.True);
             Assert.That(model, Is.Not.Null);
@@ -93,7 +93,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRuntimeFiles(result.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { result });
 
-            var repository = ModelHub.FromPretrained("doji/test-model");
+            var repository = Hub.FromPretrained("doji/test-model");
 
             Assert.That(repository.PackageId, Is.EqualTo("com.doji.test"));
             Assert.That(repository.RepoId, Is.EqualTo("doji/test-model"));
@@ -113,7 +113,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRuntimeFiles(second.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { first, second });
 
-            var repository = ModelHub.FromPretrained("com.doji.second", "doji/test-model");
+            var repository = Hub.FromPretrained("com.doji.second", "doji/test-model");
 
             Assert.That(repository, Is.Not.Null);
             Assert.That(repository.PackageId, Is.EqualTo("com.doji.second"));
@@ -149,7 +149,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
             });
 
-            var repository = ModelHub.FromPretrained("doji/test-model");
+            var repository = Hub.FromPretrained("doji/test-model");
             var model = repository.LoadModel("SingleInputSingleOuput.onnx");
 
             Assert.That(model, Is.Not.Null);
@@ -161,7 +161,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void TryResolveRuntimeModel_ReturnsFalseWhenRegistryMissing()
         {
-            var found = ModelHub.TryResolveRuntimeModel("com.doji.test", "missing-model", out var model);
+            var found = Hub.TryResolveRuntimeModel("com.doji.test", "missing-model", out var model);
 
             Assert.That(found, Is.False);
             Assert.That(model, Is.Null);
@@ -196,7 +196,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
             });
 
-            var model = ModelHub.LoadRuntimeModel("doji/test-model", "SingleInputSingleOuput.onnx");
+            var model = Hub.LoadRuntimeModel("doji/test-model", "SingleInputSingleOuput.onnx");
 
             Assert.That(model, Is.Not.Null);
         }
@@ -214,7 +214,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             _registryService.WriteRegistries(new[] { first, second });
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
-                ModelHub.TryResolveRuntimeModel("doji/test-model", out _));
+                Hub.TryResolveRuntimeModel("doji/test-model", out _));
 
             Assert.That(exception?.Message, Does.Contain("ambiguous"));
         }
@@ -232,7 +232,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             _registryService.WriteRegistries(new[] { first, second });
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
-                ModelHub.FromPretrained("doji/test-model"));
+                Hub.FromPretrained("doji/test-model"));
 
             Assert.That(exception?.Message, Does.Contain("ambiguous"));
         }
@@ -249,7 +249,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteRuntimeFiles(second.ImportedArtifact.Metadata);
             _registryService.WriteRegistries(new[] { first, second });
 
-            var found = ModelHub.TryResolveRuntimeModel("com.doji.second", "doji/test-model", out var model);
+            var found = Hub.TryResolveRuntimeModel("com.doji.second", "doji/test-model", out var model);
 
             Assert.That(found, Is.True);
             Assert.That(model, Is.Not.Null);

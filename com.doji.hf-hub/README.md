@@ -14,11 +14,11 @@ Current runtime contract:
 - projects can declare dependencies with `ProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`, while packages stay on plain `hf-hub-manifest.json`
 - editor conversion uses Unity Inference ONNX conversion directly, without temporary ONNX asset imports
 - ONNX conversion now hangs off shared `IOnnxModelConverter`; runtime placeholder exists for future custom runtime converter package
-- runtime code resolves models by HuggingFace `repo_id` through `ModelHub.TryResolveRuntimeModel("owner/model")`
-- owner-specific runtime lookup also uses canonical `repo_id` through `ModelHub.TryResolveRuntimeModel("package-or-project-owner", "owner/model")`
-- runtime code resolves repo snapshots by HuggingFace `repo_id` through `ModelHub.TryResolveRuntimeModel("owner/model")`
-- runtime code can wrap one synchronized repo snapshot in `from_pretrained(...)` style API through `ModelHub.FromPretrained("owner/model")`
-- runtime code loads one generated Sentis payload by repo-relative file path through `ModelHub.LoadRuntimeModel("owner/model", "onnx/model.onnx")`
+- runtime code resolves models by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`
+- owner-specific runtime lookup also uses canonical `repo_id` through `Hub.TryResolveRuntimeModel("package-or-project-owner", "owner/model")`
+- runtime code resolves repo snapshots by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`
+- runtime code can wrap one synchronized repo snapshot in `from_pretrained(...)` style API through `Hub.FromPretrained("owner/model")`
+- runtime code loads one generated Sentis payload by repo-relative file path through `Hub.LoadRuntimeModel("owner/model", "onnx/model.onnx")`
 - default runtime workflow is offline-first: editor sync prepares payloads, runtime resolves local files, runtime download comes later
 
 Companion project sample:

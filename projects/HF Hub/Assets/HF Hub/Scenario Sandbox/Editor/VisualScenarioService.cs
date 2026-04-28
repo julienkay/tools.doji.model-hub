@@ -477,7 +477,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         private static string GetRuntimeSnapshotFolderAssetPath(string repository)
         {
-            return $"{ModelHub.RuntimeStreamingAssetsRoot}/{SanitizeRelativePath(repository)}";
+            return $"{Hub.RuntimeStreamingAssetsRoot}/{SanitizeRelativePath(repository)}";
         }
 
         private static string GetCacheRepositoryRoot(string repository)

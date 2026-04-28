@@ -12,6 +12,9 @@ namespace Doji.AI.ModelHub
     /// <summary>
     /// Represents one resolved HuggingFace model dependency discovered from one manifest owner.
     /// </summary>
+    // TODO: Rename package-oriented members here to owner-oriented names
+    // (`PackageId`, `PackageDisplayName`, `PackageVersion`, `PackageResolvedPath`)
+    // so project-manifest owners read naturally too.
     internal sealed class DiscoveredModelDependency
     {
         /// <summary>
@@ -38,7 +41,8 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Stable manifest owner identifier used by sync and runtime locator lookup.
+        /// Stable manifest owner identifier used by sync and runtime locator lookup, for example
+        /// <c>com.example.sample-package</c> for a package or one generated project-manifest owner id.
         /// </summary>
         public string PackageId { get; }
 
@@ -53,32 +57,38 @@ namespace Doji.AI.ModelHub
         public string PackageVersion { get; }
 
         /// <summary>
-        /// Absolute owner path used to anchor related project or package context.
+        /// Absolute owner path used to anchor related project or package context, for example
+        /// <c>C:/dev/com.example.sample-package</c> or <c>C:/work/HF Hub/Assets/HF Hub</c>.
         /// </summary>
         public string PackageResolvedPath { get; }
 
         /// <summary>
-        /// Absolute path to manifest source that declared dependency.
+        /// Absolute path to manifest source that declared dependency, for example
+        /// <c>C:/dev/com.example.sample-package/hf-hub-manifest.json</c>.
         /// </summary>
         public string ManifestPath { get; }
 
         /// <summary>
-        /// SHA-256 hash of manifest contents used for future staleness checks.
+        /// SHA-256 hash of manifest contents used for future staleness checks, for example
+        /// <c>7f83b1657ff1fc53b92dc18148a1d65dfa135014...</c>.
         /// </summary>
         public string ManifestHash { get; }
 
         /// <summary>
-        /// Canonical HuggingFace model id declared in manifest.
+        /// Canonical HuggingFace model id declared in manifest, for example
+        /// <c>example/sample-model</c>.
         /// </summary>
         public string ModelId { get; }
 
         /// <summary>
-        /// Canonical HuggingFace model id reused as repo snapshot key and runtime lookup id.
+        /// Canonical HuggingFace model id reused as repo snapshot key and runtime lookup id, for example
+        /// <c>example/sample-model</c>.
         /// </summary>
         public string Repository { get; }
 
         /// <summary>
-        /// Branch, tag, or commit to resolve from Hub.
+        /// Branch, tag, or commit to resolve from Hub, for example <c>main</c>,
+        /// <c>refs/pr/12</c>, or one commit SHA.
         /// </summary>
         public string Revision { get; }
 
@@ -207,7 +217,7 @@ namespace Doji.AI.ModelHub
                     continue;
                 }
 
-                var manifestPath = Path.Combine(package.ResolvedPath, ModelHub.ManifestFileName);
+                var manifestPath = Path.Combine(package.ResolvedPath, Hub.ManifestFileName);
                 if (!File.Exists(manifestPath))
                 {
                     continue;

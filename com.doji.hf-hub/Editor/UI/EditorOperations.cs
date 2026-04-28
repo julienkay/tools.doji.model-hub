@@ -184,6 +184,44 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Builds short reminder text for editor-session console nudges when dependencies still need action.
+        /// </summary>
+        public static string BuildUnresolvedDependencyReminder(StatusReport report)
+        {
+            if (report == null || !report.NeedsAttention)
+            {
+                return "HF Hub: no unresolved model dependencies.";
+            }
+
+            var unresolvedCount = report.DependencyStatuses.Count(status => status.NeedsAttention);
+            var issueCount = report.DiscoveryIssues.Count;
+            var builder = new StringBuilder();
+            builder.Append("HF Hub: unresolved model dependencies.");
+
+            if (unresolvedCount > 0 || issueCount > 0)
+            {
+                builder.Append(' ');
+                builder.Append('(');
+                builder.Append($"{unresolvedCount} ");
+                builder.Append(unresolvedCount == 1 ? "dependency" : "dependencies");
+
+                if (issueCount > 0)
+                {
+                    builder.Append($", {issueCount} discovery issue");
+                    if (issueCount != 1)
+                    {
+                        builder.Append('s');
+                    }
+                }
+
+                builder.Append(')');
+            }
+
+            builder.Append($" Open {ProjectSettingsPath} or Window > AI Model Hub to resolve.");
+            return builder.ToString();
+        }
+
+        /// <summary>
         /// Builds detailed status output for Console and settings UI.
         /// </summary>
         public static string BuildStatusConsoleReport(StatusReport report)

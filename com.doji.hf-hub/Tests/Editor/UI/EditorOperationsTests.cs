@@ -56,6 +56,52 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(consoleReport, Does.Not.Contain(projectOwnerId));
         }
 
+        /// <summary>
+        /// Verifies unresolved-dependency reminder points users at the editor surfaces that can resolve it.
+        /// </summary>
+        [Test]
+        public void BuildUnresolvedDependencyReminder_IncludesCountsAndResolutionLocations()
+        {
+            var projectOwnerId = CreateProjectOwnerId();
+            var report = new StatusReport(
+                new[]
+                {
+                    new ManifestDiscoveryIssue(projectOwnerId, "Assets/HF Hub/HF Hub Project Manifest.asset", "Issue")
+                },
+                new[]
+                {
+                    CreateDependencyStatus(projectOwnerId, "Project", DependencyState.Missing, "Needs import"),
+                    CreateDependencyStatus("com.doji.pkg", "Package", DependencyState.Stale, "Needs refresh")
+                });
+
+            var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
+
+            Assert.That(message, Does.Contain("HF Hub: unresolved model dependencies."));
+            Assert.That(message, Does.Contain("(2 dependencies, 1 discovery issue)"));
+            Assert.That(message, Does.Contain(EditorOperations.ProjectSettingsPath));
+            Assert.That(message, Does.Contain("Window > AI Model Hub"));
+        }
+
+        /// <summary>
+        /// Verifies singular unresolved reminder copy does not duplicate the trailing y.
+        /// </summary>
+        [Test]
+        public void BuildUnresolvedDependencyReminder_UsesSingularDependencyLabel()
+        {
+            var projectOwnerId = CreateProjectOwnerId();
+            var report = new StatusReport(
+                System.Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(projectOwnerId, "Project", DependencyState.Missing, "Needs import")
+                });
+
+            var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
+
+            Assert.That(message, Does.Contain("(1 dependency)"));
+            Assert.That(message, Does.Not.Contain("dependencyy"));
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,

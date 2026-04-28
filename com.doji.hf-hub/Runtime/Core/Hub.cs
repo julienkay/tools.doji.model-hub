@@ -9,7 +9,7 @@ namespace Doji.AI.ModelHub
     /// <summary>
     /// Defines the package-level file and path conventions used by the HuggingFace Hub integration.
     /// </summary>
-    public static class ModelHub
+    public static class Hub
     {
         /// <summary>
         /// Package manifest filename that declares remote model dependencies for a Unity package.

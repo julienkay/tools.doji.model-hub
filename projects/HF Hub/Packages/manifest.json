@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.doji.downloads": "file:../../../com.doji.downloads",
+    "com.doji.downloads": "file:../../../../com.doji.downloads/com.doji.downloads",
     "com.doji.hf-hub": "file:../../../com.doji.hf-hub",
     "com.unity.ide.rider": "3.0.40",
     "com.unity.inputsystem": "1.18.0",

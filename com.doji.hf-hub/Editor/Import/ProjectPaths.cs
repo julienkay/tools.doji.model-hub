@@ -19,7 +19,7 @@ namespace Doji.AI.ModelHub.Editor
         private const string CacheEstimateFileName = "hf-hub-cache-size.json";
         private const string CacheEstimatesRoot = "Library/Doji/HfHub/cache-size-estimates";
         private const string RuntimeRegistryFileName = "hf-hub-runtime.json";
-        private const string RuntimeRegistriesRoot = ModelHub.RuntimeStreamingAssetsRoot + "/registries";
+        private const string RuntimeRegistriesRoot = Hub.RuntimeStreamingAssetsRoot + "/registries";
 
         /// <summary>
         /// Returns editor-only binding folder under `Library` for one owner dependency.
@@ -34,7 +34,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
-            return $"{SharedImportsRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(resolvedCommitHash)}/{ModelHub.SanitizePathSegment(sentisVersion)}/{ModelHub.SanitizePathSegment(recipeSetHash)}";
+            return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}/{Hub.SanitizePathSegment(resolvedCommitHash)}/{Hub.SanitizePathSegment(sentisVersion)}/{Hub.SanitizePathSegment(recipeSetHash)}";
         }
 
         /// <summary>
@@ -50,7 +50,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetImportBindingFolder(string packageId, string modelId)
         {
-            return $"{BindingImportsRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
+            return $"{BindingImportsRoot}/{Hub.SanitizePathSegment(packageId)}/{Hub.SanitizePathSegment(modelId)}";
         }
 
         /// <summary>
@@ -66,7 +66,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetLegacyImportStateFolder(string packageId, string modelId)
         {
-            return $"{LegacyImportStateRoot}/{ModelHub.SanitizePathSegment(packageId)}/{ModelHub.SanitizePathSegment(modelId)}";
+            return $"{LegacyImportStateRoot}/{Hub.SanitizePathSegment(packageId)}/{Hub.SanitizePathSegment(modelId)}";
         }
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetCacheSizeEstimateMetadataPath(string repository, string requestedRevision)
         {
-            return $"{CacheEstimatesRoot}/{ModelHub.SanitizePathSegment(repository)}/{ModelHub.SanitizePathSegment(requestedRevision)}/{CacheEstimateFileName}";
+            return $"{CacheEstimatesRoot}/{Hub.SanitizePathSegment(repository)}/{Hub.SanitizePathSegment(requestedRevision)}/{CacheEstimateFileName}";
         }
 
         /// <summary>
@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetRuntimeRegistryAssetPath(string packageId)
         {
-            return $"{RuntimeRegistriesRoot}/{ModelHub.SanitizePathSegment(packageId)}/{RuntimeRegistryFileName}";
+            return $"{RuntimeRegistriesRoot}/{Hub.SanitizePathSegment(packageId)}/{RuntimeRegistryFileName}";
         }
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetRuntimeSnapshotFolder(string repository, string resolvedCommitHash)
         {
-            return $"{ModelHub.RuntimeStreamingAssetsRoot}/{ModelHub.SanitizeRelativePath(repository)}";
+            return $"{Hub.RuntimeStreamingAssetsRoot}/{Hub.SanitizeRelativePath(repository)}";
         }
 
         /// <summary>
@@ -106,7 +106,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetRuntimeSentisAssetPath(string repository, string resolvedCommitHash, string repoPath)
         {
-            var sanitizedRelativeRepoPath = ModelHub.SanitizeRelativePath(repoPath);
+            var sanitizedRelativeRepoPath = Hub.SanitizeRelativePath(repoPath);
             var sentisRelativePath = Path.ChangeExtension(sanitizedRelativeRepoPath, ".sentis")?.Replace('\\', '/')
                 ?? throw new InvalidOperationException($"Could not derive .sentis path from '{repoPath}'.");
             return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/{sentisRelativePath}";
@@ -149,7 +149,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string SanitizePathSegment(string value)
         {
-            return ModelHub.SanitizePathSegment(value);
+            return Hub.SanitizePathSegment(value);
         }
     }
 }

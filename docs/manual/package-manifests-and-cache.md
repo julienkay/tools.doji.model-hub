@@ -49,6 +49,7 @@ Current development build includes:
 - project-manifest asset discovery
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 - first-run auto prompt window when discovered dependencies need attention
+- editor Console info reminder after domain reload while dependencies still need attention
 - Model Hub window at `Window > AI Model Hub`
 - editor import command at `Tools/Doji/HF Hub/Import All`
 - Project Settings page at `Project Settings > Doji > AI > AI Model Hub`

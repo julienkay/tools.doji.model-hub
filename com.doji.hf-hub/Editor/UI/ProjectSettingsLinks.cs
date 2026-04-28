@@ -137,19 +137,32 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var assetPath = TryGetProjectAssetPath(manifestPath);
-            if (!string.IsNullOrWhiteSpace(assetPath))
+            var asset = LoadManifestAsset(manifestPath);
+            if (asset != null)
             {
-                var asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
-                if (asset != null)
-                {
-                    Selection.activeObject = asset;
-                    EditorGUIUtility.PingObject(asset);
-                    return;
-                }
+                Selection.activeObject = asset;
+                EditorGUIUtility.PingObject(asset);
+                return;
             }
 
             RevealPath(manifestPath);
+        }
+
+        /// <summary>
+        /// Resolves one Unity object suitable for Console context when exactly one unresolved manifest owns a reminder.
+        /// </summary>
+        internal static UnityEngine.Object TryGetSingleManifestContextObject(IEnumerable<DependencyStatus> dependencyStatuses)
+        {
+            var unresolvedDependencies = (dependencyStatuses ?? Array.Empty<DependencyStatus>())
+                .Where(status => status?.NeedsAttention == true)
+                .Select(status => status.Dependency)
+                .Where(dependency => dependency != null && !string.IsNullOrWhiteSpace(dependency.ManifestPath))
+                .GroupBy(dependency => dependency.ManifestPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .Take(2)
+                .ToArray();
+
+            return unresolvedDependencies.Length != 1 ? null : LoadManifestAsset(unresolvedDependencies[0]);
         }
 
         /// <summary>
@@ -359,6 +372,41 @@ namespace Doji.AI.ModelHub.Editor
         {
             return !string.IsNullOrWhiteSpace(assetPath) &&
                 assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static UnityEngine.Object LoadManifestAsset(string manifestPath)
+        {
+            var assetPath = TryGetProjectAssetPath(manifestPath);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                return null;
+            }
+
+            return AssetDatabase.LoadMainAssetAtPath(assetPath);
+        }
+
+        private static UnityEngine.Object LoadManifestAsset(DiscoveredModelDependency dependency)
+        {
+            if (dependency == null)
+            {
+                return null;
+            }
+
+            var asset = LoadManifestAsset(dependency.ManifestPath);
+            if (asset != null)
+            {
+                return asset;
+            }
+
+            if (string.IsNullOrWhiteSpace(dependency.PackageId) ||
+                ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId))
+            {
+                return null;
+            }
+
+            // Local file: packages can resolve outside project root, but Unity still often exposes them
+            // through virtual Packages/<package-id>/... asset paths that AssetDatabase can ping.
+            return AssetDatabase.LoadMainAssetAtPath($"Packages/{dependency.PackageId}/{Hub.ManifestFileName}");
         }
 
         private static bool IsEmbeddedPackageAssetPath(string assetPath)

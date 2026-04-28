@@ -39,7 +39,7 @@ namespace Doji.AI.ModelHub
 
             var files = entry.Files
                 .Select(file => new ResolvedRuntimeFile(
-                    ModelHub.GetRuntimeAbsolutePath(file.RelativePath),
+                    Hub.GetRuntimeAbsolutePath(file.RelativePath),
                     file.RepoPath,
                     file.Kind))
                 .ToArray();
@@ -68,7 +68,7 @@ namespace Doji.AI.ModelHub
                 {
                     var files = entry.Files
                         .Select(file => new ResolvedRuntimeFile(
-                            ModelHub.GetRuntimeAbsolutePath(file.RelativePath),
+                            Hub.GetRuntimeAbsolutePath(file.RelativePath),
                             file.RepoPath,
                             file.Kind))
                         .ToArray();
@@ -100,7 +100,7 @@ namespace Doji.AI.ModelHub
         {
             manifest = null;
 
-            var absolutePath = ModelHub.GetRuntimeRegistryAbsolutePath(packageId);
+            var absolutePath = Hub.GetRuntimeRegistryAbsolutePath(packageId);
             if (!File.Exists(absolutePath))
             {
                 return false;
@@ -131,7 +131,7 @@ namespace Doji.AI.ModelHub
 
         private static IEnumerable<RuntimeLocatorManifest> LoadAllManifests()
         {
-            var registriesRoot = Path.Combine(Application.streamingAssetsPath, ModelHub.RuntimeStreamingRelativeRoot, "registries");
+            var registriesRoot = Path.Combine(Application.streamingAssetsPath, Hub.RuntimeStreamingRelativeRoot, "registries");
             if (!Directory.Exists(registriesRoot))
             {
                 yield break;

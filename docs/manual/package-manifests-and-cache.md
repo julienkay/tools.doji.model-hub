@@ -1,6 +1,6 @@
-# Package Manifests, Cache, and Generated Runtime Files
+# Model Manifests, Cache, and Generated Runtime Files
 
-Packages declare HuggingFace dependencies by canonical model id in `hf-hub-manifest.json` at package root.
+Packages declare HuggingFace dependencies by canonical model id in a model manifest named `hf-hub-manifest.json` at package root.
 
 Projects can declare the same dependency shape with `ProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
 
@@ -40,7 +40,7 @@ This keeps package and project manifests simple. No separate local alias or `rep
 
 ## Discovery
 
-When a Unity project contains installed packages with `hf-hub-manifest.json` or project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
+When a Unity project contains installed packages with `hf-hub-manifest.json` model manifests or project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
 
 Current development build includes:
 
@@ -50,6 +50,7 @@ Current development build includes:
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 - first-run auto prompt window when discovered dependencies need attention
 - editor Console info reminder after domain reload while dependencies still need attention
+- custom Inspector for selected model manifest assets in packages
 - Model Hub window at `Window > AI Model Hub`
 - editor import command at `Tools/Doji/HF Hub/Import All`
 - Project Settings page at `Project Settings > Doji > AI > AI Model Hub`
@@ -71,6 +72,8 @@ The page also shows:
 - platform default cache root
 - effective cache root after overrides
 - current Sentis version
+
+Selecting a model manifest asset in a package shows a focused Inspector summary for the manifest version and declared models, with shortcuts into Model Hub and the source file location. Writable package sources can add or remove model entries and apply those changes directly from the Inspector; installed package cache entries stay read-only.
 
 ### Model Hub Window
 

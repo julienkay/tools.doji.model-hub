@@ -1,18 +1,16 @@
 # Current Work
 
 ## Focus
-Return to Model Hub `Storage` tab follow-up after unresolved-dependency reminder work finished.
+Verify editable Model manifest inspector behavior for writable package sources and confirm read-only behavior stays clear for installed package cache entries.
 
 ## Next Tasks
-- [ ] Visually verify treemap readability for remote-only, cached-only, imported-only, and cached-plus-imported scenarios in companion project sandbox.
-- [ ] Decide whether `Storage` needs explicit legend or summary chips for cache/runtime split.
-- [ ] Re-check `Storage` tab wording and row order after treemap pass.
+- [ ] Confirm `Apply` and `Revert` work for local `file:` package Model manifests without needing a manual refresh.
+- [ ] Verify installed package cache manifests stay read-only with clear guidance.
+- [ ] Decide whether inspector should grow structured field editing beyond raw JSON text editing.
 
 ## Blockers And Decisions Needed
-- Decide whether `Storage` should add explicit combined-total row now that treemap shows mixed footprint.
-- Decide whether cache-size sidecar lookups should ever refresh after first success/failure or remain one-shot per repository revision.
+- Unity package asset refresh behavior after editing package-backed JSON files may differ across embedded, local `file:`, and installed package sources.
 
 ## Read Before Editing
-- [.codex/architecture/editor-model-hub-ui.md](./architecture/editor-model-hub-ui.md)
-- [com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs](../com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs)
-- [com.doji.hf-hub/Editor/Status/ModelHubModels.cs](../com.doji.hf-hub/Editor/Status/ModelHubModels.cs)
+- [com.doji.hf-hub/Editor/UI/ModelManifestInspector.cs](../com.doji.hf-hub/Editor/UI/ModelManifestInspector.cs)
+- [docs/manual/package-manifests-and-cache.md](../docs/manual/package-manifests-and-cache.md)

@@ -1,4 +1,4 @@
 - name: AI Model Hub
   href: ../index.md
-- name: Package Manifests and Cache
+- name: Model Manifests and Cache
   href: package-manifests-and-cache.md

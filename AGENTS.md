@@ -21,6 +21,7 @@ It is built with Unity 6000.3 LTS. There is no compile step, CLI build command, 
 - The official `huggingface_hub` reference checkout should live at `references/huggingface_hub`. Reuse that local clone in future sessions when present, and only refresh it when a task depends on newer upstream behavior.
 - Unless the user explicitly says otherwise, assume the package is still in active development. Prefer the current architecture and schema over maintaining backwards compatibility with earlier ideas, drafts, or implementations.
 - Do not preserve, describe, or optimize for legacy architecture variants unless the user explicitly asks for historical comparison or migration work.
+- Do not commit downloaded model files, shared cache contents, generated `.sentis` artifacts, or temporary reference checkouts unless the task explicitly calls for versioning them.
 
 ## Source Of Truth
 
@@ -78,7 +79,6 @@ When adding code:
 ## Avoid
 
 - Do not modify `Library/`, `Temp/`, `Obj/`, `Logs/`, `.idea` or `UserSettings` unless the task is explicitly about them.
-- Do not commit downloaded model files, shared cache contents, generated `.sentis` artifacts, or temporary reference checkouts unless the task explicitly calls for versioning them.
 
 ## Validation
 

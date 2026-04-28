@@ -230,7 +230,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Embedded package",
                     true,
                     false,
-                    "Edit embedded package manifest or change project package setup so one revision wins.");
+                    "Edit embedded package model manifest or change project package setup so one revision wins.");
             }
 
             if (IsInstalledPackageCachePath(normalizedManifestPath) ||
@@ -249,7 +249,7 @@ namespace Doji.AI.ModelHub.Editor
                 "Local package",
                 true,
                 false,
-                "Edit local package manifest at source path or change project package setup so one revision wins.");
+                "Edit local package model manifest at source path or change project package setup so one revision wins.");
         }
 
         /// <summary>
@@ -287,7 +287,7 @@ namespace Doji.AI.ModelHub.Editor
                 return "Conflict comes from installed packages that are not directly editable in this project. Resolve by updating package versions, embedding/localizing package, or removing one dependency. Open Package Manager and copy summary for exact owners.";
             }
 
-            return "Conflict comes from project or editable package manifests. Use Locate to open each manifest and align all requested revisions to one value.";
+            return "Conflict comes from project or editable package model manifests. Use Locate to open each manifest and align all requested revisions to one value.";
         }
 
         /// <summary>

@@ -203,6 +203,27 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].EstimatedCacheSizeBytes, Is.EqualTo(42));
         }
 
+        [Test]
+        public void BuildReport_FiltersOutInvalidRepositoryStatuses()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        DependencyState.Failed,
+                        reasonCode: DependencyReasonCode.InvalidRepository,
+                        maintainerMessage: "Repository was not found on Hugging Face.")
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items, Is.Empty);
+        }
+
         /// <summary>
         /// Verifies repository rows become error entries when same repo is declared at multiple requested revisions.
         /// </summary>

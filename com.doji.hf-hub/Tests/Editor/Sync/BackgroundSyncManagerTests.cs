@@ -1,4 +1,6 @@
 using NUnit.Framework;
+using System.IO;
+using System;
 
 namespace Doji.AI.ModelHub.Editor.Tests
 {
@@ -50,6 +52,61 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(BackgroundSyncManager.MatchesRepository(dependency, "doji/test-model", "main"), Is.True);
             Assert.That(BackgroundSyncManager.MatchesRepository(dependency, "doji/test-model", "dev"), Is.False);
             Assert.That(BackgroundSyncManager.MatchesRepository(dependency, "doji/other-model", "main"), Is.False);
+        }
+
+        /// <summary>
+        /// Verifies scoped per-repository sync starts from a clean persisted queue instead of resuming unrelated old work.
+        /// </summary>
+        [Test]
+        public void ClearPersistedStateForNewScopedSync_RemovesSavedQueueFile()
+        {
+            var statePath = BackgroundSyncManager.GetPersistedStatePath();
+            var directory = Path.GetDirectoryName(statePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(statePath, "stale queue");
+
+            BackgroundSyncManager.ClearPersistedStateForNewScopedSync();
+
+            Assert.That(File.Exists(statePath), Is.False);
+        }
+
+        [Test]
+        public void BuildPendingDependencyKeys_SkipsRepositoriesKnownInvalid()
+        {
+            var invalidDependency = new DiscoveredModelDependency(
+                "com.doji.invalid",
+                "Invalid Package",
+                "1.0.0",
+                "/tmp/com.doji.invalid",
+                "/tmp/com.doji.invalid/hf-hub-manifest.json",
+                "manifesthash-invalid",
+                new ModelDependencyDefinition(
+                    $"doji/invalid-{Guid.NewGuid():N}",
+                    "main"));
+            var validDependency = new DiscoveredModelDependency(
+                "com.doji.valid",
+                "Valid Package",
+                "1.0.0",
+                "/tmp/com.doji.valid",
+                "/tmp/com.doji.valid/hf-hub-manifest.json",
+                "manifesthash-valid",
+                new ModelDependencyDefinition(
+                    $"doji/valid-{Guid.NewGuid():N}",
+                    "main"));
+            RepositoryValidationCacheService.WriteCachedRepositoryExists(invalidDependency.Repository, false);
+
+            var discoveryReport = new DiscoveryReport(
+                new[] { invalidDependency, validDependency },
+                Array.Empty<ManifestDiscoveryIssue>());
+
+            var pendingKeys = BackgroundSyncManager.BuildPendingDependencyKeys(discoveryReport, _ => true);
+
+            Assert.That(pendingKeys, Has.Length.EqualTo(1));
+            Assert.That(pendingKeys[0], Is.EqualTo($"com.doji.valid:{validDependency.ModelId}"));
         }
     }
 }

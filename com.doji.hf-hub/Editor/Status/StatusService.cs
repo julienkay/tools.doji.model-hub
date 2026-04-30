@@ -43,6 +43,20 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.ModelId);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadataAssetPath);
 
+            if (RepositoryValidationCacheService.TryGetCachedRepositoryExists(dependency.Repository, out var repositoryExists) &&
+                !repositoryExists)
+            {
+                return Failed(
+                    dependency,
+                    DependencyReasonCode.InvalidRepository,
+                    "Repository was not found on Hugging Face.",
+                    revisionRefPath,
+                    null,
+                    null,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
             if (revisionConflicts != null &&
                 revisionConflicts.TryGetValue(dependency.Repository, out var revisionConflict))
             {

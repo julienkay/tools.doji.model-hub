@@ -25,6 +25,7 @@ namespace Doji.AI.ModelHub.Editor
         public ModelHubReport BuildReport(StatusReport statusReport)
         {
             var items = (statusReport?.DependencyStatuses ?? Array.Empty<DependencyStatus>())
+                .Where(status => status.ReasonCode != DependencyReasonCode.InvalidRepository)
                 .GroupBy(
                     status => $"{status.Dependency.Repository}\n{status.Dependency.Revision}",
                     StringComparer.Ordinal)
@@ -181,6 +182,7 @@ namespace Doji.AI.ModelHub.Editor
 
             return status.ReasonCode switch
             {
+                DependencyReasonCode.InvalidRepository => "Repository was not found on Hugging Face.",
                 DependencyReasonCode.ImportBindingMissing => "Model needs import into this project.",
                 DependencyReasonCode.SharedImportMetadataMissing => "Generated runtime artifacts are missing. Re-import this model.",
                 DependencyReasonCode.RuntimeFilesMissing => "Generated runtime files are missing. Re-import this model.",

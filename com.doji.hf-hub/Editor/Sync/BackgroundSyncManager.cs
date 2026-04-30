@@ -37,7 +37,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void StartOrResume()
         {
-            StartOrResume(_ => true, SyncOperationMode.Full);
+            StartOrResumeInternal(_ => true, SyncOperationMode.Full, allowResumePersistedState: true);
         }
 
         /// <summary>
@@ -45,26 +45,49 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void StartOrResume(Func<DiscoveredModelDependency, bool> dependencyFilter, SyncOperationMode mode = SyncOperationMode.Full)
         {
+            StartOrResumeInternal(dependencyFilter, mode, allowResumePersistedState: true);
+        }
+
+        private static void StartOrResumeInternal(
+            Func<DiscoveredModelDependency, bool> dependencyFilter,
+            SyncOperationMode mode,
+            bool allowResumePersistedState)
+        {
             if (Runner.IsRunning)
             {
                 return;
             }
 
             var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
-            var pendingKeys = discoveryReport.Dependencies
-                .Where(dependencyFilter ?? (_ => true))
-                .Select(GetDependencyKey)
-                .ToArray();
+            var pendingKeys = BuildPendingDependencyKeys(discoveryReport, dependencyFilter);
             if (pendingKeys.Length == 0)
             {
                 return;
             }
 
             NotifySyncStateChanged();
+            if (!allowResumePersistedState)
+            {
+                ClearPersistedStateForNewScopedSync();
+            }
+
             Runner.StartOrResume(
                 () => PersistentItemQueueState.Create(pendingKeys.Select(key => BuildStateKey(mode, key))),
                 RunAsync,
                 exception => UnityEngine.Debug.LogError($"HF Hub background sync failed: {exception.Message}"));
+        }
+
+        internal static string[] BuildPendingDependencyKeys(
+            DiscoveryReport discoveryReport,
+            Func<DiscoveredModelDependency, bool> dependencyFilter)
+        {
+            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
+            return statusReport.DependencyStatuses
+                .Where(status => status.ReasonCode != DependencyReasonCode.InvalidRepository)
+                .Select(status => status.Dependency)
+                .Where(dependencyFilter ?? (_ => true))
+                .Select(GetDependencyKey)
+                .ToArray();
         }
 
         /// <summary>
@@ -72,7 +95,10 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void StartForRepository(string repository, string revision, SyncOperationMode mode)
         {
-            StartOrResume(dependency => MatchesRepository(dependency, repository, revision), mode);
+            StartOrResumeInternal(
+                dependency => MatchesRepository(dependency, repository, revision),
+                mode,
+                allowResumePersistedState: false);
         }
 
         /// <summary>
@@ -267,9 +293,25 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Returns the persisted sync-state path stored under `Library/` so Unity does not treat it as package content.
         /// </summary>
-        private static string GetStatePath()
+        internal static string GetPersistedStatePath()
         {
             return Path.Combine(Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "..")), "Library", StateDirectoryName, StateFileName);
+        }
+
+        internal static void ClearPersistedStateForNewScopedSync()
+        {
+            var statePath = GetPersistedStatePath();
+            if (!File.Exists(statePath))
+            {
+                return;
+            }
+
+            File.Delete(statePath);
+        }
+
+        private static string GetStatePath()
+        {
+            return GetPersistedStatePath();
         }
 
         /// <summary>

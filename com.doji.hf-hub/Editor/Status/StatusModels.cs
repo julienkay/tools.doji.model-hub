@@ -37,6 +37,7 @@ namespace Doji.AI.ModelHub.Editor
     internal enum DependencyReasonCode
     {
         None,
+        InvalidRepository,
         RawCacheRemovedAfterImport,
         RawCacheRevisionRefMissing,
         RawCacheRevisionRefUnreadable,

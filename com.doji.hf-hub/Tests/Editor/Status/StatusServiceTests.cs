@@ -50,6 +50,19 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         [Test]
+        public void BuildStatusReport_ReturnsFailedWhenRepositoryIsKnownInvalid()
+        {
+            var dependency = CreateDependency(repository: $"doji/invalid-{Guid.NewGuid():N}");
+            RepositoryValidationCacheService.WriteCachedRepositoryExists(dependency.Repository, false);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.FailedCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.InvalidRepository));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Repository was not found on Hugging Face."));
+        }
+
+        [Test]
         public void BuildStatusReport_ReturnsMissingWhenImportBindingIsAbsent()
         {
             var dependency = CreateDependency();
@@ -218,7 +231,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "com.doji.test",
-            string revision = "main")
+            string revision = "main",
+            string repository = "doji/test-model")
         {
             return new DiscoveredModelDependency(
                 packageId,
@@ -228,7 +242,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 $"/tmp/{packageId}/hf-hub-manifest.json",
                 "manifesthash",
                 new ModelDependencyDefinition(
-                    "doji/test-model",
+                    repository,
                     revision));
         }
 

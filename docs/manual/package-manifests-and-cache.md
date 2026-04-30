@@ -75,6 +75,8 @@ The page also shows:
 
 Selecting a model manifest asset in a package shows a focused Inspector summary for the manifest version and declared models, with shortcuts into Model Hub and the source file location. Writable package sources can add or remove model entries and apply those changes directly from the Inspector; installed package cache entries stay read-only.
 
+If the Inspector already knows a declared repository does not exist on HuggingFace, HF Hub keeps that invalid dependency out of Model Hub and skips it during sync until the manifest entry is fixed.
+
 ### Model Hub Window
 
 Use `Window > AI Model Hub` to inspect declared and imported repositories.

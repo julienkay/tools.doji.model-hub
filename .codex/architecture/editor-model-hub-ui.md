@@ -192,6 +192,21 @@ Current validation behavior for the small repository-exists icon:
 - only writable package manifests trigger background validation
 - checks run on explicit `Apply` or `Revert`, not on every keystroke
 - rows show a temporary pending icon when cache has no result yet or a check is in flight
+- cached invalid results are promoted into shared dependency status, so Model Hub and sync skip repositories already known to be missing upstream
+
+Shared invalid-repository flow:
+
+1. `RepositoryValidationCacheService` stores repo-exists checks under `Library/.../hf-hub-repo-validation.json`
+2. `ModelManifestInspector` writes successful yes/no checks into that shared cache
+3. `StatusService` upgrades cached negative results into `DependencyReasonCode.InvalidRepository`
+4. `ModelHubService` filters those dependency statuses out instead of showing a broken row
+5. `BackgroundSyncManager` excludes them when building pending sync queues
+
+Maintainer rule:
+
+- treat cached invalidity as an editor workflow hint, not manifest-schema validation
+- if a new surface needs to know that a repo is invalid, consume `DependencyReasonCode.InvalidRepository` from shared status instead of reading the cache file directly
+- keep sync and Model Hub policy aligned; do not let one surface hide invalid repos while another still tries to process them
 
 Current cache strategy:
 

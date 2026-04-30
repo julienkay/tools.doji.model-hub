@@ -2,7 +2,9 @@
 
 Packages declare HuggingFace dependencies by canonical model id in a model manifest named `hf-hub-manifest.json` at package root.
 
-Projects can declare the same dependency shape with `ProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`.
+Projects can declare the same dependency shape in `ProjectSettings/hf-hub-manifest.json`.
+
+Legacy project manifest assets created from `Assets > Create > Doji > AI > HF Hub Project Manifest` are still discovered too.
 
 Example:
 
@@ -40,13 +42,14 @@ This keeps package and project manifests simple. No separate local alias or `rep
 
 ## Discovery
 
-When a Unity project contains installed packages with `hf-hub-manifest.json` model manifests or project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
+When a Unity project contains installed packages with `hf-hub-manifest.json` model manifests, a project-level `ProjectSettings/hf-hub-manifest.json`, or legacy project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
 
 Current development build includes:
 
 - manifest parsing and validation
 - installed-package discovery
-- project-manifest asset discovery
+- project-manifest discovery from `ProjectSettings/hf-hub-manifest.json`
+- legacy project-manifest asset discovery
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 - first-run auto prompt window when discovered dependencies need attention
 - editor Console info reminder after domain reload while dependencies still need attention
@@ -83,7 +86,7 @@ Use `Window > AI Model Hub` to inspect declared and imported repositories.
 
 The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
 
-Project manifest assets still show as `Project` in editor UI, but HF Hub now tracks each manifest asset as its own owner for bindings, registries, and stale/removal checks.
+The `ProjectSettings/hf-hub-manifest.json` source shows as `Project` in editor UI. Legacy project manifest assets also still show as `Project`, but HF Hub tracks each legacy asset as its own owner for bindings, registries, and stale/removal checks.
 
 For each repository, the window shows:
 
@@ -119,6 +122,9 @@ When a conflict owner comes from an installed package under Unity Package Manage
 
 Header actions include:
 
+- `+` menu with:
+  - `Add model to project...` to append one entry to `ProjectSettings/hf-hub-manifest.json`
+  - `Add model to package...` for package manifest authoring help
 - clickable repository link to open resolved repository page on HuggingFace
 - `Download` when the repository is not cached on this machine yet; current behavior downloads and imports in one action
 - `Import` when raw cache already exists and HF Hub needs to materialize `.sentis` output into the project
@@ -135,7 +141,7 @@ Use `Tools/Doji/HF Hub/Import All` to resolve discovered repository dependencies
 
 Current sync flow:
 
-1. Scan installed packages for `hf-hub-manifest.json` and project assets for `ProjectManifestAsset`.
+1. Scan installed packages for `hf-hub-manifest.json`, `ProjectSettings/hf-hub-manifest.json`, and legacy project assets for `ProjectManifestAsset`.
 2. Validate manifest contents.
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Download all repository files in that snapshot into shared raw cache.

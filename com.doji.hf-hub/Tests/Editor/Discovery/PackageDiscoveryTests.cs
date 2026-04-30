@@ -182,7 +182,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies project manifest assets normalize to same repo-level dependency shape as JSON manifests.
         /// </summary>
         [Test]
-        public void DiscoverProjectManifests_ReturnsNormalizedDependencies()
+        public void DiscoverProjectManifestAssets_ReturnsNormalizedDependencies()
         {
             var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
             SetProjectManifest(asset, 1, new[]
@@ -200,7 +200,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 _rootDirectory,
                 asset);
 
-            var report = ProjectManifestDiscovery.DiscoverProjectManifests(new[] { snapshot });
+            var report = ProjectManifestDiscovery.DiscoverProjectManifestAssets(new[] { snapshot });
 
             Assert.That(report.Issues, Is.Empty);
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
@@ -219,7 +219,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies invalid project manifest assets report same validation issue shape as JSON manifests.
         /// </summary>
         [Test]
-        public void DiscoverProjectManifests_ReportsInvalidProjectManifestAsset()
+        public void DiscoverProjectManifestAssets_ReportsInvalidProjectManifestAsset()
         {
             const string assetGuid = "d8adf79a35f94f26a1bd188d74e7298f";
             var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
@@ -239,7 +239,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 asset,
                 assetGuid);
 
-            var report = ProjectManifestDiscovery.DiscoverProjectManifests(new[] { snapshot });
+            var report = ProjectManifestDiscovery.DiscoverProjectManifestAssets(new[] { snapshot });
 
             Assert.That(report.Dependencies, Is.Empty);
             Assert.That(report.Issues.Count, Is.EqualTo(1));
@@ -253,7 +253,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies different project manifest assets keep distinct owner ids even when they declare same repository.
         /// </summary>
         [Test]
-        public void DiscoverProjectManifests_AssignsUniqueOwnerIdsPerProjectAsset()
+        public void DiscoverProjectManifestAssets_AssignsUniqueOwnerIdsPerProjectAsset()
         {
             const string firstGuid = "5a899f24b6fd4a1ba127ab1a1b267c7e";
             const string secondGuid = "2c1a6095dfaa45b2b4f16a2de4db9107";
@@ -271,7 +271,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             SetProjectManifest(firstAsset, 1, models);
             SetProjectManifest(secondAsset, 1, models);
 
-            var report = ProjectManifestDiscovery.DiscoverProjectManifests(new[]
+            var report = ProjectManifestDiscovery.DiscoverProjectManifestAssets(new[]
             {
                 new ProjectManifestAssetSnapshot(
                     "Assets/HF Hub/Project Manifest A.asset",
@@ -296,6 +296,81 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     ProjectManifestDiscovery.GetOwnerId(firstGuid, "Assets/HF Hub/Project Manifest A.asset", Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest A.asset")),
                     ProjectManifestDiscovery.GetOwnerId(secondGuid, "Assets/HF Hub/Project Manifest B.asset", Path.Combine(_rootDirectory, "Assets", "HF Hub", "Project Manifest B.asset"))
                 }));
+        }
+
+        /// <summary>
+        /// Verifies ProjectSettings manifest JSON is discovered alongside legacy project manifest assets.
+        /// </summary>
+        [Test]
+        public void DiscoverProjectSettingsManifest_ReturnsNormalizedDependencies()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert""
+    }
+  ]
+}";
+
+            var projectRoot = Path.Combine(_rootDirectory, "ProjectRoot");
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
+            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName), manifestContents);
+
+            var report = ProjectManifestDiscovery.DiscoverProjectSettingsManifest(projectRoot);
+
+            Assert.That(report.Issues, Is.Empty);
+            Assert.That(report.Dependencies.Count, Is.EqualTo(1));
+            Assert.That(report.Dependencies[0].PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId));
+            Assert.That(report.Dependencies[0].PackageDisplayName, Is.EqualTo("Project"));
+            Assert.That(report.Dependencies[0].ManifestPath, Is.EqualTo(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName)));
+            Assert.That(report.Dependencies[0].Repository, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
+        }
+
+        /// <summary>
+        /// Verifies invalid ProjectSettings manifest JSON reports a discovery issue instead of crashing scan.
+        /// </summary>
+        [Test]
+        public void DiscoverProjectSettingsManifest_ReportsInvalidManifest()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "BrokenProjectRoot");
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
+            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName), "{");
+
+            var report = ProjectManifestDiscovery.DiscoverProjectSettingsManifest(projectRoot);
+
+            Assert.That(report.Dependencies, Is.Empty);
+            Assert.That(report.Issues.Count, Is.EqualTo(1));
+            Assert.That(report.Issues[0].PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId));
+            Assert.That(report.Issues[0].Message, Does.Contain("JSON").Or.Contain("invalid JSON"));
+        }
+
+        /// <summary>
+        /// Verifies adding a model creates the ProjectSettings manifest and appends normalized entry content.
+        /// </summary>
+        [Test]
+        public void TryAddModelId_CreatesProjectSettingsManifestJson()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "AuthoringProjectRoot");
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
+
+            var success = ProjectSettingsModelManifestStore.TryAddModelId(
+                "onnx-community/tiny-clip-test-ONNX",
+                "main",
+                out var errorMessage,
+                projectRoot);
+
+            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName);
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(File.Exists(manifestPath), Is.True);
+
+            var report = ProjectManifestDiscovery.DiscoverProjectSettingsManifest(projectRoot);
+            Assert.That(report.Issues, Is.Empty);
+            Assert.That(report.Dependencies.Select(dependency => dependency.Repository).ToArray(), Is.EqualTo(new[]
+            {
+                "onnx-community/tiny-clip-test-ONNX"
+            }));
         }
 
         private InstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)

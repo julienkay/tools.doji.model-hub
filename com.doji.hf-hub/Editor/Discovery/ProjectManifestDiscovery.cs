@@ -15,6 +15,7 @@ namespace Doji.AI.ModelHub.Editor
     internal static class ProjectManifestDiscovery
     {
         internal const string LegacyProjectManifestOwnerId = "project";
+        internal const string ProjectSettingsManifestOwnerId = "project-settings-manifest";
         private const string ProjectManifestOwnerIdPrefix = "project-manifest-";
         private const string ProjectManifestOwnerDisplayName = "Project";
         private const string ProjectManifestOwnerVersion = "project";
@@ -22,7 +23,7 @@ namespace Doji.AI.ModelHub.Editor
         public static DiscoveryReport DiscoverProjectManifests()
         {
             var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            var snapshots = AssetDatabase
+            var assetSnapshots = AssetDatabase
                 .FindAssets("t:ProjectManifestAsset")
                 .Select(guid => new
                 {
@@ -38,10 +39,12 @@ namespace Doji.AI.ModelHub.Editor
                     snapshot.Guid))
                 .ToArray();
 
-            return DiscoverProjectManifests(snapshots);
+            return MergeReports(
+                DiscoverProjectManifestAssets(assetSnapshots),
+                DiscoverProjectSettingsManifest(projectRoot));
         }
 
-        internal static DiscoveryReport DiscoverProjectManifests(IReadOnlyList<ProjectManifestAssetSnapshot> snapshots)
+        internal static DiscoveryReport DiscoverProjectManifestAssets(IReadOnlyList<ProjectManifestAssetSnapshot> snapshots)
         {
             var dependencies = new List<DiscoveredModelDependency>();
             var issues = new List<ManifestDiscoveryIssue>();
@@ -82,9 +85,51 @@ namespace Doji.AI.ModelHub.Editor
             return new DiscoveryReport(dependencies, issues);
         }
 
+        internal static DiscoveryReport DiscoverProjectSettingsManifest(string projectRoot)
+        {
+            if (!ProjectSettingsModelManifestStore.TryReadManifestContents(projectRoot, out var manifestPath, out var contents, out var errorMessage))
+            {
+                return new DiscoveryReport(Array.Empty<DiscoveredModelDependency>(), Array.Empty<ManifestDiscoveryIssue>());
+            }
+
+            if (errorMessage != null)
+            {
+                return new DiscoveryReport(
+                    Array.Empty<DiscoveredModelDependency>(),
+                    new[]
+                    {
+                        new ManifestDiscoveryIssue(ProjectSettingsManifestOwnerId, manifestPath, errorMessage)
+                    });
+            }
+
+            if (!ManifestParser.TryParse(contents, out var manifest, out errorMessage))
+            {
+                return new DiscoveryReport(
+                    Array.Empty<DiscoveredModelDependency>(),
+                    new[]
+                    {
+                        new ManifestDiscoveryIssue(ProjectSettingsManifestOwnerId, manifestPath, errorMessage)
+                    });
+            }
+
+            var manifestHash = ComputeManifestHash(contents);
+            var dependencies = manifest.Models
+                .Select(model => new DiscoveredModelDependency(
+                    ProjectSettingsManifestOwnerId,
+                    ProjectManifestOwnerDisplayName,
+                    ProjectManifestOwnerVersion,
+                    projectRoot,
+                    manifestPath,
+                    manifestHash,
+                    model))
+                .ToArray();
+            return new DiscoveryReport(dependencies, Array.Empty<ManifestDiscoveryIssue>());
+        }
+
         internal static bool IsProjectManifestOwnerId(string ownerId)
         {
             return string.Equals(ownerId, LegacyProjectManifestOwnerId, StringComparison.Ordinal) ||
+                string.Equals(ownerId, ProjectSettingsManifestOwnerId, StringComparison.Ordinal) ||
                 (!string.IsNullOrWhiteSpace(ownerId) &&
                  ownerId.StartsWith(ProjectManifestOwnerIdPrefix, StringComparison.Ordinal));
         }
@@ -118,6 +163,19 @@ namespace Doji.AI.ModelHub.Editor
         private static string NormalizePathForOwnerId(string path)
         {
             return (path ?? string.Empty).Replace('\\', '/').Trim();
+        }
+
+        private static DiscoveryReport MergeReports(params DiscoveryReport[] reports)
+        {
+            var dependencies = reports
+                .Where(report => report != null)
+                .SelectMany(report => report.Dependencies)
+                .ToArray();
+            var issues = reports
+                .Where(report => report != null)
+                .SelectMany(report => report.Issues)
+                .ToArray();
+            return new DiscoveryReport(dependencies, issues);
         }
     }
 

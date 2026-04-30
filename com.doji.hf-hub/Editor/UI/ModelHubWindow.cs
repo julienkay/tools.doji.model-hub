@@ -40,6 +40,8 @@ namespace Doji.AI.ModelHub.Editor
         private GUIContent _refreshIconContent;
         private GUIContent _importAllContent;
         private GUIContent _importContent;
+        private GUIContent _headerAddContent;
+        private GUIContent _headerMoreContent;
         private GUIContent _jumpToStorageContent;
         private GUIContent _manageContent;
         private GUIContent _locateContent;
@@ -56,6 +58,8 @@ namespace Doji.AI.ModelHub.Editor
         private GUIStyle _detailsTabLabelStyle;
         private GUIStyle _manageButtonStyle;
         private GUIStyle _manageDropdownArrowStyle;
+        private GUIStyle _headerAddButtonStyle;
+        private GUIStyle _headerActionButtonStyle;
         private GUIStyle _treemapTileLabelStyle;
         private GUIStyle _treemapModeSegmentStyle;
         private string _hoveredSplitTreemapRepoPath;
@@ -66,6 +70,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly Dictionary<string, bool> _sectionExpandedStates = new(StringComparer.Ordinal);
         private readonly Dictionary<string, RepoFileEditSession> _fileEditSessions = new(StringComparer.Ordinal);
         private readonly IRemoteSnapshotSizeEstimateService _remoteSnapshotSizeEstimateService = new RemoteSnapshotSizeEstimateService();
+        private Rect _headerAddButtonRect;
         private static readonly QuantizationOption[] DefaultQuantizationOptions =
         {
             new("none", "None"),
@@ -73,7 +78,8 @@ namespace Doji.AI.ModelHub.Editor
             new("int8", "Int8")
         };
 
-        private const float HeaderHeight = 24f;
+        private const float HeaderHeight = 32;
+        private const float HeaderIconSize = 16f;
         private const float DefaultStatusBadgeWidth = 110f;
         private const float ImportedStatusBadgeWidth = 84f;
         private const float DownloadNeededStatusBadgeWidth = 124f;
@@ -96,6 +102,10 @@ namespace Doji.AI.ModelHub.Editor
         private const float DetailsContentLeftPadding = 12f;
         private const float FilesBottomBarHeight = 36f;
         private const float ManageButtonWidth = 72f;
+        private const float HeaderAddButtonWidth = 36f;
+        private const float HeaderButtonVerticalPadding = 2f;
+        private const float HeaderMoreButtonWidth = 28f;
+        private const float HeaderHorizontalPadding = 0f;
         private const float FileActionButtonWidth = 110f;
         private const float StorageTreemapAspectRatio = 2.2f;
         private const double StorageTreemapHoverTransitionDuration = 0.16d;
@@ -158,18 +168,80 @@ namespace Doji.AI.ModelHub.Editor
         private void DrawHeader()
         {
             var headerRect = new Rect(0f, 0f, position.width, HeaderHeight);
-            GUILayout.BeginArea(headerRect, EditorStyles.toolbar);
+            var headerButtonHeight = Mathf.Max(EditorGUIUtility.singleLineHeight, HeaderHeight - (HeaderButtonVerticalPadding * 2f));
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                EditorGUI.DrawRect(headerRect, GetHeaderBackgroundColor());
+                EditorGUI.DrawRect(
+                    new Rect(headerRect.x, headerRect.yMax - 1f, headerRect.width, 1f),
+                    GetHeaderBorderColor());
+            }
+
+            var contentRect = new Rect(
+                headerRect.x + HeaderHorizontalPadding,
+                headerRect.y + HeaderButtonVerticalPadding,
+                Mathf.Max(0f, headerRect.width - (HeaderHorizontalPadding * 2f)),
+                headerButtonHeight);
+
+            GUILayout.BeginArea(contentRect);
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button(_importAllContent, EditorStyles.toolbarButton, GUILayout.Width(90f)))
+                var addRect = GUILayoutUtility.GetRect(
+                    _headerAddContent,
+                    _headerAddButtonStyle,
+                    GUILayout.Width(HeaderAddButtonWidth),
+                    GUILayout.Height(headerButtonHeight));
+                _headerAddButtonRect = addRect;
+                if (DrawHeaderButton(addRect, _headerAddContent, _headerAddButtonStyle))
                 {
-                    EditorOperations.StartBackgroundSync();
-                    Refresh();
+                    ShowHeaderAddMenu(addRect);
+                }
+
+                GUILayout.FlexibleSpace();
+                var moreRect = GUILayoutUtility.GetRect(
+                    _headerMoreContent,
+                    _headerActionButtonStyle,
+                    GUILayout.Width(HeaderMoreButtonWidth),
+                    GUILayout.Height(headerButtonHeight));
+                if (DrawHeaderButton(moreRect, _headerMoreContent, _headerActionButtonStyle))
+                {
+                    ShowHeaderMoreMenu(moreRect);
                 }
             }
 
             GUILayout.EndArea();
+        }
+
+        private bool DrawHeaderButton(Rect rect, GUIContent content, GUIStyle style)
+        {
+            var eventType = Event.current.type;
+            if (eventType == EventType.Repaint)
+            {
+                var tint = rect.Contains(Event.current.mousePosition)
+                    ? GetHeaderButtonHoverColor()
+                    : Color.clear;
+                if (tint.a > 0f)
+                {
+                    EditorGUI.DrawRect(rect, tint);
+                }
+
+                if (content?.image != null)
+                {
+                    var iconRect = new Rect(
+                        rect.x + ((rect.width - HeaderIconSize) * 0.5f),
+                        rect.y + ((rect.height - HeaderIconSize) * 0.5f),
+                        HeaderIconSize,
+                        HeaderIconSize);
+                    GUI.Label(iconRect, content, style);
+                }
+                else
+                {
+                    GUI.Label(rect, content, style);
+                }
+            }
+
+            return GUI.Button(rect, GUIContent.none, GUIStyle.none);
         }
 
     }

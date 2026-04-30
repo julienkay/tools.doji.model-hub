@@ -220,7 +220,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Project manifest",
                     true,
                     false,
-                    "Edit project manifest asset so all owners request one revision.");
+                    "Edit project manifest so all owners request one revision.");
             }
 
             if (IsEmbeddedPackageAssetPath(assetPath))

@@ -9,6 +9,13 @@ namespace Doji.AI.ModelHub.Editor
             public const string SearchCancelStyleName = "ToolbarSeachCancelButton";
             public const string SearchCancelEmptyStyleName = "ToolbarSeachCancelButtonEmpty";
             public const string RefreshTooltip = "Refresh Model Hub status and repository inventory.";
+            public const string HeaderAddTooltip = "Model Hub actions.";
+            public const string HeaderMoreTooltip = "More actions.";
+            public const string AddModelToProjectLabel = "Add model to project...";
+            public const string AddModelToProjectTooltip = "Add one model entry to the project-scoped manifest stored under ProjectSettings.";
+            public const string AddModelToPackageLabel = "Add model to package...";
+            public const string AddModelToPackageTooltip = "Create or edit hf-hub-manifest.json in your package root.";
+            public const string PackageManifestTemplateJson = "{\n  \"version\": 1,\n  \"models\": []\n}";
             public const string ImportAllLabel = "Import All";
             public const string ImportAllTooltip = "Resolve declared repositories, download missing raw snapshots, and import generated runtime assets.";
             public const string ImportLabel = "Import";

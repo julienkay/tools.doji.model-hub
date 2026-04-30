@@ -11,7 +11,7 @@ Current runtime contract:
 - generated runtime assets use human-readable `Assets/StreamingAssets/hf-hub/<owner>/<model>/...` paths
 - sync writes per-package runtime locator registries under `Assets/StreamingAssets/hf-hub/registries/`
 - sync stores editor-only shared import and owner binding metadata under `Library/Doji/HfHub/imports/`
-- projects can declare dependencies with `ProjectManifestAsset` from `Assets > Create > Doji > AI > HF Hub Project Manifest`, while packages stay on plain `hf-hub-manifest.json`
+- projects can declare dependencies either with `ProjectSettings/hf-hub-manifest.json` or with legacy `ProjectManifestAsset` assets, while packages stay on plain `hf-hub-manifest.json`
 - editor conversion uses Unity Inference ONNX conversion directly, without temporary ONNX asset imports
 - ONNX conversion now hangs off shared `IOnnxModelConverter`; runtime placeholder exists for future custom runtime converter package
 - runtime code resolves models by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`

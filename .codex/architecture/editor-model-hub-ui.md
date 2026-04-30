@@ -223,6 +223,24 @@ Maintainer rule:
 - do not refresh validation state from cache every `OnInspectorGUI()` call
 - preserve transient `Checking` / pending UI until the async validation pass completes
 
+### Add-Model Popup Validation
+
+`Editor/UI/AddProjectModelPopup.cs` reuses the same upstream repo-exists check shape, but not the same persistence policy.
+
+Current popup behavior:
+
+- validation runs only when both `Owner` and `Model` fields are non-empty and neither field is focused
+- popup uses `RepositoryValidationCacheService.GetOrStartRepositoryValidationAsync(...)` only for in-flight request dedupe
+- popup does not read or write `Library/.../hf-hub-repo-validation.json`
+- popup validation result is transient UI state for that popup instance only
+- `Add` stays disabled until the current `owner/model` resolves as valid
+
+Maintainer rule:
+
+- keep persistent `Library` cache for manifest-inspector/package-authoring validation
+- keep add-model popup validation ephemeral unless a stronger project-wide reason appears
+- do not let short-lived project-manifest authoring UI silently expand `Library` cache churn
+
 ## Visual Sandbox
 
 Companion project now includes maintainer-only visual sandbox under:

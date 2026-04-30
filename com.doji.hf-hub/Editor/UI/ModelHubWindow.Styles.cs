@@ -5,12 +5,37 @@ namespace Doji.AI.ModelHub.Editor
 {
     internal sealed partial class ModelHubWindow
     {
+        private static Color GetHeaderBackgroundColor()
+        {
+            return EditorGUIUtility.isProSkin
+                ? new Color(0.20f, 0.20f, 0.20f, 1f)
+                : new Color(0.84f, 0.84f, 0.84f, 1f);
+        }
+
+        private static Color GetHeaderBorderColor()
+        {
+            return EditorGUIUtility.isProSkin
+                ? new Color(0.10f, 0.10f, 0.10f, 1f)
+                : new Color(0.65f, 0.65f, 0.65f, 1f);
+        }
+
+        private static Color GetHeaderButtonHoverColor()
+        {
+            return EditorGUIUtility.isProSkin
+                ? new Color(1f, 1f, 1f, 0.06f)
+                : new Color(0f, 0f, 0f, 0.05f);
+        }
+
         private void InitializeGuiContent()
         {
             _refreshIconContent ??= EditorGUIUtility.IconContent("Refresh");
             _refreshIconContent.tooltip = Content.RefreshTooltip;
             _importAllContent ??= new GUIContent(Content.ImportAllLabel, Content.ImportAllTooltip);
             _importContent ??= new GUIContent(Content.ImportLabel, Content.ImportTooltip);
+            _headerAddContent ??= EditorGUIUtility.IconContent("d_CreateAddNew@2x");
+            _headerAddContent.tooltip = Content.HeaderAddTooltip;
+            _headerMoreContent ??= EditorGUIUtility.IconContent("_Menu@2x");
+            _headerMoreContent.tooltip = Content.HeaderMoreTooltip;
             _jumpToStorageContent ??= EditorGUIUtility.IconContent(
                 EditorGUIUtility.isProSkin
                     ? "d_AnalyticsTracker Icon"
@@ -100,6 +125,37 @@ namespace Doji.AI.ModelHub.Editor
                         : new Color(0.30f, 0.30f, 0.30f, 1f)
                 }
             };
+            _headerAddButtonStyle ??= new GUIStyle(EditorStyles.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = 18,
+                fixedHeight = 0f,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0),
+                clipping = TextClipping.Overflow
+            };
+            _headerActionButtonStyle ??= new GUIStyle(EditorStyles.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = 18,
+                fixedHeight = 0f,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0),
+                clipping = TextClipping.Overflow
+            };
+            var headerTextColor = EditorGUIUtility.isProSkin
+                ? new Color(0.86f, 0.86f, 0.86f, 1f)
+                : new Color(0.12f, 0.12f, 0.12f, 1f);
+            _headerAddButtonStyle.normal.textColor = headerTextColor;
+            _headerAddButtonStyle.hover.textColor = headerTextColor;
+            _headerAddButtonStyle.active.textColor = headerTextColor;
+            _headerAddButtonStyle.focused.textColor = headerTextColor;
+            _headerActionButtonStyle.normal.textColor = headerTextColor;
+            _headerActionButtonStyle.hover.textColor = headerTextColor;
+            _headerActionButtonStyle.active.textColor = headerTextColor;
+            _headerActionButtonStyle.focused.textColor = headerTextColor;
             _searchFieldStyle ??= new GUIStyle(GUI.skin.FindStyle(Content.SearchStyleName) ?? EditorStyles.toolbarSearchField)
             {
                 fixedHeight = SearchFieldHeight,

@@ -32,6 +32,7 @@ namespace Doji.AI.ModelHub.Editor
         private EditableModelEntry[] _models = Array.Empty<EditableModelEntry>();
         private DependencyValidationState[] _validationStates = Array.Empty<DependencyValidationState>();
         private int _validationVersion;
+        private int _seenValidationCacheRevision = -1;
         private ReorderableList _modelList;
         private UnityEditor.Editor _builtInInspector;
         private bool _hasUserEdits;
@@ -74,7 +75,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (string.IsNullOrWhiteSpace(_loadErrorMessage))
             {
-                RefreshValidationStatesFromCache();
+                RefreshValidationStatesFromCacheIfNeeded();
                 DrawManifestFields();
                 DrawApplyRevertButtons(assetPath);
             }
@@ -222,6 +223,8 @@ namespace Doji.AI.ModelHub.Editor
             _loadErrorMessage = null;
             _isEditable = false;
             _models = Array.Empty<EditableModelEntry>();
+            _validationStates = Array.Empty<DependencyValidationState>();
+            _seenValidationCacheRevision = -1;
             _hasUserEdits = false;
 
             ModelManifestInspectorUtility.TryLoadManifestDocument(assetPath, out var document, out var absolutePath, out var errorMessage);
@@ -475,13 +478,14 @@ namespace Doji.AI.ModelHub.Editor
         private void DrawValidationIcon(Rect rect, EditableModelEntry entry)
         {
             var validationState = GetValidationState(entry.ModelId);
-            if (validationState == null || validationState.Status == DependencyValidationStatus.Unknown)
+            if (validationState == null)
             {
                 return;
             }
 
             var tooltip = validationState.Status switch
             {
+                DependencyValidationStatus.Unknown => "Repository availability has not been checked yet.",
                 DependencyValidationStatus.Checking => "Checking Hugging Face repository availability.",
                 DependencyValidationStatus.Valid => "Repository exists on Hugging Face.",
                 DependencyValidationStatus.Invalid => validationState.Message ?? "Repository was not found on Hugging Face.",
@@ -490,6 +494,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var iconContent = validationState.Status switch
             {
+                DependencyValidationStatus.Unknown => EditorGUIUtility.IconContent("d_WaitSpin00"),
                 DependencyValidationStatus.Checking => EditorGUIUtility.IconContent("d_WaitSpin00"),
                 DependencyValidationStatus.Valid => EditorGUIUtility.IconContent("TestPassed"),
                 DependencyValidationStatus.Invalid => EditorGUIUtility.IconContent("console.warnicon"),
@@ -499,6 +504,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var fallbackText = validationState.Status switch
                 {
+                    DependencyValidationStatus.Unknown => "...",
                     DependencyValidationStatus.Checking => "...",
                     DependencyValidationStatus.Valid => "OK",
                     DependencyValidationStatus.Invalid => "!",
@@ -568,6 +574,22 @@ namespace Doji.AI.ModelHub.Editor
                         exists ? null : "Repository was not found on Hugging Face.");
                 })
                 .ToArray();
+            _seenValidationCacheRevision = ModelManifestInspectorUtility.DependencyValidationCacheRevision;
+        }
+
+        private void RefreshValidationStatesFromCacheIfNeeded()
+        {
+            if (_seenValidationCacheRevision == ModelManifestInspectorUtility.DependencyValidationCacheRevision)
+            {
+                return;
+            }
+
+            if (_validationStates.Any(state => state.Status == DependencyValidationStatus.Checking))
+            {
+                return;
+            }
+
+            RefreshValidationStatesFromCache();
         }
 
         private async Task ValidateDependenciesAsync(string[] modelIds, int version)
@@ -699,11 +721,18 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class ModelManifestInspectorUtility
     {
+        // Repo-validation cache lives in Library so it survives inspector redraws and script reloads without becoming project data.
+        // Entries expire only by age: any cached result older than DependencyValidationCacheTtl is treated as missing and the
+        // next explicit validation pass (Apply/Revert) will fetch a fresh result. Failed network requests do not overwrite cache,
+        // so the last successful answer remains visible until it naturally ages out.
         private const string DependencyValidationCacheProjectPath = "Library/Doji/HfHub/model-manifest-validation/hf-hub-repo-validation.json";
         private static readonly TimeSpan DependencyValidationCacheTtl = TimeSpan.FromDays(1);
         private static readonly object InFlightDependencyValidationGate = new();
         private static readonly System.Collections.Generic.Dictionary<string, Task<bool>> InFlightDependencyValidationByModelId =
             new(StringComparer.Ordinal);
+        private static int _dependencyValidationCacheRevision;
+
+        internal static int DependencyValidationCacheRevision => _dependencyValidationCacheRevision;
 
         /// <summary>
         /// Mirrors the JSON document shape that the inspector edits and reserializes.
@@ -960,6 +989,7 @@ namespace Doji.AI.ModelHub.Editor
                     return false;
                 }
 
+                // Stale entries are ignored rather than eagerly deleted so reads stay cheap and writes only happen on fresh checks.
                 if ((DateTime.UtcNow - checkedAtUtc) > DependencyValidationCacheTtl)
                 {
                     return false;
@@ -981,6 +1011,7 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            // Every successful check overwrites the existing entry and resets its TTL window from "now".
             var cachePath = ProjectPaths.ToProjectAbsolutePath(DependencyValidationCacheProjectPath);
             var directory = Path.GetDirectoryName(cachePath);
             if (!string.IsNullOrWhiteSpace(directory))
@@ -1010,6 +1041,7 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
 
             File.WriteAllText(cachePath, JsonUtility.ToJson(document, true));
+            _dependencyValidationCacheRevision++;
         }
 
         internal static Task<bool> GetOrStartDependencyValidationAsync(string modelId, Func<Task<bool>> factory)

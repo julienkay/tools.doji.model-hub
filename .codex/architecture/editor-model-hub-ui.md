@@ -182,6 +182,32 @@ Future work can extend the same window with:
 
 Those features should reuse the repo-level item model instead of reintroducing dependency-level top rows.
 
+## Model Manifest Inspector
+
+`Editor/UI/ModelManifestInspector.cs` owns the custom inspector for `hf-hub-manifest.json` assets.
+
+Current validation behavior for the small repository-exists icon:
+
+- validation is editor-only and package-authoring focused
+- only writable package manifests trigger background validation
+- checks run on explicit `Apply` or `Revert`, not on every keystroke
+- rows show a temporary pending icon when cache has no result yet or a check is in flight
+
+Current cache strategy:
+
+- cache file lives under `Library/Doji/HfHub/model-manifest-validation/hf-hub-repo-validation.json`
+- cache key is `modelId` (`owner/name`)
+- cache survives inspector redraws and script reloads, but is not project data
+- entries expire by age only; anything older than 1 day is treated as a cache miss
+- stale entries are ignored on read and replaced only when a later explicit validation succeeds
+- failed network checks do not overwrite the previous cached result
+- overlapping validation requests for the same `modelId` share one in-flight task
+
+Maintainer rule:
+
+- do not refresh validation state from cache every `OnInspectorGUI()` call
+- preserve transient `Checking` / pending UI until the async validation pass completes
+
 ## Visual Sandbox
 
 Companion project now includes maintainer-only visual sandbox under:

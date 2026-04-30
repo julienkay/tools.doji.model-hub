@@ -74,7 +74,9 @@ namespace Doji.AI.ModelHub.Editor
         };
 
         private const float HeaderHeight = 24f;
-        private const float StatusBadgeWidth = 110f;
+        private const float DefaultStatusBadgeWidth = 110f;
+        private const float ImportedStatusBadgeWidth = 84f;
+        private const float DownloadNeededStatusBadgeWidth = 124f;
         private const float SearchRowHeight = 40f;
         private const float SearchFieldHeight = 24f;
         private const float SectionHeaderHeight = 30f;

@@ -46,6 +46,16 @@ namespace Doji.AI.ModelHub.Editor
                 _statusBadgeStyle);
         }
 
+        private static float GetStatusBadgeWidth(ModelHubItem item)
+        {
+            return GetStatusBadgeLabel(item) switch
+            {
+                var label when label == Content.ImportedState => ImportedStatusBadgeWidth,
+                var label when label == Content.DownloadNeededState => DownloadNeededStatusBadgeWidth,
+                _ => DefaultStatusBadgeWidth
+            };
+        }
+
         private static Color GetSelectionColor()
         {
             return EditorGUIUtility.isProSkin

@@ -58,13 +58,14 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         private void DrawDetails(ModelHubItem item)
         {
+            var statusBadgeWidth = GetStatusBadgeWidth(item);
             var headerRect = GUILayoutUtility.GetRect(0f, DetailsHeaderHeight, GUILayout.ExpandWidth(true));
             var titleRect = new Rect(
                 headerRect.x + DetailsContentPadding,
                 headerRect.y + 2f,
-                headerRect.width - StatusBadgeWidth - ListItemPadding - DetailsContentPadding,
+                headerRect.width - statusBadgeWidth - ListItemPadding - DetailsContentPadding,
                 headerRect.height - 4f);
-            var badgeRect = new Rect(headerRect.xMax - StatusBadgeWidth, headerRect.y + 8f, StatusBadgeWidth, 18f);
+            var badgeRect = new Rect(headerRect.xMax - statusBadgeWidth, headerRect.y + 8f, statusBadgeWidth, 18f);
             GUI.Label(titleRect, GetRepositoryDisplayName(item.Repository), _detailsHeaderTitleStyle);
             DrawStatusBadge(item, badgeRect);
 

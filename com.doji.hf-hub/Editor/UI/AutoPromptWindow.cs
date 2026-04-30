@@ -89,8 +89,14 @@ namespace Doji.AI.ModelHub.Editor
             return GetOpenWindow() != null;
         }
 
+        private void OnEnable()
+        {
+            EnsureViewModel();
+        }
+
         private void OnGUI()
         {
+            EnsureViewModel();
             InitializeStyles();
 
             using (new EditorGUILayout.HorizontalScope())
@@ -113,6 +119,19 @@ namespace Doji.AI.ModelHub.Editor
                 }
                 GUILayout.Space(OuterPadding);
             }
+        }
+
+        /// <summary>
+        /// Rebuilds the prompt view from current manifest discovery after domain reload clears the cached window state.
+        /// </summary>
+        private void EnsureViewModel()
+        {
+            if (_viewModel != null)
+            {
+                return;
+            }
+
+            _viewModel = BuildViewModel(EditorOperations.CreateStatusReport());
         }
 
         private static AutoPromptWindow GetOpenWindow()

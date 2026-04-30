@@ -60,70 +60,95 @@ namespace Doji.AI.ModelHub.Editor
                     GUILayout.Space(ContentInset);
                     using (new EditorGUILayout.VerticalScope())
                     {
-                        if (string.IsNullOrWhiteSpace(_loadErrorMessage))
-                        {
-                            RefreshValidationStatesFromCache();
-                            EditorGUILayout.LabelField("Manifest", EditorStyles.boldLabel);
-                            using (new EditorGUI.DisabledScope(true))
-                            {
-                                EditorGUILayout.IntField("Version", _version);
-                            }
-                            EditorGUILayout.LabelField("Model Dependencies", EditorStyles.boldLabel);
-                            EditorGUILayout.Space(2f);
-                            _modelList.DoLayoutList();
-
-                            using (new EditorGUILayout.HorizontalScope())
-                            {
-                                GUILayout.FlexibleSpace();
-
-                                using (new EditorGUI.DisabledScope(!HasPendingChanges))
-                                {
-                                    if (GUILayout.Button("Revert", GUILayout.Width(90f)))
-                                    {
-                                        ReloadEditableState(_loadedDocument);
-                                        QueueDependencyValidation();
-                                    }
-                                }
-
-                                using (new EditorGUI.DisabledScope(!_isEditable || !HasPendingChanges))
-                                {
-                                    if (GUILayout.Button("Apply", GUILayout.Width(90f)))
-                                    {
-                                        ApplyChanges(assetPath);
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            EditorGUILayout.HelpBox(_loadErrorMessage, MessageType.Error);
-                        }
-
-                        EditorGUILayout.Space();
-                        using (new EditorGUILayout.HorizontalScope())
-                        {
-                            if (GUILayout.Button("Open Model Hub", GUILayout.Width(120f)))
-                            {
-                                ModelHubWindow.OpenWindow();
-                            }
-                        }
-
-                        if (!_isEditable)
-                        {
-                            EditorGUILayout.Space();
-                            using (new EditorGUILayout.VerticalScope(_infoBoxStyle))
-                            {
-                                EditorGUILayout.LabelField(
-                                    "This manifest source is read-only from the current project. Edit the package source directly, or embed/localize the package first.",
-                                    _infoLabelStyle);
-                            }
-                        }
+                        DrawManifestInspectorBody(assetPath);
                     }
                 }
             }
             finally
             {
                 GUI.enabled = previousGuiEnabled;
+            }
+        }
+
+        private void DrawManifestInspectorBody(string assetPath)
+        {
+            if (string.IsNullOrWhiteSpace(_loadErrorMessage))
+            {
+                RefreshValidationStatesFromCache();
+                DrawManifestFields();
+                DrawApplyRevertButtons(assetPath);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(_loadErrorMessage, MessageType.Error);
+            }
+
+            EditorGUILayout.Space();
+            DrawOpenModelHubButton();
+
+            if (!_isEditable)
+            {
+                DrawReadOnlyInfoBox();
+            }
+        }
+
+        private void DrawManifestFields()
+        {
+            EditorGUILayout.LabelField("Manifest", EditorStyles.boldLabel);
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.IntField("Version", _version);
+            }
+
+            EditorGUILayout.LabelField("Model Dependencies", EditorStyles.boldLabel);
+            EditorGUILayout.Space(2f);
+            _modelList.DoLayoutList();
+        }
+
+        private void DrawApplyRevertButtons(string assetPath)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+
+                using (new EditorGUI.DisabledScope(!HasPendingChanges))
+                {
+                    if (GUILayout.Button("Revert", GUILayout.Width(90f)))
+                    {
+                        ReloadEditableState(_loadedDocument);
+                        QueueDependencyValidation();
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(!_isEditable || !HasPendingChanges))
+                {
+                    if (GUILayout.Button("Apply", GUILayout.Width(90f)))
+                    {
+                        ApplyChanges(assetPath);
+                    }
+                }
+            }
+        }
+
+        private static void DrawOpenModelHubButton()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Open Model Hub", GUILayout.Width(120f)))
+                {
+                    ModelHubWindow.OpenWindow();
+                }
+            }
+        }
+
+        private void DrawReadOnlyInfoBox()
+        {
+            EditorGUILayout.Space();
+            using (new EditorGUILayout.VerticalScope(_infoBoxStyle))
+            {
+                EditorGUILayout.LabelField(
+                    "This manifest source is read-only from the current project. Edit the package source directly, or embed/localize the package first.",
+                    _infoLabelStyle);
             }
         }
 
@@ -714,6 +739,10 @@ namespace Doji.AI.ModelHub.Editor
             public string checkedAtUtc;
         }
 
+        /// <summary>
+        /// Identifies Unity asset paths that should switch the broad <see cref="TextAsset"/> inspector over to the model manifest UI.
+        /// The check stays path-based because package manifest JSON files do not have a dedicated Unity asset type.
+        /// </summary>
         internal static bool IsModelManifestAssetPath(string assetPath)
         {
             return !string.IsNullOrWhiteSpace(assetPath) &&

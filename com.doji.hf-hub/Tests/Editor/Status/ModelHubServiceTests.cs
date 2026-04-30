@@ -189,7 +189,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "model-a",
                         DependencyState.Missing,
                         reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing,
-                        maintainerMessage: "Raw cache revision ref is missing.")
+                        maintainerMessage: "Raw cache revision ref is missing.",
+                        rawCachedFilePath: null,
+                        includeRawMetadata: false)
                 });
 
             var hubReport = new ModelHubService(
@@ -349,7 +351,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             DependencyReasonCode? reasonCode = null,
             string maintainerMessage = null,
             string rawCachedFilePath = "/cache/doji/test-model/abc123/model.onnx",
-            string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis")
+            string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
+            bool includeRawMetadata = true)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -395,23 +398,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing),
                 maintainerMessage ?? (state == DependencyState.Ready ? "Ready." : "Import binding metadata file is missing."),
                 $"/cache/doji/test-model/refs/{revision}",
-                "/cache/doji/test-model/abc123",
-                "/cache/doji/test-model/abc123/snapshot.hfhub.json",
-                new RawCacheMetadata
-                {
-                    Repository = "doji/test-model",
-                    RequestedRevision = revision,
-                    ResolvedCommitHash = "abc123",
-                    Files = new[]
+                includeRawMetadata ? "/cache/doji/test-model/abc123" : null,
+                includeRawMetadata ? "/cache/doji/test-model/abc123/snapshot.hfhub.json" : null,
+                includeRawMetadata
+                    ? new RawCacheMetadata
                     {
-                        new RawCacheFileMetadata
+                        Repository = "doji/test-model",
+                        RequestedRevision = revision,
+                        ResolvedCommitHash = "abc123",
+                        Files = new[]
                         {
-                            RepoPath = "model.onnx",
-                            CachedFilePath = rawCachedFilePath,
-                            SizeInBytes = 12
+                            new RawCacheFileMetadata
+                            {
+                                RepoPath = "model.onnx",
+                                CachedFilePath = rawCachedFilePath,
+                                SizeInBytes = 12
+                            }
                         }
                     }
-                },
+                    : null,
                 runtimeAssetPath,
                 ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
                 state == DependencyState.Ready ? metadata : null);

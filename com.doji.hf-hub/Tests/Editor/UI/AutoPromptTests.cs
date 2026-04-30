@@ -216,6 +216,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var window = UnityEngine.ScriptableObject.CreateInstance<AutoPromptWindow>();
             try
             {
+                window.ShowUtility();
                 var report = new StatusReport(
                     Array.Empty<ManifestDiscoveryIssue>(),
                     new[]
@@ -228,7 +229,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
             finally
             {
-                window.Close();
+                if (AutoPromptWindow.IsOpen())
+                {
+                    window.Close();
+                }
+
                 UnityEngine.Object.DestroyImmediate(window);
             }
         }

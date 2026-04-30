@@ -207,6 +207,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Resolve Conflict"));
         }
 
+        /// <summary>
+        /// Verifies reminder logging is skipped while the prompt window is already open.
+        /// </summary>
+        [Test]
+        public void ShouldLogReminder_ReturnsFalseWhenAutoPromptWindowIsOpen()
+        {
+            var window = UnityEngine.ScriptableObject.CreateInstance<AutoPromptWindow>();
+            try
+            {
+                var report = new StatusReport(
+                    Array.Empty<ManifestDiscoveryIssue>(),
+                    new[]
+                    {
+                        CreateStatus(DependencyState.Missing)
+                    });
+
+                Assert.That(AutoPromptWindow.IsOpen(), Is.True);
+                Assert.That(AutoPrompt.ShouldLogReminder(report), Is.False);
+            }
+            finally
+            {
+                window.Close();
+                UnityEngine.Object.DestroyImmediate(window);
+            }
+        }
+
         private static DependencyStatus CreateStatus(
             DependencyState state,
             string repository = "doji/test-model",

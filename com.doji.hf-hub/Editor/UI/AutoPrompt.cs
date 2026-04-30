@@ -87,7 +87,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private static void LogReminderIfNeeded(StatusReport statusReport)
         {
-            if (_loggedForCurrentDomain || statusReport == null || !statusReport.NeedsAttention)
+            if (!ShouldLogReminder(statusReport))
             {
                 return;
             }
@@ -97,6 +97,14 @@ namespace Doji.AI.ModelHub.Editor
             Debug.Log(
                 EditorOperations.BuildUnresolvedDependencyReminder(statusReport),
                 contextObject);
+        }
+
+        internal static bool ShouldLogReminder(StatusReport report)
+        {
+            return !_loggedForCurrentDomain &&
+                report != null &&
+                report.NeedsAttention &&
+                !AutoPromptWindow.IsOpen();
         }
 
         private static bool IsTestRunnerOpen()

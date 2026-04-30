@@ -66,7 +66,7 @@ namespace Doji.AI.ModelHub.Editor
 
         internal static void ShowWindow(StatusReport report)
         {
-            var existingWindow = Resources.FindObjectsOfTypeAll<AutoPromptWindow>().FirstOrDefault();
+            var existingWindow = GetOpenWindow();
             if (existingWindow != null)
             {
                 existingWindow.Close();
@@ -79,6 +79,14 @@ namespace Doji.AI.ModelHub.Editor
             CenterInMainWindow(window);
             window.ShowUtility();
             window.Focus();
+        }
+
+        /// <summary>
+        /// Indicates whether the utility prompt window already exists, even if Unity has not focused it yet.
+        /// </summary>
+        internal static bool IsOpen()
+        {
+            return GetOpenWindow() != null;
         }
 
         private void OnGUI()
@@ -105,6 +113,11 @@ namespace Doji.AI.ModelHub.Editor
                 }
                 GUILayout.Space(OuterPadding);
             }
+        }
+
+        private static AutoPromptWindow GetOpenWindow()
+        {
+            return Resources.FindObjectsOfTypeAll<AutoPromptWindow>().FirstOrDefault();
         }
 
         private static void CenterInMainWindow(AutoPromptWindow window)

@@ -10,23 +10,24 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class AddPackageModelPopup : PopupWindowContent
     {
         private const float PopupWidth = 360f;
-        private const float PopupHeight = 156f;
+        private const float PopupHeight = 188f;
         private const float ContentPaddingLeft = 10f;
         private const float ContentPaddingTop = 8f;
         private const string OwnerFieldControlName = "PackageModelOwnerField";
         private const string ModelFieldControlName = "PackageModelNameField";
-        private readonly Action<LocalPackageManifestStore.LocalPackageOption, string, string> _onAdd;
+        private readonly Action<LocalPackageManifestStore.LocalPackageOption, string, string, string[]> _onAdd;
         private readonly LocalPackageManifestStore.LocalPackageOption[] _packages;
         private readonly string[] _packageLabels;
         private readonly ModelIdPopupValidationController _validationController;
         private int _selectedPackageIndex;
         private string _owner = string.Empty;
         private string _modelName = string.Empty;
+        private string[] _selectedFiles = Array.Empty<string>();
         private bool _focusRequested = true;
 
         public AddPackageModelPopup(
             LocalPackageManifestStore.LocalPackageOption[] packages,
-            Action<LocalPackageManifestStore.LocalPackageOption, string, string> onAdd)
+            Action<LocalPackageManifestStore.LocalPackageOption, string, string, string[]> onAdd)
         {
             _packages = packages ?? Array.Empty<LocalPackageManifestStore.LocalPackageOption>();
             _packageLabels = _packages.Length == 0
@@ -72,6 +73,26 @@ namespace Doji.AI.ModelHub.Editor
                     EditorGUI.FocusTextInControl(OwnerFieldControlName);
                 }
 
+                using (new EditorGUI.DisabledScope(!CanAdd))
+                {
+                    var buttonRect = GUILayoutUtility.GetRect(120f, EditorGUIUtility.singleLineHeight);
+                    if (GUI.Button(buttonRect, BuildFileScopeButtonLabel()))
+                    {
+                        PopupWindow.Show(
+                            buttonRect,
+                            new ManifestFileSelectionPopup(
+                                CurrentModelId,
+                                "main",
+                                _selectedFiles,
+                                files =>
+                                {
+                                    _selectedFiles = files ?? Array.Empty<string>();
+                                    editorWindow?.Repaint();
+                                },
+                                () => editorWindow?.Repaint()));
+                    }
+                }
+
                 QueueValidationIfIdle();
                 DrawValidationStatus();
 
@@ -84,7 +105,7 @@ namespace Doji.AI.ModelHub.Editor
                         if (GUILayout.Button("Add", GUILayout.Width(90f)) || (CanSubmit && HandleSubmit()))
                         {
                             editorWindow.Close();
-                            _onAdd?.Invoke(_packages[_selectedPackageIndex], _owner.Trim(), _modelName.Trim());
+                            _onAdd?.Invoke(_packages[_selectedPackageIndex], _owner.Trim(), _modelName.Trim(), _selectedFiles);
                         }
                     }
                 }
@@ -135,6 +156,15 @@ namespace Doji.AI.ModelHub.Editor
             var focusedControl = GUI.GetNameOfFocusedControl();
             return string.Equals(focusedControl, OwnerFieldControlName, StringComparison.Ordinal) ||
                 string.Equals(focusedControl, ModelFieldControlName, StringComparison.Ordinal);
+        }
+
+        private string BuildFileScopeButtonLabel()
+        {
+            return _selectedFiles.Length == 0
+                ? "Files: All files"
+                : _selectedFiles.Length == 1
+                    ? "Files: 1 file"
+                    : $"Files: {_selectedFiles.Length} files";
         }
     }
 }

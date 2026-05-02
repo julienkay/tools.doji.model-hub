@@ -24,7 +24,8 @@ namespace Doji.AI.ModelHub
             var drafts = (Models ?? Array.Empty<ProjectManifestModelAssetEntry>())
                 .Select(model => new ManifestModelDraft(
                     model?.Id,
-                    model?.Revision))
+                    model?.Revision,
+                    model?.Files))
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
@@ -47,6 +48,8 @@ namespace Doji.AI.ModelHub
         [field: SerializeField]
         public string Revision { get; set; } = "main";
 
+        [field: SerializeField]
+        public string[] Files { get; set; }
     }
 
     [Serializable]
@@ -76,10 +79,14 @@ namespace Doji.AI.ModelHub
         [SerializeField]
         private string _revision;
 
+        [SerializeField]
+        private string[] _files;
+
         public ProjectManifestAssetEntryDocument(ProjectManifestModelAssetEntry model)
         {
             _id = model?.Id;
             _revision = model?.Revision;
+            _files = model?.Files;
         }
     }
 }

@@ -32,6 +32,7 @@ namespace Doji.AI.ModelHub.Editor
         public static RepoFileEditSession Create(ModelHubItem item)
         {
             var filesByRepoPath = (item?.Files ?? Array.Empty<ModelHubFileItem>())
+                .Where(file => file.SupportsImportRecipeEditing)
                 .ToDictionary(
                     file => file.RepoPath,
                     file => FileRecipeEditState.Create(file),
@@ -50,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor
             // Session invalidation is path-based because repo refresh may replace item instances while
             // still representing same editable file set.
             var itemPaths = (item?.Files ?? Array.Empty<ModelHubFileItem>())
+                .Where(file => file.SupportsImportRecipeEditing)
                 .Select(file => file.RepoPath)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();

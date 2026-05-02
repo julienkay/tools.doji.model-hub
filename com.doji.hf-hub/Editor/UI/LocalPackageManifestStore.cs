@@ -27,6 +27,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string id;
             public string revision;
+            public string[] files;
         }
 
         internal readonly struct LocalPackageOption
@@ -82,7 +83,7 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
         }
 
-        public static bool TryAddModel(LocalPackageOption package, string owner, string modelName, out string errorMessage)
+        public static bool TryAddModel(LocalPackageOption package, string owner, string modelName, string[] files, out string errorMessage)
         {
             errorMessage = null;
             if (string.IsNullOrWhiteSpace(package.PackageId) || string.IsNullOrWhiteSpace(package.ResolvedPath))
@@ -99,10 +100,10 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            return TryAddModelId(package, $"{ownerTrimmed}/{modelNameTrimmed}", DefaultRevision, out errorMessage);
+            return TryAddModelId(package, $"{ownerTrimmed}/{modelNameTrimmed}", DefaultRevision, files, out errorMessage);
         }
 
-        internal static bool TryAddModelId(LocalPackageOption package, string modelId, string revision, out string errorMessage)
+        internal static bool TryAddModelId(LocalPackageOption package, string modelId, string revision, string[] files, out string errorMessage)
         {
             errorMessage = null;
             if (!TryLoadManifestDrafts(package, out var version, out var drafts, out errorMessage))
@@ -117,7 +118,10 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            drafts.Add(new ManifestModelDraft(normalizedModelId, string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim()));
+            drafts.Add(new ManifestModelDraft(
+                normalizedModelId,
+                string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim(),
+                files));
             return TryWriteManifest(package, version, drafts, out errorMessage);
         }
 
@@ -154,7 +158,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             version = manifest.Version;
-            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision)));
+            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.Files)));
             return true;
         }
 
@@ -182,7 +186,8 @@ namespace Doji.AI.ModelHub.Editor
                     .Select(model => new ManifestModelDocument
                     {
                         id = model.Id,
-                        revision = string.IsNullOrWhiteSpace(model.Revision) ? null : model.Revision
+                        revision = string.IsNullOrWhiteSpace(model.Revision) ? null : model.Revision,
+                        files = model.HasExplicitFileSelection ? model.Files.ToArray() : null
                     })
                     .ToArray()
             };

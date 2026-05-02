@@ -136,6 +136,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string id;
             public string revision;
+            public string[] files;
         }
 
         internal static bool IsModelManifestAssetPath(string assetPath)
@@ -222,7 +223,8 @@ namespace Doji.AI.ModelHub.Editor
                     .Select(model => new ManifestModelDocument
                     {
                         id = model?.ModelId ?? string.Empty,
-                        revision = model?.Revision ?? string.Empty
+                        revision = model?.Revision ?? string.Empty,
+                        files = model?.Files?.ToArray()
                     })
                     .ToArray()
             };
@@ -239,7 +241,10 @@ namespace Doji.AI.ModelHub.Editor
             errorMessage = null;
 
             var drafts = (models ?? Array.Empty<ManifestModelEntry>())
-                .Select(model => new ManifestModelDraft(model?.ModelId, string.IsNullOrWhiteSpace(model?.Revision) ? "main" : model.Revision))
+                .Select(model => new ManifestModelDraft(
+                    model?.ModelId,
+                    string.IsNullOrWhiteSpace(model?.Revision) ? "main" : model.Revision,
+                    model?.Files))
                 .ToArray();
             if (!ManifestFactory.TryCreateManifest(version, drafts, out var manifest, out errorMessage))
             {
@@ -253,7 +258,8 @@ namespace Doji.AI.ModelHub.Editor
                     .Select(model => new ManifestModelDocument
                     {
                         id = model?.ModelId ?? string.Empty,
-                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision
+                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
+                        files = model?.HasExplicitFileSelection == true ? model.Files.ToArray() : null
                     })
                     .ToArray()
             };
@@ -271,7 +277,8 @@ namespace Doji.AI.ModelHub.Editor
                     .Select(model => new ManifestModelDocument
                     {
                         id = model?.ModelId ?? string.Empty,
-                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision
+                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
+                        files = model?.HasExplicitFileSelection == true ? model.Files.ToArray() : null
                     })
                     .ToArray()
             };

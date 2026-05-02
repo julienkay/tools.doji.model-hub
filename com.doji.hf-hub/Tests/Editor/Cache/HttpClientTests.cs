@@ -11,7 +11,7 @@ using NUnit.Framework;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers HTTP client repo-snapshot resolution using a fully mocked transport.
+    /// Covers HTTP client repo inventory and selected-file resolution using a fully mocked transport.
     /// </summary>
     internal sealed class HttpClientTests
     {
@@ -37,30 +37,38 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies snapshot resolution reads repo commit and sibling file list, then resolves each file URL through HEAD.
+        /// Verifies snapshot resolution reads repository inventory from the tree API and resolves only selected files through HEAD.
         /// </summary>
         [Test]
-        public async Task ResolveSnapshotVersionAsync_ResolvesCommitAndAllSiblingFiles()
+        public async Task ResolveSnapshotVersionAsync_ResolvesInventoryAndSelectedFiles()
         {
-            var transport = new FakeTransport
-            {
-                JsonResponse = new JObject
-                {
-                    ["sha"] = "abc123",
-                    ["siblings"] = new JArray
+            var transport = new FakeTransport();
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    new JObject
                     {
-                        new JObject { ["rfilename"] = "config.json" },
-                        new JObject { ["rfilename"] = "onnx/model.onnx" }
-                    }
-                }
-            };
-            transport.HeadResponses["https://huggingface.co/doji/test-model/resolve/main/config.json"] =
-                CreateHeadResponse("https://cdn.example/config.json", new Dictionary<string, string>
-                {
-                    ["x-linked-etag"] = "\"etag-config\"",
-                    ["x-linked-size"] = "10"
-                });
-            transport.HeadResponses["https://huggingface.co/doji/test-model/resolve/main/onnx/model.onnx"] =
+                        ["sha"] = "abc123"
+                    });
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    new JArray
+                    {
+                        new JObject
+                        {
+                            ["type"] = "file",
+                            ["path"] = "config.json",
+                            ["size"] = 10
+                        },
+                        new JObject
+                        {
+                            ["type"] = "file",
+                            ["path"] = "onnx/model.onnx",
+                            ["size"] = 20
+                        }
+                    });
+            transport.HeadResponses["https://huggingface.co/doji/test-model/resolve/abc123/onnx/model.onnx"] =
                 CreateHeadResponse("https://cdn.example/model.onnx", new Dictionary<string, string>
                 {
                     ["x-linked-etag"] = "\"etag-model\"",
@@ -68,13 +76,65 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 });
 
             var client = new HttpClient(transport);
-            var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(), CancellationToken.None);
+            var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(new[] { "onnx/model.onnx" }), CancellationToken.None);
 
             Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("abc123"));
-            Assert.That(resolved.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
-            Assert.That(resolved.Files.First(file => file.RepoPath == "onnx/model.onnx").DownloadUrl, Is.EqualTo("https://cdn.example/model.onnx"));
-            Assert.That(transport.GetJsonCallCount, Is.EqualTo(1));
-            Assert.That(transport.HeadCallCount, Is.EqualTo(2));
+            Assert.That(resolved.RepositoryFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
+            Assert.That(resolved.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "onnx/model.onnx" }));
+            Assert.That(resolved.Files[0].DownloadUrl, Is.EqualTo("https://cdn.example/model.onnx"));
+            Assert.That(transport.GetJsonCallCount, Is.EqualTo(2));
+            Assert.That(transport.HeadCallCount, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// Verifies repository inventory follows paged tree responses by reading the Link header.
+        /// </summary>
+        [Test]
+        public async Task GetRepositoryInventoryAsync_FollowsPagedTreeResponses()
+        {
+            var transport = new FakeTransport();
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    new JObject
+                    {
+                        ["sha"] = "abc123"
+                    });
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    new JArray
+                    {
+                        new JObject
+                        {
+                            ["type"] = "file",
+                            ["path"] = "config.json",
+                            ["size"] = 10
+                        }
+                    },
+                    new Dictionary<string, string>
+                    {
+                        ["link"] = "<https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2>; rel=\"next\""
+                    });
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2",
+                    new JArray
+                    {
+                        new JObject
+                        {
+                            ["type"] = "file",
+                            ["path"] = "onnx/model.onnx",
+                            ["size"] = 20
+                        }
+                    });
+
+            var client = new HttpClient(transport);
+            var inventory = await client.GetRepositoryInventoryAsync("doji/test-model", "main", CancellationToken.None);
+
+            Assert.That(inventory.ResolvedCommitHash, Is.EqualTo("abc123"));
+            Assert.That(inventory.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
+            Assert.That(transport.GetJsonCallCount, Is.EqualTo(3));
         }
 
         /// <summary>
@@ -105,7 +165,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(progressRecorder.LastProgress.Value.DownloadedBytes, Is.EqualTo(10));
         }
 
-        private static DiscoveredModelDependency CreateDependency()
+        private static DiscoveredModelDependency CreateDependency(string[] files = null)
         {
             return new DiscoveredModelDependency(
                 "com.doji.test",
@@ -116,7 +176,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "manifesthash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
-                    "main"));
+                    "main",
+                    files));
         }
 
         private static HeadResponse CreateHeadResponse(string requestUrl, IReadOnlyDictionary<string, string> headers)
@@ -126,10 +187,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 headerName => headers.TryGetValue(headerName, out var value) ? value : null);
         }
 
+        private static JsonResponse CreateJsonResponse(
+            string requestUrl,
+            JToken json,
+            IReadOnlyDictionary<string, string> headers = null)
+        {
+            var effectiveHeaders = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            return new JsonResponse(
+                requestUrl,
+                json,
+                headerName => effectiveHeaders.TryGetValue(headerName, out var value) ? value : null);
+        }
+
         private sealed class FakeTransport : IHttpTransport
         {
             public Dictionary<string, HeadResponse> HeadResponses { get; } = new(StringComparer.Ordinal);
-            public JObject JsonResponse { get; set; }
+            public Dictionary<string, JsonResponse> JsonResponses { get; } = new(StringComparer.Ordinal);
             public int GetJsonCallCount { get; private set; }
             public int HeadCallCount { get; private set; }
             public int DownloadCallCount { get; private set; }
@@ -140,10 +213,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 return Task.FromResult(HeadResponses[url]);
             }
 
-            public Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken)
+            public Task<JsonResponse> GetJsonAsync(string url, CancellationToken cancellationToken)
             {
                 GetJsonCallCount++;
-                return Task.FromResult(JsonResponse);
+                return Task.FromResult(JsonResponses[url]);
             }
 
             public Task DownloadFileAsync(

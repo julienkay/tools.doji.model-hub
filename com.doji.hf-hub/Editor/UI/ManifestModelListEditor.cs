@@ -15,20 +15,29 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelEntry
     {
-        public ManifestModelEntry(string owner, string name, string revision)
+        public ManifestModelEntry(string owner, string name, string revision, string[] files = null)
         {
             Owner = owner ?? string.Empty;
             Name = name ?? string.Empty;
             Revision = revision ?? string.Empty;
+            Files = ModelDependencyDefinition.NormalizeSelectedFiles(files);
         }
 
         public string Owner { get; set; }
         public string Name { get; set; }
         public string Revision { get; set; }
+        public string[] Files { get; set; }
 
         public string ModelId => string.IsNullOrWhiteSpace(Owner)
             ? Name ?? string.Empty
             : $"{Owner?.Trim()}/{Name?.Trim()}";
+
+        public bool HasExplicitFileSelection => (Files ?? Array.Empty<string>()).Length > 0;
+        public string FileSelectionSummary => HasExplicitFileSelection
+            ? Files.Length == 1
+                ? "1 file"
+                : $"{Files.Length} files"
+            : "All files";
 
         public static ManifestModelEntry FromDocumentModel(ModelManifestInspectorUtility.ManifestModelDocument model)
         {
@@ -36,13 +45,14 @@ namespace Doji.AI.ModelHub.Editor
             var slashIndex = identifier.IndexOf('/');
             if (slashIndex <= 0 || slashIndex >= identifier.Length - 1)
             {
-                return new ManifestModelEntry(string.Empty, identifier, model?.revision ?? string.Empty);
+                return new ManifestModelEntry(string.Empty, identifier, model?.revision ?? string.Empty, model?.files);
             }
 
             return new ManifestModelEntry(
                 identifier.Substring(0, slashIndex),
                 identifier.Substring(slashIndex + 1),
-                model?.revision ?? string.Empty);
+                model?.revision ?? string.Empty,
+                model?.files);
         }
     }
 
@@ -81,6 +91,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly bool _isEditable;
         private readonly Func<string, ManifestModelValidationState> _getValidationState;
         private readonly Action _onChanged;
+        private readonly Action _requestRepaint;
         private ReorderableList _list;
         private GUIStyle _revisionPlaceholderStyle;
 
@@ -88,12 +99,14 @@ namespace Doji.AI.ModelHub.Editor
             ManifestModelEntry[] models,
             bool isEditable,
             Action onChanged,
-            Func<string, ManifestModelValidationState> getValidationState = null)
+            Func<string, ManifestModelValidationState> getValidationState = null,
+            Action requestRepaint = null)
         {
             _models = models ?? Array.Empty<ManifestModelEntry>();
             _isEditable = isEditable;
             _onChanged = onChanged;
             _getValidationState = getValidationState;
+            _requestRepaint = requestRepaint ?? (() => { });
             ConfigureList();
         }
 
@@ -150,18 +163,21 @@ namespace Doji.AI.ModelHub.Editor
 
         private void DrawHeader(Rect rect)
         {
-            const float ownerWidth = 150f;
-            const float revisionWidth = 120f;
+            const float ownerWidth = 120f;
+            const float revisionWidth = 110f;
+            const float filesWidth = 96f;
             const float iconWidth = 18f;
-            var modelWidth = rect.width - ownerWidth - revisionWidth - iconWidth - 20f;
+            var modelWidth = rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 26f;
             var ownerRect = new Rect(rect.x + 14f, rect.y, ownerWidth, rect.height);
             var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, modelWidth), rect.height);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, rect.height);
-            var iconRect = new Rect(revisionRect.xMax + 4f, rect.y, iconWidth, rect.height);
+            var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, rect.height);
+            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, rect.height);
 
             EditorGUI.LabelField(ownerRect, "Owner");
             EditorGUI.LabelField(modelRect, "Model");
             EditorGUI.LabelField(revisionRect, "Revision");
+            EditorGUI.LabelField(filesRect, "Files");
             EditorGUI.LabelField(iconRect, GUIContent.none);
         }
 
@@ -175,13 +191,15 @@ namespace Doji.AI.ModelHub.Editor
             var entry = _models[index];
             rect.y += 2f;
 
-            const float ownerWidth = 150f;
-            const float revisionWidth = 120f;
+            const float ownerWidth = 120f;
+            const float revisionWidth = 110f;
+            const float filesWidth = 96f;
             const float iconWidth = 18f;
             var ownerRect = new Rect(rect.x, rect.y, ownerWidth, EditorGUIUtility.singleLineHeight);
-            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - iconWidth - 16f), EditorGUIUtility.singleLineHeight);
+            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 22f), EditorGUIUtility.singleLineHeight);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, EditorGUIUtility.singleLineHeight);
-            var iconRect = new Rect(revisionRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
+            var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, EditorGUIUtility.singleLineHeight);
+            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
 
             if (_isEditable)
             {
@@ -200,12 +218,32 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 DrawRevisionPlaceholder(revisionRect, revisionControlName, entry.Revision);
+                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(entry.ModelId)))
+                {
+                    if (GUI.Button(filesRect, entry.FileSelectionSummary))
+                    {
+                        PopupWindow.Show(
+                            filesRect,
+                            new ManifestFileSelectionPopup(
+                                entry.ModelId,
+                                string.IsNullOrWhiteSpace(entry.Revision) ? RevisionPlaceholder : entry.Revision,
+                                entry.Files,
+                                files =>
+                                {
+                                    entry.Files = ModelDependencyDefinition.NormalizeSelectedFiles(files);
+                                    _onChanged?.Invoke();
+                                    _requestRepaint();
+                                },
+                                _requestRepaint));
+                    }
+                }
             }
             else
             {
                 EditorGUI.LabelField(ownerRect, entry.Owner);
                 EditorGUI.LabelField(modelRect, entry.Name);
                 EditorGUI.LabelField(revisionRect, entry.Revision);
+                EditorGUI.LabelField(filesRect, entry.FileSelectionSummary);
             }
 
             DrawValidationIcon(iconRect, entry);
@@ -512,6 +550,262 @@ namespace Doji.AI.ModelHub.Editor
                 tcs.TrySetResult(true);
             };
             return tcs.Task;
+        }
+    }
+
+    /// <summary>
+    /// Lets package authors switch between whole-repository scope and explicit repo file selection.
+    /// </summary>
+    internal sealed class ManifestFileSelectionPopup : PopupWindowContent
+    {
+        private enum FileFilterMode
+        {
+            All,
+            Onnx,
+            Selected
+        }
+
+        private const float PopupWidth = 520f;
+        private const float PopupHeight = 420f;
+
+        private readonly string _repository;
+        private readonly string _revision;
+        private readonly Action<string[]> _onApply;
+        private readonly Action _requestRepaint;
+        private readonly IHttpClient _httpClient = new HttpClient();
+        private readonly HashSet<string> _selectedFiles;
+
+        private Vector2 _scrollPosition;
+        private string _searchText = string.Empty;
+        private FileFilterMode _filterMode;
+        private RepositoryFileMetadata[] _repositoryFiles = Array.Empty<RepositoryFileMetadata>();
+        private string[] _missingSelectedFiles = Array.Empty<string>();
+        private bool _useExplicitSelection;
+        private bool _loadStarted;
+        private bool _isLoading;
+        private string _loadErrorMessage;
+
+        public ManifestFileSelectionPopup(
+            string repository,
+            string revision,
+            IReadOnlyList<string> selectedFiles,
+            Action<string[]> onApply,
+            Action requestRepaint = null)
+        {
+            _repository = repository?.Trim();
+            _revision = string.IsNullOrWhiteSpace(revision) ? "main" : revision.Trim();
+            _onApply = onApply ?? throw new ArgumentNullException(nameof(onApply));
+            _requestRepaint = requestRepaint ?? (() => { });
+            _selectedFiles = new HashSet<string>(
+                ModelDependencyDefinition.NormalizeSelectedFiles(selectedFiles),
+                StringComparer.Ordinal);
+            _useExplicitSelection = _selectedFiles.Count > 0;
+        }
+
+        public override Vector2 GetWindowSize()
+        {
+            return new Vector2(PopupWidth, PopupHeight);
+        }
+
+        public override void OnGUI(Rect rect)
+        {
+            EnsureInventoryLoadStarted();
+
+            EditorGUILayout.LabelField($"{_repository}@{_revision}", EditorStyles.boldLabel);
+
+            var scopeIndex = GUILayout.Toolbar(_useExplicitSelection ? 1 : 0, new[] { "Whole Repo", "Selected Files" });
+            _useExplicitSelection = scopeIndex == 1;
+            EditorGUILayout.Space(4f);
+
+            if (_isLoading)
+            {
+                EditorGUILayout.HelpBox("Loading repository file inventory from Hugging Face.", MessageType.None);
+            }
+            else if (!string.IsNullOrWhiteSpace(_loadErrorMessage))
+            {
+                EditorGUILayout.HelpBox(_loadErrorMessage, MessageType.Warning);
+            }
+            else
+            {
+                DrawInventoryControls();
+                DrawInventoryList();
+            }
+
+            GUILayout.FlexibleSpace();
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(_useExplicitSelection && _selectedFiles.Count == 0))
+                {
+                    if (GUILayout.Button("Apply", GUILayout.Width(96f)))
+                    {
+                        _onApply(_useExplicitSelection
+                            ? _selectedFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray()
+                            : null);
+                        editorWindow?.Close();
+                    }
+                }
+            }
+        }
+
+        private void EnsureInventoryLoadStarted()
+        {
+            if (_loadStarted || string.IsNullOrWhiteSpace(_repository))
+            {
+                return;
+            }
+
+            _loadStarted = true;
+            _isLoading = true;
+            _ = LoadInventoryAsync();
+        }
+
+        private async Task LoadInventoryAsync()
+        {
+            try
+            {
+                var inventory = await _httpClient.GetRepositoryInventoryAsync(_repository, _revision, CancellationToken.None);
+                var repositoryFiles = inventory.Files
+                    .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                    .ToArray();
+                var repositoryPaths = new HashSet<string>(
+                    repositoryFiles.Select(file => file.RepoPath),
+                    StringComparer.Ordinal);
+                var missingSelectedFiles = _selectedFiles
+                    .Where(path => !repositoryPaths.Contains(path))
+                    .OrderBy(path => path, StringComparer.Ordinal)
+                    .ToArray();
+
+                EditorApplication.delayCall += () =>
+                {
+                    _repositoryFiles = repositoryFiles;
+                    _missingSelectedFiles = missingSelectedFiles;
+                    _isLoading = false;
+                    _requestRepaint();
+                    editorWindow?.Repaint();
+                    InternalEditorUtility.RepaintAllViews();
+                };
+            }
+            catch (Exception exception)
+            {
+                EditorApplication.delayCall += () =>
+                {
+                    _isLoading = false;
+                    _loadErrorMessage = $"Could not load repository files: {exception.Message}";
+                    _requestRepaint();
+                    editorWindow?.Repaint();
+                    InternalEditorUtility.RepaintAllViews();
+                };
+            }
+        }
+
+        private void DrawInventoryControls()
+        {
+            EditorGUI.BeginChangeCheck();
+            _searchText = EditorGUILayout.TextField("Search", _searchText);
+            _filterMode = (FileFilterMode)GUILayout.Toolbar((int)_filterMode, new[] { "All", "ONNX", "Selected" });
+            if (EditorGUI.EndChangeCheck())
+            {
+                _requestRepaint();
+            }
+
+            if (_missingSelectedFiles.Length > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    $"Selected file(s) not found at this revision: {string.Join(", ", _missingSelectedFiles)}.",
+                    MessageType.Warning);
+            }
+
+            if (_useExplicitSelection)
+            {
+                EditorGUILayout.LabelField("Selection", $"{_selectedFiles.Count} files");
+            }
+        }
+
+        private void DrawInventoryList()
+        {
+            var filteredFiles = (_repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Where(ShouldIncludeFile)
+                .ToArray();
+            if (filteredFiles.Length == 0)
+            {
+                EditorGUILayout.HelpBox("No repository files match the current filter.", MessageType.Info);
+                return;
+            }
+
+            _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
+            foreach (var file in filteredFiles)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (_useExplicitSelection)
+                    {
+                        var isSelected = _selectedFiles.Contains(file.RepoPath);
+                        var nextSelected = EditorGUILayout.Toggle(isSelected, GUILayout.Width(18f));
+                        if (nextSelected != isSelected)
+                        {
+                            if (nextSelected)
+                            {
+                                _selectedFiles.Add(file.RepoPath);
+                            }
+                            else
+                            {
+                                _selectedFiles.Remove(file.RepoPath);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        GUILayout.Space(22f);
+                    }
+
+                    EditorGUILayout.LabelField(file.RepoPath);
+                    GUILayout.Label(FormatSize(file.SizeInBytes), EditorStyles.miniLabel, GUILayout.Width(72f));
+                }
+            }
+
+            EditorGUILayout.EndScrollView();
+        }
+
+        private bool ShouldIncludeFile(RepositoryFileMetadata file)
+        {
+            if (file == null || string.IsNullOrWhiteSpace(file.RepoPath))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_searchText) &&
+                file.RepoPath.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return false;
+            }
+
+            return _filterMode switch
+            {
+                FileFilterMode.Onnx => ModelDependencyDefinition.IsOnnxFile(file.RepoPath),
+                FileFilterMode.Selected => _selectedFiles.Contains(file.RepoPath),
+                _ => true
+            };
+        }
+
+        private static string FormatSize(long? sizeInBytes)
+        {
+            if (!sizeInBytes.HasValue)
+            {
+                return string.Empty;
+            }
+
+            if (sizeInBytes.Value < 1024)
+            {
+                return $"{sizeInBytes.Value} B";
+            }
+
+            if (sizeInBytes.Value < 1024 * 1024)
+            {
+                return $"{sizeInBytes.Value / 1024f:0.#} KB";
+            }
+
+            return $"{sizeInBytes.Value / 1024f / 1024f:0.#} MB";
         }
     }
 }

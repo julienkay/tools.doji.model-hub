@@ -195,7 +195,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 });
 
             var hubReport = new ModelHubService(
-                remoteSnapshotSizeEstimateService: new FakeRemoteSnapshotSizeEstimateService(42))
+                remoteSnapshotSizeEstimateService: new FakeRemoteSnapshotSizeEstimateService(
+                    42,
+                    new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "model.onnx",
+                            SizeInBytes = 42
+                        }
+                    }))
                 .BuildReport(report);
 
             Assert.That(hubReport.Items.Count, Is.EqualTo(1));
@@ -319,8 +328,41 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].Files.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Files[0].RepoPath, Is.EqualTo("model.onnx"));
             Assert.That(hubReport.Items[0].Files[0].RawCachedFilePath, Is.EqualTo("/cache/doji/test-model/abc123/model.onnx"));
+            Assert.That(hubReport.Items[0].Files[0].IsDependencySelected, Is.True);
             Assert.That(hubReport.Items[0].Files[0].RecipeSourceLabel, Is.EqualTo("Project Override"));
             Assert.That(hubReport.Items[0].Files[0].Recipe.QuantizationMode, Is.EqualTo("int8"));
+        }
+
+        /// <summary>
+        /// Verifies file inventory includes unselected repository files while keeping recipe editing only on selected ONNX rows.
+        /// </summary>
+        [Test]
+        public void BuildReport_ShowsUnselectedRepositoryFilesAsReadOnlyRows()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        selectedFiles: new[] { "model.onnx" },
+                        includeExtraRepositoryFile: true)
+                });
+
+            var hubReport = new ModelHubService(new FakeRecipeSource()).BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Files.Count, Is.EqualTo(2));
+            Assert.That(hubReport.Items[0].SelectedFileCount, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].RepositoryFileCount, Is.EqualTo(2));
+            Assert.That(hubReport.Items[0].Files[0].RepoPath, Is.EqualTo("config.json"));
+            Assert.That(hubReport.Items[0].Files[0].IsDependencySelected, Is.False);
+            Assert.That(hubReport.Items[0].Files[0].SupportsImportRecipeEditing, Is.False);
+            Assert.That(hubReport.Items[0].Files[1].RepoPath, Is.EqualTo("model.onnx"));
+            Assert.That(hubReport.Items[0].Files[1].IsDependencySelected, Is.True);
+            Assert.That(hubReport.Items[0].Files[1].SupportsImportRecipeEditing, Is.True);
         }
 
         [Test]
@@ -373,7 +415,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string maintainerMessage = null,
             string rawCachedFilePath = "/cache/doji/test-model/abc123/model.onnx",
             string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
-            bool includeRawMetadata = true)
+            bool includeRawMetadata = true,
+            string[] selectedFiles = null,
+            bool includeExtraRepositoryFile = false)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -384,7 +428,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 $"{packageId}-hash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
-                    revision));
+                    revision,
+                    selectedFiles));
 
             var metadata = new ImportedModelMetadata
             {
@@ -398,6 +443,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                 RawCacheSizeInBytes = 12,
+                RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile),
+                DependencySelectionHash = dependency.DependencySelectionHash,
                 RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{packageId}/hf-hub-runtime.json",
                 Diagnostics = importedDiagnostics ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = new[]
@@ -427,6 +474,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         Repository = "doji/test-model",
                         RequestedRevision = revision,
                         ResolvedCommitHash = "abc123",
+                        RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile),
                         Files = new[]
                         {
                             new RawCacheFileMetadata
@@ -441,6 +489,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 runtimeAssetPath,
                 ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
                 state == DependencyState.Ready ? metadata : null);
+        }
+
+        private static RepositoryFileMetadata[] BuildRepositoryFiles(bool includeExtraRepositoryFile)
+        {
+            return includeExtraRepositoryFile
+                ? new[]
+                {
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "config.json",
+                        SizeInBytes = 3
+                    },
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "model.onnx",
+                        SizeInBytes = 12
+                    }
+                }
+                : new[]
+                {
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "model.onnx",
+                        SizeInBytes = 12
+                    }
+                };
         }
 
         private string CreateTempFileWithSize(int sizeInBytes)
@@ -498,16 +572,24 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class FakeRemoteSnapshotSizeEstimateService : IRemoteSnapshotSizeEstimateService
     {
         private readonly long? _estimatedCacheSizeBytes;
+        private readonly RepositoryFileMetadata[] _repositoryFiles;
 
-        public FakeRemoteSnapshotSizeEstimateService(long? estimatedCacheSizeBytes)
+        public FakeRemoteSnapshotSizeEstimateService(long? estimatedCacheSizeBytes, RepositoryFileMetadata[] repositoryFiles = null)
         {
             _estimatedCacheSizeBytes = estimatedCacheSizeBytes;
+            _repositoryFiles = repositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
         }
 
         public bool TryGetEstimatedCacheSize(string repository, string requestedRevision, out long? estimatedCacheSizeBytes)
         {
             estimatedCacheSizeBytes = _estimatedCacheSizeBytes;
             return _estimatedCacheSizeBytes.HasValue;
+        }
+
+        public bool TryGetRepositoryInventory(string repository, string requestedRevision, out RepositoryFileMetadata[] repositoryFiles)
+        {
+            repositoryFiles = _repositoryFiles;
+            return _repositoryFiles.Length > 0;
         }
 
         public void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null)

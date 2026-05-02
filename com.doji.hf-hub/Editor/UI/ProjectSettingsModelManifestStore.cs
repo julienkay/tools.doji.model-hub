@@ -28,6 +28,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string id;
             public string revision;
+            public string[] files;
         }
 
         public static string GetManifestPath(string projectRoot = null)
@@ -41,7 +42,7 @@ namespace Doji.AI.ModelHub.Editor
                 Hub.ManifestFileName);
         }
 
-        public static bool TryAddModel(string owner, string modelName, out string errorMessage)
+        public static bool TryAddModel(string owner, string modelName, string[] files, out string errorMessage)
         {
             errorMessage = null;
             var ownerTrimmed = owner?.Trim();
@@ -52,10 +53,10 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            return TryAddModelId($"{ownerTrimmed}/{modelNameTrimmed}", DefaultRevision, out errorMessage);
+            return TryAddModelId($"{ownerTrimmed}/{modelNameTrimmed}", DefaultRevision, files, out errorMessage);
         }
 
-        internal static bool TryAddModelId(string modelId, string revision, out string errorMessage, string projectRoot = null)
+        internal static bool TryAddModelId(string modelId, string revision, string[] files, out string errorMessage, string projectRoot = null)
         {
             errorMessage = null;
             if (!TryLoadManifestDrafts(projectRoot, out var version, out var drafts, out errorMessage))
@@ -70,7 +71,10 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            drafts.Add(new ManifestModelDraft(normalizedModelId, string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim()));
+            drafts.Add(new ManifestModelDraft(
+                normalizedModelId,
+                string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim(),
+                files));
             return TryWriteManifest(version, drafts, out errorMessage, projectRoot);
         }
 
@@ -118,7 +122,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             version = manifest.Version;
-            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision)));
+            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.Files)));
             return true;
         }
 
@@ -187,7 +191,8 @@ namespace Doji.AI.ModelHub.Editor
                         id = model.Id,
                         revision = string.IsNullOrWhiteSpace(model.Revision)
                             ? null
-                            : model.Revision
+                            : model.Revision,
+                        files = model.HasExplicitFileSelection ? model.Files.ToArray() : null
                     })
                     .ToArray()
             };

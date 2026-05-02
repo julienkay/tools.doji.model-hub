@@ -1,14 +1,14 @@
 # Manifest Schema
 
-## V1 Schema
+## Current Schema
 
-V1 uses a single JSON manifest stored inside each package that depends on AI model files.
+HF Hub uses a single JSON manifest stored inside each package that depends on AI model files.
 
 Recommended location:
 
 - `Packages/<package-id>/hf-hub-manifest.json`
 
-Initial schema:
+Manifest stays on `version: 1` and supports both whole-repo and selected-file dependencies.
 
 ```json
 {
@@ -17,6 +17,13 @@ Initial schema:
     {
       "id": "hf-internal-testing/tiny-random-bert",
       "revision": "main"
+    },
+    {
+      "id": "onnx-community/tiny-clip-test-ONNX",
+      "revision": "main",
+      "files": [
+        "onnx/model.onnx"
+      ]
     }
   ]
 }
@@ -27,6 +34,7 @@ Field intent:
 - `version`: manifest format version
 - `id`: canonical HuggingFace model id, also used as repo snapshot identity and runtime lookup key
 - `revision`: branch, tag, or commit to resolve from HuggingFace
+- `files`: optional list of exact repo-relative file paths required by this dependency owner; when omitted, dependency scope is whole repo
 
 Canonical HuggingFace model id definition:
 
@@ -35,17 +43,41 @@ Canonical HuggingFace model id definition:
 - only serialize or sanitize it when deriving local folder names or paths
 - do not invent separate display ids, package-local aliases, or duplicate `repository` fields for same identity
 
-V1 deliberately keeps manifest entry minimal. One entry resolves one remote repo snapshot, downloads full snapshot, then converts every ONNX file inside it. Multi-file filtering and richer import settings can come later.
+Manifest meaning:
 
-## Important Next Extension
+- one entry resolves one upstream repo revision to one concrete commit
+- one entry either depends on whole repo or on explicit repo-relative file paths inside that repo
+- ONNX conversion and runtime materialization operate only on selected `.onnx` files for that dependency scope
 
-- support package dependencies that require multiple files from one repo, not only one ONNX payload
-- this should cover companion files such as `config.json`, tokenizer files, vocab files, merges files, preprocess metadata, and similar artifacts
+File selection uses exact repo-relative paths first. Pattern-based authoring can layer on later if needed, but manifest truth is still concrete file selection.
 
-Reference behavior from `huggingface_hub`:
+## Selection Boundary
+
+Important constraint:
+
+- manifest-owned file selection describes what one dependency owner requires from one repo
+- it does not redefine raw cache identity
+- it does not mean raw cache metadata should only list selected files
+- `files` is owner dependency scope, not cache inventory
+
+Simple maintainer translation:
+
+- manifest says what owner needs
+- raw cache says what source files are already present locally
+- selected-file dependency does not force HF Hub to pretend repo snapshot only contains selected files
+
+## Reference Alignment
+
+This schema matches upstream HuggingFace concepts:
 
 - `hf_hub_download(...)` handles one file
 - `snapshot_download(...)` handles whole-repo or filtered multi-file snapshots
 - `snapshot_download(...)` supports `allow_patterns` and `ignore_patterns` for partial repo download
 - it resolves requested revision to concrete commit, stores `refs/<revision> -> <commit>`, and downloads files into `snapshots/<commit>/...`
 - when sibling listing is unreliable, it falls back from repo info to `list_repo_tree(...)` before filtering files
+
+HF Hub keeps manifest identity close to upstream:
+
+- `id` is repo id
+- `revision` is resolution input
+- `files` narrows dependency scope inside repo when needed

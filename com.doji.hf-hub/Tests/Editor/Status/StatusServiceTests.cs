@@ -75,6 +75,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import binding metadata file is missing."));
         }
 
+        /// <summary>
+        /// Verifies selected-file dependencies become missing when the raw cache lacks one selected file.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsMissingWhenSelectedRawCacheFileIsAbsent()
+        {
+            var dependency = CreateDependency(selectedFiles: new[] { "models/model.onnx", "tokenizer.json" });
+            WriteRawCache(dependency, includeTokenizer: false);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("tokenizer.json"));
+        }
+
         [Test]
         public void BuildStatusReport_ReturnsReadyWhenRawBindingAndSharedArtifactsMatch()
         {
@@ -221,6 +237,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("recipe set hash"));
         }
 
+        /// <summary>
+        /// Verifies import binding becomes stale when owner file selection changed even if raw cache still contains the files.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsStaleWhenBindingSelectionHashDiffers()
+        {
+            var dependency = CreateDependency(selectedFiles: new[] { "models/model.onnx" });
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency);
+
+            var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(
+                ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId));
+            var bindingMetadata = JsonConvert.DeserializeObject<ImportBindingMetadata>(File.ReadAllText(bindingMetadataAbsolutePath));
+            bindingMetadata.DependencySelectionHash = "old-selection-hash";
+            File.WriteAllText(bindingMetadataAbsolutePath, JsonConvert.SerializeObject(bindingMetadata, Formatting.Indented));
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.StaleCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingStale));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("selection hash"));
+        }
+
         private static StatusReport BuildStatusReport(params DiscoveredModelDependency[] dependencies)
         {
             var discoveryReport = new DiscoveryReport(
@@ -232,7 +271,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "com.doji.test",
             string revision = "main",
-            string repository = "doji/test-model")
+            string repository = "doji/test-model",
+            string[] selectedFiles = null)
         {
             return new DiscoveredModelDependency(
                 packageId,
@@ -243,19 +283,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "manifesthash",
                 new ModelDependencyDefinition(
                     repository,
-                    revision));
+                    revision,
+                    selectedFiles));
         }
 
-        private static void WriteRawCache(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        private static void WriteRawCache(DiscoveredModelDependency dependency, string commitHash = "abc123", bool includeTokenizer = true)
         {
             var rawFilePath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model.onnx");
             var rawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
             var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
+            var tokenizerPath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "tokenizer.json");
 
             Directory.CreateDirectory(Path.GetDirectoryName(rawFilePath) ?? throw new InvalidOperationException());
             Directory.CreateDirectory(Path.GetDirectoryName(revisionRefPath) ?? throw new InvalidOperationException());
 
             File.WriteAllText(rawFilePath, "onnx");
+            if (includeTokenizer)
+            {
+                File.WriteAllText(tokenizerPath, "tokenizer");
+            }
+
             File.WriteAllText(revisionRefPath, commitHash);
             File.WriteAllText(
                 rawMetadataPath,
@@ -265,12 +312,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,
                     CachedSnapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            SizeInBytes = 4
+                        },
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "tokenizer.json",
+                            SizeInBytes = 9
+                        }
+                    },
                     Files = new[]
                     {
                         new RawCacheFileMetadata
                         {
                             RepoPath = "models/model.onnx",
                             CachedFilePath = rawFilePath
+                        },
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "tokenizer.json",
+                            CachedFilePath = tokenizerPath
                         }
                     },
                     DownloadedAtUtc = DateTime.UtcNow.ToString("O")
@@ -303,6 +368,19 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RequestedRevisionHint = dependency.Revision,
                     RawSnapshotRootPath = CachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
                     RawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash),
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            SizeInBytes = 4
+                        },
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "tokenizer.json",
+                            SizeInBytes = 9
+                        }
+                    },
                     RawCacheSizeInBytes = 4,
                     SentisVersion = sentisVersion,
                     UnityVersion = UnityEngine.Application.unityVersion,
@@ -325,6 +403,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     ResolvedCommitHash = commitHash,
                     SentisVersion = sentisVersion,
                     RecipeSetHash = recipeSetHash,
+                    DependencySelectionHash = dependency.DependencySelectionHash,
                     SharedImportMetadataPath = sharedMetadataPath,
                     RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId),
                     RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId)),

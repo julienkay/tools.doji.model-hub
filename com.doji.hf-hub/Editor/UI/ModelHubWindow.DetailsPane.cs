@@ -34,7 +34,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
 
                     var selectedItem = items[_selectedIndex];
-                    var showFilesBottomBar = _selectedDetailTab == DetailTab.Files && selectedItem.Files.Count > 0;
+                    var showFilesBottomBar = _selectedDetailTab == DetailTab.Files && selectedItem.Files.Any(file => file.SupportsImportRecipeEditing);
                     if (showFilesBottomBar)
                     {
                         _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition, GUILayout.ExpandHeight(true));
@@ -242,8 +242,20 @@ namespace Doji.AI.ModelHub.Editor
                         ? Content.UnresolvedCommitPlaceholder
                         : item.ResolvedCommitHash));
             DrawOptionalValueRow(Content.ManifestOwnersLabel, item.ManifestOwnerCount.ToString());
+            if (item.RepositoryFileCount > 0)
+            {
+                DrawOptionalValueRow(Content.SelectedFilesLabel, $"{item.SelectedFileCount}/{item.RepositoryFileCount}");
+                if (item.RepositoryFileCount > item.SelectedFileCount)
+                {
+                    DrawOptionalValueRow(Content.RepositoryFilesLabel, item.RepositoryFileCount.ToString());
+                }
+            }
             DrawOptionalValueRow(Content.GeneratedSentisFilesLabel, item.ImportedFileCount.ToString());
             DrawSourceSizeRow(item);
+            if (item.RepositorySizeBytes.HasValue && item.RepositorySizeBytes != item.SourceSizeBytes)
+            {
+                DrawOptionalValueRow(Content.RepositorySizeLabel, FormatByteSize(item.RepositorySizeBytes));
+            }
             DrawRepositoryLinkRow(item);
 
             if (item.HasRevisionConflict)
@@ -435,7 +447,7 @@ namespace Doji.AI.ModelHub.Editor
             var hoveredRepoPath = _hoveredSplitTreemapRepoPath;
 
             var cacheTiles = (files ?? Array.Empty<ModelHubFileItem>())
-                .Where(file => file.RawSizeOnDiskBytes.GetValueOrDefault() > 0)
+                .Where(file => file.IsDependencySelected && file.RawSizeOnDiskBytes.GetValueOrDefault() > 0)
                 .OrderByDescending(file => file.RawSizeOnDiskBytes.GetValueOrDefault())
                 .ThenBy(file => file.RepoPath, StringComparer.Ordinal)
                 .Select(file => new ModelHubStorageTreemapTile(
@@ -447,7 +459,7 @@ namespace Doji.AI.ModelHub.Editor
                     rawDisplayPath: file.RawCachedFilePath))
                 .ToArray();
             var runtimeTiles = (files ?? Array.Empty<ModelHubFileItem>())
-                .Where(file => file.RuntimeSizeOnDiskBytes.GetValueOrDefault() > 0)
+                .Where(file => file.IsDependencySelected && file.RuntimeSizeOnDiskBytes.GetValueOrDefault() > 0)
                 .OrderByDescending(file => file.RuntimeSizeOnDiskBytes.GetValueOrDefault())
                 .ThenBy(file => file.RepoPath, StringComparer.Ordinal)
                 .Select(file => new ModelHubStorageTreemapTile(
@@ -1086,6 +1098,11 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 EditorGUILayout.LabelField(Content.ModelIdLabel, dependent.Dependency.ModelId);
+                DrawOptionalValueRow(
+                    Content.DependencyScopeLabel,
+                    dependent.Dependency.HasExplicitFileSelection
+                        ? $"{dependent.Dependency.SelectedFiles.Count} selected files"
+                        : "Whole repository");
                 DrawOptionalLinkRow(Content.ManifestLabel, dependent.Dependency.ManifestPath, ProjectSettingsLinks.RevealPath);
                 DrawOptionalLinkRow(Content.RuntimeRegistryLabel, dependent.ImportedMetadata?.RuntimeRegistryAssetPath, ProjectSettingsLinks.PingAsset);
                 EditorGUILayout.Space(8f);

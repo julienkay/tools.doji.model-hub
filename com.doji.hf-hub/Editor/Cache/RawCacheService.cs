@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -22,7 +23,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns cached repository snapshot if valid, otherwise resolves and downloads all repository files.
+        /// Returns cached repository snapshot if required files are already present, otherwise downloads only the missing required files.
         /// </summary>
         public async Task<CachedSnapshot> GetOrDownloadAsync(
             DiscoveredModelDependency dependency,
@@ -42,15 +43,14 @@ namespace Doji.AI.ModelHub.Editor
 
             using var fileLock = FileLock.Acquire(lockPath, DefaultLockTimeout);
 
-            if (TryReadMetadata(metadataPath, out var existingMetadata) &&
-                IsCacheHit(snapshotRoot, existingMetadata, resolvedSnapshot))
-            {
-                WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
-                return new CachedSnapshot(snapshotRoot, metadataPath, existingMetadata);
-            }
-
+            TryReadMetadata(metadataPath, out var existingMetadata);
             Directory.CreateDirectory(snapshotRoot);
-            foreach (var file in resolvedSnapshot.Files)
+
+            var filesToDownload = resolvedSnapshot.Files
+                .Where(file => !HasCurrentCachedFile(snapshotRoot, existingMetadata, file))
+                .ToArray();
+
+            foreach (var file in filesToDownload)
             {
                 var targetPath = CachePaths.GetSnapshotFilePath(
                     resolvedSnapshot.Repository,
@@ -60,26 +60,7 @@ namespace Doji.AI.ModelHub.Editor
                 await _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken);
             }
 
-            var metadata = new RawCacheMetadata
-            {
-                Repository = resolvedSnapshot.Repository,
-                RequestedRevision = resolvedSnapshot.RequestedRevision,
-                ResolvedCommitHash = resolvedSnapshot.ResolvedCommitHash,
-                CachedSnapshotRoot = snapshotRoot,
-                Files = resolvedSnapshot.Files
-                    .Select(file => new RawCacheFileMetadata
-                    {
-                        RepoPath = file.RepoPath,
-                        CachedFilePath = CachePaths.GetSnapshotFilePath(
-                            resolvedSnapshot.Repository,
-                            resolvedSnapshot.ResolvedCommitHash,
-                            file.RepoPath),
-                        EntityTag = file.EntityTag,
-                        SizeInBytes = file.SizeInBytes
-                    })
-                    .ToArray(),
-                DownloadedAtUtc = DateTime.UtcNow.ToString("O")
-            };
+            var metadata = BuildMergedMetadata(snapshotRoot, existingMetadata, resolvedSnapshot);
 
             WriteMetadata(metadataPath, metadata);
             WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
@@ -133,49 +114,29 @@ namespace Doji.AI.ModelHub.Editor
             return new CachedSnapshot(snapshotRoot, metadataPath, metadata);
         }
 
-        private static bool IsCacheHit(
+        private static bool HasCurrentCachedFile(
             string snapshotRoot,
             RawCacheMetadata metadata,
-            ResolvedSnapshotVersion resolvedSnapshot)
+            ResolvedRepoFile resolvedFile)
         {
             if (metadata == null || !Directory.Exists(snapshotRoot))
             {
                 return false;
             }
 
-            if (!string.Equals(metadata.Repository, resolvedSnapshot.Repository, StringComparison.Ordinal) ||
-                !string.Equals(metadata.ResolvedCommitHash, resolvedSnapshot.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(metadata.CachedSnapshotRoot, snapshotRoot, StringComparison.Ordinal))
+            var cachedFile = (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .FirstOrDefault(file => string.Equals(file.RepoPath, resolvedFile.RepoPath, StringComparison.Ordinal));
+            if (cachedFile == null || !File.Exists(cachedFile.CachedFilePath))
             {
                 return false;
             }
 
-            var files = metadata.Files ?? Array.Empty<RawCacheFileMetadata>();
-            if (files.Length != resolvedSnapshot.Files.Count)
+            if (!resolvedFile.SizeInBytes.HasValue)
             {
-                return false;
+                return true;
             }
 
-            foreach (var resolvedFile in resolvedSnapshot.Files)
-            {
-                var cachedFile = files.FirstOrDefault(file =>
-                    string.Equals(file.RepoPath, resolvedFile.RepoPath, StringComparison.Ordinal));
-                if (cachedFile == null || !File.Exists(cachedFile.CachedFilePath))
-                {
-                    return false;
-                }
-
-                if (resolvedFile.SizeInBytes.HasValue)
-                {
-                    var fileInfo = new FileInfo(cachedFile.CachedFilePath);
-                    if (fileInfo.Length != resolvedFile.SizeInBytes.Value)
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
+            return new FileInfo(cachedFile.CachedFilePath).Length == resolvedFile.SizeInBytes.Value;
         }
 
         private static bool IsLocalCacheSnapshotCurrent(
@@ -197,10 +158,73 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            return (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
-                .All(file =>
-                    !string.IsNullOrWhiteSpace(file.CachedFilePath) &&
-                    File.Exists(file.CachedFilePath));
+            var selectedRepoPaths = dependency.GetSelectedRepoPaths(
+                (metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
+                (metadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath));
+            if (selectedRepoPaths.Count == 0)
+            {
+                return false;
+            }
+
+            var filesByRepoPath = (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => file != null && !string.IsNullOrWhiteSpace(file.RepoPath))
+                .ToDictionary(file => file.RepoPath, StringComparer.Ordinal);
+            return selectedRepoPaths.All(repoPath =>
+                filesByRepoPath.TryGetValue(repoPath, out var file) &&
+                !string.IsNullOrWhiteSpace(file.CachedFilePath) &&
+                File.Exists(file.CachedFilePath));
+        }
+
+        private static RawCacheMetadata BuildMergedMetadata(
+            string snapshotRoot,
+            RawCacheMetadata existingMetadata,
+            ResolvedSnapshotVersion resolvedSnapshot)
+        {
+            var knownRepositoryPaths = new HashSet<string>(
+                (resolvedSnapshot.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath),
+                StringComparer.Ordinal);
+            var mergedFiles = new Dictionary<string, RawCacheFileMetadata>(StringComparer.Ordinal);
+
+            foreach (var existingFile in (existingMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
+                         .Where(file =>
+                             file != null &&
+                             !string.IsNullOrWhiteSpace(file.RepoPath) &&
+                             !string.IsNullOrWhiteSpace(file.CachedFilePath) &&
+                             File.Exists(file.CachedFilePath) &&
+                             knownRepositoryPaths.Contains(file.RepoPath)))
+            {
+                mergedFiles[existingFile.RepoPath] = existingFile;
+            }
+
+            foreach (var resolvedFile in resolvedSnapshot.Files)
+            {
+                mergedFiles[resolvedFile.RepoPath] = new RawCacheFileMetadata
+                {
+                    RepoPath = resolvedFile.RepoPath,
+                    CachedFilePath = CachePaths.GetSnapshotFilePath(
+                        resolvedSnapshot.Repository,
+                        resolvedSnapshot.ResolvedCommitHash,
+                        resolvedFile.RepoPath),
+                    EntityTag = resolvedFile.EntityTag,
+                    SizeInBytes = resolvedFile.SizeInBytes
+                };
+            }
+
+            return new RawCacheMetadata
+            {
+                Repository = resolvedSnapshot.Repository,
+                RequestedRevision = resolvedSnapshot.RequestedRevision,
+                ResolvedCommitHash = resolvedSnapshot.ResolvedCommitHash,
+                CachedSnapshotRoot = snapshotRoot,
+                RepositoryFiles = (resolvedSnapshot.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                    .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                    .ToArray(),
+                Files = mergedFiles.Values
+                    .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                    .ToArray(),
+                DownloadedAtUtc = DateTime.UtcNow.ToString("O")
+            };
         }
 
         private static void WriteMetadata(string metadataPath, RawCacheMetadata metadata)

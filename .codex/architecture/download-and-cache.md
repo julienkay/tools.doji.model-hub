@@ -2,7 +2,7 @@
 
 ## Cache Location
 
-V1 uses shared per-user cache outside Unity project so raw HuggingFace repository snapshots can be reused across projects.
+use shared per-user cache outside Unity project so raw HuggingFace repository snapshots can be reused across projects.
 
 Cache root:
 
@@ -18,30 +18,81 @@ Current raw-cache layout:
 <cache-root>/raw/<serialized-repo>/snapshots/<commit>/snapshot.hfhub.json
 ```
 
-Revision ref maps requested revision to resolved commit. Snapshot metadata records whole repo file list for that commit.
+Revision ref maps requested revision to resolved commit. Snapshot metadata records cached file inventory for that commit.
 
 Current implementation note:
 
 - snapshot metadata currently also stores requested revision even though ref files are authoritative for revision-to-commit mapping; treat that revision field as implementation detail, not stable cache identity
+- raw cache metadata is cache inventory for one `repository + resolved commit`, not owner dependency scope
 
 Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub may delete the selected revision ref and the snapshot only when no other revision ref still points at that resolved commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
 
+## Selection Boundary
+
+HF Hub keeps two different truths separate:
+
+- raw cache metadata answers: which repo files are currently cached on this machine for this resolved commit
+- dependency selection answers: which repo files one manifest owner requires
+
+Those are not interchangeable.
+
+Why:
+
+- many owners can depend on same repo and same resolved commit while selecting different subsets
+- raw cache may accumulate union of files requested across owners, reimports, or earlier sessions
+- cached extra files do not mean current owner selected them
+- uncached files do not mean current owner would never select them later
+
+Design rule:
+
+- raw cache identity stays `repository + resolved commit`
+- raw cache metadata records cached file inventory for that snapshot
+- owner selection must live in manifest/discovery and later owner-binding or import metadata, not in raw cache metadata
+- stale detection and UI must never infer owner dependency scope by reading only snapshot cache metadata
+
 ## Download Model
 
-Dependency declaration is repo-level.
+Dependency declaration is repo-scoped, with optional file-level narrowing inside repo.
+
+## Simple Rule
+
+In simple terms:
+
+- upstream `huggingface_hub` can download only one file, only selected files, or whole repo
+- HF Hub ensures only dependency-required files are downloaded into cache for that request
+
+Upstream mode depends on API used:
+
+- `hf_hub_download(...)`: one requested repo file only
+- `snapshot_download(...)` without filters: whole repo snapshot
+- `snapshot_download(...)` with `allow_patterns` / `ignore_patterns`: only matched files
+
+Important cache detail from upstream:
+
+- even single-file downloads still live in repo-scoped cache
+- upstream does not create separate cache identity for "selection"
+- practical identity is still `repo + resolved commit + repo-relative path`
+
+That means "what was requested by one caller" and "what files are now present in cache for this repo snapshot" are related but not same thing.
 
 Download flow:
 
 1. Resolve `repository + revision` through HuggingFace model revision API.
-2. Read resolved commit hash and `siblings` file list.
-3. Download every sibling file into raw snapshot cache.
-4. Write one repo-level metadata file once snapshot is complete.
+2. Enumerate repo files through repo info `siblings` or `list_repo_tree(...)` fallback when needed.
+3. Compute effective dependency file set:
+   - all repo files for whole-repo dependency
+   - selected explicit repo paths for selected-file dependency
+4. Download missing files from that effective set into raw snapshot cache.
+5. Write one repo-level metadata file describing cached files now present for that snapshot.
 
-This matches upstream snapshot semantics better than file-by-file dependency declarations.
+This keeps cache repo-scoped while still supporting exact-file dependency selection.
 
-Current implementation note:
+Selection rule:
 
-- V1 uses the model revision API `siblings` listing directly and downloads whole snapshots; filtered downloads and fallback tree enumeration remain future work
+- if one owner depends on specific repo files, HF Hub ensures only those files are needed for that request
+- cache still remains repo-snapshot-scoped, not owner-selection-scoped
+- raw cache metadata answers "what files are cached for this repo commit"
+- owner metadata answers "what files this dependency selected"
 
 ## Reliability
 

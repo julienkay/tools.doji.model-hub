@@ -41,6 +41,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RequestedRevisionHint { get; set; }
         public string RawSnapshotRootPath { get; set; }
         public string RawMetadataPath { get; set; }
+        public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
         public long? RawCacheSizeInBytes { get; set; }
         public string SentisVersion { get; set; }
         public string UnityVersion { get; set; }
@@ -66,6 +67,7 @@ namespace Doji.AI.ModelHub.Editor
         public string ResolvedCommitHash { get; set; }
         public string SentisVersion { get; set; }
         public string RecipeSetHash { get; set; }
+        public string DependencySelectionHash { get; set; }
         public string SharedImportMetadataPath { get; set; }
         public string RuntimeRegistryAssetPath { get; set; }
         public string RuntimeRegistryRelativePath { get; set; }
@@ -87,10 +89,12 @@ namespace Doji.AI.ModelHub.Editor
         public string ResolvedCommitHash { get; set; }
         public string RawSnapshotRootPath { get; set; }
         public string RawMetadataPath { get; set; }
+        public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
         public long? RawCacheSizeInBytes { get; set; }
         public string SentisVersion { get; set; }
         public string UnityVersion { get; set; }
         public string RecipeSetHash { get; set; }
+        public string DependencySelectionHash { get; set; }
         public string RuntimeRegistryAssetPath { get; set; }
         public string RuntimeRegistryRelativePath { get; set; }
         public string BindingMetadataPath { get; set; }

@@ -18,6 +18,14 @@ namespace Doji.AI.ModelHub.Editor
     internal interface IHttpClient
     {
         /// <summary>
+        /// Resolves one repository revision to a concrete commit and full file inventory.
+        /// </summary>
+        Task<ResolvedRepositoryInventory> GetRepositoryInventoryAsync(
+            string repository,
+            string revision,
+            CancellationToken cancellationToken);
+
+        /// <summary>
         /// Resolves a package-declared dependency to a concrete remote repository snapshot.
         /// </summary>
         Task<ResolvedSnapshotVersion> ResolveSnapshotVersionAsync(
@@ -35,11 +43,11 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Captures the minimum HEAD response data needed to resolve a Hub file version without keeping a request object alive.
+    /// Captures response payload plus headers without keeping a live request object around.
     /// </summary>
-    internal sealed class HeadResponse
+    internal class HttpResponseInfo
     {
-        public HeadResponse(string requestUrl, Func<string, string> getHeader)
+        public HttpResponseInfo(string requestUrl, Func<string, string> getHeader)
         {
             RequestUrl = requestUrl;
             GetHeader = getHeader;
@@ -47,6 +55,31 @@ namespace Doji.AI.ModelHub.Editor
 
         public string RequestUrl { get; }
         public Func<string, string> GetHeader { get; }
+    }
+
+    /// <summary>
+    /// Captures one JSON response body plus headers for paged Hub API calls.
+    /// </summary>
+    internal sealed class JsonResponse : HttpResponseInfo
+    {
+        public JsonResponse(string requestUrl, JToken json, Func<string, string> getHeader)
+            : base(requestUrl, getHeader)
+        {
+            Json = json;
+        }
+
+        public JToken Json { get; }
+    }
+
+    /// <summary>
+    /// Captures the minimum HEAD response data needed to resolve a Hub file version without keeping a request object alive.
+    /// </summary>
+    internal sealed class HeadResponse : HttpResponseInfo
+    {
+        public HeadResponse(string requestUrl, Func<string, string> getHeader)
+            : base(requestUrl, getHeader)
+        {
+        }
     }
 
     /// <summary>
@@ -60,9 +93,9 @@ namespace Doji.AI.ModelHub.Editor
         Task<HeadResponse> HeadAsync(string url, CancellationToken cancellationToken);
 
         /// <summary>
-        /// Reads JSON API responses used when HEAD metadata is insufficient.
+        /// Reads JSON API responses together with response headers used for pagination.
         /// </summary>
-        Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken);
+        Task<JsonResponse> GetJsonAsync(string url, CancellationToken cancellationToken);
 
         /// <summary>
         /// Streams a file download to disk, optionally resuming from an existing partial payload.
@@ -95,13 +128,17 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Fetches JSON API data used as fallback when HEAD metadata is incomplete.
+        /// Fetches JSON API data used by revision lookup and paged repository inventory scans.
         /// </summary>
-        public async Task<JObject> GetJsonAsync(string url, CancellationToken cancellationToken)
+        public async Task<JsonResponse> GetJsonAsync(string url, CancellationToken cancellationToken)
         {
             using var request = UnityWebRequest.Get(url);
             await UnityWebRequestResumableDownloader.SendAsync(request, cancellationToken);
-            return JObject.Parse(request.downloadHandler.text);
+            var headers = request.GetResponseHeaders() ?? new Dictionary<string, string>();
+            return new JsonResponse(
+                request.url,
+                JToken.Parse(request.downloadHandler.text),
+                headerName => headers.TryGetValue(headerName, out var value) ? value : null);
         }
 
         /// <summary>
@@ -125,16 +162,46 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class HttpClient : IHttpClient
     {
         private const string HubEndpoint = "https://huggingface.co";
-        private const string CommitHeaderName = "x-repo-commit";
         private const string ETagHeaderName = "etag";
         private const string LinkedETagHeaderName = "x-linked-etag";
         private const string ContentLengthHeaderName = "content-length";
         private const string LinkedSizeHeaderName = "x-linked-size";
+        private const string LinkHeaderName = "link";
         private readonly IHttpTransport _transport;
 
         public HttpClient(IHttpTransport transport = null)
         {
             _transport = transport ?? new UnityWebRequestTransport();
+        }
+
+        public async Task<ResolvedRepositoryInventory> GetRepositoryInventoryAsync(
+            string repository,
+            string revision,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(repository))
+            {
+                throw new ArgumentException("Repository is required.", nameof(repository));
+            }
+
+            if (string.IsNullOrWhiteSpace(revision))
+            {
+                throw new ArgumentException("Revision is required.", nameof(revision));
+            }
+
+            var apiResponse = await GetModelRevisionApiResponseAsync(repository, revision, cancellationToken);
+            var resolvedCommit = apiResponse.Value<string>("sha");
+            if (string.IsNullOrWhiteSpace(resolvedCommit))
+            {
+                throw new InvalidOperationException($"Missing `sha` in model revision response for `{repository}@{revision}`.");
+            }
+
+            var repositoryFiles = await ListRepositoryFilesAsync(repository, revision, cancellationToken);
+            return new ResolvedRepositoryInventory(
+                repository,
+                revision,
+                resolvedCommit,
+                repositoryFiles);
         }
 
         /// <summary>
@@ -144,32 +211,28 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             CancellationToken cancellationToken)
         {
-            var apiResponse = await GetModelRevisionApiResponseAsync(
+            var repositoryInventory = await GetRepositoryInventoryAsync(
                 dependency.Repository,
                 dependency.Revision,
                 cancellationToken);
-            var resolvedCommit = apiResponse.Value<string>("sha");
-            if (string.IsNullOrWhiteSpace(resolvedCommit))
+            var requestedRepoPaths = dependency.GetSelectedRepoPaths(
+                repositoryInventory.Files.Select(file => file.RepoPath));
+            var inventoryByRepoPath = repositoryInventory.Files
+                .ToDictionary(file => file.RepoPath, StringComparer.Ordinal);
+            var missingSelectedFiles = requestedRepoPaths
+                .Where(repoPath => !inventoryByRepoPath.ContainsKey(repoPath))
+                .OrderBy(repoPath => repoPath, StringComparer.Ordinal)
+                .ToArray();
+            if (missingSelectedFiles.Length > 0)
             {
-                throw new InvalidOperationException($"Missing `sha` in model revision response for `{dependency.Repository}@{dependency.Revision}`.");
-            }
-
-            var siblings = apiResponse["siblings"] as JArray;
-            if (siblings == null)
-            {
-                throw new InvalidOperationException($"Missing `siblings` in model revision response for `{dependency.Repository}@{dependency.Revision}`.");
+                throw new InvalidOperationException(
+                    $"Repository `{dependency.Repository}@{dependency.Revision}` does not contain selected file(s): {string.Join(", ", missingSelectedFiles)}.");
             }
 
             var files = new List<ResolvedRepoFile>();
-            foreach (var sibling in siblings.OfType<JObject>())
+            foreach (var repoPath in requestedRepoPaths)
             {
-                var repoPath = sibling.Value<string>("rfilename")?.Trim();
-                if (string.IsNullOrWhiteSpace(repoPath))
-                {
-                    continue;
-                }
-
-                var fileUrl = BuildResolveUrl(dependency.Repository, dependency.Revision, repoPath);
+                var fileUrl = BuildResolveUrl(dependency.Repository, repositoryInventory.ResolvedCommitHash, repoPath);
                 var response = await _transport.HeadAsync(fileUrl, cancellationToken);
                 var entityTag = NormalizeEntityTag(
                     response.GetHeader(LinkedETagHeaderName) ??
@@ -182,13 +245,21 @@ namespace Doji.AI.ModelHub.Editor
                     sizeInBytes = parsedSize;
                 }
 
+                if (!sizeInBytes.HasValue &&
+                    inventoryByRepoPath.TryGetValue(repoPath, out var inventoryFile) &&
+                    inventoryFile.SizeInBytes.HasValue)
+                {
+                    sizeInBytes = inventoryFile.SizeInBytes.Value;
+                }
+
                 files.Add(new ResolvedRepoFile(repoPath, response.RequestUrl, entityTag, sizeInBytes));
             }
 
             return new ResolvedSnapshotVersion(
                 dependency.Repository,
                 dependency.Revision,
-                resolvedCommit,
+                repositoryInventory.ResolvedCommitHash,
+                repositoryInventory.Files,
                 files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray());
         }
 
@@ -211,11 +282,11 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         private static string BuildResolveUrl(string repository, string revision, string sourceFile)
         {
-            var escapedRevision = UnityWebRequest.EscapeURL(revision);
+            var escapedRevision = EscapePathSegment(revision);
             var escapedSourceFile = string.Join(
                 "/",
                 sourceFile.Split('/')
-                    .Select(segment => UnityWebRequest.EscapeURL(segment).Replace("+", "%20", StringComparison.Ordinal)));
+                    .Select(EscapePathSegment));
             return $"{HubEndpoint}/{repository}/resolve/{escapedRevision}/{escapedSourceFile}";
         }
 
@@ -228,9 +299,103 @@ namespace Doji.AI.ModelHub.Editor
             string revision,
             CancellationToken cancellationToken)
         {
-            var escapedRevision = UnityWebRequest.EscapeURL(revision);
-            var apiUrl = $"{HubEndpoint}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha&expand[]=siblings";
-            return await _transport.GetJsonAsync(apiUrl, cancellationToken);
+            var escapedRevision = EscapePathSegment(revision);
+            var apiUrl = $"{HubEndpoint}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha";
+            var response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
+            if (response.Json is JObject jsonObject)
+            {
+                return jsonObject;
+            }
+
+            throw new InvalidOperationException(
+                $"Expected JSON object from model revision response for `{repository}@{revision}`.");
+        }
+
+        private async Task<IReadOnlyList<RepositoryFileMetadata>> ListRepositoryFilesAsync(
+            string repository,
+            string revision,
+            CancellationToken cancellationToken)
+        {
+            var escapedRevision = EscapePathSegment(revision);
+            var nextPageUrl = $"{HubEndpoint}/api/models/{repository}/tree/{escapedRevision}?recursive=true";
+            var repositoryFiles = new List<RepositoryFileMetadata>();
+
+            while (!string.IsNullOrWhiteSpace(nextPageUrl))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var response = await _transport.GetJsonAsync(nextPageUrl, cancellationToken);
+                if (response.Json is not JArray page)
+                {
+                    throw new InvalidOperationException(
+                        $"Expected JSON array from repository tree response for `{repository}@{revision}`.");
+                }
+
+                foreach (var entry in page.OfType<JObject>())
+                {
+                    if (!string.Equals(entry.Value<string>("type"), "file", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var repoPath = ModelDependencyDefinition.NormalizeRepoPath(
+                        entry.Value<string>("path") ??
+                        entry.Value<string>("rfilename"));
+                    if (string.IsNullOrWhiteSpace(repoPath))
+                    {
+                        continue;
+                    }
+
+                    repositoryFiles.Add(new RepositoryFileMetadata
+                    {
+                        RepoPath = repoPath,
+                        SizeInBytes = entry.Value<long?>("size")
+                    });
+                }
+
+                nextPageUrl = TryGetNextPageUrl(response.GetHeader(LinkHeaderName));
+            }
+
+            return repositoryFiles
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string TryGetNextPageUrl(string linkHeader)
+        {
+            if (string.IsNullOrWhiteSpace(linkHeader))
+            {
+                return null;
+            }
+
+            foreach (var segment in linkHeader.Split(','))
+            {
+                var trimmedSegment = segment?.Trim();
+                if (string.IsNullOrWhiteSpace(trimmedSegment) ||
+                    trimmedSegment.IndexOf("rel=\"next\"", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                var startIndex = trimmedSegment.IndexOf('<');
+                var endIndex = trimmedSegment.IndexOf('>', startIndex + 1);
+                if (startIndex < 0 || endIndex <= startIndex)
+                {
+                    continue;
+                }
+
+                return trimmedSegment.Substring(startIndex + 1, endIndex - startIndex - 1);
+            }
+
+            return null;
+        }
+
+        private static string EscapePathSegment(string value)
+        {
+            return UnityWebRequest.EscapeURL(value ?? string.Empty)
+                .Replace("+", "%20", StringComparison.Ordinal);
         }
 
         /// <summary>

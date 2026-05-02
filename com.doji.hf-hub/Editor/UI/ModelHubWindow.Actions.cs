@@ -190,9 +190,9 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
-        private void AddModelToProjectManifest(string owner, string modelName)
+        private void AddModelToProjectManifest(string owner, string modelName, string[] files)
         {
-            if (ProjectSettingsModelManifestStore.TryAddModel(owner, modelName, out var errorMessage))
+            if (ProjectSettingsModelManifestStore.TryAddModel(owner, modelName, files, out var errorMessage))
             {
                 Refresh();
                 ProjectSettingsProvider.Refresh();
@@ -203,9 +203,9 @@ namespace Doji.AI.ModelHub.Editor
             EditorUtility.DisplayDialog("HF Hub Project Manifest", errorMessage, "OK");
         }
 
-        private void AddModelToPackageManifest(LocalPackageManifestStore.LocalPackageOption package, string owner, string modelName)
+        private void AddModelToPackageManifest(LocalPackageManifestStore.LocalPackageOption package, string owner, string modelName, string[] files)
         {
-            if (LocalPackageManifestStore.TryAddModel(package, owner, modelName, out var errorMessage))
+            if (LocalPackageManifestStore.TryAddModel(package, owner, modelName, files, out var errorMessage))
             {
                 Refresh();
                 return;

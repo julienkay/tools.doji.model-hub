@@ -36,6 +36,8 @@ namespace Doji.AI.ModelHub.Editor
     {
         public ModelHubFileItem(
             string repoPath,
+            bool isDependencySelected,
+            int selectedOwnerCount,
             string rawCachedFilePath,
             long? rawSizeInBytes,
             long? rawSizeOnDiskBytes,
@@ -47,6 +49,8 @@ namespace Doji.AI.ModelHub.Editor
             bool hasProjectOverride)
         {
             RepoPath = repoPath;
+            IsDependencySelected = isDependencySelected;
+            SelectedOwnerCount = Math.Max(0, selectedOwnerCount);
             RawCachedFilePath = rawCachedFilePath;
             RawSizeInBytes = rawSizeInBytes;
             RawSizeOnDiskBytes = rawSizeOnDiskBytes;
@@ -59,6 +63,8 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         public string RepoPath { get; }
+        public bool IsDependencySelected { get; }
+        public int SelectedOwnerCount { get; }
         public string RawCachedFilePath { get; }
         public long? RawSizeInBytes { get; }
         public long? RawSizeOnDiskBytes { get; }
@@ -68,6 +74,8 @@ namespace Doji.AI.ModelHub.Editor
         public string RecipeSourceLabel { get; }
         public string OverrideAssetPath { get; }
         public bool HasProjectOverride { get; }
+        public bool IsOnnxFile => ModelDependencyDefinition.IsOnnxFile(RepoPath);
+        public bool SupportsImportRecipeEditing => IsDependencySelected && IsOnnxFile;
         public bool HasRawFile => !string.IsNullOrWhiteSpace(RawCachedFilePath);
         public bool HasRuntimeFile => RuntimeFile != null;
     }
@@ -126,6 +134,7 @@ namespace Doji.AI.ModelHub.Editor
             string runtimeSnapshotAssetPath,
             long? cacheSizeOnDiskBytes,
             long? estimatedCacheSizeBytes,
+            long? repositorySizeBytes,
             long? runtimeSizeOnDiskBytes,
             ModelHubItemState state,
             IReadOnlyList<DependencyStatus> dependents,
@@ -140,6 +149,7 @@ namespace Doji.AI.ModelHub.Editor
             RuntimeSnapshotAssetPath = runtimeSnapshotAssetPath;
             CacheSizeOnDiskBytes = cacheSizeOnDiskBytes;
             EstimatedCacheSizeBytes = estimatedCacheSizeBytes;
+            RepositorySizeBytes = repositorySizeBytes;
             RuntimeSizeOnDiskBytes = runtimeSizeOnDiskBytes;
             State = state;
             _dependents = dependents?.ToArray() ?? Array.Empty<DependencyStatus>();
@@ -147,6 +157,7 @@ namespace Doji.AI.ModelHub.Editor
             _runtimeFiles = runtimeFiles?.ToArray() ?? Array.Empty<ImportedRuntimeFileMetadata>();
             _files = files?.ToArray() ?? Array.Empty<ModelHubFileItem>();
             _storageTreemapTiles = _files
+                .Where(file => file.IsDependencySelected)
                 .Select(file => new ModelHubStorageTreemapTile(
                     file.RepoPath,
                     file.RawSizeOnDiskBytes ?? 0,
@@ -164,6 +175,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RuntimeSnapshotAssetPath { get; }
         public long? CacheSizeOnDiskBytes { get; }
         public long? EstimatedCacheSizeBytes { get; }
+        public long? RepositorySizeBytes { get; }
         public long? SourceSizeBytes => EstimatedCacheSizeBytes;
         public long? RuntimeSizeOnDiskBytes { get; }
         public ModelHubItemState State { get; }
@@ -172,6 +184,8 @@ namespace Doji.AI.ModelHub.Editor
         public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => _runtimeFiles;
         public IReadOnlyList<ModelHubFileItem> Files => _files;
         public IReadOnlyList<ModelHubStorageTreemapTile> StorageTreemapTiles => _storageTreemapTiles;
+        public int SelectedFileCount => _files.Count(file => file.IsDependencySelected);
+        public int RepositoryFileCount => _files.Length;
         public int ImportedFileCount => _runtimeFiles.Count(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal));
         public int ManifestOwnerCount => _dependents.Select(item => item.Dependency.PackageId).Distinct(StringComparer.Ordinal).Count();
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);

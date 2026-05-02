@@ -130,7 +130,8 @@ namespace Doji.AI.ModelHub.Editor
                         _models = _modelListEditor.Models;
                         _hasUserEdits = true;
                     },
-                    getValidationState: modelId => _validationController.GetState(modelId));
+                    getValidationState: modelId => _validationController.GetState(modelId),
+                    requestRepaint: _options.RequestRepaint);
             }
             else
             {
@@ -314,7 +315,8 @@ namespace Doji.AI.ModelHub.Editor
             var drafts = (models ?? Array.Empty<ManifestModelEntry>())
                 .Select(model => new ManifestModelDraft(
                     model?.ModelId,
-                    model?.Revision))
+                    model?.Revision,
+                    model?.Files))
                 .ToArray();
             return ProjectSettingsModelManifestStore.TryWriteManifest(version, drafts, out errorMessage);
         }

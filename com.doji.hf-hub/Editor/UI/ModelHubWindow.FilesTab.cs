@@ -49,31 +49,45 @@ namespace Doji.AI.ModelHub.Editor
             var session = GetOrCreateFileEditSession(item);
             foreach (var file in item.Files)
             {
-                var fileState = session.GetOrCreateFileState(file);
+                var fileState = file.SupportsImportRecipeEditing
+                    ? session.GetOrCreateFileState(file)
+                    : null;
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
-                    DrawFileHeader(fileState, file.RepoPath);
-                    if (fileState.IsExpanded)
+                    DrawFileHeader(fileState, file.RepoPath, file.IsDependencySelected);
+                    if (fileState?.IsExpanded != false)
                     {
                         using (new EditorGUILayout.HorizontalScope())
                         {
                             GUILayout.Space(4f);
                             using (new EditorGUILayout.VerticalScope())
                             {
+                                DrawOptionalValueRow(Content.DependencyScopeLabel, BuildDependencyScopeLabel(file));
                                 DrawOptionalLinkRow(Content.RawCachedFileLabel, file.RawCachedFilePath, ProjectSettingsLinks.RevealPath);
                                 DrawOptionalValueRow(Content.RawSizeLabel, FormatByteSize(file.RawSizeInBytes));
-                                DrawOptionalValueRow(Content.RecipeSourceLabel, file.RecipeSourceLabel);
-                                DrawOptionalLinkRow(Content.OverrideAssetLabel, file.OverrideAssetPath, ProjectSettingsLinks.PingAsset);
                                 DrawOptionalLinkRow(Content.RuntimeAssetLabel, file.RuntimeFile?.AssetPath, ProjectSettingsLinks.PingAsset);
                                 DrawOptionalValueRow(Content.RuntimeRelativeLabel, file.RuntimeFile?.RelativePath);
 
-                                DrawQuantizationEditor(fileState);
-                                DrawDynamicDimsEditor(fileState);
-                                fileState.RefreshValidation();
-
-                                if (!string.IsNullOrWhiteSpace(fileState.ValidationMessage))
+                                if (file.SupportsImportRecipeEditing)
                                 {
-                                    EditorGUILayout.HelpBox(fileState.ValidationMessage, MessageType.Warning);
+                                    DrawOptionalValueRow(Content.RecipeSourceLabel, file.RecipeSourceLabel);
+                                    DrawOptionalLinkRow(Content.OverrideAssetLabel, file.OverrideAssetPath, ProjectSettingsLinks.PingAsset);
+                                    DrawQuantizationEditor(fileState);
+                                    DrawDynamicDimsEditor(fileState);
+                                    fileState.RefreshValidation();
+
+                                    if (!string.IsNullOrWhiteSpace(fileState.ValidationMessage))
+                                    {
+                                        EditorGUILayout.HelpBox(fileState.ValidationMessage, MessageType.Warning);
+                                    }
+                                }
+                                else if (!file.IsDependencySelected)
+                                {
+                                    EditorGUILayout.HelpBox(Content.UnselectedFileMessage, MessageType.None);
+                                }
+                                else if (!file.IsOnnxFile)
+                                {
+                                    EditorGUILayout.HelpBox(Content.SelectedNonOnnxFileMessage, MessageType.None);
                                 }
                             }
 
@@ -91,18 +105,25 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Draws the file block title row with the same model icon used by the inference package when available.
         /// </summary>
-        private static void DrawFileHeader(FileRecipeEditState fileState, string repoPath)
+        private static void DrawFileHeader(FileRecipeEditState fileState, string repoPath, bool isDependencySelected)
         {
             var rowRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
             var foldoutRect = new Rect(rowRect.x, rowRect.y, 14f, rowRect.height);
             var contentRect = new Rect(rowRect.x + 14f + FileTitleLeftGap, rowRect.y, rowRect.width - 14f - FileTitleLeftGap, rowRect.height);
 
-            fileState.IsExpanded = EditorGUI.Foldout(foldoutRect, fileState.IsExpanded, GUIContent.none, true);
+            if (fileState != null)
+            {
+                fileState.IsExpanded = EditorGUI.Foldout(foldoutRect, fileState.IsExpanded, GUIContent.none, true);
+            }
+            else
+            {
+                EditorGUI.LabelField(foldoutRect, GUIContent.none);
+            }
 
             var icon = GetInferenceModelIcon();
             if (icon == null)
             {
-                EditorGUI.LabelField(contentRect, repoPath, EditorStyles.boldLabel);
+                DrawFileHeaderLabel(contentRect, repoPath, isDependencySelected);
                 return;
             }
 
@@ -111,7 +132,7 @@ namespace Doji.AI.ModelHub.Editor
             var labelOffset = FileTitleIconSize + FileTitleIconGap;
             var labelRect = new Rect(contentRect.x + labelOffset, contentRect.y, contentRect.width - labelOffset, contentRect.height);
             GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
-            EditorGUI.LabelField(labelRect, repoPath, EditorStyles.boldLabel);
+            DrawFileHeaderLabel(labelRect, repoPath, isDependencySelected);
         }
 
         private static Texture2D GetInferenceModelIcon()
@@ -232,7 +253,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         private void DrawFilesBottomBar(ModelHubItem item)
         {
-            if (item == null || _selectedDetailTab != DetailTab.Files)
+            if (item == null || _selectedDetailTab != DetailTab.Files || !item.Files.Any(file => file.SupportsImportRecipeEditing))
             {
                 return;
             }
@@ -332,6 +353,39 @@ namespace Doji.AI.ModelHub.Editor
             return item == null
                 ? string.Empty
                 : $"{item.Repository}\n{item.RequestedRevision}";
+        }
+
+        private static void DrawFileHeaderLabel(Rect rect, string repoPath, bool isDependencySelected)
+        {
+            if (isDependencySelected)
+            {
+                EditorGUI.LabelField(rect, repoPath, EditorStyles.boldLabel);
+                return;
+            }
+
+            var previousColor = GUI.color;
+            GUI.color = EditorGUIUtility.isProSkin
+                ? new Color(1f, 1f, 1f, 0.55f)
+                : new Color(0f, 0f, 0f, 0.55f);
+            EditorGUI.LabelField(rect, repoPath, EditorStyles.boldLabel);
+            GUI.color = previousColor;
+        }
+
+        private static string BuildDependencyScopeLabel(ModelHubFileItem file)
+        {
+            if (file == null)
+            {
+                return null;
+            }
+
+            if (!file.IsDependencySelected)
+            {
+                return "Not selected";
+            }
+
+            return file.SelectedOwnerCount <= 1
+                ? "Selected"
+                : $"Selected by {file.SelectedOwnerCount} owners";
         }
 
         private static QuantizationOption[] BuildQuantizationOptions(string currentMode)

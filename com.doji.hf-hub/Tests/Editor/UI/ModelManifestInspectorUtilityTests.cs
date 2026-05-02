@@ -73,6 +73,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Ensures manifest dirty-state tracking also includes explicit file selections.
+        /// </summary>
+        [Test]
+        public void BuildStateKey_IncludesExplicitFileSelection()
+        {
+            var stateKey = ModelManifestInspectorUtility.BuildStateKey(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry(
+                        "hf-internal-testing",
+                        "tiny-random-bert",
+                        "main",
+                        new[] { "onnx/model.onnx" })
+                });
+
+            Assert.That(stateKey, Does.Contain("\"files\":[\"onnx/model.onnx\"]"));
+        }
+
+        /// <summary>
         /// Ensures manifest serialization omits empty revision but preserves an explicitly entered `main`.
         /// </summary>
         [Test]
@@ -94,6 +114,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(serializedJson, Does.Contain("\"id\": \"hf-internal-testing/tiny-random-gpt2\""));
             Assert.That(serializedJson, Does.Contain("\"revision\": \"main\""));
             Assert.That(serializedJson, Does.Not.Contain("\"id\": \"hf-internal-testing/tiny-random-bert\",\n      \"revision\""));
+        }
+
+        /// <summary>
+        /// Ensures manifest serialization writes selected files only when explicit file selection is present.
+        /// </summary>
+        [Test]
+        public void TryBuildManifestJson_WritesExplicitFilesOnlyForSelectedEntries()
+        {
+            var success = ModelManifestInspectorUtility.TryBuildManifestJson(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-bert", "main"),
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-gpt2", "main", new[] { "onnx/model.onnx" })
+                },
+                out var serializedJson,
+                out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(serializedJson, Does.Contain(@"""files"": ["));
+            Assert.That(serializedJson, Does.Contain(@"""onnx/model.onnx"""));
         }
 
         /// <summary>

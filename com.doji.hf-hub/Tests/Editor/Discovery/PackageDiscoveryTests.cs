@@ -180,6 +180,33 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies manifest parser preserves optional explicit file selection on one dependency entry.
+        /// </summary>
+        [Test]
+        public void TryParse_ReadsExplicitFileSelection()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert"",
+      ""files"": [
+        ""onnx/model.onnx"",
+        ""tokenizer.json""
+      ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(manifest.Models[0].HasExplicitFileSelection, Is.True);
+            Assert.That(manifest.Models[0].Files, Is.EqualTo(new[] { "onnx/model.onnx", "tokenizer.json" }));
+        }
+
+        /// <summary>
         /// Verifies central revision normalization preserves explicit text while still resolving omitted revisions to `main`.
         /// </summary>
         [Test]
@@ -367,6 +394,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var success = ProjectSettingsModelManifestStore.TryAddModelId(
                 "onnx-community/tiny-clip-test-ONNX",
                 "main",
+                null,
                 out var errorMessage,
                 projectRoot);
 
@@ -497,6 +525,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 package,
                 "hf-internal-testing/tiny-random-bert",
                 "main",
+                null,
                 out var errorMessage);
 
             var manifestPath = Path.Combine(packageRoot, Hub.ManifestFileName);
@@ -532,12 +561,37 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 package,
                 "hf-internal-testing/tiny-random-gpt2",
                 "main",
+                null,
                 out var errorMessage);
 
             var contents = File.ReadAllText(Path.Combine(packageRoot, Hub.ManifestFileName));
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
             Assert.That(contents, Does.Contain(@"""revision"": ""main"""));
+        }
+
+        /// <summary>
+        /// Verifies project-settings manifest authoring writes explicit selected files when provided.
+        /// </summary>
+        [Test]
+        public void TryAddModelId_WritesExplicitFilesToProjectSettingsManifest()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "ProjectFilesSelectionRoot");
+
+            var success = ProjectSettingsModelManifestStore.TryAddModelId(
+                "onnx-community/tiny-clip-test-ONNX",
+                "main",
+                new[] { "onnx/model.onnx" },
+                out var errorMessage,
+                projectRoot);
+
+            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName);
+            var contents = File.ReadAllText(manifestPath);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(contents, Does.Contain(@"""files"": ["));
+            Assert.That(contents, Does.Contain(@"""onnx/model.onnx"""));
         }
 
         private InstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)
@@ -574,6 +628,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
                 modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = models[i].Id;
                 modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
+                var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                var files = models[i].Files ?? Array.Empty<string>();
+                filesProperty.arraySize = files.Length;
+                for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
+                {
+                    filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
+                }
             }
 
             serializedObject.ApplyModifiedPropertiesWithoutUndo();

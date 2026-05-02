@@ -38,6 +38,8 @@ namespace Doji.AI.ModelHub
             ModelId = model.Id;
             Repository = model.Id;
             Revision = model.EffectiveRevision;
+            SelectedFiles = (model.Files ?? Array.Empty<string>()).ToArray();
+            DependencySelectionHash = model.DependencySelectionHash;
         }
 
         /// <summary>
@@ -92,6 +94,68 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public string Revision { get; }
 
+        /// <summary>
+        /// Exact repo-relative file paths required by this dependency.
+        /// Empty means the whole repository is required.
+        /// </summary>
+        public IReadOnlyList<string> SelectedFiles { get; }
+
+        /// <summary>
+        /// Stable owner-scoped fingerprint of dependency selection intent.
+        /// Raw cache metadata must not be used as a substitute for this value.
+        /// </summary>
+        public string DependencySelectionHash { get; }
+
+        /// <summary>
+        /// Whether this dependency selects explicit repo paths instead of requiring the full repository.
+        /// </summary>
+        public bool HasExplicitFileSelection => SelectedFiles.Count > 0;
+
+        internal IReadOnlyList<string> GetSelectedRepoPaths(
+            IEnumerable<string> repositoryFiles,
+            IEnumerable<string> fallbackFiles = null)
+        {
+            if (HasExplicitFileSelection)
+            {
+                return SelectedFiles;
+            }
+
+            return (repositoryFiles ?? fallbackFiles ?? Array.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(ModelDependencyDefinition.NormalizeRepoPath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        internal IReadOnlyList<string> GetSelectedOnnxRepoPaths(
+            IEnumerable<string> repositoryFiles,
+            IEnumerable<string> fallbackFiles = null)
+        {
+            return GetSelectedRepoPaths(repositoryFiles, fallbackFiles)
+                .Where(ModelDependencyDefinition.IsOnnxFile)
+                .ToArray();
+        }
+
+        internal bool RequiresRepoPath(
+            string repoPath,
+            IEnumerable<string> repositoryFiles,
+            IEnumerable<string> fallbackFiles = null)
+        {
+            if (string.IsNullOrWhiteSpace(repoPath))
+            {
+                return false;
+            }
+
+            if (HasExplicitFileSelection)
+            {
+                return SelectedFiles.Contains(repoPath, StringComparer.Ordinal);
+            }
+
+            return GetSelectedRepoPaths(repositoryFiles, fallbackFiles)
+                .Contains(repoPath, StringComparer.Ordinal);
+        }
     }
 
     /// <summary>
@@ -344,8 +408,13 @@ namespace Doji.AI.ModelHub
                     }
 
                     var revision = ReadOptionalString(modelElement, "revision");
+                    var files = ReadOptionalStringArray(modelElement, "files", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
 
-                    models.Add(new ManifestModelDraft(id, revision));
+                    models.Add(new ManifestModelDraft(id, revision, files));
                     modelIndex++;
                 }
 
@@ -417,6 +486,48 @@ namespace Doji.AI.ModelHub
             var value = propertyToken.Value<string>()?.Trim();
             return string.IsNullOrWhiteSpace(value) ? null : value;
         }
+
+        private static string[] ReadOptionalStringArray(
+            JObject modelElement,
+            string propertyName,
+            int modelIndex,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            if (!modelElement.TryGetValue(propertyName, StringComparison.Ordinal, out var propertyToken))
+            {
+                return null;
+            }
+
+            if (propertyToken.Type != JTokenType.Array)
+            {
+                errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}` as an array of strings when present.";
+                return null;
+            }
+
+            var values = new List<string>();
+            var fileIndex = 0;
+            foreach (var child in propertyToken.Children())
+            {
+                if (child.Type != JTokenType.String)
+                {
+                    errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}[{fileIndex}]` as a string.";
+                    return null;
+                }
+
+                var value = child.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}[{fileIndex}]` as a non-empty string.";
+                    return null;
+                }
+
+                values.Add(value);
+                fileIndex++;
+            }
+
+            return values.ToArray();
+        }
     }
 
     /// <summary>
@@ -426,14 +537,17 @@ namespace Doji.AI.ModelHub
     {
         public ManifestModelDraft(
             string id,
-            string revision)
+            string revision,
+            IReadOnlyList<string> files = null)
         {
             Id = id;
             Revision = revision;
+            Files = files?.ToArray();
         }
 
         public string Id { get; }
         public string Revision { get; }
+        public IReadOnlyList<string> Files { get; }
     }
 
     /// <summary>
@@ -479,8 +593,13 @@ namespace Doji.AI.ModelHub
                 }
 
                 var revision = ManifestRevision.NormalizeForResolution(model.Revision);
+                var files = ValidateSelectedFiles(model, id, modelIndex, out errorMessage);
+                if (errorMessage != null)
+                {
+                    return false;
+                }
 
-                finalizedModels.Add(new ModelDependencyDefinition(id, revision));
+                finalizedModels.Add(new ModelDependencyDefinition(id, revision, files));
             }
 
             manifest = new PackageManifest(version, finalizedModels);
@@ -504,6 +623,48 @@ namespace Doji.AI.ModelHub
             }
 
             return true;
+        }
+
+        private static string[] ValidateSelectedFiles(
+            ManifestModelDraft model,
+            string id,
+            int modelIndex,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            if (model?.Files == null)
+            {
+                return null;
+            }
+
+            var validatedFiles = new List<string>();
+            var seenFiles = new HashSet<string>(StringComparer.Ordinal);
+            for (var fileIndex = 0; fileIndex < model.Files.Count; fileIndex++)
+            {
+                if (!TryValidateRequiredString(model.Files[fileIndex], "files", modelIndex, out var filePath, out errorMessage))
+                {
+                    errorMessage = $"Manifest model at index {modelIndex} must define `files[{fileIndex}]` as a non-empty string.";
+                    return null;
+                }
+
+                filePath = ModelDependencyDefinition.NormalizeRepoPath(filePath);
+                if (!seenFiles.Add(filePath))
+                {
+                    errorMessage = $"Manifest model `{id}` declares file `{filePath}` more than once.";
+                    return null;
+                }
+
+                validatedFiles.Add(filePath);
+            }
+
+            if (validatedFiles.Count == 0)
+            {
+                errorMessage = $"Manifest model `{id}` must select at least one file when `files` is present.";
+                return null;
+            }
+
+            validatedFiles.Sort(StringComparer.Ordinal);
+            return validatedFiles.ToArray();
         }
     }
 }

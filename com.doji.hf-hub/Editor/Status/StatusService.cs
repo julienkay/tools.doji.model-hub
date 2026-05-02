@@ -179,11 +179,69 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
+            var repositoryFilePaths = (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .ToArray();
+            var fallbackCachedPaths = (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Select(file => file.RepoPath)
+                .ToArray();
+            var selectedRepoPaths = dependency.GetSelectedRepoPaths(repositoryFilePaths, fallbackCachedPaths).ToArray();
+            if (selectedRepoPaths.Length == 0)
+            {
+                return Failed(
+                    dependency,
+                    DependencyReasonCode.RawCacheMetadataInvalid,
+                    "Raw cache metadata does not expose repository file inventory for this dependency.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
+            var rawFilesByRepoPath = (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => file != null && !string.IsNullOrWhiteSpace(file.RepoPath))
+                .ToDictionary(file => file.RepoPath, StringComparer.Ordinal);
+            var missingSelectedFiles = selectedRepoPaths
+                .Where(repoPath =>
+                    !rawFilesByRepoPath.TryGetValue(repoPath, out var file) ||
+                    string.IsNullOrWhiteSpace(file.CachedFilePath) ||
+                    !File.Exists(file.CachedFilePath))
+                .OrderBy(repoPath => repoPath, StringComparer.Ordinal)
+                .ToArray();
+            if (missingSelectedFiles.Length > 0)
+            {
+                return Missing(
+                    dependency,
+                    DependencyReasonCode.RawCacheFilesMissing,
+                    $"Raw cache is missing selected file(s): {string.Join(", ", missingSelectedFiles)}.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
+            var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(repositoryFilePaths, fallbackCachedPaths).ToArray();
+            if (selectedOnnxRepoPaths.Length == 0)
+            {
+                return Failed(
+                    dependency,
+                    DependencyReasonCode.NoSelectedOnnxFiles,
+                    "Dependency selection does not include any ONNX file.",
+                    revisionRefPath,
+                    snapshotRoot,
+                    rawMetadataPath,
+                    rawMetadata,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
             var expectedRecipeSetHash = _recipeSource.ComputeRecipeSetHash(
                 dependency.Repository,
-                (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
-                .Where(file => string.Equals(Path.GetExtension(file.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
-                .Select(file => file.RepoPath));
+                selectedOnnxRepoPaths);
 
             if (!File.Exists(bindingMetadataAbsolutePath))
             {
@@ -278,7 +336,7 @@ namespace Doji.AI.ModelHub.Editor
                     BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
             }
 
-            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash))
+            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash, selectedOnnxRepoPaths))
             {
                 return Stale(
                     dependency,
@@ -369,6 +427,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) ||
                 string.IsNullOrWhiteSpace(bindingMetadata.RecipeSetHash) ||
                 string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
             {
@@ -385,6 +444,21 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(sharedMetadata.ResolvedCommitHash, bindingMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.RecipeSetHash, bindingMetadata.RecipeSetHash, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(
+                (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
+                (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).Select(file => file.RepoPath))
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            var runtimeRepoPaths = (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
+                .Select(file => file.RepoPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            if (!runtimeRepoPaths.SequenceEqual(selectedOnnxRepoPaths, StringComparer.Ordinal))
             {
                 return false;
             }
@@ -439,6 +513,7 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath, StringComparison.Ordinal);
         }
@@ -448,23 +523,50 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveredModelDependency dependency,
             RawCacheMetadata rawMetadata,
             string snapshotRoot,
-            string expectedRecipeSetHash)
+            string expectedRecipeSetHash,
+            IReadOnlyList<string> selectedOnnxRepoPaths)
         {
             if (sharedMetadata == null)
             {
                 return false;
             }
 
-            return string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
-                string.Equals(sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
-                string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) &&
-                string.Equals(sharedMetadata.RawMetadataPath, CachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) &&
-                string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
-                string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
-                (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
+            if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.RawMetadataPath, CachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) ||
+                !(sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
                     !string.IsNullOrWhiteSpace(file?.RecipeHash) &&
-                    !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)) &&
-                string.Equals(sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal);
+                    !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)) ||
+                !string.Equals(sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var sharedRepositoryPaths = (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            var rawRepositoryPaths = (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            if (!sharedRepositoryPaths.SequenceEqual(rawRepositoryPaths, StringComparer.Ordinal))
+            {
+                return false;
+            }
+
+            var runtimeRepoPaths = (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
+                .Select(file => file.RepoPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            return runtimeRepoPaths.SequenceEqual(
+                (selectedOnnxRepoPaths ?? Array.Empty<string>())
+                .OrderBy(path => path, StringComparer.Ordinal),
+                StringComparer.Ordinal);
         }
 
         private static ImportedModelMetadata BuildResolvedImportedMetadata(
@@ -483,10 +585,12 @@ namespace Doji.AI.ModelHub.Editor
                 ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata?.ResolvedCommitHash,
                 RawSnapshotRootPath = sharedMetadata?.RawSnapshotRootPath,
                 RawMetadataPath = sharedMetadata?.RawMetadataPath,
+                RepositoryFiles = sharedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>(),
                 RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
                 SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata?.SentisVersion,
                 UnityVersion = sharedMetadata?.UnityVersion,
                 RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata?.RecipeSetHash,
+                DependencySelectionHash = bindingMetadata?.DependencySelectionHash,
                 RuntimeRegistryAssetPath = bindingMetadata?.RuntimeRegistryAssetPath,
                 RuntimeRegistryRelativePath = bindingMetadata?.RuntimeRegistryRelativePath,
                 BindingMetadataPath = bindingMetadataPath,
@@ -513,6 +617,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
             AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
             AddMismatch(mismatches, "Sentis version", bindingMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "selection hash", bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash);
             AddMismatch(mismatches, "recipe set hash", bindingMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(mismatches, "shared metadata path", bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath);
 
@@ -538,6 +643,22 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "Sentis version", sharedMetadata.SentisVersion, GetCurrentSentisVersion());
             AddMismatch(mismatches, "recipe set hash", sharedMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(mismatches, "runtime snapshot asset path", sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash));
+            AddMismatch(
+                mismatches,
+                "repository inventory",
+                string.Join("|", (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath).OrderBy(path => path, StringComparer.Ordinal)),
+                string.Join("|", (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath).OrderBy(path => path, StringComparer.Ordinal)));
+            AddMismatch(
+                mismatches,
+                "runtime file set",
+                string.Join("|", (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                    .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
+                    .Select(file => file.RepoPath)
+                    .OrderBy(path => path, StringComparer.Ordinal)),
+                string.Join("|", dependency.GetSelectedOnnxRepoPaths(
+                        (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
+                        (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath))
+                    .OrderBy(path => path, StringComparer.Ordinal)));
 
             return mismatches.Count == 0
                 ? "Shared import metadata differs from current repo snapshot or Sentis version."

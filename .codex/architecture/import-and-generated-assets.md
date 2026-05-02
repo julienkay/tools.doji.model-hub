@@ -2,7 +2,7 @@
 
 ## Conversion Trigger
 
-V1 conversion is editor-driven and package-discovery-based.
+Conversion is editor-driven and package-discovery-based.
 
 Primary trigger:
 
@@ -14,8 +14,8 @@ Behavior:
 2. Collect unresolved or stale repository dependencies.
 3. Show user prompt listing repository dependencies that need attention.
 4. If user approves, resolve each dependency to one concrete HuggingFace repository snapshot.
-5. Download all snapshot files into shared raw cache.
-6. Convert every cached `.onnx` file in that snapshot.
+5. Download dependency-required snapshot files into shared raw cache.
+6. Convert selected cached `.onnx` files in that dependency scope.
 7. Write generated `.sentis` runtime files into shared `StreamingAssets` root.
 8. Write shared import metadata under `Library/Doji/HfHub/imports/shared/...`.
 9. Write owner binding metadata under `Library/Doji/HfHub/imports/bindings/...`.
@@ -35,7 +35,7 @@ Current generated output includes:
 - `Library/Doji/HfHub/imports/shared/<repo>/<commit>/<sentis-version>/hf-hub-shared-import.json`
 - `Library/Doji/HfHub/imports/bindings/<package-id>/<model-id>/hf-hub-binding.json`
 
-Raw repository files stay in shared cache. Runtime output preserves upstream relative file layout, replacing ONNX extensions with `.sentis`.
+Raw repository files stay in shared cache. Runtime output preserves upstream relative file layout for selected ONNX inputs, replacing ONNX extensions with `.sentis`.
 
 Runtime import paths are intentionally human-readable and do not encode resolved commit or revision.
 
@@ -77,6 +77,9 @@ Owner binding metadata records:
 - resolved commit
 - generated runtime registry path
 - pointer to shared import metadata
+- selected dependency file set or equivalent selection fingerprint
+
+Owner-scoped file selection belongs with owner binding state and stale checks, not with raw cache metadata. Raw cache describes available source files for one repo snapshot; owner binding describes what this owner expects to use from that snapshot.
 
 ## Stale Detection
 
@@ -84,6 +87,7 @@ Owner binding is stale when any of these change:
 
 - manifest content hash
 - requested revision
+- selected dependency file set
 - resolved repo commit for requested revision
 - installed Sentis version
 - shared import metadata pointer
@@ -95,7 +99,7 @@ Shared import is stale when any of these change:
 - generated runtime files missing
 - installed Sentis version
 
-Because shared import metadata stores whole runtime file list, validation stays repo-wide instead of one-file-at-a-time.
+Because shared import metadata stores generated runtime file list for one repo snapshot materialization, validation stays snapshot-aware instead of one-file-at-a-time while owner binding still preserves dependency scope.
 
 ## Shared Import Split
 

@@ -78,40 +78,27 @@ namespace Doji.AI.ModelHub.Editor
             var resolvedCommitHash = dependents
                 .Select(item => item.ImportedMetadata?.ResolvedCommitHash ?? item.RawMetadata?.ResolvedCommitHash)
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
-            // Multiple manifest owners can point at the same cached repo snapshot, so sum each cached file once.
-            var estimatedCacheSizeBytes = dependents
-                .SelectMany(item => item.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
-                .GroupBy(
-                    file => file.CachedFilePath ?? file.RepoPath,
-                    StringComparer.Ordinal)
-                .Select(files => files.First())
-                .Select(file => file.SizeInBytes)
-                .Where(size => size.HasValue)
-                .Sum(size => size.Value);
-            if (estimatedCacheSizeBytes <= 0)
+            var repositoryFiles = GetRepositoryInventory(primary.Dependency.Repository, primary.Dependency.Revision, dependents);
+            var selectedRepoPaths = BuildSelectedRepoPathSet(dependents, repositoryFiles);
+            var estimatedCacheSizeBytes = CalculateSelectedSourceSize(repositoryFiles, selectedRepoPaths);
+            if (!estimatedCacheSizeBytes.HasValue)
             {
-                // Imported metadata keeps the last known cache-size estimate even after raw cache was removed.
                 estimatedCacheSizeBytes = dependents
                     .Select(item => item.ImportedMetadata?.RawCacheSizeInBytes)
                     .Where(size => size.HasValue)
                     .Select(size => size.Value)
                     .DefaultIfEmpty(0)
                     .Max();
+                if (estimatedCacheSizeBytes <= 0)
+                {
+                    estimatedCacheSizeBytes = null;
+                }
             }
 
-            if (estimatedCacheSizeBytes <= 0 &&
-                _remoteSnapshotSizeEstimateService.TryGetEstimatedCacheSize(
-                    primary.Dependency.Repository,
-                    primary.Dependency.Revision,
-                    out var persistedEstimate) &&
-                persistedEstimate.HasValue)
-            {
-                estimatedCacheSizeBytes = persistedEstimate.Value;
-            }
-
-            var cacheSizeOnDiskBytes = CalculateCacheSizeOnDisk(dependents);
+            var repositorySizeBytes = CalculateRepositorySize(repositoryFiles);
+            var cacheSizeOnDiskBytes = CalculateCacheSizeOnDisk(dependents, selectedRepoPaths);
             var runtimeSizeOnDiskBytes = CalculateRuntimeSizeOnDisk(runtimeFiles);
-            var fileItems = BuildFileItems(primary.Dependency.Repository, dependents, runtimeFiles);
+            var fileItems = BuildFileItems(primary.Dependency.Repository, dependents, runtimeFiles, repositoryFiles, selectedRepoPaths);
 
             return new ModelHubItem(
                 primary.Dependency.Repository,
@@ -120,7 +107,8 @@ namespace Doji.AI.ModelHub.Editor
                 rawSnapshotRootPath,
                 runtimeSnapshotAssetPath,
                 cacheSizeOnDiskBytes,
-                estimatedCacheSizeBytes > 0 ? estimatedCacheSizeBytes : null,
+                estimatedCacheSizeBytes,
+                repositorySizeBytes,
                 runtimeSizeOnDiskBytes,
                 GetAggregateState(dependents),
                 dependents,
@@ -132,38 +120,51 @@ namespace Doji.AI.ModelHub.Editor
         private IReadOnlyList<ModelHubFileItem> BuildFileItems(
             string repository,
             IReadOnlyList<DependencyStatus> dependents,
-            IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles)
+            IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            IReadOnlyCollection<string> selectedRepoPaths)
         {
             var rawFilesByRepoPath = dependents
                 .SelectMany(item => item.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
-                .Where(file => string.Equals(Path.GetExtension(file.RepoPath), ".onnx", StringComparison.OrdinalIgnoreCase))
                 .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
             var runtimeFilesByRepoPath = (runtimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
                 .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
                 .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var inventoryByRepoPath = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var selectedOwnerCounts = BuildSelectedOwnerCounts(dependents, repositoryFiles);
 
-            return rawFilesByRepoPath.Keys
+            return inventoryByRepoPath.Keys
+                .Concat(rawFilesByRepoPath.Keys)
                 .Concat(runtimeFilesByRepoPath.Keys)
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .Select(repoPath =>
                 {
+                    inventoryByRepoPath.TryGetValue(repoPath, out var repositoryFile);
                     rawFilesByRepoPath.TryGetValue(repoPath, out var rawFile);
                     runtimeFilesByRepoPath.TryGetValue(repoPath, out var runtimeFile);
-                    var effectiveRecipe = _recipeSource.GetEffectiveRecipe(repository, repoPath);
+                    var isDependencySelected = selectedRepoPaths?.Contains(repoPath) == true;
+                    selectedOwnerCounts.TryGetValue(repoPath, out var selectedOwnerCount);
+                    var effectiveRecipe = isDependencySelected && ModelDependencyDefinition.IsOnnxFile(repoPath)
+                        ? _recipeSource.GetEffectiveRecipe(repository, repoPath)
+                        : null;
                     return new ModelHubFileItem(
                         repoPath,
+                        isDependencySelected,
+                        selectedOwnerCount,
                         rawFile?.CachedFilePath,
-                        rawFile?.SizeInBytes,
+                        repositoryFile?.SizeInBytes ?? rawFile?.SizeInBytes,
                         GetFileSizeOnDisk(rawFile?.CachedFilePath),
                         runtimeFile,
                         GetRuntimeFileSizeOnDisk(runtimeFile),
-                        effectiveRecipe.Recipe,
-                        effectiveRecipe.SourceLabel,
-                        effectiveRecipe.OverrideAssetPath,
-                        effectiveRecipe.HasProjectOverride);
+                        effectiveRecipe?.Recipe,
+                        effectiveRecipe?.SourceLabel,
+                        effectiveRecipe?.OverrideAssetPath,
+                        effectiveRecipe?.HasProjectOverride == true);
                 })
                 .ToArray();
         }
@@ -189,6 +190,7 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
                 DependencyReasonCode.RawSnapshotRootMissing => "Cached source files are missing. Download this model again before importing.",
                 DependencyReasonCode.RawCacheMetadataInvalid => "Cached source metadata is invalid. Download this model again.",
+                DependencyReasonCode.RawCacheFilesMissing => "Cached source files are missing. Download this model again.",
                 DependencyReasonCode.ImportBindingInvalid => "Project import binding metadata is invalid. Re-import this model.",
                 DependencyReasonCode.SharedImportMetadataInvalid => "Generated runtime metadata is invalid. Re-import this model.",
                 DependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
@@ -197,6 +199,7 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RevisionConflict => null,
                 DependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
+                DependencyReasonCode.NoSelectedOnnxFiles => "This dependency does not currently select any ONNX file.",
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
                 DependencyReasonCode.RawCacheMetadataMissingAfterImport => null,
                 _ => status.MaintainerMessage
@@ -245,10 +248,108 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static long? CalculateCacheSizeOnDisk(IReadOnlyList<DependencyStatus> dependents)
+        private IReadOnlyList<RepositoryFileMetadata> GetRepositoryInventory(
+            string repository,
+            string requestedRevision,
+            IReadOnlyList<DependencyStatus> dependents)
+        {
+            var repositoryFiles = dependents
+                .SelectMany(item => item.RawMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToArray();
+            if (repositoryFiles.Length > 0)
+            {
+                return repositoryFiles;
+            }
+
+            repositoryFiles = dependents
+                .SelectMany(item => item.ImportedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToArray();
+            if (repositoryFiles.Length > 0)
+            {
+                return repositoryFiles;
+            }
+
+            return _remoteSnapshotSizeEstimateService.TryGetRepositoryInventory(repository, requestedRevision, out var persistedInventory)
+                ? persistedInventory
+                : Array.Empty<RepositoryFileMetadata>();
+        }
+
+        private static HashSet<string> BuildSelectedRepoPathSet(
+            IReadOnlyList<DependencyStatus> dependents,
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles)
+        {
+            var inventoryPaths = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .ToArray();
+            var selectedRepoPaths = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var dependent in dependents ?? Array.Empty<DependencyStatus>())
+            {
+                foreach (var repoPath in dependent.Dependency.GetSelectedRepoPaths(
+                             inventoryPaths,
+                             (dependent.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath)))
+                {
+                    selectedRepoPaths.Add(repoPath);
+                }
+            }
+
+            return selectedRepoPaths;
+        }
+
+        private static Dictionary<string, int> BuildSelectedOwnerCounts(
+            IReadOnlyList<DependencyStatus> dependents,
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles)
+        {
+            var inventoryPaths = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .ToArray();
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var dependent in dependents ?? Array.Empty<DependencyStatus>())
+            {
+                foreach (var repoPath in dependent.Dependency.GetSelectedRepoPaths(
+                             inventoryPaths,
+                             (dependent.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath)))
+                {
+                    counts[repoPath] = counts.TryGetValue(repoPath, out var count) ? count + 1 : 1;
+                }
+            }
+
+            return counts;
+        }
+
+        private static long? CalculateSelectedSourceSize(
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            IReadOnlyCollection<string> selectedRepoPaths)
+        {
+            var files = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Where(file => selectedRepoPaths?.Contains(file.RepoPath) == true)
+                .Select(file => file.SizeInBytes)
+                .Where(size => size.HasValue)
+                .Select(size => size.Value)
+                .ToArray();
+            return files.Length > 0 ? files.Sum() : null;
+        }
+
+        private static long? CalculateRepositorySize(IReadOnlyList<RepositoryFileMetadata> repositoryFiles)
+        {
+            var files = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.SizeInBytes)
+                .Where(size => size.HasValue)
+                .Select(size => size.Value)
+                .ToArray();
+            return files.Length > 0 ? files.Sum() : null;
+        }
+
+        private static long? CalculateCacheSizeOnDisk(IReadOnlyList<DependencyStatus> dependents, IReadOnlyCollection<string> selectedRepoPaths)
         {
             var filePaths = dependents
                 .SelectMany(item => item.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => selectedRepoPaths?.Contains(file.RepoPath) == true)
                 .Select(file => file.CachedFilePath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.Ordinal)

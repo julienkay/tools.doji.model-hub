@@ -5,7 +5,7 @@ using System.Linq;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Describes one file contained in a resolved HuggingFace repository snapshot.
+    /// Describes one file contained in a resolved HuggingFace repository snapshot and targeted for download.
     /// </summary>
     internal sealed class ResolvedRepoFile
     {
@@ -24,28 +24,67 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Describes one resolved repository snapshot returned by Hub lookup.
+    /// Describes one file known to exist in a resolved HuggingFace repository snapshot.
     /// </summary>
-    internal sealed class ResolvedSnapshotVersion
+    [Serializable]
+    internal sealed class RepositoryFileMetadata
     {
-        private readonly ResolvedRepoFile[] _files;
+        public string RepoPath { get; set; }
+        public long? SizeInBytes { get; set; }
+    }
 
-        public ResolvedSnapshotVersion(
+    /// <summary>
+    /// Describes the full file inventory for one resolved repository revision.
+    /// </summary>
+    internal sealed class ResolvedRepositoryInventory
+    {
+        private readonly RepositoryFileMetadata[] _files;
+
+        public ResolvedRepositoryInventory(
             string repository,
             string requestedRevision,
             string resolvedCommitHash,
-            IReadOnlyList<ResolvedRepoFile> files)
+            IReadOnlyList<RepositoryFileMetadata> files)
         {
             Repository = repository;
             RequestedRevision = requestedRevision;
             ResolvedCommitHash = resolvedCommitHash;
-            _files = files?.ToArray() ?? Array.Empty<ResolvedRepoFile>();
+            _files = files?.ToArray() ?? Array.Empty<RepositoryFileMetadata>();
         }
 
         public string Repository { get; }
         public string RequestedRevision { get; }
         public string ResolvedCommitHash { get; }
-        public IReadOnlyList<ResolvedRepoFile> Files => _files;
+        public IReadOnlyList<RepositoryFileMetadata> Files => _files;
+    }
+
+    /// <summary>
+    /// Describes one resolved repository snapshot returned by Hub lookup.
+    /// </summary>
+    internal sealed class ResolvedSnapshotVersion
+    {
+        private readonly RepositoryFileMetadata[] _repositoryFiles;
+        private readonly ResolvedRepoFile[] _requestedFiles;
+
+        public ResolvedSnapshotVersion(
+            string repository,
+            string requestedRevision,
+            string resolvedCommitHash,
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            IReadOnlyList<ResolvedRepoFile> requestedFiles)
+        {
+            Repository = repository;
+            RequestedRevision = requestedRevision;
+            ResolvedCommitHash = resolvedCommitHash;
+            _repositoryFiles = repositoryFiles?.ToArray() ?? Array.Empty<RepositoryFileMetadata>();
+            _requestedFiles = requestedFiles?.ToArray() ?? Array.Empty<ResolvedRepoFile>();
+        }
+
+        public string Repository { get; }
+        public string RequestedRevision { get; }
+        public string ResolvedCommitHash { get; }
+        public IReadOnlyList<RepositoryFileMetadata> RepositoryFiles => _repositoryFiles;
+        public IReadOnlyList<ResolvedRepoFile> Files => _requestedFiles;
     }
 
     /// <summary>
@@ -70,6 +109,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RequestedRevision { get; set; }
         public string ResolvedCommitHash { get; set; }
         public string CachedSnapshotRoot { get; set; }
+        public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
         public RawCacheFileMetadata[] Files { get; set; } = Array.Empty<RawCacheFileMetadata>();
         public string DownloadedAtUtc { get; set; }
     }

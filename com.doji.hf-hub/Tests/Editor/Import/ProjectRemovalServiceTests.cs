@@ -157,6 +157,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
+                null,
                 state == DependencyState.Failed ? ModelHubItemState.Error : ModelHubItemState.Ready,
                 new[]
                 {
@@ -232,6 +233,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
+                null,
                 state == DependencyState.Failed ? ModelHubItemState.Error : ModelHubItemState.Ready,
                 new[]
                 {
@@ -282,6 +284,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
                 SentisVersion = sentisVersion,
+                DependencySelectionHash = ModelDependencyDefinition.ComputeSelectionHash(null),
                 SharedImportMetadataPath = sharedMetadataPath,
                 RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(packageId),
                 RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(packageId)),
@@ -304,6 +307,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
+                RepositoryFiles = new[]
+                {
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "models/model.onnx"
+                    }
+                },
                 SentisVersion = sentisVersion,
                 RuntimeSnapshotAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model",
                 RuntimeFiles = new[]

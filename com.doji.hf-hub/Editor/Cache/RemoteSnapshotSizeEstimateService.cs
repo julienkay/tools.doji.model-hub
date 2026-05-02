@@ -15,6 +15,7 @@ namespace Doji.AI.ModelHub.Editor
     internal interface IRemoteSnapshotSizeEstimateService
     {
         bool TryGetEstimatedCacheSize(string repository, string requestedRevision, out long? estimatedCacheSizeBytes);
+        bool TryGetRepositoryInventory(string repository, string requestedRevision, out RepositoryFileMetadata[] repositoryFiles);
         void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null);
     }
 
@@ -28,6 +29,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RequestedRevision { get; set; }
         public long? EstimatedCacheSizeBytes { get; set; }
         public string ResolvedCommitHash { get; set; }
+        public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
         public string AttemptedAtUtc { get; set; }
     }
 
@@ -56,6 +58,18 @@ namespace Doji.AI.ModelHub.Editor
 
             estimatedCacheSizeBytes = metadata.EstimatedCacheSizeBytes;
             return true;
+        }
+
+        public bool TryGetRepositoryInventory(string repository, string requestedRevision, out RepositoryFileMetadata[] repositoryFiles)
+        {
+            repositoryFiles = Array.Empty<RepositoryFileMetadata>();
+            if (!TryReadMetadata(repository, requestedRevision, out var metadata))
+            {
+                return false;
+            }
+
+            repositoryFiles = metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
+            return repositoryFiles.Length > 0;
         }
 
         public void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null)
@@ -94,13 +108,17 @@ namespace Doji.AI.ModelHub.Editor
         {
             try
             {
-                var resolvedSnapshot = await _httpClient.ResolveSnapshotVersionAsync(dependency, CancellationToken.None);
+                var repositoryInventory = await _httpClient.GetRepositoryInventoryAsync(
+                    dependency.Repository,
+                    dependency.Revision,
+                    CancellationToken.None);
                 var metadata = new RemoteSnapshotSizeEstimateMetadata
                 {
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
-                    ResolvedCommitHash = resolvedSnapshot.ResolvedCommitHash,
-                    EstimatedCacheSizeBytes = SumFileSizes(resolvedSnapshot),
+                    ResolvedCommitHash = repositoryInventory.ResolvedCommitHash,
+                    RepositoryFiles = repositoryInventory.Files.ToArray(),
+                    EstimatedCacheSizeBytes = SumFileSizes(repositoryInventory.Files),
                     AttemptedAtUtc = DateTime.UtcNow.ToString("O")
                 };
                 WriteMetadata(metadataPath, metadata);
@@ -131,9 +149,9 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static long? SumFileSizes(ResolvedSnapshotVersion resolvedSnapshot)
+        private static long? SumFileSizes(IReadOnlyList<RepositoryFileMetadata> repositoryFiles)
         {
-            var knownSizes = resolvedSnapshot?.Files?
+            var knownSizes = repositoryFiles?
                 .Select(file => file.SizeInBytes)
                 .Where(size => size.HasValue)
                 .Select(size => size.Value)

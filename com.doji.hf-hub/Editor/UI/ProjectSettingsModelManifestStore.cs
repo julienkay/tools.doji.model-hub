@@ -13,6 +13,8 @@ namespace Doji.AI.ModelHub.Editor
     internal static class ProjectSettingsModelManifestStore
     {
         private const string DefaultRevision = "main";
+        private const string ProjectSettingsPackagesFolderName = "Packages";
+        private const string PackageId = "com.doji.hf-hub";
 
         [Serializable]
         private sealed class ManifestDocument
@@ -31,7 +33,12 @@ namespace Doji.AI.ModelHub.Editor
         public static string GetManifestPath(string projectRoot = null)
         {
             projectRoot ??= Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            return Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName);
+            return Path.Combine(
+                projectRoot,
+                "ProjectSettings",
+                ProjectSettingsPackagesFolderName,
+                PackageId,
+                Hub.ManifestFileName);
         }
 
         public static bool TryAddModel(string owner, string modelName, out string errorMessage)
@@ -51,7 +58,7 @@ namespace Doji.AI.ModelHub.Editor
         internal static bool TryAddModelId(string modelId, string revision, out string errorMessage, string projectRoot = null)
         {
             errorMessage = null;
-            if (!TryLoadDrafts(projectRoot, out var drafts, out errorMessage))
+            if (!TryLoadManifestDrafts(projectRoot, out var version, out var drafts, out errorMessage))
             {
                 return false;
             }
@@ -64,16 +71,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             drafts.Add(new ManifestModelDraft(normalizedModelId, string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim()));
-            if (!ManifestFactory.TryCreateManifest(1, drafts, out var manifest, out errorMessage))
-            {
-                return false;
-            }
-
-            var manifestPath = GetManifestPath(projectRoot);
-            Directory.CreateDirectory(Path.GetDirectoryName(manifestPath) ?? string.Empty);
-            File.WriteAllText(manifestPath, BuildManifestJson(manifest));
-            AssetDatabase.Refresh();
-            return true;
+            return TryWriteManifest(version, drafts, out errorMessage, projectRoot);
         }
 
         internal static bool TryReadManifestContents(string projectRoot, out string manifestPath, out string contents, out string errorMessage)
@@ -98,8 +96,9 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static bool TryLoadDrafts(string projectRoot, out List<ManifestModelDraft> drafts, out string errorMessage)
+        internal static bool TryLoadManifestDrafts(string projectRoot, out int version, out List<ManifestModelDraft> drafts, out string errorMessage)
         {
+            version = 1;
             drafts = new List<ManifestModelDraft>();
             errorMessage = null;
 
@@ -118,20 +117,75 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
+            version = manifest.Version;
             drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision)));
             return true;
         }
 
-        private static string BuildManifestJson(PackageManifest manifest)
+        internal static bool TryLoadManifestDocument(
+            string projectRoot,
+            out ModelManifestInspectorUtility.ManifestDocument document,
+            out string errorMessage)
+        {
+            document = new ModelManifestInspectorUtility.ManifestDocument
+            {
+                version = 1,
+                models = Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>()
+            };
+            errorMessage = null;
+
+            if (!TryReadManifestContents(projectRoot, out _, out var contents, out errorMessage))
+            {
+                return true;
+            }
+
+            if (errorMessage != null)
+            {
+                return false;
+            }
+
+            if (!ManifestParser.TryParse(contents, out _, out errorMessage))
+            {
+                return false;
+            }
+
+            document = JsonUtility.FromJson<ModelManifestInspectorUtility.ManifestDocument>(contents);
+            if (document == null)
+            {
+                errorMessage = "Failed to deserialize project manifest document.";
+                return false;
+            }
+
+            document.models ??= Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>();
+            return true;
+        }
+
+        internal static bool TryWriteManifest(int version, IReadOnlyList<ManifestModelDraft> drafts, out string errorMessage, string projectRoot = null)
+        {
+            errorMessage = null;
+            if (!ManifestFactory.TryCreateManifest(version, drafts ?? Array.Empty<ManifestModelDraft>(), out var manifest, out errorMessage))
+            {
+                return false;
+            }
+
+            var manifestPath = GetManifestPath(projectRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(manifestPath) ?? string.Empty);
+            File.WriteAllText(manifestPath, BuildManifestJson(manifest.Version, drafts));
+            AssetDatabase.Refresh();
+            ProjectSettingsProvider.Refresh();
+            return true;
+        }
+
+        private static string BuildManifestJson(int version, IReadOnlyList<ManifestModelDraft> drafts)
         {
             var document = new ManifestDocument
             {
-                version = manifest?.Version ?? 1,
-                models = (manifest?.Models ?? Array.Empty<ModelDependencyDefinition>())
+                version = version,
+                models = (drafts ?? Array.Empty<ManifestModelDraft>())
                     .Select(model => new ManifestModelDocument
                     {
                         id = model.Id,
-                        revision = string.Equals(model.Revision, DefaultRevision, StringComparison.Ordinal)
+                        revision = string.IsNullOrWhiteSpace(model.Revision)
                             ? null
                             : model.Revision
                     })

@@ -1,9 +1,6 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Doji.AI.ModelHub.Editor
 {
@@ -19,17 +16,18 @@ namespace Doji.AI.ModelHub.Editor
         private const string OwnerFieldControlName = "ProjectModelOwnerField";
         private const string ModelFieldControlName = "ProjectModelNameField";
         private readonly Action<string, string> _onAdd;
+        private readonly ModelIdPopupValidationController _validationController;
         private string _owner = string.Empty;
         private string _modelName = string.Empty;
         private bool _focusRequested = true;
-        private int _validationVersion;
-        private string _lastQueuedModelId;
-        private ValidationState _validationState = ValidationState.Idle;
-        private string _validationMessage;
 
         public AddProjectModelPopup(Action<string, string> onAdd)
         {
             _onAdd = onAdd;
+            _validationController = new ModelIdPopupValidationController(
+                () => CurrentModelId,
+                IsInputFieldFocused,
+                () => editorWindow?.Repaint());
         }
 
         public override Vector2 GetWindowSize()
@@ -84,7 +82,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         private bool CanAdd => !string.IsNullOrWhiteSpace(_owner) && !string.IsNullOrWhiteSpace(_modelName);
-        private bool CanSubmit => CanAdd && _validationState == ValidationState.Valid;
+        private bool CanSubmit => CanAdd && _validationController.IsValid;
 
         private string CurrentModelId => CanAdd
             ? $"{_owner.Trim()}/{_modelName.Trim()}"
@@ -92,39 +90,23 @@ namespace Doji.AI.ModelHub.Editor
 
         private void HandleInputChanged()
         {
-            _validationVersion++;
-            _lastQueuedModelId = null;
-            _validationState = ValidationState.Idle;
-            _validationMessage = null;
+            _validationController.Reset();
         }
 
         private void QueueValidationIfIdle()
         {
-            var modelId = CurrentModelId;
-            if (string.IsNullOrWhiteSpace(modelId) ||
-                IsInputFieldFocused() ||
-                string.Equals(_lastQueuedModelId, modelId, StringComparison.Ordinal) ||
-                _validationState == ValidationState.Checking)
-            {
-                return;
-            }
-
-            _lastQueuedModelId = modelId;
-            _validationState = ValidationState.Checking;
-            _validationMessage = "Checking Hugging Face repository availability.";
-            editorWindow?.Repaint();
-            _ = ValidateRepositoryAsync(modelId, _validationVersion);
+            _validationController.QueueValidationIfReady();
         }
 
         private void DrawValidationStatus()
         {
-            switch (_validationState)
+            switch (_validationController.State)
             {
-                case ValidationState.Checking:
-                    EditorGUILayout.HelpBox(_validationMessage, MessageType.None);
+                case PopupValidationState.Checking:
+                    EditorGUILayout.HelpBox(_validationController.Message, MessageType.None);
                     break;
-                case ValidationState.Invalid:
-                    EditorGUILayout.HelpBox(_validationMessage, MessageType.Warning);
+                case PopupValidationState.Invalid:
+                    EditorGUILayout.HelpBox(_validationController.Message, MessageType.Warning);
                     break;
             }
         }
@@ -141,83 +123,11 @@ namespace Doji.AI.ModelHub.Editor
             return true;
         }
 
-        private async Task ValidateRepositoryAsync(string modelId, int validationVersion)
-        {
-            ValidationState nextState;
-            string nextMessage;
-
-            try
-            {
-                var exists = await RepositoryValidationCacheService.GetOrStartRepositoryValidationAsync(
-                    modelId,
-                    async () =>
-                    {
-                        using var request = UnityWebRequest.Head($"https://huggingface.co/{modelId}");
-                        request.timeout = 10;
-                        await SendRequestAsync(request, CancellationToken.None);
-                        return request.responseCode is >= 200 and < 400;
-                    });
-                nextState = exists ? ValidationState.Valid : ValidationState.Invalid;
-                nextMessage = exists ? "Repository exists on Hugging Face." : "Repository was not found on Hugging Face.";
-            }
-            catch (Exception exception)
-            {
-                nextState = ValidationState.Invalid;
-                nextMessage = exception.Message;
-            }
-
-            EditorApplication.delayCall += () =>
-            {
-                if (validationVersion != _validationVersion ||
-                    !string.Equals(CurrentModelId, modelId, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                _validationState = nextState;
-                _validationMessage = nextMessage;
-                _lastQueuedModelId = modelId;
-                editorWindow?.Repaint();
-            };
-        }
-
         private static bool IsInputFieldFocused()
         {
             var focusedControl = GUI.GetNameOfFocusedControl();
             return string.Equals(focusedControl, OwnerFieldControlName, StringComparison.Ordinal) ||
                 string.Equals(focusedControl, ModelFieldControlName, StringComparison.Ordinal);
-        }
-
-        private static Task SendRequestAsync(UnityWebRequest request, CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<bool>();
-            var operation = request.SendWebRequest();
-            cancellationToken.Register(() =>
-            {
-                if (!request.isDone)
-                {
-                    request.Abort();
-                }
-            });
-            operation.completed += _ =>
-            {
-                if (request.result == UnityWebRequest.Result.ConnectionError)
-                {
-                    tcs.TrySetException(new InvalidOperationException(request.error));
-                    return;
-                }
-
-                tcs.TrySetResult(true);
-            };
-            return tcs.Task;
-        }
-
-        private enum ValidationState
-        {
-            Idle,
-            Checking,
-            Valid,
-            Invalid
         }
     }
 }

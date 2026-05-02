@@ -56,6 +56,47 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Ensures dirty-state tracking preserves the exact typed revision text instead of collapsing it to manifest defaults.
+        /// </summary>
+        [Test]
+        public void BuildStateKey_UsesSharedManifestModelEntries()
+        {
+            var stateKey = ModelManifestInspectorUtility.BuildStateKey(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-bert", "main")
+                });
+
+            Assert.That(stateKey, Does.Contain("\"id\":\"hf-internal-testing/tiny-random-bert\""));
+            Assert.That(stateKey, Does.Contain("\"revision\":\"main\""));
+        }
+
+        /// <summary>
+        /// Ensures manifest serialization omits empty revision but preserves an explicitly entered `main`.
+        /// </summary>
+        [Test]
+        public void TryBuildManifestJson_PreservesExplicitMainButOmitsEmptyRevision()
+        {
+            var success = ModelManifestInspectorUtility.TryBuildManifestJson(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-bert", string.Empty),
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-gpt2", "main")
+                },
+                out var serializedJson,
+                out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(serializedJson, Does.Contain("\"id\": \"hf-internal-testing/tiny-random-bert\""));
+            Assert.That(serializedJson, Does.Contain("\"id\": \"hf-internal-testing/tiny-random-gpt2\""));
+            Assert.That(serializedJson, Does.Contain("\"revision\": \"main\""));
+            Assert.That(serializedJson, Does.Not.Contain("\"id\": \"hf-internal-testing/tiny-random-bert\",\n      \"revision\""));
+        }
+
+        /// <summary>
         /// Ensures project-local manifest files are editable when the backing file is not read-only.
         /// </summary>
         [Test]

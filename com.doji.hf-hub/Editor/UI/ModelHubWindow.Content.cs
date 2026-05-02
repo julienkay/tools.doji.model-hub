@@ -14,8 +14,8 @@ namespace Doji.AI.ModelHub.Editor
             public const string AddModelToProjectLabel = "Add model to project...";
             public const string AddModelToProjectTooltip = "Add one model entry to the project-scoped manifest stored under ProjectSettings.";
             public const string AddModelToPackageLabel = "Add model to package...";
-            public const string AddModelToPackageTooltip = "Create or edit hf-hub-manifest.json in your package root.";
-            public const string PackageManifestTemplateJson = "{\n  \"version\": 1,\n  \"models\": []\n}";
+            public const string AddModelToPackageTooltip = "Select a local package inside this project, then add one model entry to its hf-hub-manifest.json.";
+            public const string AddModelToPackageDisabledTooltip = "No local package inside this project is available for package-manifest authoring.";
             public const string ImportAllLabel = "Import All";
             public const string ImportAllTooltip = "Resolve declared repositories, download missing raw snapshots, and import generated runtime assets.";
             public const string ImportLabel = "Import";

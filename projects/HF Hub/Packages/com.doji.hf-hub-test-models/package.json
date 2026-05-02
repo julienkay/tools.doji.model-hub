@@ -1,7 +1,7 @@
 {
   "name": "com.doji.hf-hub-test-models",
   "version": "0.0.1",
-  "displayName": "Doji HF Hub Test Models",
+  "displayName": "AI Model Hub Test Models",
   "description": "Local test package for HF Hub manifest discovery and sync flows.",
   "unity": "6000.3",
   "dependencies": {

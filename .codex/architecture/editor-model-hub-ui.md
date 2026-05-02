@@ -17,11 +17,13 @@ Project Settings should only answer:
 
 - where shared cache lives for this project
 - what effective cache path HF Hub is using
+- what project-scoped model ids are declared for this project
 - how to open the main Model Hub window
 
-Current setting:
+Current editable settings:
 
 - cache location override
+- project manifest entries stored at `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
 
 Keep environment-variable override support for tests and explicit maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set.
 
@@ -186,6 +188,18 @@ Those features should reuse the repo-level item model instead of reintroducing d
 
 `Editor/UI/ModelManifestInspector.cs` owns the custom inspector for `hf-hub-manifest.json` assets.
 
+Shared JSON-backed manifest editing and validation UI now lives in:
+
+- `Editor/UI/ManifestDocumentEditor.cs`
+- `Editor/UI/ManifestModelListEditor.cs`
+- `Editor/UI/ModelIdPopupValidationController.cs`
+
+Those helpers are reused by both:
+
+- package `hf-hub-manifest.json` custom Inspector
+- Project Settings project-manifest editor
+- add-model popups for transient repo validation
+
 Current validation behavior for the small repository-exists icon:
 
 - validation is editor-only and package-authoring focused
@@ -227,6 +241,10 @@ Maintainer rule:
 
 `Editor/UI/AddProjectModelPopup.cs` reuses the same upstream repo-exists check shape, but not the same persistence policy.
 
+Shared popup validation flow now lives in:
+
+- `Editor/UI/ModelIdPopupValidationController.cs`
+
 Current popup behavior:
 
 - validation runs only when both `Owner` and `Model` fields are non-empty and neither field is focused
@@ -240,6 +258,27 @@ Maintainer rule:
 - keep persistent `Library` cache for manifest-inspector/package-authoring validation
 - keep add-model popup validation ephemeral unless a stronger project-wide reason appears
 - do not let short-lived project-manifest authoring UI silently expand `Library` cache churn
+
+## Revision Semantics
+
+Authored revision text and effective revision resolution are intentionally separate.
+
+Central resolution helper:
+
+- `Runtime/Manifest/ManifestRevision.cs`
+
+Rules:
+
+- editor surfaces preserve authored revision text exactly
+- empty revision field stays empty in editor state and can serialize as omitted revision
+- explicitly typed `main` stays explicitly typed `main` in editor state and JSON when user chose that
+- downstream discovery/runtime/sync code should use `ModelDependencyDefinition.EffectiveRevision` or `ManifestRevision.NormalizeForResolution(...)`
+
+Maintainer rule:
+
+- do not add new ad hoc `string.IsNullOrWhiteSpace(revision) ? "main" : ...` logic in editor or runtime code
+- treat `Revision` as authored/raw text
+- treat `EffectiveRevision` as operational value for lookup, status, sync, cache refs, and runtime resolution
 
 ## Visual Sandbox
 

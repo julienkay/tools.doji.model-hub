@@ -37,7 +37,7 @@ namespace Doji.AI.ModelHub
             ManifestHash = manifestHash;
             ModelId = model.Id;
             Repository = model.Id;
-            Revision = model.Revision;
+            Revision = model.EffectiveRevision;
         }
 
         /// <summary>
@@ -283,8 +283,6 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class ManifestParser
     {
-        private const string DefaultRevision = "main";
-
         /// <summary>
         /// Parses one manifest JSON document into immutable runtime manifest model.
         /// </summary>
@@ -345,7 +343,7 @@ namespace Doji.AI.ModelHub
                         return false;
                     }
 
-                    var revision = ReadOptionalString(modelElement, "revision") ?? DefaultRevision;
+                    var revision = ReadOptionalString(modelElement, "revision");
 
                     models.Add(new ManifestModelDraft(id, revision));
                     modelIndex++;
@@ -443,8 +441,6 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class ManifestFactory
     {
-        private const string DefaultRevision = "main";
-
         public static bool TryCreateManifest(
             int version,
             IReadOnlyList<ManifestModelDraft> models,
@@ -482,9 +478,7 @@ namespace Doji.AI.ModelHub
                     return false;
                 }
 
-                var revision = string.IsNullOrWhiteSpace(model.Revision)
-                    ? DefaultRevision
-                    : model.Revision.Trim();
+                var revision = ManifestRevision.NormalizeForResolution(model.Revision);
 
                 finalizedModels.Add(new ModelDependencyDefinition(id, revision));
             }

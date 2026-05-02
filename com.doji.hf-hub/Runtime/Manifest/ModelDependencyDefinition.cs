@@ -30,5 +30,10 @@ namespace Doji.AI.ModelHub
         /// Branch, tag, or commit to resolve before downloading.
         /// </summary>
         public string Revision { get; }
+
+        /// <summary>
+        /// Effective branch, tag, or commit after applying manifest defaulting rules for omitted revisions.
+        /// </summary>
+        public string EffectiveRevision => ManifestRevision.NormalizeForResolution(Revision);
     }
 }

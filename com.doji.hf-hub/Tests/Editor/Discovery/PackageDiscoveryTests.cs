@@ -176,6 +176,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(errorMessage, Is.Null);
             Assert.That(manifest.Models[0].Id, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
             Assert.That(manifest.Models[0].Revision, Is.EqualTo("main"));
+            Assert.That(manifest.Models[0].EffectiveRevision, Is.EqualTo("main"));
+        }
+
+        /// <summary>
+        /// Verifies central revision normalization preserves explicit text while still resolving omitted revisions to `main`.
+        /// </summary>
+        [Test]
+        public void EffectiveRevision_UsesCentralResolutionRule()
+        {
+            Assert.That(new ModelDependencyDefinition("hf-internal-testing/tiny-random-bert", string.Empty).EffectiveRevision, Is.EqualTo("main"));
+            Assert.That(new ModelDependencyDefinition("hf-internal-testing/tiny-random-bert", "main").EffectiveRevision, Is.EqualTo("main"));
+            Assert.That(new ModelDependencyDefinition("hf-internal-testing/tiny-random-bert", "refs/pr/12").EffectiveRevision, Is.EqualTo("refs/pr/12"));
         }
 
         /// <summary>
@@ -314,8 +326,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 }";
 
             var projectRoot = Path.Combine(_rootDirectory, "ProjectRoot");
-            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
-            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName), manifestContents);
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub"));
+            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName), manifestContents);
 
             var report = ProjectManifestDiscovery.DiscoverProjectSettingsManifest(projectRoot);
 
@@ -323,7 +335,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
             Assert.That(report.Dependencies[0].PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId));
             Assert.That(report.Dependencies[0].PackageDisplayName, Is.EqualTo("Project"));
-            Assert.That(report.Dependencies[0].ManifestPath, Is.EqualTo(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName)));
+            Assert.That(report.Dependencies[0].ManifestPath, Is.EqualTo(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName)));
             Assert.That(report.Dependencies[0].Repository, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
         }
 
@@ -334,8 +346,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void DiscoverProjectSettingsManifest_ReportsInvalidManifest()
         {
             var projectRoot = Path.Combine(_rootDirectory, "BrokenProjectRoot");
-            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
-            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName), "{");
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub"));
+            File.WriteAllText(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName), "{");
 
             var report = ProjectManifestDiscovery.DiscoverProjectSettingsManifest(projectRoot);
 
@@ -352,15 +364,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void TryAddModelId_CreatesProjectSettingsManifestJson()
         {
             var projectRoot = Path.Combine(_rootDirectory, "AuthoringProjectRoot");
-            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
-
             var success = ProjectSettingsModelManifestStore.TryAddModelId(
                 "onnx-community/tiny-clip-test-ONNX",
                 "main",
                 out var errorMessage,
                 projectRoot);
 
-            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", Hub.ManifestFileName);
+            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName);
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
             Assert.That(File.Exists(manifestPath), Is.True);
@@ -371,6 +381,163 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 "onnx-community/tiny-clip-test-ONNX"
             }));
+        }
+
+        /// <summary>
+        /// Verifies explicit `main` revision stays explicit when reloading the raw project-settings manifest document.
+        /// </summary>
+        [Test]
+        public void TryLoadManifestDocument_PreservesExplicitMainRevision()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "ExplicitMainProjectRoot");
+            var manifestDirectory = Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub");
+            Directory.CreateDirectory(manifestDirectory);
+            File.WriteAllText(
+                Path.Combine(manifestDirectory, Hub.ManifestFileName),
+                @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert"",
+      ""revision"": ""main""
+    }
+  ]
+}");
+
+            var success = ProjectSettingsModelManifestStore.TryLoadManifestDocument(projectRoot, out var document, out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(document.models[0].revision, Is.EqualTo("main"));
+        }
+
+        /// <summary>
+        /// Verifies Project Settings manifest writing preserves an explicitly entered `main` revision in JSON.
+        /// </summary>
+        [Test]
+        public void TryWriteManifest_PreservesExplicitMainRevision()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "WriteExplicitMainProjectRoot");
+            var success = ProjectSettingsModelManifestStore.TryWriteManifest(
+                1,
+                new[]
+                {
+                    new ManifestModelDraft("hf-internal-testing/tiny-random-bert", "main")
+                },
+                out var errorMessage,
+                projectRoot);
+
+            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName);
+            var contents = File.ReadAllText(manifestPath);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(contents, Does.Contain(@"""revision"": ""main"""));
+        }
+
+        /// <summary>
+        /// Verifies clearing an explicit `main` revision back to empty preserves the authored empty revision text in project-settings JSON.
+        /// </summary>
+        [Test]
+        public void TryWriteManifest_PreservesEmptyRevisionWhenCleared()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "WriteEmptyRevisionProjectRoot");
+            var success = ProjectSettingsModelManifestStore.TryWriteManifest(
+                1,
+                new[]
+                {
+                    new ManifestModelDraft("hf-internal-testing/tiny-random-bert", string.Empty)
+                },
+                out var errorMessage,
+                projectRoot);
+
+            var manifestPath = Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName);
+            var contents = File.ReadAllText(manifestPath);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(contents, Does.Contain(@"""revision"": """""));
+        }
+
+        /// <summary>
+        /// Verifies local package filtering keeps only package roots inside current project and outside PackageCache.
+        /// </summary>
+        [Test]
+        public void GetProjectLocalPackages_FiltersToProjectLocalPackages()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "ProjectRoot");
+            var packagesPath = Path.Combine(projectRoot, "Packages", "com.doji.local");
+            var packageCachePath = Path.Combine(projectRoot, "Library", "PackageCache", "com.doji.cache");
+            Directory.CreateDirectory(packagesPath);
+            Directory.CreateDirectory(packageCachePath);
+
+            var options = LocalPackageManifestStore.GetProjectLocalPackages(
+                new[]
+                {
+                    new InstalledPackageSnapshot("com.doji.local", "Local", "1.0.0", packagesPath),
+                    new InstalledPackageSnapshot("com.doji.cache", "Cache", "1.0.0", packageCachePath),
+                    new InstalledPackageSnapshot("com.doji.external", "External", "1.0.0", Path.Combine(_rootDirectory, "ExternalPkg"))
+                },
+                projectRoot);
+
+            Assert.That(options.Select(option => option.PackageId).ToArray(), Is.EqualTo(new[] { "com.doji.local" }));
+        }
+
+        /// <summary>
+        /// Verifies package add flow creates a new package manifest when one does not exist yet.
+        /// </summary>
+        [Test]
+        public void TryAddModelId_CreatesLocalPackageManifestJson()
+        {
+            var packageRoot = Path.Combine(_rootDirectory, "ProjectRoot", "Packages", "com.doji.local");
+            Directory.CreateDirectory(packageRoot);
+            var package = new LocalPackageManifestStore.LocalPackageOption("com.doji.local", "Local", packageRoot);
+
+            var success = LocalPackageManifestStore.TryAddModelId(
+                package,
+                "hf-internal-testing/tiny-random-bert",
+                "main",
+                out var errorMessage);
+
+            var manifestPath = Path.Combine(packageRoot, Hub.ManifestFileName);
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(File.Exists(manifestPath), Is.True);
+            Assert.That(ManifestParser.TryParse(File.ReadAllText(manifestPath), out var manifest, out errorMessage), Is.True);
+            Assert.That(manifest.Models.Select(model => model.Id).ToArray(), Is.EqualTo(new[] { "hf-internal-testing/tiny-random-bert" }));
+        }
+
+        /// <summary>
+        /// Verifies local package manifest writing preserves explicit `main` revisions instead of silently canonicalizing them away.
+        /// </summary>
+        [Test]
+        public void TryAddModelId_PreservesExplicitMainRevisionInExistingLocalPackageManifest()
+        {
+            var packageRoot = Path.Combine(_rootDirectory, "ProjectRoot", "Packages", "com.doji.local");
+            Directory.CreateDirectory(packageRoot);
+            File.WriteAllText(
+                Path.Combine(packageRoot, Hub.ManifestFileName),
+                @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert"",
+      ""revision"": ""main""
+    }
+  ]
+}");
+            var package = new LocalPackageManifestStore.LocalPackageOption("com.doji.local", "Local", packageRoot);
+
+            var success = LocalPackageManifestStore.TryAddModelId(
+                package,
+                "hf-internal-testing/tiny-random-gpt2",
+                "main",
+                out var errorMessage);
+
+            var contents = File.ReadAllText(Path.Combine(packageRoot, Hub.ManifestFileName));
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(contents, Does.Contain(@"""revision"": ""main"""));
         }
 
         private InstalledPackageSnapshot CreatePackage(string packageId, string displayName, string version, string manifestContents)
@@ -385,6 +552,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             return new InstalledPackageSnapshot(packageId, displayName, version, packageDirectory);
         }
+
 
         private static string ComputeSha256(string value)
         {

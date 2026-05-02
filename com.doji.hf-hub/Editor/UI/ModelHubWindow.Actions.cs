@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -85,15 +86,23 @@ namespace Doji.AI.ModelHub.Editor
 
         private void ShowHeaderAddMenu(Rect buttonRect)
         {
+            var localPackages = LocalPackageManifestStore.GetProjectLocalPackages();
             var menu = new GenericMenu();
             menu.AddItem(
                 new GUIContent(Content.AddModelToProjectLabel, Content.AddModelToProjectTooltip),
                 false,
                 ShowAddProjectModelPopup);
-            menu.AddItem(
-                new GUIContent(Content.AddModelToPackageLabel, Content.AddModelToPackageTooltip),
-                false,
-                ShowPackageManifestAuthoringHelp);
+            if (localPackages.Count > 0)
+            {
+                menu.AddItem(
+                    new GUIContent(Content.AddModelToPackageLabel, Content.AddModelToPackageTooltip),
+                    false,
+                    ShowAddPackageModelPopup);
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent(Content.AddModelToPackageLabel, Content.AddModelToPackageDisabledTooltip));
+            }
             menu.DropDown(buttonRect);
         }
 
@@ -157,24 +166,52 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
+        private void ShowAddPackageModelPopup()
+        {
+            var packages = LocalPackageManifestStore.GetProjectLocalPackages();
+            if (packages.Count == 0)
+            {
+                return;
+            }
+
+            var buttonRect = _headerAddButtonRect;
+            EditorApplication.delayCall += () =>
+            {
+                if (this == null)
+                {
+                    return;
+                }
+
+                PopupWindow.Show(
+                    buttonRect,
+                    new AddPackageModelPopup(
+                        packages.ToArray(),
+                        AddModelToPackageManifest));
+            };
+        }
+
         private void AddModelToProjectManifest(string owner, string modelName)
         {
             if (ProjectSettingsModelManifestStore.TryAddModel(owner, modelName, out var errorMessage))
             {
                 Refresh();
+                ProjectSettingsProvider.Refresh();
+                InternalEditorUtility.RepaintAllViews();
                 return;
             }
 
             EditorUtility.DisplayDialog("HF Hub Project Manifest", errorMessage, "OK");
         }
 
-        private static void ShowPackageManifestAuthoringHelp()
+        private void AddModelToPackageManifest(LocalPackageManifestStore.LocalPackageOption package, string owner, string modelName)
         {
-            EditorGUIUtility.systemCopyBuffer = Content.PackageManifestTemplateJson;
-            EditorUtility.DisplayDialog(
-                "HF Hub Package Manifest",
-                "Create or edit `hf-hub-manifest.json` in your package root. A starter manifest template was copied to the clipboard.",
-                "OK");
+            if (LocalPackageManifestStore.TryAddModel(package, owner, modelName, out var errorMessage))
+            {
+                Refresh();
+                return;
+            }
+
+            EditorUtility.DisplayDialog("HF Hub Package Manifest", errorMessage, "OK");
         }
 
         private static bool HasCacheForCurrentItem(ModelHubItem item)

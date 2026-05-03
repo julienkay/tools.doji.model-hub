@@ -284,6 +284,114 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
+        internal static bool TryLoadProjectManifestAssetDocument(
+            ProjectManifestAsset asset,
+            out ManifestDocument document,
+            out string errorMessage)
+        {
+            document = null;
+            errorMessage = null;
+
+            if (asset == null)
+            {
+                errorMessage = "Project manifest asset is missing.";
+                return false;
+            }
+
+            var serializedObject = new SerializedObject(asset);
+            var versionProperty = serializedObject.FindProperty("<Version>k__BackingField");
+            var modelsProperty = serializedObject.FindProperty("<Models>k__BackingField");
+            if (versionProperty == null || modelsProperty == null)
+            {
+                errorMessage = "Project manifest asset schema could not be read.";
+                return false;
+            }
+
+            document = new ManifestDocument
+            {
+                version = versionProperty.intValue,
+                models = Enumerable.Range(0, modelsProperty.arraySize)
+                    .Select(index =>
+                    {
+                        var modelProperty = modelsProperty.GetArrayElementAtIndex(index);
+                        var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                        return new ManifestModelDocument
+                        {
+                            id = modelProperty.FindPropertyRelative("<Id>k__BackingField")?.stringValue,
+                            revision = modelProperty.FindPropertyRelative("<Revision>k__BackingField")?.stringValue,
+                            files = filesProperty == null
+                                ? null
+                                : Enumerable.Range(0, filesProperty.arraySize)
+                                    .Select(fileIndex => filesProperty.GetArrayElementAtIndex(fileIndex).stringValue)
+                                    .ToArray()
+                        };
+                    })
+                    .ToArray()
+            };
+
+            return true;
+        }
+
+        internal static bool TryWriteProjectManifestAssetDocument(
+            ProjectManifestAsset asset,
+            int version,
+            ManifestModelEntry[] models,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            if (asset == null)
+            {
+                errorMessage = "Project manifest asset is missing.";
+                return false;
+            }
+
+            var document = BuildDocument(version, models);
+            var drafts = (document.models ?? Array.Empty<ManifestModelDocument>())
+                .Select(model => new ManifestModelDraft(model.id, model.revision, model.files))
+                .ToArray();
+            if (!ManifestFactory.TryCreateManifest(document.version, drafts, out _, out errorMessage))
+            {
+                return false;
+            }
+
+            var serializedObject = new SerializedObject(asset);
+            var versionProperty = serializedObject.FindProperty("<Version>k__BackingField");
+            var modelsProperty = serializedObject.FindProperty("<Models>k__BackingField");
+            if (versionProperty == null || modelsProperty == null)
+            {
+                errorMessage = "Project manifest asset schema could not be written.";
+                return false;
+            }
+
+            versionProperty.intValue = version;
+            modelsProperty.arraySize = document.models?.Length ?? 0;
+            for (var i = 0; i < modelsProperty.arraySize; i++)
+            {
+                var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
+                var sourceModel = document.models[i];
+                modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = sourceModel.id;
+                modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = sourceModel.revision ?? string.Empty;
+
+                var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                var files = sourceModel.files ?? Array.Empty<string>();
+                filesProperty.arraySize = files.Length;
+                for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
+                {
+                    filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
+                }
+            }
+
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(asset);
+            var assetPath = AssetDatabase.GetAssetPath(asset);
+            if (!string.IsNullOrWhiteSpace(assetPath))
+            {
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            }
+            return true;
+        }
+
         private static ManifestModelEntry EditableModelEntryFromManifest(ModelDependencyDefinition model)
         {
             var identifier = model?.Id ?? string.Empty;

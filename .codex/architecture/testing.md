@@ -82,6 +82,7 @@ Editor UI and manifest editing:
 - `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
   - explicit `files` serialization
+  - ScriptableObject manifest document load/save normalization
 - `com.doji.hf-hub/Tests/Editor/UI/ProjectSettingsTests.cs`
   - project settings manifest workflow
 - `com.doji.hf-hub/Tests/Editor/UI/EditorOperationsTests.cs`

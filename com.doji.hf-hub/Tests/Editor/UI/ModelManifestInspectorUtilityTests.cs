@@ -163,5 +163,91 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 File.Delete(absolutePath);
             }
         }
+
+        /// <summary>
+        /// Ensures ScriptableObject project manifests convert into shared editor document shape without losing explicit file selection.
+        /// </summary>
+        [Test]
+        public void TryLoadProjectManifestAssetDocument_ReadsSerializedAssetModels()
+        {
+            var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
+            SetProjectManifest(asset, 1, new[]
+            {
+                new ProjectManifestModelAssetEntry
+                {
+                    Id = "onnx-community/tiny-clip-test-ONNX",
+                    Revision = "refs/pr/7",
+                    Files = new[] { "onnx/model.onnx" }
+                }
+            });
+
+            var success = ModelManifestInspectorUtility.TryLoadProjectManifestAssetDocument(asset, out var document, out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(document.version, Is.EqualTo(1));
+            Assert.That(document.models[0].id, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
+            Assert.That(document.models[0].revision, Is.EqualTo("refs/pr/7"));
+            Assert.That(document.models[0].files, Is.EqualTo(new[] { "onnx/model.onnx" }));
+        }
+
+        /// <summary>
+        /// Ensures ScriptableObject project manifests reuse shared validation and normalization before persisting edits.
+        /// </summary>
+        [Test]
+        public void TryWriteProjectManifestAssetDocument_NormalizesAndWritesSharedEditorModels()
+        {
+            var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
+
+            var success = ModelManifestInspectorUtility.TryWriteProjectManifestAssetDocument(
+                asset,
+                1,
+                new[]
+                {
+                    new ManifestModelEntry(
+                        "onnx-community",
+                        "tiny-clip-test-ONNX",
+                        string.Empty,
+                        new[] { " tokenizer.json ", "onnx\\model.onnx", "onnx/model.onnx" })
+                },
+                out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+
+            var serializedObject = new UnityEditor.SerializedObject(asset);
+            Assert.That(serializedObject.FindProperty("<Version>k__BackingField").intValue, Is.EqualTo(1));
+            var modelProperty = serializedObject.FindProperty("<Models>k__BackingField").GetArrayElementAtIndex(0);
+            Assert.That(modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
+            Assert.That(modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue, Is.Empty);
+            var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+            Assert.That(filesProperty.arraySize, Is.EqualTo(2));
+            Assert.That(filesProperty.GetArrayElementAtIndex(0).stringValue, Is.EqualTo("onnx/model.onnx"));
+            Assert.That(filesProperty.GetArrayElementAtIndex(1).stringValue, Is.EqualTo("tokenizer.json"));
+        }
+
+        private static void SetProjectManifest(ProjectManifestAsset asset, int version, ProjectManifestModelAssetEntry[] models)
+        {
+            var serializedObject = new UnityEditor.SerializedObject(asset);
+            serializedObject.FindProperty("<Version>k__BackingField").intValue = version;
+
+            var modelsProperty = serializedObject.FindProperty("<Models>k__BackingField");
+            modelsProperty.arraySize = models.Length;
+            for (var i = 0; i < models.Length; i++)
+            {
+                var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
+                modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = models[i].Id;
+                modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
+                var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                var files = models[i].Files ?? System.Array.Empty<string>();
+                filesProperty.arraySize = files.Length;
+                for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
+                {
+                    filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
+                }
+            }
+
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 }

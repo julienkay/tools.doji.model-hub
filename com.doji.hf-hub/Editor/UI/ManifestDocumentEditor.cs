@@ -218,6 +218,16 @@ namespace Doji.AI.ModelHub.Editor
 
         private void Apply()
         {
+            var firstIncompleteRowIndex = Array.FindIndex(_models, ManifestModelListEditor.IsIncomplete);
+            if (firstIncompleteRowIndex >= 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "HF Hub Model Manifest",
+                    $"Manifest entry {firstIncompleteRowIndex + 1} must define both Owner and Model before applying.",
+                    "OK");
+                return;
+            }
+
             if (!_store.TrySave(_version, _models, out var errorMessage))
             {
                 EditorUtility.DisplayDialog("HF Hub Model Manifest", errorMessage, "OK");
@@ -240,6 +250,7 @@ namespace Doji.AI.ModelHub.Editor
         private ManifestModelValidationController.ValidationTarget[] GetValidationTargets()
         {
             return _models
+                .Where(model => model?.HasCompleteModelId == true)
                 .Select(model => new ManifestModelValidationController.ValidationTarget(
                     model?.ModelId,
                     model?.Revision))
@@ -319,6 +330,35 @@ namespace Doji.AI.ModelHub.Editor
                     model?.Files))
                 .ToArray();
             return ProjectSettingsModelManifestStore.TryWriteManifest(version, drafts, out errorMessage);
+        }
+    }
+
+    /// <summary>
+    /// Binds shared manifest editor to one `ProjectManifestAsset` so ScriptableObject manifests get same UX as JSON manifests.
+    /// </summary>
+    internal sealed class ProjectManifestAssetDocumentStore : IManifestDocumentStore
+    {
+        private readonly ProjectManifestAsset _asset;
+        private readonly string _assetPath;
+
+        public ProjectManifestAssetDocumentStore(ProjectManifestAsset asset)
+        {
+            _asset = asset;
+            _assetPath = asset == null ? string.Empty : AssetDatabase.GetAssetPath(asset);
+        }
+
+        public string DisplayName => string.IsNullOrWhiteSpace(_assetPath) ? _asset?.name ?? "Project Manifest Asset" : _assetPath;
+        public bool IsEditable => _asset != null;
+        public bool ShouldPersistValidationCache => true;
+
+        public bool TryLoad(out ModelManifestInspectorUtility.ManifestDocument document, out string errorMessage)
+        {
+            return ModelManifestInspectorUtility.TryLoadProjectManifestAssetDocument(_asset, out document, out errorMessage);
+        }
+
+        public bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage)
+        {
+            return ModelManifestInspectorUtility.TryWriteProjectManifestAssetDocument(_asset, version, models, out errorMessage);
         }
     }
 }

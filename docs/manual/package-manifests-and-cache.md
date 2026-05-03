@@ -61,7 +61,7 @@ Use this when model dependencies need to ship through non-package project conten
 - create from: `Assets > Create > Doji > AI > HF Hub Project Manifest`
 - lives under: normal Unity assets, typically somewhere in `Assets/`
 - discovered in addition to the Project Settings JSON manifest and package manifests
-- edit from: normal Unity asset workflow by selecting the asset in the Project window
+- edit from: same focused manifest Inspector used by package JSON manifests, including revision validation, file-scope picker, and Apply/Revert workflow
 
 ## Manifest Fields
 
@@ -114,6 +114,7 @@ Current development build includes:
 - first-run auto prompt window when discovered dependencies need attention
 - editor Console info reminder after domain reload while dependencies still need attention
 - custom Inspector for selected model manifest assets in packages
+- same shared custom Inspector for `ProjectManifestAsset` ScriptableObject manifests
 - Model Hub window at `Window > AI Model Hub`
 - editor import command at `Tools/Doji/HF Hub/Import All`
 - Project Settings page at `Project Settings > Doji > AI > AI Model Hub`

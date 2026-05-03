@@ -32,6 +32,14 @@ namespace Doji.AI.ModelHub.Editor
             ? Name ?? string.Empty
             : $"{Owner?.Trim()}/{Name?.Trim()}";
 
+        public bool HasAnyModelIdContent =>
+            !string.IsNullOrWhiteSpace(Owner) ||
+            !string.IsNullOrWhiteSpace(Name);
+
+        public bool HasCompleteModelId =>
+            !string.IsNullOrWhiteSpace(Owner) &&
+            !string.IsNullOrWhiteSpace(Name);
+
         public bool HasExplicitFileSelection => (Files ?? Array.Empty<string>()).Length > 0;
         public string FileSelectionSummary => HasExplicitFileSelection
             ? Files.Length == 1
@@ -206,11 +214,11 @@ namespace Doji.AI.ModelHub.Editor
             if (_isEditable)
             {
                 EditorGUI.BeginChangeCheck();
-                var nextOwner = EditorGUI.TextField(ownerRect, entry.Owner);
-                var nextName = EditorGUI.TextField(modelRect, entry.Name);
+                var nextOwner = EditorGUI.DelayedTextField(ownerRect, entry.Owner);
+                var nextName = EditorGUI.DelayedTextField(modelRect, entry.Name);
                 var revisionControlName = $"ManifestRevisionField_{index}";
                 GUI.SetNextControlName(revisionControlName);
-                var nextRevision = EditorGUI.TextField(revisionRect, entry.Revision);
+                var nextRevision = EditorGUI.DelayedTextField(revisionRect, entry.Revision);
                 if (EditorGUI.EndChangeCheck())
                 {
                     entry.Owner = nextOwner;
@@ -265,6 +273,12 @@ namespace Doji.AI.ModelHub.Editor
 
             return !hasValidationProvider ||
                 validationState?.Status == ManifestModelValidationStatus.Valid;
+        }
+
+        internal static bool IsIncomplete(ManifestModelEntry entry)
+        {
+            return entry != null &&
+                (!entry.HasAnyModelIdContent || !entry.HasCompleteModelId);
         }
 
         private static GUIContent BuildFileSelectionContent(ManifestModelEntry entry, ManifestModelValidationState validationState)

@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEditor;
 
 namespace Doji.AI.ModelHub.Editor.Tests
 {
@@ -59,6 +60,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var entry = new ManifestModelEntry(string.Empty, string.Empty, "main");
 
             Assert.That(ManifestModelListEditor.CanOpenFileSelection(entry, null, true), Is.False);
+        }
+
+        /// <summary>
+        /// Ensures partial owner/model rows stay incomplete until both text fields have content.
+        /// </summary>
+        [Test]
+        public void HasCompleteModelId_ReturnsTrueOnlyWhenOwnerAndModelArePresent()
+        {
+            Assert.That(new ManifestModelEntry(string.Empty, "repo", "main").HasCompleteModelId, Is.False);
+            Assert.That(new ManifestModelEntry("owner", string.Empty, "main").HasCompleteModelId, Is.False);
+            Assert.That(new ManifestModelEntry("owner", "repo", "main").HasCompleteModelId, Is.True);
+        }
+
+        /// <summary>
+        /// Ensures apply-side row validation rejects both empty rows and partially filled owner/model pairs.
+        /// </summary>
+        [Test]
+        public void IsIncomplete_ReturnsTrueForEmptyOrPartialRows()
+        {
+            Assert.That(ManifestModelListEditor.IsIncomplete(new ManifestModelEntry(string.Empty, string.Empty, "main")), Is.True);
+            Assert.That(ManifestModelListEditor.IsIncomplete(new ManifestModelEntry("owner", string.Empty, "main")), Is.True);
+            Assert.That(ManifestModelListEditor.IsIncomplete(new ManifestModelEntry(string.Empty, "repo", "main")), Is.True);
+            Assert.That(ManifestModelListEditor.IsIncomplete(new ManifestModelEntry("owner", "repo", "main")), Is.False);
         }
     }
 }

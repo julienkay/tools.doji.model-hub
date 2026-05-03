@@ -53,6 +53,7 @@ Primary scope:
 - Follow project C# style: no raw public fields, `_camelCase` private fields, XML summaries on public and non-obvious internal types.
 - Give each test method a short, simple XML summary that answers "what is tested here?" in plain language.
 - If method name uses project terms like "normalized", briefly explain them in summary instead of assuming reader already knows term.
+- When test coverage changes durable behavior contracts or adds new regression areas, update `.codex/architecture/testing.md` so maintainers can find the relevant fixture later.
 
 ## Implementation pattern
 
@@ -109,6 +110,7 @@ internal sealed class HfHubPackageDiscoveryTests
 - confirm asmdef references only needed assemblies
 - confirm new folders/files have `.meta`
 - confirm each test method has clear, simple documentation
+- confirm `.codex/architecture/testing.md` still maps new or changed coverage when test scope changed
 - confirm assertions target behavior users or maintainers depend on
 - confirm any internal seam is minimal and justified by testability
 - tests do not need to be run unless user explicitly requested it

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using UnityEditor;
@@ -91,6 +92,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("tokenizer.json"));
         }
 
+        /// <summary>
+        /// Verifies whole-repo dependencies fail when raw inventory has files but none of them are ONNX.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsFailedWhenWholeRepositorySelectionContainsNoOnnxFiles()
+        {
+            var dependency = CreateDependency();
+            WriteRawCacheWithoutOnnx(dependency);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.FailedCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.NoSelectedOnnxFiles));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Dependency selection does not include any ONNX file."));
+        }
+
         [Test]
         public void BuildStatusReport_ReturnsReadyWhenRawBindingAndSharedArtifactsMatch()
         {
@@ -103,6 +120,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.ReadyCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.None));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw repo snapshot, import binding, and generated runtime files are current."));
+        }
+
+        /// <summary>
+        /// Verifies adding a broader same-repository dependency later leaves existing owner ready but marks the new owner as cache-update-needed.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsReadyAndMissingForExistingAndNewSameRepositoryOwnersWhenSelectionGrows()
+        {
+            var existingDependency = CreateDependency(packageId: "com.doji.existing", selectedFiles: new[] { "models/model.onnx" });
+            var newDependency = CreateDependency(packageId: "com.doji.new", selectedFiles: new[] { "models/model.onnx", "models/model_bnb4.onnx" });
+            WriteRawCacheWithMissingAdditionalOnnx(existingDependency);
+            WriteGeneratedArtifactsForExpandedInventory(existingDependency);
+
+            var report = BuildStatusReport(existingDependency, newDependency);
+
+            Assert.That(report.DependencyStatuses, Has.Length.EqualTo(2));
+
+            var existingStatus = report.DependencyStatuses.Single(status => status.Dependency.PackageId == "com.doji.existing");
+            Assert.That(existingStatus.State, Is.EqualTo(DependencyState.Ready));
+            Assert.That(existingStatus.ReasonCode, Is.EqualTo(DependencyReasonCode.None));
+
+            var newStatus = report.DependencyStatuses.Single(status => status.Dependency.PackageId == "com.doji.new");
+            Assert.That(newStatus.State, Is.EqualTo(DependencyState.Missing));
+            Assert.That(newStatus.ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
+            Assert.That(newStatus.MaintainerMessage, Does.Contain("models/model_bnb4.onnx"));
         }
 
         /// <summary>
@@ -398,6 +440,154 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     PackageVersion = dependency.PackageVersion,
                     ModelId = dependency.ModelId,
                     ManifestHash = bindingManifestHash ?? dependency.ManifestHash,
+                    Repository = dependency.Repository,
+                    RequestedRevision = dependency.Revision,
+                    ResolvedCommitHash = commitHash,
+                    SentisVersion = sentisVersion,
+                    RecipeSetHash = recipeSetHash,
+                    DependencySelectionHash = dependency.DependencySelectionHash,
+                    SharedImportMetadataPath = sharedMetadataPath,
+                    RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId),
+                    RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId)),
+                    BoundAtUtc = DateTime.UtcNow.ToString("O")
+                }, Formatting.Indented));
+        }
+
+        private static void WriteRawCacheWithoutOnnx(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var rawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
+            var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
+            var tokenizerPath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "tokenizer.json");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(revisionRefPath) ?? throw new InvalidOperationException());
+            Directory.CreateDirectory(Path.GetDirectoryName(tokenizerPath) ?? throw new InvalidOperationException());
+
+            File.WriteAllText(tokenizerPath, "tokenizer");
+            File.WriteAllText(revisionRefPath, commitHash);
+            File.WriteAllText(
+                rawMetadataPath,
+                JsonConvert.SerializeObject(new RawCacheMetadata
+                {
+                    Repository = dependency.Repository,
+                    RequestedRevision = dependency.Revision,
+                    ResolvedCommitHash = commitHash,
+                    CachedSnapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "tokenizer.json",
+                            SizeInBytes = 9
+                        }
+                    },
+                    Files = new[]
+                    {
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "tokenizer.json",
+                            CachedFilePath = tokenizerPath
+                        }
+                    },
+                    DownloadedAtUtc = DateTime.UtcNow.ToString("O")
+                }, Formatting.Indented));
+        }
+
+        private static void WriteRawCacheWithMissingAdditionalOnnx(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var rawModelPath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model.onnx");
+            var rawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
+            var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(rawModelPath) ?? throw new InvalidOperationException());
+            Directory.CreateDirectory(Path.GetDirectoryName(revisionRefPath) ?? throw new InvalidOperationException());
+
+            File.WriteAllText(rawModelPath, "onnx");
+            File.WriteAllText(revisionRefPath, commitHash);
+            File.WriteAllText(
+                rawMetadataPath,
+                JsonConvert.SerializeObject(new RawCacheMetadata
+                {
+                    Repository = dependency.Repository,
+                    RequestedRevision = dependency.Revision,
+                    ResolvedCommitHash = commitHash,
+                    CachedSnapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            SizeInBytes = 4
+                        },
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model_bnb4.onnx",
+                            SizeInBytes = 8
+                        }
+                    },
+                    Files = new[]
+                    {
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            CachedFilePath = rawModelPath
+                        }
+                    },
+                    DownloadedAtUtc = DateTime.UtcNow.ToString("O")
+                }, Formatting.Indented));
+        }
+
+        private static void WriteGeneratedArtifactsForExpandedInventory(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
+            var sentisVersion = StatusService.GetCurrentSentisVersion();
+            var recipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" });
+            var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);
+            var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
+            var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(
+                ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId));
+
+            Directory.CreateDirectory(Path.GetDirectoryName(sharedMetadataAbsolutePath) ?? throw new InvalidOperationException());
+            Directory.CreateDirectory(Path.GetDirectoryName(bindingMetadataAbsolutePath) ?? throw new InvalidOperationException());
+
+            File.WriteAllText(
+                sharedMetadataAbsolutePath,
+                JsonConvert.SerializeObject(new SharedImportMetadata
+                {
+                    Repository = dependency.Repository,
+                    ResolvedCommitHash = commitHash,
+                    RequestedRevisionHint = dependency.Revision,
+                    RawSnapshotRootPath = CachePaths.GetSnapshotRoot(dependency.Repository, commitHash),
+                    RawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash),
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model.onnx",
+                            SizeInBytes = 4
+                        },
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "models/model_bnb4.onnx",
+                            SizeInBytes = 8
+                        }
+                    },
+                    RawCacheSizeInBytes = 4,
+                    SentisVersion = sentisVersion,
+                    UnityVersion = UnityEngine.Application.unityVersion,
+                    RecipeSetHash = recipeSetHash,
+                    RuntimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, commitHash),
+                    RuntimeFiles = runtimeFiles,
+                    ImportedAtUtc = DateTime.UtcNow.ToString("O")
+                }, Formatting.Indented));
+
+            File.WriteAllText(
+                bindingMetadataAbsolutePath,
+                JsonConvert.SerializeObject(new ImportBindingMetadata
+                {
+                    PackageId = dependency.PackageId,
+                    PackageVersion = dependency.PackageVersion,
+                    ModelId = dependency.ModelId,
+                    ManifestHash = dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,

@@ -294,6 +294,7 @@ Maintainer rule:
 - keep persistent `Library` cache for manifest-inspector/package-authoring validation
 - keep add-model popup validation ephemeral unless a stronger project-wide reason appears
 - do not let short-lived project-manifest authoring UI silently expand `Library` cache churn
+- keep add-model popups repo-id-only for now; do not add revision-aware validation until those popups expose an authored revision input and can validate the exact user-entered target instead of inventing hidden defaults
 
 ## Revision Semantics
 

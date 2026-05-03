@@ -135,6 +135,62 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies when a second owner later broadens same-repository selection, Model Hub shows one update-needed row and keeps already-imported files visible.
+        /// </summary>
+        [Test]
+        public void BuildReport_ShowsUpdateNeededWhenLaterOwnerAddsMoreSameRepositoryFiles()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        selectedFiles: new[] { "model.onnx" },
+                        extraRepositoryFiles: new[]
+                        {
+                            new RepositoryFileMetadata { RepoPath = "model_bnb4.onnx", SizeInBytes = 7 }
+                        }),
+                    CreateDependencyStatus(
+                        "com.doji.pkg-b",
+                        "Package B",
+                        "model-b",
+                        DependencyState.Missing,
+                        reasonCode: DependencyReasonCode.RawCacheFilesMissing,
+                        maintainerMessage: "Raw cache is missing selected file(s): model_bnb4.onnx.",
+                        selectedFiles: new[] { "model.onnx", "model_bnb4.onnx" },
+                        extraRepositoryFiles: new[]
+                        {
+                            new RepositoryFileMetadata { RepoPath = "model_bnb4.onnx", SizeInBytes = 7 }
+                        })
+                });
+
+            var hubReport = new ModelHubService(new FakeRecipeSource()).BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            var item = hubReport.Items[0];
+            Assert.That(item.State, Is.EqualTo(ModelHubItemState.ActionRequired));
+            Assert.That(item.HasMissingCacheFiles, Is.True);
+            Assert.That(item.ImportedFileCount, Is.EqualTo(1));
+            Assert.That(item.SelectedFileCount, Is.EqualTo(2));
+            Assert.That(item.RepositoryFileCount, Is.EqualTo(2));
+            Assert.That(item.Diagnostics.Any(diagnostic => diagnostic.Severity == "info" && diagnostic.Message.Contains("Update the model cache.")), Is.True);
+
+            var firstFile = item.Files.Single(file => file.RepoPath == "model.onnx");
+            Assert.That(firstFile.IsDependencySelected, Is.True);
+            Assert.That(firstFile.SelectedOwnerCount, Is.EqualTo(2));
+            Assert.That(firstFile.HasRuntimeFile, Is.True);
+
+            var secondFile = item.Files.Single(file => file.RepoPath == "model_bnb4.onnx");
+            Assert.That(secondFile.IsDependencySelected, Is.True);
+            Assert.That(secondFile.SelectedOwnerCount, Is.EqualTo(1));
+            Assert.That(secondFile.HasRuntimeFile, Is.False);
+            Assert.That(secondFile.SupportsImportRecipeEditing, Is.True);
+        }
+
+        /// <summary>
         /// Verifies cache size estimate survives when imported files remain but raw cache metadata is gone.
         /// </summary>
         [Test]

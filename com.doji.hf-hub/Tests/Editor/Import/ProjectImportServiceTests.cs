@@ -173,6 +173,21 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies whole-repo dependencies fail with a clear message when repository inventory contains no ONNX file.
+        /// </summary>
+        [Test]
+        public void ImportAsync_ThrowsWhenWholeRepositorySelectionContainsNoOnnxFiles()
+        {
+            var dependency = CreateDependency();
+            var cachedSnapshot = CreateCachedSnapshotWithoutOnnxFiles();
+
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None));
+
+            Assert.That(exception?.Message, Is.EqualTo("Dependency 'doji/test-model' does not select any ONNX file. Select the whole repository or at least one `.onnx` file."));
+        }
+
+        /// <summary>
         /// Verifies import keeps successful ONNX conversions when one variant in the repo is unsupported.
         /// </summary>
         [Test]
@@ -398,6 +413,38 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         RepoPath = "model_bnb4.onnx",
                         CachedFilePath = secondModelPath
+                    }
+                },
+                DownloadedAtUtc = DateTime.UtcNow.ToString("O")
+            };
+
+            return new CachedSnapshot(snapshotRoot, Path.Combine(snapshotRoot, "snapshot.hfhub.json"), metadata);
+        }
+
+        private static CachedSnapshot CreateCachedSnapshotWithoutOnnxFiles()
+        {
+            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.ImportSnapshot", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(snapshotRoot);
+
+            var tokenizerPath = Path.Combine(snapshotRoot, "tokenizer.json");
+            File.WriteAllText(tokenizerPath, "{}");
+
+            var metadata = new RawCacheMetadata
+            {
+                Repository = "doji/test-model",
+                RequestedRevision = "main",
+                ResolvedCommitHash = "commit123",
+                CachedSnapshotRoot = snapshotRoot,
+                RepositoryFiles = new[]
+                {
+                    new RepositoryFileMetadata { RepoPath = "tokenizer.json" }
+                },
+                Files = new[]
+                {
+                    new RawCacheFileMetadata
+                    {
+                        RepoPath = "tokenizer.json",
+                        CachedFilePath = tokenizerPath
                     }
                 },
                 DownloadedAtUtc = DateTime.UtcNow.ToString("O")

@@ -202,6 +202,45 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies selected-file runtime lookup does not expose unselected ONNX siblings from same repository.
+        /// </summary>
+        [Test]
+        public async System.Threading.Tasks.Task FromPretrained_SelectedFileDependencyDoesNotExposeUnselectedSiblingOnnx()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    new[] { "model.onnx" }));
+
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+            var importService = new ProjectImportService();
+            var importedArtifact = await importService.ImportAsync(
+                dependency,
+                cachedSnapshot,
+                System.Threading.CancellationToken.None);
+
+            _registryService.WriteRegistries(new[]
+            {
+                new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
+            });
+
+            var repository = Hub.FromPretrained("doji/test-model");
+
+            Assert.That(repository.TryGetSentisPath("model.onnx", out _), Is.True);
+            Assert.That(repository.TryGetSentisPath("model_bnb4.onnx", out _), Is.False);
+
+            var exception = Assert.Throws<FileNotFoundException>(() => repository.GetSentisPath("model_bnb4.onnx"));
+            Assert.That(exception?.Message, Does.Contain("doji/test-model:model_bnb4.onnx"));
+        }
+
+        /// <summary>
         /// Verifies single-string repo lookup throws when multiple owners publish same repo.
         /// </summary>
         [Test]
@@ -327,12 +366,65 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RequestedRevision = "main",
                     ResolvedCommitHash = "abc123",
                     CachedSnapshotRoot = snapshotRoot,
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "SingleInputSingleOuput.onnx"
+                        }
+                    },
                     Files = new[]
                     {
                         new RawCacheFileMetadata
                         {
                             RepoPath = "SingleInputSingleOuput.onnx",
                             CachedFilePath = cachedModelPath
+                        }
+                    }
+                });
+        }
+
+        private static CachedSnapshot CreateCachedSnapshotWithTwoOnnxFiles()
+        {
+            var sampleOnnxPath = GetInferenceSampleOnnxPath();
+            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.RuntimeLocatorSnapshot", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(snapshotRoot);
+            var firstModelPath = Path.Combine(snapshotRoot, "model.onnx");
+            var secondModelPath = Path.Combine(snapshotRoot, "model_bnb4.onnx");
+            File.Copy(sampleOnnxPath, firstModelPath, true);
+            File.Copy(sampleOnnxPath, secondModelPath, true);
+
+            return new CachedSnapshot(
+                snapshotRoot,
+                Path.Combine(snapshotRoot, "snapshot.hfhub.json"),
+                new RawCacheMetadata
+                {
+                    Repository = "doji/test-model",
+                    RequestedRevision = "main",
+                    ResolvedCommitHash = "abc123",
+                    CachedSnapshotRoot = snapshotRoot,
+                    RepositoryFiles = new[]
+                    {
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "model.onnx"
+                        },
+                        new RepositoryFileMetadata
+                        {
+                            RepoPath = "model_bnb4.onnx"
+                        }
+                    },
+                    Files = new[]
+                    {
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "model.onnx",
+                            CachedFilePath = firstModelPath
+                        },
+                        new RawCacheFileMetadata
+                        {
+                            RepoPath = "model_bnb4.onnx",
+                            CachedFilePath = secondModelPath
                         }
                     }
                 });

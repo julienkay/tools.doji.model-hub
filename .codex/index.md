@@ -15,6 +15,7 @@ Historical architecture context (on demand):
 Core architecture docs:
 
 - [Overview](./architecture/overview.md)
+- [Testing](./architecture/testing.md)
 - [Manifest Schema](./architecture/manifest-schema.md)
 - [Download And Cache](./architecture/download-and-cache.md)
 - [Import And Generated Assets](./architecture/import-and-generated-assets.md)

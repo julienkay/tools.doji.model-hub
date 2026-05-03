@@ -31,6 +31,7 @@ namespace Doji.AI.ModelHub.Editor
         private sealed class CacheEntry
         {
             public string repository;
+            public string revision;
             public bool exists;
             public string checkedAtUtc;
         }
@@ -53,7 +54,55 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var document = ReadCache(cachePath);
                 var entry = (document?.entries ?? Array.Empty<CacheEntry>())
-                    .FirstOrDefault(candidate => string.Equals(candidate.repository, repository, StringComparison.Ordinal));
+                    .FirstOrDefault(candidate =>
+                        string.Equals(candidate.repository, repository, StringComparison.Ordinal) &&
+                        string.IsNullOrWhiteSpace(candidate.revision));
+                if (entry == null ||
+                    string.IsNullOrWhiteSpace(entry.checkedAtUtc) ||
+                    !DateTime.TryParse(entry.checkedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var checkedAtUtc))
+                {
+                    return false;
+                }
+
+                if ((DateTime.UtcNow - checkedAtUtc) > CacheTtl)
+                {
+                    return false;
+                }
+
+                exists = entry.exists;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        internal static bool TryGetCachedRepositoryRevisionExists(string repository, string revision, out bool exists)
+        {
+            exists = false;
+            if (string.IsNullOrWhiteSpace(repository))
+            {
+                return false;
+            }
+
+            var normalizedRevision = ManifestRevision.NormalizeForResolution(revision);
+            var cachePath = ProjectPaths.ToProjectAbsolutePath(CacheProjectPath);
+            if (!File.Exists(cachePath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var document = ReadCache(cachePath);
+                var entry = (document?.entries ?? Array.Empty<CacheEntry>())
+                    .FirstOrDefault(candidate =>
+                        string.Equals(candidate.repository, repository, StringComparison.Ordinal) &&
+                        string.Equals(
+                            ManifestRevision.NormalizeForResolution(candidate.revision),
+                            normalizedRevision,
+                            StringComparison.Ordinal));
                 if (entry == null ||
                     string.IsNullOrWhiteSpace(entry.checkedAtUtc) ||
                     !DateTime.TryParse(entry.checkedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var checkedAtUtc))
@@ -94,7 +143,9 @@ namespace Doji.AI.ModelHub.Editor
                 entries = Array.Empty<CacheEntry>()
             };
             var entries = (document.entries ?? Array.Empty<CacheEntry>()).ToList();
-            var existingEntry = entries.FirstOrDefault(entry => string.Equals(entry.repository, repository, StringComparison.Ordinal));
+            var existingEntry = entries.FirstOrDefault(entry =>
+                string.Equals(entry.repository, repository, StringComparison.Ordinal) &&
+                string.IsNullOrWhiteSpace(entry.revision));
             if (existingEntry == null)
             {
                 existingEntry = new CacheEntry
@@ -108,6 +159,53 @@ namespace Doji.AI.ModelHub.Editor
             existingEntry.checkedAtUtc = DateTime.UtcNow.ToString("O");
             document.entries = entries
                 .OrderBy(entry => entry.repository, StringComparer.Ordinal)
+                .ToArray();
+
+            File.WriteAllText(cachePath, UnityEngine.JsonUtility.ToJson(document, true));
+            _cacheRevision++;
+        }
+
+        internal static void WriteCachedRepositoryRevisionExists(string repository, string revision, bool exists)
+        {
+            if (string.IsNullOrWhiteSpace(repository))
+            {
+                return;
+            }
+
+            var normalizedRevision = ManifestRevision.NormalizeForResolution(revision);
+            var cachePath = ProjectPaths.ToProjectAbsolutePath(CacheProjectPath);
+            var directory = Path.GetDirectoryName(cachePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var document = ReadCache(cachePath) ?? new CacheDocument
+            {
+                entries = Array.Empty<CacheEntry>()
+            };
+            var entries = (document.entries ?? Array.Empty<CacheEntry>()).ToList();
+            var existingEntry = entries.FirstOrDefault(entry =>
+                string.Equals(entry.repository, repository, StringComparison.Ordinal) &&
+                string.Equals(
+                    ManifestRevision.NormalizeForResolution(entry.revision),
+                    normalizedRevision,
+                    StringComparison.Ordinal));
+            if (existingEntry == null)
+            {
+                existingEntry = new CacheEntry
+                {
+                    repository = repository
+                };
+                entries.Add(existingEntry);
+            }
+
+            existingEntry.revision = normalizedRevision;
+            existingEntry.exists = exists;
+            existingEntry.checkedAtUtc = DateTime.UtcNow.ToString("O");
+            document.entries = entries
+                .OrderBy(entry => entry.repository, StringComparer.Ordinal)
+                .ThenBy(entry => ManifestRevision.NormalizeForResolution(entry.revision), StringComparer.Ordinal)
                 .ToArray();
 
             File.WriteAllText(cachePath, UnityEngine.JsonUtility.ToJson(document, true));

@@ -190,6 +190,19 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "abc123",
                 new[]
                 {
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "config.json",
+                        SizeInBytes = 6
+                    },
+                    new RepositoryFileMetadata
+                    {
+                        RepoPath = "models/model.onnx",
+                        SizeInBytes = 5
+                    }
+                },
+                new[]
+                {
                     new ResolvedRepoFile("config.json", "https://cdn.example/config.json", "etag-config", 6),
                     new ResolvedRepoFile("models/model.onnx", "https://cdn.example/model.onnx", "etag-model", 5)
                 });
@@ -213,6 +226,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 ResolveCallCount++;
                 return Task.FromResult(_resolvedSnapshot);
+            }
+
+            public Task<ResolvedRepositoryInventory> GetRepositoryInventoryAsync(
+                string repository,
+                string revision,
+                CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new ResolvedRepositoryInventory(
+                    repository,
+                    revision,
+                    _resolvedSnapshot.ResolvedCommitHash,
+                    (_resolvedSnapshot.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).ToArray()));
             }
 
             public Task DownloadFileAsync(

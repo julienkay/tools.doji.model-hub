@@ -93,6 +93,55 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Ensures Project Settings manifest owners appear as first-class locate targets.
+        /// </summary>
+        [Test]
+        public void BuildManifestLocateTargets_IncludesProjectSettingsManifestOwner()
+        {
+            var item = new ModelHubItem(
+                "julienkay/sentis-midas",
+                "main",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ModelHubItemState.Ready,
+                new[]
+                {
+                    CreateDependencyStatus(
+                        ProjectManifestDiscovery.ProjectSettingsManifestOwnerId,
+                        "Project Settings",
+                        "julienkay/sentis-midas",
+                        "/tmp/HF Hub/ProjectSettings/hf-hub-manifest.json"),
+                    CreateDependencyStatus(
+                        "com.doji.hf-hub-test-models",
+                        "HF Hub Test Models",
+                        "julienkay/sentis-midas",
+                        "Packages/com.doji.hf-hub-test-models/hf-hub-manifest.json")
+                },
+                Array.Empty<ModelHubDiagnostic>(),
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
+
+            var targets = ProjectSettingsLinks.BuildManifestLocateTargets(item);
+
+            Assert.That(targets.Count, Is.EqualTo(2));
+            Assert.That(targets.Select(target => target.OwnerId).ToArray(), Is.EqualTo(new[]
+            {
+                "com.doji.hf-hub-test-models",
+                ProjectManifestDiscovery.ProjectSettingsManifestOwnerId
+            }));
+            Assert.That(targets.Select(target => target.Label).ToArray(), Is.EqualTo(new[]
+            {
+                "HF Hub Test Models / julienkay/sentis-midas",
+                "Project Settings"
+            }));
+        }
+
+        /// <summary>
         /// Ensures package-cache manifests are treated as package-manager owned rather than directly editable project files.
         /// </summary>
         [Test]

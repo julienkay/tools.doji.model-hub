@@ -82,10 +82,44 @@ Maintainer rule for size labels:
 
 Ready-state actions are intentionally split by ownership boundary:
 
+### Context-Sensitive Action Button
+
+The primary action button in the details header changes label and mode based on the item's current cache and dependency state:
+
+| Visible state | Button label | Mode |
+|---|---|---|
+| No cache snapshot exists | **Download** | `Full` |
+| Cache exists but declared files not yet cached (`RawCacheFilesMissing`) | **Update + Import** | `Full` |
+| Cache complete, import stale or missing | **Import** | `Full` |
+| Item ready | **Manage** (dropdown) | n/a |
+
+All per-item actions (Download, Update + Import, Import, Manage submenu) operate on that single repository only via `StartForRepository(repository, revision, mode)`.
+Only **Import All** in the window header triggers a global sync across all dependencies.
+
+`RawCacheFilesMissing` renders as `MessageType.Info` (not warning) in the Diagnostics tab because it is a normal expected state when file selection grows after an initial download — not a corruption.
+
 - `Remove From Project` deletes owner binding metadata for this Unity project and garbage-collects shared runtime assets only when no bindings still reference them.
 - `Remove From Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
 
 That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
+
+## Repo Metadata File Filtering
+
+`.gitattributes`, `.gitignore`, `README.md`, and localised `README_*.md` variants are **excluded** everywhere files are presented or selectable. They have no runtime value in Unity and would pollute the Files tab, Storage tab, size calculations, import pipeline, and file-selection picker.
+
+The predicate is `ModelDependencyDefinition.IsRepoMetadataFile(string repoPath)` (Runtime assembly), shared by all call sites.
+
+**All filter call sites — add new ones here when adding new file-facing surfaces:**
+
+| Location | What it gates |
+|---|---|
+| `ModelHubService.GetRepositoryInventory` (raw metadata path) | Strips from `RepositoryFileMetadata` list fed into selected-path expansion, file-count fields, and size estimates |
+| `ModelHubService.GetRepositoryInventory` (import metadata path) | Same, for imported metadata source |
+| `ModelHubService.GetRepositoryInventory` (persisted estimate path) | Same, for pre-download remote estimate source |
+| `ModelHubService.BuildFileItems` path union | Strips from Files tab and Storage treemap rows |
+| `ManifestFileSelectionPopup.ShouldIncludeFile` | Strips from manifest inspector file-picker (All / ONNX / Selected filter modes) |
+
+Raw cache on disk is **not** affected — the shared cache stays a faithful mirror of the Hub repository. The filter is presentation-only.
 
 ## Aggregation Model
 
@@ -161,6 +195,8 @@ If the UI keeps needing direct lifecycle copy, a better future split would be:
 - `UpdateNeeded`
 - `Ready`
 - `Failed`
+
+`RawCacheFilesMissing` is the current concrete code that approximates `UpdateNeeded` — the button and diagnostic severity already reflect this intent even before a formal status split.
 
 That would let prompts and badges choose wording directly from status instead of inferring `download` versus `import` from raw-cache fields.
 
@@ -292,9 +328,13 @@ Rules:
 
 - keep sandbox code in companion project only, not package assemblies
 - prefer unique `sandbox/...` repo ids so fake artifacts do not collide with real generated content
+- generated sandbox manifest assets under `Assets/HF Hub/Scenario Sandbox/Generated/` are treated as maintainer-only test inputs by status code and bypass `InvalidRepository` filtering even when repo ids do not exist remotely
+- sandbox still seeds `RepositoryValidationCacheService` with `exists = true` during scenario apply so other editor surfaces read consistent validation state, but manifest-path bypass is authoritative for Model Hub visibility
 - sandbox writes one generated project manifest asset per scenario entry so repeated repo ids simulate multiple manifests depending on the same repo
 - repeated repo ids intentionally still share one project import/runtime slot because real HF Hub imports are repo-scoped by repository
 - prefer explicit revision-conflict scenarios when visually testing repeated repo ids at different requested revisions
+- sandbox can now model both whole-repo and explicit selected-file dependencies; for selected-file scenarios, fake manifest `files`, raw cache `Files`, and import metadata hashes must agree with the selected ONNX subset while raw/shared metadata still carries full repository inventory
+- never serialize empty `files: []` for whole-repo cases; omit `files` entirely. Empty `files` is invalid by schema and produces `must select at least one file when 'files' is present`.
 - use sandbox for visual verification of obscure Model Hub states such as `import needed`, `update needed`, `partial conversion`, and invalid metadata
 - use repeated same-repo entries to test both multi-manifest shared dependencies and blocked revision-conflict errors before reaching for fake embedded packages
 

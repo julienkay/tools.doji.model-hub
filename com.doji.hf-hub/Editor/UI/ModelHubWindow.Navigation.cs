@@ -115,11 +115,6 @@ namespace Doji.AI.ModelHub.Editor
                 tabs.Add(DetailTab.Diagnostics);
             }
 
-            if (_report != null && _report.DiscoveryIssues.Count > 0)
-            {
-                tabs.Add(DetailTab.DiscoveryIssues);
-            }
-
             return tabs.ToArray();
         }
 
@@ -141,7 +136,6 @@ namespace Doji.AI.ModelHub.Editor
                 DetailTab.Dependents => Content.DependentsSection,
                 DetailTab.Files => Content.FilesSection,
                 DetailTab.Diagnostics => Content.DiagnosticsSection,
-                DetailTab.DiscoveryIssues => Content.DiscoveryIssuesSection,
                 _ => tab.ToString()
             };
         }

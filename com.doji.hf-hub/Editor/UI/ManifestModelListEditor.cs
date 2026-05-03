@@ -69,14 +69,16 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelValidationState
     {
-        public ManifestModelValidationState(string modelId, ManifestModelValidationStatus status, string message)
+        public ManifestModelValidationState(string modelId, string revision, ManifestModelValidationStatus status, string message)
         {
             ModelId = modelId;
+            Revision = ManifestRevision.NormalizeForResolution(revision);
             Status = status;
             Message = message;
         }
 
         public string ModelId { get; }
+        public string Revision { get; }
         public ManifestModelValidationStatus Status { get; }
         public string Message { get; }
     }
@@ -89,7 +91,7 @@ namespace Doji.AI.ModelHub.Editor
         private const string RevisionPlaceholder = "main";
         private ManifestModelEntry[] _models;
         private readonly bool _isEditable;
-        private readonly Func<string, ManifestModelValidationState> _getValidationState;
+        private readonly Func<string, string, ManifestModelValidationState> _getValidationState;
         private readonly Action _onChanged;
         private readonly Action _requestRepaint;
         private ReorderableList _list;
@@ -99,7 +101,7 @@ namespace Doji.AI.ModelHub.Editor
             ManifestModelEntry[] models,
             bool isEditable,
             Action onChanged,
-            Func<string, ManifestModelValidationState> getValidationState = null,
+            Func<string, string, ManifestModelValidationState> getValidationState = null,
             Action requestRepaint = null)
         {
             _models = models ?? Array.Empty<ManifestModelEntry>();
@@ -218,9 +220,11 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 DrawRevisionPlaceholder(revisionRect, revisionControlName, entry.Revision);
-                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(entry.ModelId)))
+                var hasValidationProvider = _getValidationState != null;
+                var validationState = _getValidationState?.Invoke(entry.ModelId, entry.Revision);
+                using (new EditorGUI.DisabledScope(!CanOpenFileSelection(entry, validationState, hasValidationProvider)))
                 {
-                    if (GUI.Button(filesRect, entry.FileSelectionSummary))
+                    if (GUI.Button(filesRect, BuildFileSelectionContent(entry, validationState)))
                     {
                         PopupWindow.Show(
                             filesRect,
@@ -249,6 +253,28 @@ namespace Doji.AI.ModelHub.Editor
             DrawValidationIcon(iconRect, entry);
         }
 
+        internal static bool CanOpenFileSelection(
+            ManifestModelEntry entry,
+            ManifestModelValidationState validationState,
+            bool hasValidationProvider)
+        {
+            if (string.IsNullOrWhiteSpace(entry?.ModelId))
+            {
+                return false;
+            }
+
+            return !hasValidationProvider ||
+                validationState?.Status == ManifestModelValidationStatus.Valid;
+        }
+
+        private static GUIContent BuildFileSelectionContent(ManifestModelEntry entry, ManifestModelValidationState validationState)
+        {
+            var tooltip = validationState?.Status == ManifestModelValidationStatus.Invalid
+                ? validationState.Message ?? "Repository revision was not found on Hugging Face."
+                : null;
+            return new GUIContent(entry.FileSelectionSummary, tooltip);
+        }
+
         private void DrawValidationIcon(Rect rect, ManifestModelEntry entry)
         {
             if (_getValidationState == null)
@@ -256,7 +282,7 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var validationState = _getValidationState(entry.ModelId);
+            var validationState = _getValidationState(entry.ModelId, entry.Revision);
             if (validationState == null)
             {
                 return;
@@ -266,8 +292,8 @@ namespace Doji.AI.ModelHub.Editor
             {
                 ManifestModelValidationStatus.Unknown => "Repository availability has not been checked yet. Apply or revert manifest changes to validate it.",
                 ManifestModelValidationStatus.Checking => "Checking Hugging Face repository availability.",
-                ManifestModelValidationStatus.Valid => "Repository exists on Hugging Face.",
-                ManifestModelValidationStatus.Invalid => validationState.Message ?? "Repository was not found on Hugging Face.",
+                ManifestModelValidationStatus.Valid => $"Repository revision exists on Hugging Face ({validationState.Revision}).",
+                ManifestModelValidationStatus.Invalid => validationState.Message ?? "Repository revision was not found on Hugging Face.",
                 _ => null
             };
 
@@ -341,12 +367,25 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelValidationController
     {
+        internal readonly struct ValidationTarget
+        {
+            public ValidationTarget(string modelId, string revision)
+            {
+                ModelId = modelId?.Trim();
+                Revision = ManifestRevision.NormalizeForResolution(revision);
+            }
+
+            public string ModelId { get; }
+            public string Revision { get; }
+        }
+
         private readonly bool _writePersistentCache;
         private readonly Func<bool> _canValidate;
         private readonly Action _requestRepaint;
         private ManifestModelValidationState[] _states = Array.Empty<ManifestModelValidationState>();
         private int _validationVersion;
         private int _seenValidationCacheRevision = -1;
+        private string _seenValidationTargetsKey = string.Empty;
 
         public ManifestModelValidationController(bool writePersistentCache, Func<bool> canValidate, Action requestRepaint)
         {
@@ -355,36 +394,42 @@ namespace Doji.AI.ModelHub.Editor
             _requestRepaint = requestRepaint;
         }
 
-        public void RefreshFromCache(IEnumerable<string> modelIds)
+        public void RefreshFromCache(IEnumerable<ValidationTarget> targets)
         {
-            var distinctModelIds = NormalizeModelIds(modelIds);
-            if (distinctModelIds.Length == 0)
+            var distinctTargets = NormalizeTargets(targets);
+            if (distinctTargets.Length == 0)
             {
                 _states = Array.Empty<ManifestModelValidationState>();
                 _seenValidationCacheRevision = RepositoryValidationCacheService.CacheRevision;
+                _seenValidationTargetsKey = string.Empty;
                 return;
             }
 
-            _states = distinctModelIds
-                .Select(modelId =>
+            _seenValidationTargetsKey = BuildTargetsKey(distinctTargets);
+            _states = distinctTargets
+                .Select(target =>
                 {
-                    if (!RepositoryValidationCacheService.TryGetCachedRepositoryExists(modelId, out var exists))
+                    if (!RepositoryValidationCacheService.TryGetCachedRepositoryRevisionExists(target.ModelId, target.Revision, out var exists))
                     {
-                        return new ManifestModelValidationState(modelId, ManifestModelValidationStatus.Unknown, null);
+                        return new ManifestModelValidationState(target.ModelId, target.Revision, ManifestModelValidationStatus.Unknown, null);
                     }
 
                     return new ManifestModelValidationState(
-                        modelId,
+                        target.ModelId,
+                        target.Revision,
                         exists ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
-                        exists ? null : "Repository was not found on Hugging Face.");
+                        exists ? null : $"Revision `{target.Revision}` was not found on Hugging Face.");
                 })
                 .ToArray();
             _seenValidationCacheRevision = RepositoryValidationCacheService.CacheRevision;
         }
 
-        public void RefreshFromCacheIfNeeded(IEnumerable<string> modelIds)
+        public void RefreshFromCacheIfNeeded(IEnumerable<ValidationTarget> targets)
         {
-            if (_seenValidationCacheRevision == RepositoryValidationCacheService.CacheRevision)
+            var distinctTargets = NormalizeTargets(targets);
+            var targetsKey = BuildTargetsKey(distinctTargets);
+            if (_seenValidationCacheRevision == RepositoryValidationCacheService.CacheRevision &&
+                string.Equals(_seenValidationTargetsKey, targetsKey, StringComparison.Ordinal))
             {
                 return;
             }
@@ -394,59 +439,60 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            RefreshFromCache(modelIds);
+            RefreshFromCache(distinctTargets);
         }
 
         public void QueueUnknownValidationIfNeeded()
         {
-            var modelIds = _states
+            var targets = _states
                 .Where(state => state.Status == ManifestModelValidationStatus.Unknown)
-                .Select(state => state.ModelId)
-                .Where(modelId => RepositoryValidationCacheService.TryMarkSessionValidationRequested(modelId))
+                .Select(state => new ValidationTarget(state.ModelId, state.Revision))
+                .Where(target => RepositoryValidationCacheService.TryMarkSessionValidationRequested(BuildTargetKey(target.ModelId, target.Revision)))
                 .ToArray();
-            if (modelIds.Length == 0)
+            if (targets.Length == 0)
             {
                 return;
             }
 
-            QueueValidation(modelIds);
+            QueueValidation(targets);
         }
 
-        public void QueueValidation(IEnumerable<string> modelIds)
+        public void QueueValidation(IEnumerable<ValidationTarget> targets)
         {
             if (!_canValidate())
             {
                 return;
             }
 
-            var distinctModelIds = NormalizeModelIds(modelIds);
+            var distinctTargets = NormalizeTargets(targets);
             var version = ++_validationVersion;
-            if (distinctModelIds.Length == 0)
+            if (distinctTargets.Length == 0)
             {
                 _states = Array.Empty<ManifestModelValidationState>();
                 _requestRepaint?.Invoke();
                 return;
             }
 
-            _states = distinctModelIds
-                .Select(modelId => new ManifestModelValidationState(modelId, ManifestModelValidationStatus.Checking, null))
+            _states = distinctTargets
+                .Select(target => new ManifestModelValidationState(target.ModelId, target.Revision, ManifestModelValidationStatus.Checking, null))
                 .ToArray();
             _requestRepaint?.Invoke();
-            _ = ValidateDependenciesAsync(distinctModelIds, version);
+            _ = ValidateDependenciesAsync(distinctTargets, version);
         }
 
-        public ManifestModelValidationState GetState(string modelId)
+        public ManifestModelValidationState GetState(string modelId, string revision)
         {
             return _states.FirstOrDefault(state =>
-                string.Equals(state.ModelId, modelId, StringComparison.Ordinal));
+                string.Equals(state.ModelId, modelId, StringComparison.Ordinal) &&
+                string.Equals(state.Revision, ManifestRevision.NormalizeForResolution(revision), StringComparison.Ordinal));
         }
 
-        private async Task ValidateDependenciesAsync(string[] modelIds, int version)
+        private async Task ValidateDependenciesAsync(ValidationTarget[] targets, int version)
         {
-            var results = new ManifestModelValidationState[modelIds.Length];
-            for (var i = 0; i < modelIds.Length; i++)
+            var results = new ManifestModelValidationState[targets.Length];
+            for (var i = 0; i < targets.Length; i++)
             {
-                results[i] = await ValidateDependencyAsync(modelIds[i], _writePersistentCache);
+                results[i] = await ValidateDependencyRevisionAsync(targets[i].ModelId, targets[i].Revision, _writePersistentCache);
             }
 
             EditorApplication.delayCall += () =>
@@ -457,7 +503,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 _states = results ?? Array.Empty<ManifestModelValidationState>();
-                RefreshFromCache(modelIds);
+                RefreshFromCache(targets);
                 ReplaceKnownStates(results);
                 _requestRepaint?.Invoke();
                 InternalEditorUtility.RepaintAllViews();
@@ -471,32 +517,44 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var replacementByModelId = results.ToDictionary(result => result.ModelId, StringComparer.Ordinal);
+            var replacementByModelId = results.ToDictionary(
+                result => BuildTargetKey(result.ModelId, result.Revision),
+                StringComparer.Ordinal);
             _states = _states
-                .Select(state => replacementByModelId.TryGetValue(state.ModelId, out var replacement) ? replacement : state)
+                .Select(state => replacementByModelId.TryGetValue(BuildTargetKey(state.ModelId, state.Revision), out var replacement) ? replacement : state)
                 .ToArray();
         }
 
-        private static string[] NormalizeModelIds(IEnumerable<string> modelIds)
+        private static ValidationTarget[] NormalizeTargets(IEnumerable<ValidationTarget> targets)
         {
-            return (modelIds ?? Array.Empty<string>())
-                .Where(modelId => !string.IsNullOrWhiteSpace(modelId))
-                .Select(modelId => modelId.Trim())
-                .Distinct(StringComparer.Ordinal)
+            return (targets ?? Array.Empty<ValidationTarget>())
+                .Where(target => !string.IsNullOrWhiteSpace(target.ModelId))
+                .GroupBy(target => BuildTargetKey(target.ModelId, target.Revision), StringComparer.Ordinal)
+                .Select(group => group.First())
                 .ToArray();
+        }
+
+        private static string BuildTargetsKey(IEnumerable<ValidationTarget> targets)
+        {
+            return string.Join(
+                "\n\n",
+                NormalizeTargets(targets)
+                    .Select(target => BuildTargetKey(target.ModelId, target.Revision))
+                    .OrderBy(target => target, StringComparer.Ordinal));
         }
 
         internal static async Task<ManifestModelValidationState> ValidateDependencyAsync(string modelId, bool writePersistentCache)
         {
             if (string.IsNullOrWhiteSpace(modelId))
             {
-                return new ManifestModelValidationState(modelId, ManifestModelValidationStatus.Unknown, null);
+                return new ManifestModelValidationState(modelId, "main", ManifestModelValidationStatus.Unknown, null);
             }
 
             if (RepositoryValidationCacheService.TryGetCachedRepositoryExists(modelId, out var cachedExists))
             {
                 return new ManifestModelValidationState(
                     modelId,
+                    "main",
                     cachedExists ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
                     cachedExists ? null : "Repository was not found on Hugging Face.");
             }
@@ -519,13 +577,65 @@ namespace Doji.AI.ModelHub.Editor
 
                 return new ManifestModelValidationState(
                     modelId,
+                    "main",
                     success ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
                     success ? null : "Repository was not found on Hugging Face.");
             }
             catch (Exception exception)
             {
-                return new ManifestModelValidationState(modelId, ManifestModelValidationStatus.Invalid, exception.Message);
+                return new ManifestModelValidationState(modelId, "main", ManifestModelValidationStatus.Invalid, exception.Message);
             }
+        }
+
+        internal static async Task<ManifestModelValidationState> ValidateDependencyRevisionAsync(string modelId, string revision, bool writePersistentCache)
+        {
+            var normalizedRevision = ManifestRevision.NormalizeForResolution(revision);
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                return new ManifestModelValidationState(modelId, normalizedRevision, ManifestModelValidationStatus.Unknown, null);
+            }
+
+            if (RepositoryValidationCacheService.TryGetCachedRepositoryRevisionExists(modelId, normalizedRevision, out var cachedExists))
+            {
+                return new ManifestModelValidationState(
+                    modelId,
+                    normalizedRevision,
+                    cachedExists ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
+                    cachedExists ? null : $"Revision `{normalizedRevision}` was not found on Hugging Face.");
+            }
+
+            try
+            {
+                var escapedRevision = UnityWebRequest.EscapeURL(normalizedRevision).Replace("+", "%20", StringComparison.Ordinal);
+                var success = await RepositoryValidationCacheService.GetOrStartRepositoryValidationAsync(
+                    BuildTargetKey(modelId, normalizedRevision),
+                    async () =>
+                    {
+                        using var request = UnityWebRequest.Get($"https://huggingface.co/api/models/{modelId.Trim()}/revision/{escapedRevision}?expand[]=sha");
+                        request.timeout = 10;
+                        await SendRequestAsync(request, CancellationToken.None);
+                        return request.responseCode is >= 200 and < 400;
+                    });
+                if (writePersistentCache)
+                {
+                    RepositoryValidationCacheService.WriteCachedRepositoryRevisionExists(modelId, normalizedRevision, success);
+                }
+
+                return new ManifestModelValidationState(
+                    modelId,
+                    normalizedRevision,
+                    success ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
+                    success ? null : $"Revision `{normalizedRevision}` was not found on Hugging Face.");
+            }
+            catch (Exception exception)
+            {
+                return new ManifestModelValidationState(modelId, normalizedRevision, ManifestModelValidationStatus.Invalid, exception.Message);
+            }
+        }
+
+        private static string BuildTargetKey(string modelId, string revision)
+        {
+            return $"{modelId?.Trim()}\n{ManifestRevision.NormalizeForResolution(revision)}";
         }
 
         private static Task SendRequestAsync(UnityWebRequest request, CancellationToken cancellationToken)
@@ -580,7 +690,6 @@ namespace Doji.AI.ModelHub.Editor
         private FileFilterMode _filterMode;
         private RepositoryFileMetadata[] _repositoryFiles = Array.Empty<RepositoryFileMetadata>();
         private string[] _missingSelectedFiles = Array.Empty<string>();
-        private bool _useExplicitSelection;
         private bool _loadStarted;
         private bool _isLoading;
         private string _loadErrorMessage;
@@ -599,7 +708,6 @@ namespace Doji.AI.ModelHub.Editor
             _selectedFiles = new HashSet<string>(
                 ModelDependencyDefinition.NormalizeSelectedFiles(selectedFiles),
                 StringComparer.Ordinal);
-            _useExplicitSelection = _selectedFiles.Count > 0;
         }
 
         public override Vector2 GetWindowSize()
@@ -612,9 +720,6 @@ namespace Doji.AI.ModelHub.Editor
             EnsureInventoryLoadStarted();
 
             EditorGUILayout.LabelField($"{_repository}@{_revision}", EditorStyles.boldLabel);
-
-            var scopeIndex = GUILayout.Toolbar(_useExplicitSelection ? 1 : 0, new[] { "Whole Repo", "Selected Files" });
-            _useExplicitSelection = scopeIndex == 1;
             EditorGUILayout.Space(4f);
 
             if (_isLoading)
@@ -635,15 +740,12 @@ namespace Doji.AI.ModelHub.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.FlexibleSpace();
-                using (new EditorGUI.DisabledScope(_useExplicitSelection && _selectedFiles.Count == 0))
+                if (GUILayout.Button("Apply", GUILayout.Width(96f)))
                 {
-                    if (GUILayout.Button("Apply", GUILayout.Width(96f)))
-                    {
-                        _onApply(_useExplicitSelection
-                            ? _selectedFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray()
-                            : null);
-                        editorWindow?.Close();
-                    }
+                    _onApply(_selectedFiles.Count > 0
+                        ? _selectedFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray()
+                        : null);
+                    editorWindow?.Close();
                 }
             }
         }
@@ -716,10 +818,11 @@ namespace Doji.AI.ModelHub.Editor
                     MessageType.Warning);
             }
 
-            if (_useExplicitSelection)
-            {
-                EditorGUILayout.LabelField("Selection", $"{_selectedFiles.Count} files");
-            }
+            EditorGUILayout.LabelField(
+                "Selection",
+                _selectedFiles.Count > 0
+                    ? $"{_selectedFiles.Count} files"
+                    : "All files (whole repository)");
         }
 
         private void DrawInventoryList()
@@ -738,25 +841,18 @@ namespace Doji.AI.ModelHub.Editor
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (_useExplicitSelection)
+                    var isSelected = _selectedFiles.Contains(file.RepoPath);
+                    var nextSelected = EditorGUILayout.Toggle(isSelected, GUILayout.Width(18f));
+                    if (nextSelected != isSelected)
                     {
-                        var isSelected = _selectedFiles.Contains(file.RepoPath);
-                        var nextSelected = EditorGUILayout.Toggle(isSelected, GUILayout.Width(18f));
-                        if (nextSelected != isSelected)
+                        if (nextSelected)
                         {
-                            if (nextSelected)
-                            {
-                                _selectedFiles.Add(file.RepoPath);
-                            }
-                            else
-                            {
-                                _selectedFiles.Remove(file.RepoPath);
-                            }
+                            _selectedFiles.Add(file.RepoPath);
                         }
-                    }
-                    else
-                    {
-                        GUILayout.Space(22f);
+                        else
+                        {
+                            _selectedFiles.Remove(file.RepoPath);
+                        }
                     }
 
                     EditorGUILayout.LabelField(file.RepoPath);
@@ -770,6 +866,11 @@ namespace Doji.AI.ModelHub.Editor
         private bool ShouldIncludeFile(RepositoryFileMetadata file)
         {
             if (file == null || string.IsNullOrWhiteSpace(file.RepoPath))
+            {
+                return false;
+            }
+
+            if (ModelDependencyDefinition.IsRepoMetadataFile(file.RepoPath))
             {
                 return false;
             }

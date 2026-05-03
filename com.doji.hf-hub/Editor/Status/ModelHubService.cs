@@ -54,8 +54,8 @@ namespace Doji.AI.ModelHub.Editor
             var diagnostics = dependents
                 .Where(item => item.NeedsAttention && !string.IsNullOrWhiteSpace(GetUserFacingDependencyMessage(item)))
                 .Select(item => new ModelHubDiagnostic(
-                    GetDependencyDiagnosticSeverity(item.State),
-                    $"{item.Dependency.PackageDisplayName} / {item.Dependency.ModelId}: {GetUserFacingDependencyMessage(item)}"))
+                    GetDependencyDiagnosticSeverity(item.State, item.ReasonCode),
+                    GetUserFacingDependencyMessage(item)))
                 .Concat(
                     dependents
                         .SelectMany(item => item.ImportedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>())
@@ -140,6 +140,7 @@ namespace Doji.AI.ModelHub.Editor
             return inventoryByRepoPath.Keys
                 .Concat(rawFilesByRepoPath.Keys)
                 .Concat(runtimeFilesByRepoPath.Keys)
+                .Where(path => !ModelDependencyDefinition.IsRepoMetadataFile(path))
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .Select(repoPath =>
@@ -169,9 +170,14 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
         }
 
-        private static string GetDependencyDiagnosticSeverity(DependencyState state)
+        private static string GetDependencyDiagnosticSeverity(DependencyState state, DependencyReasonCode reasonCode)
         {
-            return state == DependencyState.Failed ? "error" : "warning";
+            if (state == DependencyState.Failed)
+            {
+                return "error";
+            }
+
+            return reasonCode == DependencyReasonCode.RawCacheFilesMissing ? "info" : "warning";
         }
 
         private static string GetUserFacingDependencyMessage(DependencyStatus status)
@@ -190,7 +196,7 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
                 DependencyReasonCode.RawSnapshotRootMissing => "Cached source files are missing. Download this model again before importing.",
                 DependencyReasonCode.RawCacheMetadataInvalid => "Cached source metadata is invalid. Download this model again.",
-                DependencyReasonCode.RawCacheFilesMissing => "Cached source files are missing. Download this model again.",
+                DependencyReasonCode.RawCacheFilesMissing => "Cached source files are missing. Update the model cache.",
                 DependencyReasonCode.ImportBindingInvalid => "Project import binding metadata is invalid. Re-import this model.",
                 DependencyReasonCode.SharedImportMetadataInvalid => "Generated runtime metadata is invalid. Re-import this model.",
                 DependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
@@ -255,6 +261,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             var repositoryFiles = dependents
                 .SelectMany(item => item.RawMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Where(file => !ModelDependencyDefinition.IsRepoMetadataFile(file.RepoPath))
                 .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
                 .Select(group => group.First())
                 .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
@@ -266,6 +273,7 @@ namespace Doji.AI.ModelHub.Editor
 
             repositoryFiles = dependents
                 .SelectMany(item => item.ImportedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Where(file => !ModelDependencyDefinition.IsRepoMetadataFile(file.RepoPath))
                 .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
                 .Select(group => group.First())
                 .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
@@ -275,9 +283,14 @@ namespace Doji.AI.ModelHub.Editor
                 return repositoryFiles;
             }
 
-            return _remoteSnapshotSizeEstimateService.TryGetRepositoryInventory(repository, requestedRevision, out var persistedInventory)
-                ? persistedInventory
-                : Array.Empty<RepositoryFileMetadata>();
+            if (_remoteSnapshotSizeEstimateService.TryGetRepositoryInventory(repository, requestedRevision, out var persistedInventory))
+            {
+                return persistedInventory
+                    .Where(file => !ModelDependencyDefinition.IsRepoMetadataFile(file.RepoPath))
+                    .ToArray();
+            }
+
+            return Array.Empty<RepositoryFileMetadata>();
         }
 
         private static HashSet<string> BuildSelectedRepoPathSet(

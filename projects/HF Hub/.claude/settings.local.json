@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat ~/Library/Logs/JetBrains/Rider2025.3/threadDumps-freeze-20260416-143642-RD-253.30387.148/*.txt)"
+      "Bash(cat ~/Library/Logs/JetBrains/Rider2025.3/threadDumps-freeze-20260416-143642-RD-253.30387.148/*.txt)",
+      "Bash(gh repo *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(claude plugin *)",
+      "Bash(sudo ln *)"
     ]
   }
 }

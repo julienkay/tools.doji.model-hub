@@ -8,7 +8,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class EditorOperationsTests
     {
         /// <summary>
-        /// Verifies status console output hides stable project owner ids behind the Project label.
+        /// Verifies status console output hides stable project owner ids behind a human-readable label.
         /// </summary>
         [Test]
         public void BuildStatusConsoleReport_UsesProjectLabelForProjectManifestOwners()
@@ -27,7 +27,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var consoleReport = EditorOperations.BuildStatusConsoleReport(report);
 
             Assert.That(consoleReport, Does.Contain("- Project"));
-            Assert.That(consoleReport, Does.Contain("- Project: Issue"));
+            Assert.That(consoleReport, Does.Contain("- Project Manifest Asset: Issue"));
             Assert.That(consoleReport, Does.Not.Contain(projectOwnerId));
         }
 
@@ -52,7 +52,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var consoleReport = EditorOperations.BuildSyncConsoleReport(report);
 
             Assert.That(consoleReport, Does.Contain("- FAIL Project/doji/test-model"));
-            Assert.That(consoleReport, Does.Contain("- Project: Issue"));
+            Assert.That(consoleReport, Does.Contain("- Project Manifest Asset: Issue"));
             Assert.That(consoleReport, Does.Not.Contain(projectOwnerId));
         }
 

@@ -32,7 +32,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox(
-                "Writes fake local HF Hub cache, import metadata, and runtime files for visual Model Hub review. The sandbox now writes one generated project manifest per scenario entry, so repeated repo ids simulate multiple manifests that depend on the same repo. Repeated repos still share project import/runtime slots because real HF Hub imports are repo-scoped.",
+                "Writes fake local HF Hub cache, import metadata, and runtime files for visual Model Hub review. Entries can now fake whole-repo or explicit selected-file manifests. The sandbox writes one generated project manifest per scenario entry, so repeated repo ids simulate multiple manifests that depend on the same repo. Repeated repos still share project import/runtime slots because real HF Hub imports are repo-scoped.",
                 MessageType.Info);
             EditorGUILayout.LabelField("Generated Output Root", VisualScenarioService.GetGeneratedOutputRootAssetPath(scenario), EditorStyles.wordWrappedMiniLabel);
 

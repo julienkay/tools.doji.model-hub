@@ -244,7 +244,7 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(model => new ManifestModelDraft(
                     model?.ModelId,
                     string.IsNullOrWhiteSpace(model?.Revision) ? "main" : model.Revision,
-                    model?.Files))
+                    model?.HasExplicitFileSelection == true ? model.Files : null))
                 .ToArray();
             if (!ManifestFactory.TryCreateManifest(version, drafts, out var manifest, out errorMessage))
             {

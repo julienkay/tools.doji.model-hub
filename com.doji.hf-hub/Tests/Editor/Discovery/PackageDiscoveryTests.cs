@@ -249,7 +249,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 dependency.PackageId,
                 Is.EqualTo(ProjectManifestDiscovery.GetOwnerId(null, snapshot.AssetPath, snapshot.ManifestPath)));
             Assert.That(ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId), Is.True);
-            Assert.That(dependency.PackageDisplayName, Is.EqualTo("Project"));
+            Assert.That(dependency.PackageDisplayName, Is.EqualTo("HF Hub Project Manifest"));
             Assert.That(dependency.PackageVersion, Is.EqualTo("project"));
             Assert.That(dependency.Repository, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
         }
@@ -338,7 +338,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies ProjectSettings manifest JSON is discovered alongside legacy project manifest assets.
+        /// Verifies ProjectSettings manifest JSON is discovered alongside ScriptableObject project manifest assets.
         /// </summary>
         [Test]
         public void DiscoverProjectSettingsManifest_ReturnsNormalizedDependencies()
@@ -361,7 +361,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.Issues, Is.Empty);
             Assert.That(report.Dependencies.Count, Is.EqualTo(1));
             Assert.That(report.Dependencies[0].PackageId, Is.EqualTo(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId));
-            Assert.That(report.Dependencies[0].PackageDisplayName, Is.EqualTo("Project"));
+            Assert.That(report.Dependencies[0].PackageDisplayName, Is.EqualTo("Project Settings"));
             Assert.That(report.Dependencies[0].ManifestPath, Is.EqualTo(Path.Combine(projectRoot, "ProjectSettings", "Packages", "com.doji.hf-hub", Hub.ManifestFileName)));
             Assert.That(report.Dependencies[0].Repository, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
         }
@@ -638,6 +638,49 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
 
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Verifies IsProjectSettingsManifestOwnerId is true only for the canonical project-settings owner id.
+        /// </summary>
+        [Test]
+        public void IsProjectSettingsManifestOwnerId_ReturnsTrueOnlyForProjectSettingsId()
+        {
+            Assert.That(ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId), Is.True);
+            Assert.That(ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(ProjectManifestDiscovery.ProjectManifestAssetFallbackOwnerId), Is.False);
+            Assert.That(ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId("project-manifest-abc123"), Is.False);
+            Assert.That(ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId("com.some.package"), Is.False);
+            Assert.That(ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(null), Is.False);
+        }
+
+        /// <summary>
+        /// Verifies IsProjectManifestAssetOwnerId is true for the fallback id and the prefixed guid form, but not for the project-settings id.
+        /// </summary>
+        [Test]
+        public void IsProjectManifestAssetOwnerId_ReturnsTrueForAssetOwnerIds()
+        {
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestAssetOwnerId(ProjectManifestDiscovery.ProjectManifestAssetFallbackOwnerId), Is.True);
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestAssetOwnerId("project-manifest-abc123def456"), Is.True);
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestAssetOwnerId(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId), Is.False);
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestAssetOwnerId("com.some.package"), Is.False);
+            Assert.That(ProjectManifestDiscovery.IsProjectManifestAssetOwnerId(null), Is.False);
+        }
+
+        /// <summary>
+        /// Verifies GetOwnerDisplayName returns distinct labels for project-settings vs project-manifest-asset owners.
+        /// </summary>
+        [Test]
+        public void GetOwnerDisplayName_ReturnsDifferentLabelsForProjectSettingsAndManifestAsset()
+        {
+            var settingsLabel = ProjectManifestDiscovery.GetOwnerDisplayName(ProjectManifestDiscovery.ProjectSettingsManifestOwnerId);
+            var assetLabel = ProjectManifestDiscovery.GetOwnerDisplayName(ProjectManifestDiscovery.ProjectManifestAssetFallbackOwnerId);
+            var guidAssetLabel = ProjectManifestDiscovery.GetOwnerDisplayName("project-manifest-abc123");
+            var packageLabel = ProjectManifestDiscovery.GetOwnerDisplayName("com.some.package");
+
+            Assert.That(settingsLabel, Is.EqualTo("Project Settings"));
+            Assert.That(assetLabel, Is.Not.EqualTo(settingsLabel));
+            Assert.That(guidAssetLabel, Is.Not.EqualTo(settingsLabel));
+            Assert.That(packageLabel, Is.EqualTo("com.some.package"));
         }
     }
 }

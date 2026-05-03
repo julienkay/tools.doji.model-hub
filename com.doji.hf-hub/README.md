@@ -7,11 +7,11 @@ Shared Hub logic should live in `Runtime` whenever possible so same package can 
 Current runtime contract:
 
 - editor sync generates runtime-loadable `.sentis` payloads directly under repo-scoped snapshot paths in `Assets/StreamingAssets/hf-hub/`
-- editor sync downloads full declared repository snapshot into shared cache and converts every ONNX file to `.sentis` for runtime
+- editor sync downloads only files required by each dependency scope into shared cache and converts selected ONNX files to `.sentis` for runtime
 - generated runtime assets use human-readable `Assets/StreamingAssets/hf-hub/<owner>/<model>/...` paths
 - sync writes per-package runtime locator registries under `Assets/StreamingAssets/hf-hub/registries/`
 - sync stores editor-only shared import and owner binding metadata under `Library/Doji/HfHub/imports/`
-- projects can declare dependencies either with `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json` or with legacy `ProjectManifestAsset` assets, while packages stay on plain `hf-hub-manifest.json`
+- projects can declare dependencies either with `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json` or with `ProjectManifestAsset` ScriptableObject assets, while packages stay on plain `hf-hub-manifest.json`
 - editor conversion uses Unity Inference ONNX conversion directly, without temporary ONNX asset imports
 - ONNX conversion now hangs off shared `IOnnxModelConverter`; runtime placeholder exists for future custom runtime converter package
 - runtime code resolves models by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`
@@ -23,9 +23,9 @@ Current runtime contract:
 
 Manifest sources:
 
-- project manifest: `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, edited from `Project Settings > Doji > AI > AI Model Hub`
+- Project Settings manifest: `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, edited from `Project Settings > Doji > AI > AI Model Hub`
 - package manifest: `hf-hub-manifest.json` at local package root, edited from the custom manifest Inspector when package source is writable
-- legacy ScriptableObject manifest: create from `Assets > Create > Doji > AI > HF Hub Project Manifest` for non-package project-content distribution cases
+- ScriptableObject project manifest asset: create from `Assets > Create > Doji > AI > HF Hub Project Manifest` for project-owned content that should live as a Unity asset
 
 Companion project sample:
 

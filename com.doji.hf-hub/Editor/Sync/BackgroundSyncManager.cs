@@ -22,6 +22,13 @@ namespace Doji.AI.ModelHub.Editor
             "Syncing model dependencies",
             GetStatePath());
 
+        internal static readonly HashSet<DependencyReasonCode> CorruptionHealCodes = new()
+        {
+            DependencyReasonCode.RawCacheMetadataInvalid,
+            DependencyReasonCode.RawCacheMetadataMismatch,
+            DependencyReasonCode.RawCacheRevisionRefUnreadable,
+        };
+
         public static event Action SyncStateChanged;
 
         static BackgroundSyncManager()
@@ -102,14 +109,60 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Starts a DownloadOnly sync for any dependency currently in a cache-corruption state.
+        /// Safe to call redundantly; no-ops if sync is already running or no corruption is found.
+        /// </summary>
+        public static void StartHealCorruptionIfNeeded()
+        {
+            var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
+            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
+            var corruptKeys = statusReport.DependencyStatuses
+                .Where(s => CorruptionHealCodes.Contains(s.ReasonCode))
+                .Select(s => GetDependencyKey(s.Dependency))
+                .ToHashSet(StringComparer.Ordinal);
+            if (corruptKeys.Count == 0)
+            {
+                return;
+            }
+
+            StartOrResumeInternal(
+                dependency => corruptKeys.Contains(GetDependencyKey(dependency)),
+                SyncOperationMode.DownloadOnly,
+                allowResumePersistedState: false);
+        }
+
+        /// <summary>
         /// Re-enters pending sync work after domain reload if a persisted sync-state file exists.
+        /// Also auto-heals any cache-corruption states found at startup.
         /// </summary>
         private static void ResumeIfNeeded()
         {
             if (Runner.HasPersistedState())
             {
                 StartOrResume();
+                return;
             }
+
+            HealCorruptionAtStartup();
+        }
+
+        private static void HealCorruptionAtStartup()
+        {
+            var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
+            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
+            var corruptKeys = statusReport.DependencyStatuses
+                .Where(s => CorruptionHealCodes.Contains(s.ReasonCode))
+                .Select(s => GetDependencyKey(s.Dependency))
+                .ToHashSet(StringComparer.Ordinal);
+            if (corruptKeys.Count == 0)
+            {
+                return;
+            }
+
+            StartOrResumeInternal(
+                dependency => corruptKeys.Contains(GetDependencyKey(dependency)),
+                SyncOperationMode.DownloadOnly,
+                allowResumePersistedState: false);
         }
 
         /// <summary>
@@ -286,7 +339,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(
                 dependency.PackageId,
-                dependency.PackageId);
+                dependency.PackageDisplayName);
             return $"{ownerLabel}/{dependency.ModelId}";
         }
 

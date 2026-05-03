@@ -105,7 +105,11 @@ namespace Doji.AI.ModelHub.Editor
                         if (GUILayout.Button("Add", GUILayout.Width(90f)) || (CanSubmit && HandleSubmit()))
                         {
                             editorWindow.Close();
-                            _onAdd?.Invoke(_packages[_selectedPackageIndex], _owner.Trim(), _modelName.Trim(), _selectedFiles);
+                            _onAdd?.Invoke(
+                                _packages[_selectedPackageIndex],
+                                _owner.Trim(),
+                                _modelName.Trim(),
+                                _selectedFiles.Length > 0 ? _selectedFiles : null);
                         }
                     }
                 }

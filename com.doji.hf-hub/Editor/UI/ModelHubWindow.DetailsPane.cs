@@ -20,7 +20,15 @@ namespace Doji.AI.ModelHub.Editor
             GUILayout.BeginArea(rect);
             using (new EditorGUILayout.VerticalScope())
             {
-                if (items.Count == 0)
+                if (_selectedIssueIndex >= 0 &&
+                    _report?.DiscoveryIssues != null &&
+                    _selectedIssueIndex < _report.DiscoveryIssues.Count)
+                {
+                    _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition);
+                    DrawDiscoveryIssueDetails(_report.DiscoveryIssues[_selectedIssueIndex]);
+                    EditorGUILayout.EndScrollView();
+                }
+                else if (items.Count == 0)
                 {
                     _detailsScrollPosition = EditorGUILayout.BeginScrollView(_detailsScrollPosition);
                     EditorGUILayout.HelpBox(Content.EmptyStateMessage, MessageType.Info);
@@ -80,7 +88,8 @@ namespace Doji.AI.ModelHub.Editor
 
                 if (item.State == ModelHubItemState.Ready)
                 {
-                    var manageRect = GUILayoutUtility.GetRect(_manageContent, _manageButtonStyle, GUILayout.Width(ManageButtonWidth));
+                    var manageButtonWidth = _manageButtonStyle.CalcSize(_manageContent).x;
+                    var manageRect = GUILayoutUtility.GetRect(_manageContent, _manageButtonStyle, GUILayout.Width(manageButtonWidth));
                     if (GUI.Button(manageRect, _manageContent, _manageButtonStyle))
                     {
                         ShowManageMenu(item, manageRect);
@@ -93,9 +102,10 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var isSyncRunning = BackgroundSyncManager.IsRunning;
                     var actionContent = GetImportActionContent(item, isSyncRunning);
+                    var actionButtonWidth = GUI.skin.button.CalcSize(actionContent).x + 16f;
                     using (new EditorGUI.DisabledScope(isSyncRunning || item.HasRevisionConflict))
                     {
-                        if (GUILayout.Button(actionContent, GUILayout.Width(80f)))
+                        if (GUILayout.Button(actionContent, GUILayout.Width(actionButtonWidth)))
                         {
                             EditorOperations.StartBackgroundSync(item);
                             Refresh();
@@ -164,9 +174,6 @@ namespace Doji.AI.ModelHub.Editor
                             break;
                         case DetailTab.Diagnostics:
                             DrawDiagnosticsSection(item);
-                            break;
-                        case DetailTab.DiscoveryIssues:
-                            DrawDiscoveryIssuesSection();
                             break;
                     }
                 }
@@ -241,7 +248,7 @@ namespace Doji.AI.ModelHub.Editor
                     string.IsNullOrWhiteSpace(item.ResolvedCommitHash)
                         ? Content.UnresolvedCommitPlaceholder
                         : item.ResolvedCommitHash));
-            DrawOptionalValueRow(Content.ManifestOwnersLabel, item.ManifestOwnerCount.ToString());
+            DrawManifestOwnersRow(item);
             if (item.RepositoryFileCount > 0)
             {
                 DrawOptionalValueRow(Content.SelectedFilesLabel, $"{item.SelectedFileCount}/{item.RepositoryFileCount}");
@@ -1074,6 +1081,34 @@ namespace Doji.AI.ModelHub.Editor
             EditorGUILayout.LabelField(new GUIContent(label, labelTooltip), new GUIContent(value, valueTooltip));
         }
 
+        private void DrawManifestOwnersRow(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            var label = new GUIContent(Content.ManifestOwnersLabel, Content.ManifestOwnersTooltip);
+            var value = new GUIContent(item.ManifestOwnerCount.ToString(), BuildManifestOwnersTooltip(item));
+            EditorGUILayout.LabelField(label, value);
+        }
+
+        private static string BuildManifestOwnersTooltip(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                return null;
+            }
+
+            var targets = ProjectSettingsLinks.BuildManifestLocateTargets(item);
+            if (targets.Count == 0)
+            {
+                return Content.ManifestOwnersTooltip;
+            }
+
+            return $"{Content.ManifestOwnersTooltip}\n\n{string.Join("\n", targets.Select(target => $"- {target.Label}"))}";
+        }
+
         /// <summary>
         /// Lists manifest dependents that caused this repository row to exist in project.
         /// </summary>
@@ -1161,21 +1196,24 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Draws project-wide manifest discovery issues not tied to one selected repository.
+        /// Draws detail view for a single manifest discovery issue selected in the left pane.
         /// </summary>
-        private void DrawDiscoveryIssuesSection()
+        private void DrawDiscoveryIssueDetails(ManifestDiscoveryIssue issue)
         {
-            if (_report.DiscoveryIssues.Count == 0)
-            {
-                EditorGUILayout.HelpBox(Content.NoDiscoveryIssuesMessage, MessageType.None);
-                return;
-            }
+            var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId);
+            var headerRect = GUILayoutUtility.GetRect(0f, DetailsHeaderHeight, GUILayout.ExpandWidth(true));
+            var titleRect = new Rect(
+                headerRect.x + DetailsContentPadding,
+                headerRect.y + 2f,
+                headerRect.width - DetailsContentPadding,
+                headerRect.height - 4f);
+            GUI.Label(titleRect, ownerLabel, _detailsHeaderTitleStyle);
 
-            foreach (var issue in _report.DiscoveryIssues)
-            {
-                var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId);
-                EditorGUILayout.HelpBox($"{ownerLabel}: {issue.Message}", MessageType.Warning);
-            }
+            EditorGUILayout.Space(10f);
+            EditorGUILayout.HelpBox(issue.Message, MessageType.Warning);
+            EditorGUILayout.Space(4f);
+            DrawOptionalLinkRow(Content.ManifestLabel, issue.ManifestPath, ProjectSettingsLinks.RevealPath);
+            EditorGUILayout.Space();
         }
     }
 }

@@ -38,6 +38,12 @@ namespace Doji.AI.ModelHub.Sandbox
         public string RepoPath { get; set; } = "models/model.onnx";
 
         [field: SerializeField]
+        public string[] SelectedFiles { get; set; }
+
+        [field: SerializeField]
+        public string[] RepositoryFiles { get; set; }
+
+        [field: SerializeField]
         public VisualScenarioState State { get; set; } = VisualScenarioState.ImportNeeded;
 
         [field: SerializeField]

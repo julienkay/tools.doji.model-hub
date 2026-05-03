@@ -19,8 +19,7 @@ namespace Doji.AI.ModelHub.Editor
             Storage,
             Dependents,
             Files,
-            Diagnostics,
-            DiscoveryIssues
+            Diagnostics
         }
 
         private enum StorageTreemapMode
@@ -35,6 +34,7 @@ namespace Doji.AI.ModelHub.Editor
         private Vector2 _detailsScrollPosition;
         private string _searchText = string.Empty;
         private int _selectedIndex = -1;
+        private int _selectedIssueIndex = -1;
         private DetailTab _selectedDetailTab = DetailTab.Summary;
         private StorageTreemapMode _storageTreemapMode = StorageTreemapMode.SplitByStorage;
         private GUIContent _refreshIconContent;
@@ -101,7 +101,6 @@ namespace Doji.AI.ModelHub.Editor
         private const float DetailsContentPadding = 6f;
         private const float DetailsContentLeftPadding = 12f;
         private const float FilesBottomBarHeight = 36f;
-        private const float ManageButtonWidth = 72f;
         private const float HeaderAddButtonWidth = 36f;
         private const float HeaderButtonVerticalPadding = 2f;
         private const float HeaderMoreButtonWidth = 28f;

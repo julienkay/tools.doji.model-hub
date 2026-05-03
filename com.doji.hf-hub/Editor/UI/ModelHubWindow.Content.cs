@@ -22,6 +22,8 @@ namespace Doji.AI.ModelHub.Editor
             public const string ImportTooltip = "Resolve and import only this repository entry.";
             public const string DownloadLabel = "Download";
             public const string DownloadTooltip = "Download this repository into cache first, then import it into the project.";
+            public const string UpdateAndImportLabel = "Update + Import";
+            public const string UpdateAndImportTooltip = "Download newly selected files into cache, then re-import this repository.";
             public const string SyncInProgressTooltip = "A model sync is already running. Wait for it to finish before starting another import or download.";
             public const string ManageLabel = "Manage";
             public const string RemoveLabel = "Remove From Project";
@@ -35,7 +37,6 @@ namespace Doji.AI.ModelHub.Editor
             public const string CopyConflictSummaryTooltip = "Copy conflicting owners, revisions, and manifest paths to clipboard.";
             public const string OpenPackageManagerLabel = "Open Package Manager";
             public const string OpenPackageManagerTooltip = "Open Unity Package Manager for package-owned conflict resolution.";
-            public const string DiscoveryIssuesBannerFormat = "{0} manifest discovery issue(s) need maintainer attention.";
             public const string LastRefreshFormat = "Last refresh {0}";
             public const string NoRepositoriesMatchFilters = "No repositories match the current filters.";
             public const string EmptyStateMessage = "Declare or sync a manifest dependency to populate Model Hub.";
@@ -48,6 +49,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string RepositoryLabel = "Repository";
             public const string RequestedRevisionLabel = "Requested Revision";
             public const string ManifestOwnersLabel = "Manifest Owners";
+            public const string ManifestOwnersTooltip = "Manifest sources currently declaring this repository. Use Locate to open them.";
             public const string SelectedFilesLabel = "Selected Files";
             public const string RepositoryFilesLabel = "Repository Files";
             public const string GeneratedSentisFilesLabel = "Generated .sentis Files";
@@ -112,13 +114,10 @@ namespace Doji.AI.ModelHub.Editor
             public const string ApplyAndDownloadTooltip = "Save file import settings, then download and import this repository.";
             public const string ApplyAndReimportTooltip = "Save file import settings, then reimport this repository.";
             public const string NoRuntimeFilesMessage = "No repository files are registered for this repository yet.";
-            public const string UnselectedFileMessage = "This repo file is not selected by any current dependency owner.";
-            public const string SelectedNonOnnxFileMessage = "This selected source file is cached and tracked, but import settings apply only to ONNX files.";
             public const string UnsavedImportSettingsTitle = "Unapplied Import Settings";
             public const string UnsavedImportSettingsFormat = "Unapplied import settings for {0}.";
             public const string InvalidImportSettingsMessage = "Current import settings are invalid. Fix them or discard changes.";
             public const string NoDiagnosticsMessage = "No diagnostics for this repository.";
-            public const string NoDiscoveryIssuesMessage = "No discovery issues for this project.";
             public const string NoFilesTabTooltip = "Files appear here after this repository inventory is known.";
             public const string FilesTabTooltip = "Shows repository file inventory, dependency scope, raw cache, and generated runtime files for this repository.";
             public const string UnresolvedCommitPlaceholder = "<not resolved>";

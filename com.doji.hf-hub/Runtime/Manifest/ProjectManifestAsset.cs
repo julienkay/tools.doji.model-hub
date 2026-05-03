@@ -25,7 +25,7 @@ namespace Doji.AI.ModelHub
                 .Select(model => new ManifestModelDraft(
                     model?.Id,
                     model?.Revision,
-                    model?.Files))
+                    model?.Files?.Length > 0 ? model.Files : null))
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }

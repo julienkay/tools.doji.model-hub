@@ -16,7 +16,6 @@ namespace Doji.AI.ModelHub.Editor
             public const string SingleDependencyHeadline = "AI Model Required";
             public const string MultiDependencyHeadlineFormat = "{0} manifest dependencies need AI models.";
             public const string PackageLeadText = "Package";
-            public const string ProjectLeadText = "Project manifest";
             public const string RequiresText = "requires AI model";
             public const string SingleRepoBody = "AI Model Hub can download it into shared cache and import runtime files into this project.";
             public const string MultiRepoBody = "AI Model Hub can download them into shared cache and import runtime files into this project.";
@@ -569,7 +568,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
-                ? Content.ProjectLeadText
+                ? GetProjectManifestLeadText(dependent.PackageId)
                 : Content.PackageLeadText;
         }
 
@@ -617,14 +616,14 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
-                ? "The "
+                ? $"The {GetProjectManifestLinkText(dependent.PackageId)} "
                 : "Package ";
         }
 
         private void DrawSentenceLink(DependentPromptEntry dependent)
         {
             var ownerText = ProjectManifestDiscovery.IsProjectManifestOwnerId(dependent.PackageId)
-                ? "project manifest"
+                ? GetProjectManifestLinkText(dependent.PackageId)
                 : dependent.DisplayLabel;
 
             GUILayout.Label(
@@ -641,6 +640,20 @@ namespace Doji.AI.ModelHub.Editor
                 ProjectSettingsLinks.LocateManifest(dependent.ManifestPath);
                 Event.current.Use();
             }
+        }
+
+        private static string GetProjectManifestLeadText(string ownerId)
+        {
+            return ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(ownerId)
+                ? "Project Settings manifest"
+                : "Project manifest asset";
+        }
+
+        private static string GetProjectManifestLinkText(string ownerId)
+        {
+            return ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(ownerId)
+                ? "Project Settings manifest"
+                : "project manifest asset";
         }
 
         private void DrawHeadline()

@@ -102,6 +102,26 @@ namespace Doji.AI.ModelHub
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Returns true for git/Hub repo-hygiene files that have no runtime value in Unity and
+        /// should be excluded from the Model Hub UI, size calculations, and import.
+        /// The raw cache still contains these files so it remains a faithful mirror of the Hub.
+        /// </summary>
+        internal static bool IsRepoMetadataFile(string repoPath)
+        {
+            if (string.IsNullOrEmpty(repoPath))
+            {
+                return false;
+            }
+
+            var fileName = Path.GetFileName(repoPath);
+            return string.Equals(fileName, ".gitattributes", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, ".gitignore", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase)
+                || (fileName.StartsWith("README_", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(Path.GetExtension(fileName), ".md", StringComparison.OrdinalIgnoreCase));
+        }
+
         private static string ComputeTextHash(string text)
         {
             using var sha256 = System.Security.Cryptography.SHA256.Create();

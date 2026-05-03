@@ -51,7 +51,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                             "5a899f24b6fd4a1ba127ab1a1b267c7e",
                             "Assets/HF Hub/HF Hub Project Manifest.asset",
                             null),
-                        packageDisplayName: "Project",
+                        packageDisplayName: "HF Hub Project Manifest",
                         packageVersion: "project",
                         packageResolvedPath: "/tmp/project",
                         manifestPath: "/tmp/project/Assets/HF Hub/HF Hub Project Manifest.asset")
@@ -60,7 +60,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
-            Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("Project"));
+            Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("HF Hub Project Manifest"));
         }
 
         /// <summary>

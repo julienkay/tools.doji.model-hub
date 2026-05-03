@@ -3,11 +3,17 @@
     "models": [
         {
             "id": "onnx-community/tiny-clip-test-ONNX",
-            "revision": "test"
+            "revision": "",
+            "files": [
+                "config.json",
+                "merges.txt",
+                "onnx/model.onnx"
+            ]
         },
         {
             "id": "julienkay/sentis-midas",
-            "revision": ""
+            "revision": "",
+            "files": []
         }
     ]
 }

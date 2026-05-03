@@ -1,22 +1,22 @@
 # Current Work
 
 ## Focus
-Plan and next implementation slice for whole-repo vs selected-file HuggingFace dependencies, including matching Model Hub UX.
+Selected-file manifest UX is working again; next work is broader follow-up around remaining manifest/discovery validation.
 
 ## Next Tasks
-- [ ] Define additive manifest extension on current unreleased schema for one repo dependency with optional explicit repo file selection and whole-repo fallback.
-- [ ] Thread file selection through discovery, cache, import, and status without changing raw cache identity away from repo + resolved commit.
-- [ ] Design shared repo/file picker UX for Project Settings, manifest inspector, and Model Hub add flows.
-- [ ] Extend Model Hub details plan so Files/Storage/Summary communicate selected vs unselected repo files clearly.
+- [ ] Verify in Unity that existing ScriptableObject manifest assets (e.g. `Assets/HF Hub/Custom Dependencies.asset`) are still discovered and repos appear in Model Hub.
+- [ ] Review whether add-model popups should become revision-aware too, or stay repo-id-only until they expose revision input.
+- [ ] Decide whether invalid revision state should surface a stronger inline message beyond icon tooltip and disabled file-selection button.
 
 ## Blockers And Decisions Needed
-- Keep manifest `version: 1` for first file-selection slice because package is still unreleased.
-- Decide whether first slice supports explicit repo paths only or also glob/pattern authoring. Prefer explicit repo paths first.
-- Decide whether Model Hub Files tab should show full remote repo inventory or only selected/downloaded files. Prefer full inventory with unselected rows dimmed.
+- First slice remains exact explicit repo paths only. No glob support yet.
+- Dependencies with no selected `.onnx` file currently stay invalid for import and surface diagnostics instead of generating runtime output.
+- No CLI Unity test runner here. Further editor validation still needed for remaining manifest/discovery checks.
 
 ## Read Before Editing
-- [references/huggingface-hub-concepts.md](../references/huggingface-hub-concepts.md)
-- [com.doji.hf-hub/Runtime/Manifest/ManifestDiscovery.cs](../com.doji.hf-hub/Runtime/Manifest/ManifestDiscovery.cs)
-- [com.doji.hf-hub/Editor/Cache/HttpClient.cs](../com.doji.hf-hub/Editor/Cache/HttpClient.cs)
-- [com.doji.hf-hub/Editor/Cache/RawCacheService.cs](../com.doji.hf-hub/Editor/Cache/RawCacheService.cs)
-- [com.doji.hf-hub/Editor/Status/ModelHubService.cs](../com.doji.hf-hub/Editor/Status/ModelHubService.cs)
+- [com.doji.hf-hub/Editor/Cache/RepositoryValidationCacheService.cs](../com.doji.hf-hub/Editor/Cache/RepositoryValidationCacheService.cs)
+- [com.doji.hf-hub/Editor/UI/ManifestModelListEditor.cs](../com.doji.hf-hub/Editor/UI/ManifestModelListEditor.cs)
+- [com.doji.hf-hub/Editor/UI/ManifestDocumentEditor.cs](../com.doji.hf-hub/Editor/UI/ManifestDocumentEditor.cs)
+- [com.doji.hf-hub/Editor/UI/ModelIdPopupValidationController.cs](../com.doji.hf-hub/Editor/UI/ModelIdPopupValidationController.cs)
+- [com.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs](../com.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs)
+- [com.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs](../com.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs)

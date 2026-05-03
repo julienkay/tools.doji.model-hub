@@ -16,5 +16,7 @@ MonoBehaviour:
   <Models>k__BackingField:
   - <Id>k__BackingField: julienkay/tiny-stable-diffusion-pipe-onnx
     <Revision>k__BackingField: main
+    <Files>k__BackingField: []
   - <Id>k__BackingField: onnx-community/test-patchtst
     <Revision>k__BackingField: 
+    <Files>k__BackingField: []

@@ -192,7 +192,7 @@ namespace Doji.AI.ModelHub.Editor
                         revision = string.IsNullOrWhiteSpace(model.Revision)
                             ? null
                             : model.Revision,
-                        files = model.HasExplicitFileSelection ? model.Files.ToArray() : null
+                        files = (model.Files?.Count ?? 0) > 0 ? model.Files.ToArray() : null
                     })
                     .ToArray()
             };

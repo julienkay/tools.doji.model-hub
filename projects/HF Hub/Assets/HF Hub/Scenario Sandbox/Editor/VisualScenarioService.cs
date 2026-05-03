@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Collections.Generic;
 using Unity.InferenceEngine;
 using UnityEditor;
 using UnityEngine;
@@ -44,9 +45,19 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 },
                 new VisualScenarioEntry
                 {
-                    Repository = "sandbox/needs-import",
+                    Repository = "sandbox/single-file-selected",
                     Revision = "main",
-                    ResolvedCommitHash = "sandbox-import-001",
+                    ResolvedCommitHash = "sandbox-single-file-001",
+                    RepoPath = "models/model_small.onnx",
+                    SelectedFiles = new[]
+                    {
+                        "models/model_small.onnx"
+                    },
+                    RepositoryFiles = new[]
+                    {
+                        "models/model_large.onnx",
+                        "models/model_small.onnx"
+                    },
                     State = VisualScenarioState.ImportNeeded
                 },
                 new VisualScenarioEntry
@@ -138,6 +149,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             for (var index = 0; index < scenario.Entries.Length; index++)
             {
                 var entry = scenario.Entries[index];
+                RepositoryValidationCacheService.WriteCachedRepositoryExists(entry.Repository, true);
                 var manifestAsset = CreateOrUpdateManifestAsset(scenario, index, entry);
                 var manifestHash = ComputeManifestHash(BuildStableManifestJson(entry));
                 ApplyEntry(manifestHash, entry);
@@ -209,14 +221,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         public static string GetSharedImportMetadataProjectRelativePath(VisualScenarioEntry entry)
         {
-            return $"{GetSharedImportFolder(entry.Repository, entry.ResolvedCommitHash)}/{SharedMetadataFileName}";
+            return $"{GetSharedImportFolder(entry.Repository, entry.ResolvedCommitHash, ComputeRecipeSetHash(GetSelectedOnnxRepoPaths(entry)))}/{SharedMetadataFileName}";
         }
 
         public static string GetRuntimeSentisAssetPath(VisualScenarioEntry entry)
         {
-            var sanitizedRelativeRepoPath = SanitizeRelativePath(entry.RepoPath);
+            var sanitizedRelativeRepoPath = SanitizeRelativePath(GetPrimaryImportedRepoPath(entry));
             var sentisRelativePath = Path.ChangeExtension(sanitizedRelativeRepoPath, ".sentis")?.Replace('\\', '/')
-                ?? throw new InvalidOperationException($"Could not derive .sentis path from '{entry.RepoPath}'.");
+                ?? throw new InvalidOperationException($"Could not derive .sentis path from '{GetPrimaryImportedRepoPath(entry)}'.");
             return $"{GetRuntimeSnapshotFolderAssetPath(entry.Repository)}/{sentisRelativePath}";
         }
 
@@ -227,7 +239,9 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         private static void ApplyEntry(string manifestHash, VisualScenarioEntry entry)
         {
-            var rawFilePath = GetSnapshotFilePath(entry.Repository, entry.ResolvedCommitHash, entry.RepoPath);
+            var repositoryFiles = GetRepositoryFilePaths(entry);
+            var cachedRepoPaths = GetCachedRepoPaths(entry);
+            var primaryImportedRepoPath = GetPrimaryImportedRepoPath(entry);
             var snapshotRoot = GetSnapshotRoot(entry.Repository, entry.ResolvedCommitHash);
             var rawMetadataPath = GetSnapshotMetadataPath(entry.Repository, entry.ResolvedCommitHash);
             var revisionRefPath = GetRevisionRefPath(entry);
@@ -241,9 +255,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             if (entry.State != VisualScenarioState.DownloadNeeded &&
                 entry.State != VisualScenarioState.ImportedCacheRemoved)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(rawFilePath) ?? throw new InvalidOperationException("Missing raw file directory."));
                 Directory.CreateDirectory(Path.GetDirectoryName(revisionRefPath) ?? throw new InvalidOperationException("Missing revision ref directory."));
-                File.WriteAllText(rawFilePath, "fake onnx");
+                foreach (var cachedRepoPath in cachedRepoPaths)
+                {
+                    var rawFilePath = GetSnapshotFilePath(entry.Repository, entry.ResolvedCommitHash, cachedRepoPath);
+                    Directory.CreateDirectory(Path.GetDirectoryName(rawFilePath) ?? throw new InvalidOperationException("Missing raw file directory."));
+                    File.WriteAllText(rawFilePath, IsOnnxFile(cachedRepoPath) ? "fake onnx" : "fake file");
+                }
+
                 File.WriteAllText(revisionRefPath, entry.ResolvedCommitHash);
             }
 
@@ -259,15 +278,25 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         RequestedRevision = entry.Revision,
                         ResolvedCommitHash = entry.ResolvedCommitHash,
                         CachedSnapshotRoot = snapshotRoot,
-                        Files = new[]
-                        {
-                            new RawCacheFileDocument
+                        RepositoryFiles = repositoryFiles
+                            .Select(repoPath => new RepositoryFileDocument
                             {
-                                RepoPath = entry.RepoPath,
-                                CachedFilePath = rawFilePath,
-                                SizeInBytes = new FileInfo(rawFilePath).Length
-                            }
-                        },
+                                RepoPath = repoPath,
+                                SizeInBytes = GetFakeFileContents(repoPath).Length
+                            })
+                            .ToArray(),
+                        Files = cachedRepoPaths
+                            .Select(repoPath =>
+                            {
+                                var rawFilePath = GetSnapshotFilePath(entry.Repository, entry.ResolvedCommitHash, repoPath);
+                                return new RawCacheFileDocument
+                                {
+                                    RepoPath = repoPath,
+                                    CachedFilePath = rawFilePath,
+                                    SizeInBytes = new FileInfo(rawFilePath).Length
+                                };
+                            })
+                            .ToArray(),
                         DownloadedAtUtc = DateTime.UtcNow.ToString("O")
                     });
             }
@@ -286,6 +315,9 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
             if (ShouldWriteImportMetadata(entry.State))
             {
+                var selectedOnnxRepoPaths = GetSelectedOnnxRepoPaths(entry);
+                var recipeSetHash = ComputeRecipeSetHash(selectedOnnxRepoPaths);
+                var dependencySelectionHash = ComputeDependencySelectionHash(entry);
                 var importedManifestHash = entry.State == VisualScenarioState.UpdateNeeded
                     ? manifestHash + "-stale"
                     : manifestHash;
@@ -309,22 +341,36 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         RequestedRevisionHint = entry.Revision,
                         RawSnapshotRootPath = snapshotRoot,
                         RawMetadataPath = rawMetadataPath,
-                        RawCacheSizeInBytes = entry.State == VisualScenarioState.ImportedCacheRemoved ? null : new FileInfo(rawFilePath).Length,
+                        RepositoryFiles = repositoryFiles
+                            .Select(repoPath => new RepositoryFileDocument
+                            {
+                                RepoPath = repoPath,
+                                SizeInBytes = GetFakeFileContents(repoPath).Length
+                            })
+                            .ToArray(),
+                        RawCacheSizeInBytes = entry.State == VisualScenarioState.ImportedCacheRemoved
+                            ? null
+                            : cachedRepoPaths
+                                .Select(repoPath => new FileInfo(GetSnapshotFilePath(entry.Repository, entry.ResolvedCommitHash, repoPath)).Length)
+                                .Sum(),
                         SentisVersion = GetSentisVersion(),
                         UnityVersion = Application.unityVersion,
+                        RecipeSetHash = recipeSetHash,
                         RuntimeSnapshotAssetPath = GetRuntimeSnapshotFolderAssetPath(entry.Repository),
                         Diagnostics = diagnostics,
                         RuntimeFiles = new[]
                         {
                             new ImportedRuntimeFileDocument
                             {
-                                RepoPath = entry.RepoPath,
+                                RepoPath = primaryImportedRepoPath,
                                 Kind = "sentis",
                                 AssetPath = runtimeAssetPath,
                                 RelativePath = ToStreamingAssetsRelativePath(runtimeAssetPath),
                                 SizeInBytes = ShouldWriteRuntimeFile(entry.State)
                                     ? new FileInfo(runtimeAbsolutePath).Length
-                                    : null
+                                    : null,
+                                RecipeHash = ComputeDefaultRecipeHash(),
+                                ConversionPipelineVersion = "unity-inference-editor-v1"
                             }
                         },
                         ImportedAtUtc = DateTime.UtcNow.ToString("O")
@@ -341,6 +387,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         RequestedRevision = entry.Revision,
                         ResolvedCommitHash = entry.ResolvedCommitHash,
                         SentisVersion = GetSentisVersion(),
+                        RecipeSetHash = recipeSetHash,
+                        DependencySelectionHash = dependencySelectionHash,
                         SharedImportMetadataPath = sharedMetadataProjectRelativePath,
                         RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
                         RuntimeRegistryRelativePath = $"hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
@@ -397,7 +445,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                     new ProjectManifestModelAssetEntry
                     {
                         Id = entry.Repository,
-                        Revision = entry.Revision
+                        Revision = entry.Revision,
+                        Files = GetOptionalSelectedFiles(entry)
                     }
                 });
             return manifestAsset;
@@ -432,9 +481,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                     throw new InvalidOperationException($"Visual scenario resolved commit cannot be empty for '{entry.Repository}'.");
                 }
 
-                if (string.IsNullOrWhiteSpace(entry.RepoPath))
+                if (GetRepositoryFilePaths(entry).Length == 0)
                 {
-                    throw new InvalidOperationException($"Visual scenario repo path cannot be empty for '{entry.Repository}'.");
+                    throw new InvalidOperationException($"Visual scenario needs at least one repository file for '{entry.Repository}'.");
+                }
+
+                if (string.IsNullOrWhiteSpace(GetPrimaryImportedRepoPath(entry)))
+                {
+                    throw new InvalidOperationException($"Visual scenario needs at least one ONNX file for '{entry.Repository}'.");
                 }
             }
         }
@@ -450,13 +504,145 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         new ManifestAssetEntryDocument
                         {
                             _id = entry.Repository,
-                            _revision = entry.Revision
+                            _revision = entry.Revision,
+                            _files = GetOptionalSelectedFiles(entry)
                         }
                     }
                 });
         }
 
+        private static string[] GetSelectedFiles(VisualScenarioEntry entry)
+        {
+            return NormalizeSelectedFiles(entry?.SelectedFiles);
+        }
+
+        private static string[] GetOptionalSelectedFiles(VisualScenarioEntry entry)
+        {
+            var selectedFiles = GetSelectedFiles(entry);
+            return selectedFiles.Length > 0 ? selectedFiles : null;
+        }
+
+        private static string[] GetRepositoryFilePaths(VisualScenarioEntry entry)
+        {
+            var selectedFiles = GetSelectedFiles(entry);
+            var repositoryFiles = NormalizeSelectedFiles(entry?.RepositoryFiles);
+            var primaryRepoPath = NormalizeRepoPath(entry?.RepoPath);
+            var paths = repositoryFiles
+                .Concat(selectedFiles)
+                .Concat(string.IsNullOrWhiteSpace(primaryRepoPath) ? Array.Empty<string>() : new[] { primaryRepoPath })
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            return paths;
+        }
+
+        private static string[] GetCachedRepoPaths(VisualScenarioEntry entry)
+        {
+            var selectedFiles = GetSelectedFiles(entry);
+            return selectedFiles.Length > 0 ? selectedFiles : GetRepositoryFilePaths(entry);
+        }
+
+        private static string[] GetSelectedOnnxRepoPaths(VisualScenarioEntry entry)
+        {
+            return GetCachedRepoPaths(entry)
+                .Where(IsOnnxFile)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string GetPrimaryImportedRepoPath(VisualScenarioEntry entry)
+        {
+            var primaryRepoPath = NormalizeRepoPath(entry?.RepoPath);
+            if (!string.IsNullOrWhiteSpace(primaryRepoPath) &&
+                GetCachedRepoPaths(entry).Contains(primaryRepoPath, StringComparer.Ordinal) &&
+                IsOnnxFile(primaryRepoPath))
+            {
+                return primaryRepoPath;
+            }
+
+            return GetSelectedOnnxRepoPaths(entry).FirstOrDefault();
+        }
+
+        private static string GetFakeFileContents(string repoPath)
+        {
+            return IsOnnxFile(repoPath) ? "fake onnx" : "fake file";
+        }
+
+        private static string[] NormalizeSelectedFiles(IReadOnlyList<string> files)
+        {
+            return (files ?? Array.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(NormalizeRepoPath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string NormalizeRepoPath(string repoPath)
+        {
+            return string.IsNullOrWhiteSpace(repoPath)
+                ? null
+                : repoPath.Trim().Replace('\\', '/');
+        }
+
+        private static bool IsOnnxFile(string repoPath)
+        {
+            return string.Equals(
+                Path.GetExtension(repoPath),
+                ".onnx",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ComputeDependencySelectionHash(VisualScenarioEntry entry)
+        {
+            var selectedFiles = GetSelectedFiles(entry);
+            if (selectedFiles.Length == 0)
+            {
+                return ComputeTextHash("all\n");
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine("selected");
+            foreach (var repoPath in selectedFiles)
+            {
+                builder.AppendLine(repoPath);
+            }
+
+            return ComputeTextHash(builder.ToString());
+        }
+
+        private static string ComputeDefaultRecipeHash()
+        {
+            return ComputeTextHash("none\n");
+        }
+
+        private static string ComputeRecipeSetHash(IEnumerable<string> repoPaths)
+        {
+            var recipeHash = ComputeDefaultRecipeHash();
+            var builder = new StringBuilder();
+            foreach (var repoPath in (repoPaths ?? Array.Empty<string>())
+                         .Where(path => !string.IsNullOrWhiteSpace(path))
+                         .Distinct(StringComparer.Ordinal)
+                         .OrderBy(path => path, StringComparer.Ordinal))
+            {
+                builder.Append(repoPath);
+                builder.Append(':');
+                builder.Append(recipeHash);
+                builder.Append('\n');
+            }
+
+            return ComputeTextHash(builder.ToString());
+        }
+
         private static string ComputeManifestHash(string contents)
+        {
+            return ComputeTextHash(contents);
+        }
+
+        private static string ComputeTextHash(string contents)
         {
             using var sha256 = SHA256.Create();
             var bytes = Encoding.UTF8.GetBytes(contents ?? string.Empty);
@@ -505,7 +691,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return $"{BindingImportsRoot}/{SanitizePathSegment(packageId)}/{SanitizePathSegment(modelId)}";
         }
 
-        private static string GetSharedImportFolder(string repository, string entryResolvedCommitHash, bool deleteAllForRepository = false)
+        private static string GetSharedImportFolder(string repository, string entryResolvedCommitHash, string recipeSetHash = null, bool deleteAllForRepository = false)
         {
             var root = $"{SharedImportsRoot}/{SanitizePathSegment(repository)}";
             if (deleteAllForRepository || string.IsNullOrWhiteSpace(entryResolvedCommitHash))
@@ -513,7 +699,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 return root;
             }
 
-            return $"{root}/{SanitizePathSegment(entryResolvedCommitHash)}/{SanitizePathSegment(GetSentisVersion())}";
+            return $"{root}/{SanitizePathSegment(entryResolvedCommitHash)}/{SanitizePathSegment(GetSentisVersion())}/{SanitizePathSegment(recipeSetHash)}";
         }
 
         private static string GetCacheRoot()
@@ -700,6 +886,16 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
             [SerializeField]
             public string _revision;
+
+            [SerializeField]
+            public string[] _files;
+        }
+
+        [Serializable]
+        private sealed class RepositoryFileDocument
+        {
+            public string RepoPath;
+            public long SizeInBytes;
         }
 
         [Serializable]
@@ -717,6 +913,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string RequestedRevision;
             public string ResolvedCommitHash;
             public string CachedSnapshotRoot;
+            public RepositoryFileDocument[] RepositoryFiles = Array.Empty<RepositoryFileDocument>();
             public RawCacheFileDocument[] Files = Array.Empty<RawCacheFileDocument>();
             public string DownloadedAtUtc;
         }
@@ -736,6 +933,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string AssetPath;
             public string RelativePath;
             public long? SizeInBytes;
+            public string RecipeHash;
+            public string ConversionPipelineVersion;
         }
 
         [Serializable]
@@ -746,9 +945,11 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string RequestedRevisionHint;
             public string RawSnapshotRootPath;
             public string RawMetadataPath;
+            public RepositoryFileDocument[] RepositoryFiles = Array.Empty<RepositoryFileDocument>();
             public long? RawCacheSizeInBytes;
             public string SentisVersion;
             public string UnityVersion;
+            public string RecipeSetHash;
             public string RuntimeSnapshotAssetPath;
             public ImportDiagnosticDocument[] Diagnostics = Array.Empty<ImportDiagnosticDocument>();
             public ImportedRuntimeFileDocument[] RuntimeFiles = Array.Empty<ImportedRuntimeFileDocument>();
@@ -766,6 +967,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string RequestedRevision;
             public string ResolvedCommitHash;
             public string SentisVersion;
+            public string RecipeSetHash;
+            public string DependencySelectionHash;
             public string SharedImportMetadataPath;
             public string RuntimeRegistryAssetPath;
             public string RuntimeRegistryRelativePath;

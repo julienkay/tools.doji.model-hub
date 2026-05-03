@@ -187,8 +187,14 @@ namespace Doji.AI.ModelHub.Editor
         public int SelectedFileCount => _files.Count(file => file.IsDependencySelected);
         public int RepositoryFileCount => _files.Length;
         public int ImportedFileCount => _runtimeFiles.Count(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal));
-        public int ManifestOwnerCount => _dependents.Select(item => item.Dependency.PackageId).Distinct(StringComparer.Ordinal).Count();
+        public int ManifestOwnerCount => _dependents
+            .Select(item => string.IsNullOrWhiteSpace(item.Dependency.ManifestPath)
+                ? item.Dependency.PackageId
+                : item.Dependency.ManifestPath)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
+        public bool HasMissingCacheFiles => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing);
         public bool HasImportedArtifacts => _runtimeFiles.Length > 0;
         public bool NeedsAttention => State != ModelHubItemState.Ready;
 

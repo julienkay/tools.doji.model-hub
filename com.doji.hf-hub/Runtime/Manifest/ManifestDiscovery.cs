@@ -542,7 +542,7 @@ namespace Doji.AI.ModelHub
         {
             Id = id;
             Revision = revision;
-            Files = files?.ToArray();
+            Files = files?.Count > 0 ? files.ToArray() : null;
         }
 
         public string Id { get; }
@@ -659,7 +659,6 @@ namespace Doji.AI.ModelHub
 
             if (validatedFiles.Count == 0)
             {
-                errorMessage = $"Manifest model `{id}` must select at least one file when `files` is present.";
                 return null;
             }
 

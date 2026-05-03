@@ -129,6 +129,50 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies whole-repo dependency (no explicit file selection) imports all ONNX files from RepositoryFiles.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ImportsAllOnnxFiles_WhenNoExplicitFileSelectionAndRepositoryFilesPopulated()
+        {
+            var dependency = CreateDependency();
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+
+            var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(2));
+            Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out var firstSentis), Is.True);
+            Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out var secondSentis), Is.True);
+            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(firstSentis.AssetPath)), Is.True);
+            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(secondSentis.AssetPath)), Is.True);
+        }
+
+        /// <summary>
+        /// Verifies explicit file selection imports only the declared subset of ONNX files.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ImportsOnlySelectedFiles_WhenExplicitFileSelectionProvided()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    new[] { "model.onnx" }));
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+
+            var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
+            Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out _), Is.True);
+            Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
+        }
+
+        /// <summary>
         /// Verifies import keeps successful ONNX conversions when one variant in the repo is unsupported.
         /// </summary>
         [Test]
@@ -303,6 +347,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RequestedRevision = "main",
                 ResolvedCommitHash = "commit123",
                 CachedSnapshotRoot = snapshotRoot,
+                RepositoryFiles = new[]
+                {
+                    new RepositoryFileMetadata { RepoPath = "SingleInputSingleOuput.onnx" }
+                },
                 Files = new[]
                 {
                     new RawCacheFileMetadata
@@ -334,6 +382,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RequestedRevision = "main",
                 ResolvedCommitHash = "commit123",
                 CachedSnapshotRoot = snapshotRoot,
+                RepositoryFiles = new[]
+                {
+                    new RepositoryFileMetadata { RepoPath = "model.onnx" },
+                    new RepositoryFileMetadata { RepoPath = "model_bnb4.onnx" }
+                },
                 Files = new[]
                 {
                     new RawCacheFileMetadata

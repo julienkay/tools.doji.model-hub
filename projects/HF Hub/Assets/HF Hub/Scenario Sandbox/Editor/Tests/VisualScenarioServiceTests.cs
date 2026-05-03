@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -81,6 +82,55 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
             Assert.That(
                 AssetDatabase.LoadAssetAtPath<ProjectManifestAsset>(VisualScenarioService.GetGeneratedManifestAssetPath(scenario, 0)),
                 Is.Not.Null);
+        }
+
+        /// <summary>
+        /// Verifies explicit single-file scenarios write selected files into manifest while keeping full repository inventory in raw metadata.
+        /// </summary>
+        [Test]
+        public void ApplyScenario_WritesExplicitSingleFileManifestAndRepositoryInventory()
+        {
+            var scenario = CreateScenario(
+                new VisualScenarioEntry
+                {
+                    Repository = "sandbox/single-file-selected",
+                    Revision = "main",
+                    ResolvedCommitHash = "sandbox-single-file-001",
+                    RepoPath = "models/model_small.onnx",
+                    SelectedFiles = new[]
+                    {
+                        "models/model_small.onnx"
+                    },
+                    RepositoryFiles = new[]
+                    {
+                        "models/model_large.onnx",
+                        "models/model_small.onnx"
+                    },
+                    State = VisualScenarioState.ImportNeeded
+                });
+
+            VisualScenarioService.ApplyScenario(scenario);
+
+            var manifest = AssetDatabase.LoadAssetAtPath<ProjectManifestAsset>(
+                VisualScenarioService.GetGeneratedManifestAssetPath(scenario, 0));
+            var rawMetadataPath = Path.Combine(
+                _cacheRoot,
+                "raw",
+                "sandbox--single-file-selected",
+                "snapshots",
+                "sandbox-single-file-001",
+                "snapshot.hfhub.json");
+            var rawMetadata = JsonUtility.FromJson<RawCacheMetadataDocument>(File.ReadAllText(rawMetadataPath));
+
+            Assert.That(manifest, Is.Not.Null);
+            Assert.That(manifest.Models, Has.Length.EqualTo(1));
+            Assert.That(manifest.Models[0].Files, Is.EqualTo(new[] { "models/model_small.onnx" }));
+            Assert.That(rawMetadata.RepositoryFiles.Select(file => file.RepoPath), Is.EqualTo(new[]
+            {
+                "models/model_large.onnx",
+                "models/model_small.onnx"
+            }));
+            Assert.That(rawMetadata.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "models/model_small.onnx" }));
         }
 
         /// <summary>
@@ -222,6 +272,28 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
             scenario.Entries = entries ?? Array.Empty<VisualScenarioEntry>();
             AssetDatabase.CreateAsset(scenario, _scenarioAssetPath);
             return scenario;
+        }
+
+        [Serializable]
+        private sealed class RepositoryFileDocument
+        {
+            public string RepoPath;
+            public long SizeInBytes;
+        }
+
+        [Serializable]
+        private sealed class RawCacheFileDocument
+        {
+            public string RepoPath;
+            public string CachedFilePath;
+            public long SizeInBytes;
+        }
+
+        [Serializable]
+        private sealed class RawCacheMetadataDocument
+        {
+            public RepositoryFileDocument[] RepositoryFiles;
+            public RawCacheFileDocument[] Files;
         }
     }
 }

@@ -1,4 +1,10 @@
 {
     "version": 1,
-    "models": []
+    "models": [
+        {
+            "id": "julienkay/sentis-midas",
+            "revision": "",
+            "files": []
+        }
+    ]
 }

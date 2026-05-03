@@ -24,9 +24,7 @@ namespace Doji.AI.ModelHub.Editor
 
                 if (_report.DiscoveryIssues.Count > 0)
                 {
-                    EditorGUILayout.HelpBox(
-                        string.Format(Content.DiscoveryIssuesBannerFormat, _report.DiscoveryIssues.Count),
-                        MessageType.Warning);
+                    DrawDiscoveryIssueListSection();
                 }
 
                 if (items.Count == 0)
@@ -140,6 +138,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 _selectedIndex = index;
+                _selectedIssueIndex = -1;
                 GUI.FocusControl(null);
             }
 
@@ -224,6 +223,71 @@ namespace Doji.AI.ModelHub.Editor
             {
                 DrawListItem(items, selectedIndex, selectedItem, true);
             }
+        }
+
+        /// <summary>
+        /// Draws the discovery issues section header and one selectable row per issue.
+        /// </summary>
+        private void DrawDiscoveryIssueListSection()
+        {
+            var headerRect = GUILayoutUtility.GetRect(0f, SectionHeaderHeight, GUILayout.ExpandWidth(true));
+            if (Event.current.type == EventType.Repaint)
+            {
+                EditorStyles.helpBox.Draw(headerRect, false, false, false, false);
+            }
+
+            var labelRect = new Rect(
+                headerRect.x + ListItemPadding,
+                headerRect.y + ((headerRect.height - EditorGUIUtility.singleLineHeight) * 0.5f),
+                Mathf.Max(0f, headerRect.width - (ListItemPadding * 2f)),
+                EditorGUIUtility.singleLineHeight);
+            GUI.Label(labelRect, Content.DiscoveryIssuesSection, _sectionFoldoutStyle);
+
+            for (var i = 0; i < _report.DiscoveryIssues.Count; i++)
+            {
+                DrawDiscoveryIssueListItem(i, _report.DiscoveryIssues[i]);
+            }
+        }
+
+        /// <summary>
+        /// Draws one selectable discovery issue row in list pane.
+        /// </summary>
+        private void DrawDiscoveryIssueListItem(int index, ManifestDiscoveryIssue issue)
+        {
+            var itemRect = GUILayoutUtility.GetRect(0f, ListItemHeight, GUILayout.ExpandWidth(true));
+            var isSelected = _selectedIssueIndex == index;
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                EditorGUI.DrawRect(itemRect, isSelected ? GetSelectionColor() : GetChildRowColor());
+                if (isSelected)
+                {
+                    EditorGUI.DrawRect(new Rect(itemRect.x, itemRect.y, itemRect.width, 1f), GetSelectionBorderColor());
+                    EditorGUI.DrawRect(new Rect(itemRect.x, itemRect.yMax - 1f, itemRect.width, 1f), GetSelectionBorderColor());
+                }
+            }
+
+            if (GUI.Button(itemRect, GUIContent.none, GUIStyle.none))
+            {
+                _selectedIssueIndex = index;
+                _selectedIndex = -1;
+                GUI.FocusControl(null);
+            }
+
+            var contentRect = new Rect(
+                itemRect.x + ListItemPadding + ChildRowIndent,
+                itemRect.y,
+                itemRect.width - (ListItemPadding * 2f) - ChildRowIndent - ListItemIconSize - 6f,
+                itemRect.height);
+            var lineHeight = EditorGUIUtility.singleLineHeight;
+            var contentY = itemRect.y + Mathf.Max(0f, (itemRect.height - lineHeight) * 0.5f);
+            var iconY = itemRect.y + Mathf.Max(0f, (itemRect.height - ListItemIconSize) * 0.5f);
+            var titleRect = new Rect(contentRect.x, contentY, contentRect.width, lineHeight);
+            var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId);
+            GUI.Label(titleRect, ownerLabel, _packageEntryTitleStyle);
+
+            var iconRect = new Rect(itemRect.xMax - ListItemPadding - ListItemIconSize, iconY, ListItemIconSize, ListItemIconSize);
+            GUI.Label(iconRect, _actionRequiredStateIconContent);
         }
 
         /// <summary>

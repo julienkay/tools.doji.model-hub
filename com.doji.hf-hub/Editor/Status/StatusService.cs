@@ -11,6 +11,7 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class StatusService
     {
+        private const string VisualScenarioGeneratedManifestPathSegment = "/Assets/HF Hub/Scenario Sandbox/Generated/";
         private readonly RawCacheService _rawCacheService;
         private readonly IProjectModelRecipeSource _recipeSource;
 
@@ -43,7 +44,8 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.ModelId);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadataAssetPath);
 
-            if (RepositoryValidationCacheService.TryGetCachedRepositoryExists(dependency.Repository, out var repositoryExists) &&
+            if (!IsVisualScenarioDependency(dependency) &&
+                RepositoryValidationCacheService.TryGetCachedRepositoryExists(dependency.Repository, out var repositoryExists) &&
                 !repositoryExists)
             {
                 return Failed(
@@ -671,6 +673,18 @@ namespace Doji.AI.ModelHub.Editor
             {
                 mismatches.Add($"{fieldName} expected `{expectedValue}` but found `{actualValue}`");
             }
+        }
+
+        private static bool IsVisualScenarioDependency(DiscoveredModelDependency dependency)
+        {
+            var manifestPath = dependency?.ManifestPath;
+            if (string.IsNullOrWhiteSpace(manifestPath))
+            {
+                return false;
+            }
+
+            var normalizedPath = manifestPath.Replace('\\', '/');
+            return normalizedPath.Contains(VisualScenarioGeneratedManifestPathSegment, StringComparison.Ordinal);
         }
 
         private static DependencyStatus Missing(

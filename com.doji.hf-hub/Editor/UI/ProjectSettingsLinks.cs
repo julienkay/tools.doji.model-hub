@@ -61,15 +61,18 @@ namespace Doji.AI.ModelHub.Editor
             /// <summary>
             /// Stores menu label and source path for one manifest locate action.
             /// </summary>
-            public ManifestLocateTarget(string label, string manifestPath)
+            public ManifestLocateTarget(string label, string manifestPath, string ownerId)
             {
                 Label = label;
                 ManifestPath = manifestPath;
+                OwnerId = ownerId;
             }
 
             public string Label { get; }
 
             public string ManifestPath { get; }
+
+            public string OwnerId { get; }
         }
 
         /// <summary>
@@ -149,6 +152,20 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Opens one manifest owner target, including Project Settings when the owner lives there.
+        /// </summary>
+        internal static void LocateManifest(ManifestLocateTarget target)
+        {
+            if (IsProjectSettingsManifestOwnerId(target.OwnerId))
+            {
+                SettingsService.OpenProjectSettings(EditorOperations.ProjectSettingsPath);
+                return;
+            }
+
+            LocateManifest(target.ManifestPath);
+        }
+
+        /// <summary>
         /// Resolves one Unity object suitable for Console context when exactly one unresolved manifest owns a reminder.
         /// </summary>
         internal static UnityEngine.Object TryGetSingleManifestContextObject(IEnumerable<DependencyStatus> dependencyStatuses)
@@ -189,9 +206,12 @@ namespace Doji.AI.ModelHub.Editor
             return item.Dependents
                 .Where(dependent => !string.IsNullOrWhiteSpace(dependent.Dependency.ManifestPath))
                 .Select(dependent => new ManifestLocateTarget(
-                    $"{dependent.Dependency.PackageDisplayName} / {dependent.Dependency.ModelId}",
-                    dependent.Dependency.ManifestPath))
-                .GroupBy(target => target.ManifestPath, StringComparer.Ordinal)
+                    BuildManifestLocateTargetLabel(dependent.Dependency),
+                    dependent.Dependency.ManifestPath,
+                    dependent.Dependency.PackageId))
+                .GroupBy(
+                    target => BuildManifestLocateTargetKey(target),
+                    StringComparer.Ordinal)
                 // Shared manifest paths can be contributed by multiple dependents; pick one stable label.
                 .Select(group => group
                     .OrderBy(target => target.Label, StringComparer.Ordinal)
@@ -212,15 +232,25 @@ namespace Doji.AI.ModelHub.Editor
 
             var normalizedManifestPath = NormalizePath(dependency.ManifestPath);
             var assetPath = TryGetProjectAssetPath(normalizedManifestPath);
-            if (ProjectManifestDiscovery.IsProjectManifestOwnerId(dependency.PackageId) ||
+            if (ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(dependency.PackageId))
+            {
+                return new ManifestOwnerResolutionInfo(
+                    ManifestOwnerResolutionKind.ProjectManifest,
+                    "Project Settings manifest",
+                    true,
+                    false,
+                    "Edit Project Settings model manifest so all owners request one revision.");
+            }
+
+            if (ProjectManifestDiscovery.IsProjectManifestAssetOwnerId(dependency.PackageId) ||
                 IsProjectAssetPath(assetPath))
             {
                 return new ManifestOwnerResolutionInfo(
                     ManifestOwnerResolutionKind.ProjectManifest,
-                    "Project manifest",
+                    "Project manifest asset",
                     true,
                     false,
-                    "Edit project manifest so all owners request one revision.");
+                    "Edit project manifest asset so all owners request one revision.");
             }
 
             if (IsEmbeddedPackageAssetPath(assetPath))
@@ -445,6 +475,33 @@ namespace Doji.AI.ModelHub.Editor
             return string.IsNullOrWhiteSpace(path)
                 ? path
                 : path.Replace('\\', '/');
+        }
+
+        private static bool IsProjectSettingsManifestOwnerId(string ownerId)
+        {
+            return ProjectManifestDiscovery.IsProjectSettingsManifestOwnerId(ownerId);
+        }
+
+        private static string BuildManifestLocateTargetKey(ManifestLocateTarget target)
+        {
+            if (IsProjectSettingsManifestOwnerId(target.OwnerId))
+            {
+                return target.OwnerId ?? string.Empty;
+            }
+
+            return NormalizePath(target.ManifestPath) ?? target.OwnerId ?? string.Empty;
+        }
+
+        private static string BuildManifestLocateTargetLabel(DiscoveredModelDependency dependency)
+        {
+            if (dependency == null)
+            {
+                return string.Empty;
+            }
+
+            return IsProjectSettingsManifestOwnerId(dependency.PackageId)
+                ? ProjectManifestDiscovery.GetOwnerDisplayName(dependency.PackageId, dependency.PackageDisplayName)
+                : $"{dependency.PackageDisplayName} / {dependency.ModelId}";
         }
     }
 }

@@ -104,3 +104,24 @@ Download path remains first-class infrastructure:
 - file locking around snapshot writes
 
 Each file download can resume independently. Snapshot lock protects repo metadata write and duplicate snapshot work.
+
+## Auto-Heal for Cache Corruption
+
+Some cache states indicate genuine on-disk corruption rather than a missing download:
+
+| Code | Meaning |
+|---|---|
+| `RawCacheMetadataInvalid` | Snapshot metadata JSON is absent or unparseable |
+| `RawCacheMetadataMismatch` | Metadata repository or revision fields do not match declared dependency |
+| `RawCacheRevisionRefUnreadable` | Revision ref file exists but cannot be read |
+
+These are treated as auto-healable because `GetOrDownloadAsync` already resolves the correct state from the HuggingFace API and writes clean metadata on every download. No manual intervention by the user is needed.
+
+Two automatic heal triggers fire using `DownloadOnly` mode so no re-import runs unless necessary:
+
+1. **At editor startup** — `BackgroundSyncManager.ResumeIfNeeded` runs `HealCorruptionAtStartup` when no persisted sync queue exists. If any dependency has a corruption code, a scoped download-only sync starts immediately.
+2. **On Model Hub window refresh** — `ModelHubWindow.Refresh` calls `StartHealCorruptionIfNeeded` after rebuilding the report. Only corruption-code dependencies are included.
+
+`SyncStateChanged` events (fired on sync completion or failure) call `RefreshReport` instead of `Refresh` to avoid an infinite heal loop when corruption persists across retries.
+
+`RawCacheFilesMissing` is intentionally excluded from auto-heal because it is a legitimate user-driven state (new file selection), not corruption. It surfaces the **Update + Import** button instead.

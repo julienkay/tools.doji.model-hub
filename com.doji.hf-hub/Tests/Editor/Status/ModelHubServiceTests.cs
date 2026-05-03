@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -80,6 +81,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(
                 hubReport.Items[0].Dependents[1].ImportedMetadata?.RuntimeRegistryAssetPath,
                 Is.EqualTo(ProjectPaths.GetRuntimeRegistryAssetPath(projectOwnerId)));
+        }
+
+        /// <summary>
+        /// Verifies manifest owner count reflects distinct manifest sources, including Project Settings manifests.
+        /// </summary>
+        [Test]
+        public void BuildReport_CountsDistinctManifestSourcesForManifestOwners()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        ProjectManifestDiscovery.ProjectSettingsManifestOwnerId,
+                        "Project Settings",
+                        "model-a",
+                        manifestPath: "/tmp/HF Hub/ProjectSettings/hf-hub-manifest.json"),
+                    CreateDependencyStatus(
+                        "com.doji.pkg-b",
+                        "Package B",
+                        "model-b",
+                        manifestPath: "/tmp/HF Hub/Packages/com.doji.pkg-b/hf-hub-manifest.json")
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].ManifestOwnerCount, Is.EqualTo(2));
         }
 
         /// <summary>
@@ -404,11 +433,75 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].StorageTreemapTiles, Is.Empty);
         }
 
+        /// <summary>
+        /// Verifies .gitattributes, .gitignore, and README.md are excluded from file rows even
+        /// when they appear in the raw cache metadata — they are repo-hygiene files with no runtime
+        /// value in Unity and must not pollute the Files / Storage tabs.
+        /// </summary>
+        [Test]
+        public void BuildReport_ExcludesRepoMetadataFilesFromFileRows()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        extraRepositoryFiles: new[]
+                        {
+                            new RepositoryFileMetadata { RepoPath = ".gitattributes", SizeInBytes = 1 },
+                            new RepositoryFileMetadata { RepoPath = ".gitignore", SizeInBytes = 1 },
+                            new RepositoryFileMetadata { RepoPath = "README.md", SizeInBytes = 2 },
+                            new RepositoryFileMetadata { RepoPath = "README_en.md", SizeInBytes = 2 },
+                        })
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            var repoPaths = hubReport.Items[0].Files.Select(f => f.RepoPath).ToArray();
+            Assert.That(repoPaths, Has.No.Member(".gitattributes"));
+            Assert.That(repoPaths, Has.No.Member(".gitignore"));
+            Assert.That(repoPaths, Has.No.Member("README.md"));
+            Assert.That(repoPaths, Has.No.Member("README_en.md"));
+            Assert.That(repoPaths, Has.Member("model.onnx"));
+        }
+
+        /// <summary>
+        /// Verifies .gitattributes / README.md are not counted toward repository file or selected-file totals.
+        /// </summary>
+        [Test]
+        public void BuildReport_RepoMetadataFilesDoNotInflateFileCounts()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        extraRepositoryFiles: new[]
+                        {
+                            new RepositoryFileMetadata { RepoPath = ".gitattributes", SizeInBytes = 1 },
+                            new RepositoryFileMetadata { RepoPath = "README.md", SizeInBytes = 2 },
+                        })
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items[0].RepositoryFileCount, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].SelectedFileCount, Is.EqualTo(1));
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
             string modelId,
             DependencyState state = DependencyState.Ready,
+            string manifestPath = null,
             string revision = "main",
             ImportDiagnostic[] importedDiagnostics = null,
             DependencyReasonCode? reasonCode = null,
@@ -417,14 +510,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
             bool includeRawMetadata = true,
             string[] selectedFiles = null,
-            bool includeExtraRepositoryFile = false)
+            bool includeExtraRepositoryFile = false,
+            RepositoryFileMetadata[] extraRepositoryFiles = null)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
                 packageDisplayName,
                 "1.0.0",
                 $"/tmp/{packageId}",
-                $"/tmp/{packageId}/hf-hub-manifest.json",
+                manifestPath ?? $"/tmp/{packageId}/hf-hub-manifest.json",
                 $"{packageId}-hash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
@@ -443,7 +537,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.hfhub.json",
                 RawCacheSizeInBytes = 12,
-                RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile),
+                RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile, extraRepositoryFiles),
                 DependencySelectionHash = dependency.DependencySelectionHash,
                 RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{packageId}/hf-hub-runtime.json",
                 Diagnostics = importedDiagnostics ?? Array.Empty<ImportDiagnostic>(),
@@ -474,7 +568,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         Repository = "doji/test-model",
                         RequestedRevision = revision,
                         ResolvedCommitHash = "abc123",
-                        RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile),
+                        RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile, extraRepositoryFiles),
                         Files = new[]
                         {
                             new RawCacheFileMetadata
@@ -491,30 +585,27 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 state == DependencyState.Ready ? metadata : null);
         }
 
-        private static RepositoryFileMetadata[] BuildRepositoryFiles(bool includeExtraRepositoryFile)
+        private static RepositoryFileMetadata[] BuildRepositoryFiles(
+            bool includeExtraRepositoryFile,
+            RepositoryFileMetadata[] additionalFiles = null)
         {
-            return includeExtraRepositoryFile
+            var baseFiles = includeExtraRepositoryFile
                 ? new[]
                 {
-                    new RepositoryFileMetadata
-                    {
-                        RepoPath = "config.json",
-                        SizeInBytes = 3
-                    },
-                    new RepositoryFileMetadata
-                    {
-                        RepoPath = "model.onnx",
-                        SizeInBytes = 12
-                    }
+                    new RepositoryFileMetadata { RepoPath = "config.json", SizeInBytes = 3 },
+                    new RepositoryFileMetadata { RepoPath = "model.onnx", SizeInBytes = 12 }
                 }
                 : new[]
                 {
-                    new RepositoryFileMetadata
-                    {
-                        RepoPath = "model.onnx",
-                        SizeInBytes = 12
-                    }
+                    new RepositoryFileMetadata { RepoPath = "model.onnx", SizeInBytes = 12 }
                 };
+
+            if (additionalFiles == null || additionalFiles.Length == 0)
+            {
+                return baseFiles;
+            }
+
+            return baseFiles.Concat(additionalFiles).ToArray();
         }
 
         private string CreateTempFileWithSize(int sizeInBytes)
@@ -532,6 +623,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
             File.WriteAllBytes(absolutePath, new byte[sizeInBytes]);
             _tempPaths.Add(absolutePath);
             return assetPath;
+        }
+    }
+
+    internal sealed class IsRepoMetadataFileTests
+    {
+        [TestCase(".gitattributes")]
+        [TestCase(".gitignore")]
+        [TestCase("README.md")]
+        [TestCase("README_en.md")]
+        [TestCase("README_zh-Hans.md")]
+        public void IsRepoMetadataFile_ReturnsTrue_ForKnownMetadataFiles(string repoPath)
+        {
+            Assert.That(ModelDependencyDefinition.IsRepoMetadataFile(repoPath), Is.True);
+        }
+
+        [TestCase("model.onnx")]
+        [TestCase("config.json")]
+        [TestCase("tokenizer.json")]
+        [TestCase("subfolder/model.onnx")]
+        [TestCase("")]
+        [TestCase(null)]
+        public void IsRepoMetadataFile_ReturnsFalse_ForNonMetadataFiles(string repoPath)
+        {
+            Assert.That(ModelDependencyDefinition.IsRepoMetadataFile(repoPath), Is.False);
         }
     }
 

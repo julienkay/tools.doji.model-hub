@@ -14,11 +14,19 @@ namespace Doji.AI.ModelHub.Editor
             _report = EditorOperations.CreateModelHubReport();
             _lastRefreshLocalTime = DateTime.Now;
             Repaint();
+            BackgroundSyncManager.StartHealCorruptionIfNeeded();
+        }
+
+        private void RefreshReport()
+        {
+            _report = EditorOperations.CreateModelHubReport();
+            _lastRefreshLocalTime = DateTime.Now;
+            Repaint();
         }
 
         private void HandleSyncStateChanged()
         {
-            Refresh();
+            RefreshReport();
         }
 
         private void ResetFilters()
@@ -46,16 +54,28 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item?.RawSnapshotRootPath);
+            var hasMissingCacheFiles = item?.HasMissingCacheFiles == true;
+
             if (isSyncRunning)
             {
-                return hasCacheSnapshot
-                    ? new GUIContent(Content.ImportLabel, Content.SyncInProgressTooltip)
-                    : new GUIContent(Content.DownloadLabel, Content.SyncInProgressTooltip);
+                if (!hasCacheSnapshot)
+                {
+                    return new GUIContent(Content.DownloadLabel, Content.SyncInProgressTooltip);
+                }
+
+                return hasMissingCacheFiles
+                    ? new GUIContent(Content.UpdateAndImportLabel, Content.SyncInProgressTooltip)
+                    : new GUIContent(Content.ImportLabel, Content.SyncInProgressTooltip);
             }
 
-            return hasCacheSnapshot
-                ? _importContent
-                : new GUIContent(Content.DownloadLabel, Content.DownloadTooltip);
+            if (!hasCacheSnapshot)
+            {
+                return new GUIContent(Content.DownloadLabel, Content.DownloadTooltip);
+            }
+
+            return hasMissingCacheFiles
+                ? new GUIContent(Content.UpdateAndImportLabel, Content.UpdateAndImportTooltip)
+                : _importContent;
         }
 
         private static void LocateManifest(ModelHubItem item)
@@ -68,7 +88,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (targets.Count == 1)
             {
-                ProjectSettingsLinks.LocateManifest(targets[0].ManifestPath);
+                ProjectSettingsLinks.LocateManifest(targets[0]);
                 return;
             }
 
@@ -78,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
                 menu.AddItem(
                     new GUIContent(target.Label),
                     false,
-                    () => ProjectSettingsLinks.LocateManifest(target.ManifestPath));
+                    () => ProjectSettingsLinks.LocateManifest(target));
             }
 
             menu.ShowAsContext();

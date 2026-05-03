@@ -4,7 +4,7 @@ Packages declare HuggingFace dependencies by canonical model id in a model manif
 
 Projects can declare the same dependency shape in `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`.
 
-Legacy project manifest assets created from `Assets > Create > Doji > AI > HF Hub Project Manifest` are still discovered too.
+ScriptableObject project manifest assets created from `Assets > Create > Doji > AI > HF Hub Project Manifest` are discovered alongside the Project Settings JSON manifest.
 
 Example:
 
@@ -39,6 +39,8 @@ Use the project manifest when model dependencies belong to the current Unity pro
 
 This is the main project-scoped manifest going forward.
 
+HF Hub's custom Project Settings page edits this manifest only. It does not merge or rewrite separate ScriptableObject project manifest assets.
+
 ### Package Manifest
 
 Use a package manifest when model dependencies belong to a local Unity package.
@@ -52,20 +54,21 @@ HF Hub only lets you author package manifests directly when the package source i
 
 ### ScriptableObject Manifest
 
-HF Hub also still supports `ProjectManifestAsset` ScriptableObject manifests.
+HF Hub also supports `ProjectManifestAsset` ScriptableObject manifests.
 
 Use this when model dependencies need to ship through non-package project content, for example older Unity asset or `.unitypackage` style distribution where package-root JSON is not the right fit.
 
 - create from: `Assets > Create > Doji > AI > HF Hub Project Manifest`
 - lives under: normal Unity assets, typically somewhere in `Assets/`
-- discovered in addition to the project JSON manifest and package manifests
+- discovered in addition to the Project Settings JSON manifest and package manifests
+- edit from: normal Unity asset workflow by selecting the asset in the Project window
 
 ## Manifest Fields
 
 - `version`: manifest schema version. Current value is `1`.
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
-- `files`: optional exact repo-relative file paths. Omit this field to require the whole repository.
+- `files`: optional exact repo-relative file paths. Omit this field to require the whole repository. If present, it must contain at least one non-empty path.
 
 Model ids must be unique inside one manifest.
 
@@ -73,8 +76,15 @@ Model ids must be unique inside one manifest.
 
 One manifest entry means one HuggingFace model id, one resolved repository snapshot, and one dependency scope inside that snapshot.
 
-- omit `files` to require the whole repository
+- omit `files` to require the whole repository file inventory for that resolved revision
 - include `files` to require only those exact repo-relative files
+
+HF Hub normalizes selected paths before storing them:
+
+- trims whitespace
+- converts `\` to `/`
+- removes duplicates
+- sorts paths with ordinal comparison
 
 During sync HF Hub:
 
@@ -84,18 +94,22 @@ During sync HF Hub:
 4. keeps cached raw files and full repo inventory in shared cache metadata
 5. converts only the selected `.onnx` files to `.sentis`
 
+Selected non-ONNX files still matter. HF Hub downloads and tracks them in raw cache when they are part of dependency scope, but it does not expose import settings for them and does not generate runtime `.sentis` output from them.
+
+If dependency scope contains no `.onnx` file at all, HF Hub treats that dependency as not importable and surfaces a `This dependency does not currently select any ONNX file.` diagnostic in Model Hub.
+
 This keeps package and project manifests simple. No separate local alias or `repository` field exists in v1 schema. Runtime code still chooses individual files from the resolved snapshot the same way upstream workflows choose files inside one `repo_id`.
 
 ## Discovery
 
-When a Unity project contains installed packages with `hf-hub-manifest.json` model manifests, a project-level `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, or legacy project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
+When a Unity project contains installed packages with `hf-hub-manifest.json` model manifests, a project-level `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, or ScriptableObject project manifest assets, HF Hub scans those manifests and builds one dependency list for the project.
 
 Current development build includes:
 
 - manifest parsing and validation
 - installed-package discovery
 - project-manifest discovery from `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
-- legacy project-manifest asset discovery
+- ScriptableObject project-manifest asset discovery
 - local dependency status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 - first-run auto prompt window when discovered dependencies need attention
 - editor Console info reminder after domain reload while dependencies still need attention
@@ -118,6 +132,8 @@ Current settings:
 - editable project model manifest stored under `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
 - same repository-exists validation icons used by the package-manifest Inspector
 
+Manifest validation icons now validate both repository id and effective revision. A green check means HF Hub could resolve that exact `id` plus revision combination on Hugging Face. An invalid branch, tag, or commit shows as invalid even when the repository itself exists.
+
 The page also shows:
 
 - platform default cache root
@@ -134,7 +150,7 @@ Use `Window > AI Model Hub` to inspect declared and imported repositories.
 
 The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
 
-The `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json` source shows as `Project` in editor UI. Legacy project manifest assets also still show as `Project`, but HF Hub tracks each legacy asset as its own owner for bindings, registries, and stale/removal checks.
+The `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json` source shows as `Project Settings` in editor UI. ScriptableObject project manifest assets show their asset name, for example `Custom Dependencies` or `HF Hub Project Manifest`, and HF Hub tracks each asset as its own owner for bindings, registries, and stale/removal checks.
 
 For each repository, the window shows:
 
@@ -151,11 +167,14 @@ The `Files` tab is now repository-aware. It can show:
 
 - every known repo file path for the resolved revision
 - whether that file is currently selected by any manifest owner
+- how many current manifest owners select that file
 - raw cached file location and size when that source file exists locally
 - generated `.sentis` output path when that ONNX file has been materialized into the project
 - effective conversion recipe source and editable import settings only for selected ONNX files
 
 Selected ONNX rows behave like a traditional importer. Each repository keeps one edit buffer with repo-wide `Revert` and `Apply` actions. `Apply` saves project-owned overrides and immediately reimports that repository. If raw cache is missing, HF Hub downloads the selected source files first and then imports with the applied settings.
+
+Unselected rows remain visible so you can inspect full repository inventory even when current project depends on only one subset of files.
 
 Project-owned file overrides live in `ProjectModelConversionOverridesAsset`. HF Hub creates or updates that asset automatically when you apply file-level conversion changes. You can also create it manually from `Assets > Create > Doji > AI > HF Hub Conversion Overrides`.
 
@@ -190,7 +209,7 @@ Use `Tools/Doji/HF Hub/Import All` to resolve discovered repository dependencies
 
 Current sync flow:
 
-1. Scan installed packages for `hf-hub-manifest.json`, `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, and legacy project assets for `ProjectManifestAsset`.
+1. Scan installed packages for `hf-hub-manifest.json`, `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, and ScriptableObject project assets for `ProjectManifestAsset`.
 2. Validate manifest contents.
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Read the repository file inventory for that commit.
@@ -201,6 +220,8 @@ Current sync flow:
 9. Write editor-only import metadata under `Library/Doji/HfHub/imports/`.
 
 Sync runs as an editor background task instead of blocking the editor while downloads are in progress.
+
+Whole-repository dependencies still follow same ONNX rule. HF Hub reads full repository inventory, caches all repo files for that revision, then imports only repo paths whose extension is `.onnx`.
 
 If a project declares the same repository at multiple requested revisions, HF Hub marks each conflicting row as error and does not write cache or import changes for that repository. `Import All` can still sync other repositories in the project, but conflicting rows fail until manifests agree on one revision.
 

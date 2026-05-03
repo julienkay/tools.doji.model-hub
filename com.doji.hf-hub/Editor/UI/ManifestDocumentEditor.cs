@@ -65,7 +65,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (string.IsNullOrWhiteSpace(_loadErrorMessage))
             {
-                _validationController.RefreshFromCacheIfNeeded(GetDistinctModelIds());
+                _validationController.RefreshFromCacheIfNeeded(GetValidationTargets());
                 _validationController.QueueUnknownValidationIfNeeded();
                 DrawManifestFields();
                 DrawApplyRevertButtons();
@@ -119,7 +119,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             _loadedStateKey = ModelManifestInspectorUtility.BuildStateKey(_version, _models);
-            _validationController.RefreshFromCache(GetDistinctModelIds());
+            _validationController.RefreshFromCache(GetValidationTargets());
             if (_modelListEditor == null)
             {
                 _modelListEditor = new ManifestModelListEditor(
@@ -130,7 +130,7 @@ namespace Doji.AI.ModelHub.Editor
                         _models = _modelListEditor.Models;
                         _hasUserEdits = true;
                     },
-                    getValidationState: modelId => _validationController.GetState(modelId),
+                    getValidationState: (modelId, revision) => _validationController.GetState(modelId, revision),
                     requestRepaint: _options.RequestRepaint);
             }
             else
@@ -234,15 +234,15 @@ namespace Doji.AI.ModelHub.Editor
 
         private void QueueDependencyValidation()
         {
-            _validationController.QueueValidation(GetDistinctModelIds());
+            _validationController.QueueValidation(GetValidationTargets());
         }
 
-        private string[] GetDistinctModelIds()
+        private ManifestModelValidationController.ValidationTarget[] GetValidationTargets()
         {
             return _models
-                .Select(model => model.ModelId?.Trim())
-                .Where(modelId => !string.IsNullOrWhiteSpace(modelId))
-                .Distinct(StringComparer.Ordinal)
+                .Select(model => new ManifestModelValidationController.ValidationTarget(
+                    model?.ModelId,
+                    model?.Revision))
                 .ToArray();
         }
     }

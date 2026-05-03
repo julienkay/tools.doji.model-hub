@@ -293,7 +293,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var ownerLabel = ProjectManifestDiscovery.GetOwnerDisplayName(
                     result.Dependency.PackageId,
-                    result.Dependency.PackageId);
+                    result.Dependency.PackageDisplayName);
                 if (result.Success)
                 {
                     var rawSnapshotPath = result.CachedFile?.SnapshotRootPath;

@@ -66,7 +66,7 @@ That simplicity depends on one project-level rule:
 
 - runtime locator currently reads registry JSON and generated payloads through direct filesystem APIs under `Application.streamingAssetsPath`
 - treat current implementation as desktop/editor-first until HF Hub has a platform-safe runtime loader for cases where `StreamingAssets` is packed or virtualized
-- owner-specific runtime lookup assumes each owner publishes its own registry; package manifests satisfy that, but project manifest assets currently all share owner id `project` and therefore are not distinct runtime owners yet
+- owner-specific runtime lookup assumes each owner publishes its own registry; package manifests and ScriptableObject project manifest assets now publish distinct owner identities, while the Project Settings JSON manifest remains one shared project-level owner
 
 ## Ambiguity Contract
 

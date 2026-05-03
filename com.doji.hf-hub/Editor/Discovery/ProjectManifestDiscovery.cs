@@ -14,10 +14,11 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class ProjectManifestDiscovery
     {
-        internal const string LegacyProjectManifestOwnerId = "project";
+        internal const string ProjectManifestAssetFallbackOwnerId = "project";
         internal const string ProjectSettingsManifestOwnerId = "project-settings-manifest";
         private const string ProjectManifestOwnerIdPrefix = "project-manifest-";
-        private const string ProjectManifestOwnerDisplayName = "Project";
+        private const string ProjectSettingsManifestOwnerDisplayName = "Project Settings";
+        private const string ProjectManifestAssetOwnerDisplayName = "Project Manifest Asset";
         private const string ProjectManifestOwnerVersion = "project";
 
         public static DiscoveryReport DiscoverProjectManifests()
@@ -73,7 +74,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     dependencies.Add(new DiscoveredModelDependency(
                         ownerId,
-                        ProjectManifestOwnerDisplayName,
+                        GetProjectManifestAssetDisplayName(snapshot),
                         ProjectManifestOwnerVersion,
                         snapshot.ResolvedPath,
                         snapshot.ManifestPath,
@@ -116,7 +117,7 @@ namespace Doji.AI.ModelHub.Editor
             var dependencies = manifest.Models
                 .Select(model => new DiscoveredModelDependency(
                     ProjectSettingsManifestOwnerId,
-                    ProjectManifestOwnerDisplayName,
+                    ProjectSettingsManifestOwnerDisplayName,
                     ProjectManifestOwnerVersion,
                     projectRoot,
                     manifestPath,
@@ -128,17 +129,39 @@ namespace Doji.AI.ModelHub.Editor
 
         internal static bool IsProjectManifestOwnerId(string ownerId)
         {
-            return string.Equals(ownerId, LegacyProjectManifestOwnerId, StringComparison.Ordinal) ||
+            return string.Equals(ownerId, ProjectManifestAssetFallbackOwnerId, StringComparison.Ordinal) ||
                 string.Equals(ownerId, ProjectSettingsManifestOwnerId, StringComparison.Ordinal) ||
+                (!string.IsNullOrWhiteSpace(ownerId) &&
+                 ownerId.StartsWith(ProjectManifestOwnerIdPrefix, StringComparison.Ordinal));
+        }
+
+        internal static bool IsProjectSettingsManifestOwnerId(string ownerId)
+        {
+            return string.Equals(ownerId, ProjectSettingsManifestOwnerId, StringComparison.Ordinal);
+        }
+
+        internal static bool IsProjectManifestAssetOwnerId(string ownerId)
+        {
+            return string.Equals(ownerId, ProjectManifestAssetFallbackOwnerId, StringComparison.Ordinal) ||
                 (!string.IsNullOrWhiteSpace(ownerId) &&
                  ownerId.StartsWith(ProjectManifestOwnerIdPrefix, StringComparison.Ordinal));
         }
 
         internal static string GetOwnerDisplayName(string ownerId, string fallbackDisplayName = null)
         {
-            return IsProjectManifestOwnerId(ownerId)
-                ? ProjectManifestOwnerDisplayName
-                : fallbackDisplayName ?? ownerId ?? string.Empty;
+            if (IsProjectSettingsManifestOwnerId(ownerId))
+            {
+                return ProjectSettingsManifestOwnerDisplayName;
+            }
+
+            if (IsProjectManifestAssetOwnerId(ownerId))
+            {
+                return string.IsNullOrWhiteSpace(fallbackDisplayName)
+                    ? ProjectManifestAssetOwnerDisplayName
+                    : fallbackDisplayName;
+            }
+
+            return fallbackDisplayName ?? ownerId ?? string.Empty;
         }
 
         internal static string GetOwnerId(string assetGuid, string assetPath, string manifestPath)
@@ -163,6 +186,22 @@ namespace Doji.AI.ModelHub.Editor
         private static string NormalizePathForOwnerId(string path)
         {
             return (path ?? string.Empty).Replace('\\', '/').Trim();
+        }
+
+        private static string GetProjectManifestAssetDisplayName(ProjectManifestAssetSnapshot snapshot)
+        {
+            if (!string.IsNullOrWhiteSpace(snapshot?.AssetPath))
+            {
+                var fileName = Path.GetFileNameWithoutExtension(snapshot.AssetPath);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                {
+                    return fileName;
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(snapshot?.Asset?.name)
+                ? ProjectManifestAssetOwnerDisplayName
+                : snapshot.Asset.name;
         }
 
         private static DiscoveryReport MergeReports(params DiscoveryReport[] reports)

@@ -323,21 +323,9 @@ Companion project now includes maintainer-only visual sandbox under:
 
 - `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`
 
-Use it to generate fake project manifest, cache, import metadata, and runtime files locally without downloading from HuggingFace.
+Detailed maintainer behavior, constraints, and supported workflow live in:
 
-Rules:
-
-- keep sandbox code in companion project only, not package assemblies
-- prefer unique `sandbox/...` repo ids so fake artifacts do not collide with real generated content
-- generated sandbox manifest assets under `Assets/HF Hub/Scenario Sandbox/Generated/` are treated as maintainer-only test inputs by status code and bypass `InvalidRepository` filtering even when repo ids do not exist remotely
-- sandbox still seeds `RepositoryValidationCacheService` with `exists = true` during scenario apply so other editor surfaces read consistent validation state, but manifest-path bypass is authoritative for Model Hub visibility
-- sandbox writes one generated project manifest asset per scenario entry so repeated repo ids simulate multiple manifests depending on the same repo
-- repeated repo ids intentionally still share one project import/runtime slot because real HF Hub imports are repo-scoped by repository
-- prefer explicit revision-conflict scenarios when visually testing repeated repo ids at different requested revisions
-- sandbox can now model both whole-repo and explicit selected-file dependencies; for selected-file scenarios, fake manifest `files`, raw cache `Files`, and import metadata hashes must agree with the selected ONNX subset while raw/shared metadata still carries full repository inventory
-- never serialize empty `files: []` for whole-repo cases; omit `files` entirely. Empty `files` is invalid by schema and produces `must select at least one file when 'files' is present`.
-- use sandbox for visual verification of obscure Model Hub states such as `import needed`, `update needed`, `partial conversion`, and invalid metadata
-- use repeated same-repo entries to test both multi-manifest shared dependencies and blocked revision-conflict errors before reaching for fake embedded packages
+- `.codex/architecture/visual-scenario-sandbox.md`
 
 ## Shared Import Storage
 

@@ -19,6 +19,7 @@ Core architecture docs:
 - [Manifest Schema](./architecture/manifest-schema.md)
 - [Download And Cache](./architecture/download-and-cache.md)
 - [Import And Generated Assets](./architecture/import-and-generated-assets.md)
+- [Visual Scenario Sandbox](./architecture/visual-scenario-sandbox.md)
 - [Per-File Conversion Recipes](./architecture/per-file-conversion-recipes.md)
 - [Runtime Locator](./architecture/runtime-locator.md)
 

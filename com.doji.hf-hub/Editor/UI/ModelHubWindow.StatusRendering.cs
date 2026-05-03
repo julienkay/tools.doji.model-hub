@@ -5,7 +5,7 @@ namespace Doji.AI.ModelHub.Editor
 {
     internal sealed partial class ModelHubWindow
     {
-        private static string GetStatusBadgeLabel(ModelHubItem item)
+        internal static string GetStatusBadgeLabel(ModelHubItem item)
         {
             if (item.HasRevisionConflict)
             {
@@ -27,7 +27,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (item.State == ModelHubItemState.Error)
             {
-                return hasRuntimeFiles ? Content.RepairNeededState : Content.ImportNeededState;
+                return Content.RepairNeededState;
             }
 
             return hasRuntimeFiles ? Content.UpdateNeededState : Content.ImportNeededState;
@@ -113,21 +113,51 @@ namespace Doji.AI.ModelHub.Editor
         }
 
 
-        private void DrawStateIcon(ModelHubItemState state, Rect rect)
+        internal static string GetStateIconName(ModelHubItem item)
+        {
+            if (item == null)
+            {
+                return UpdateNeededStateIconName;
+            }
+
+            if (item.HasRevisionConflict || item.State == ModelHubItemState.Error)
+            {
+                return ErrorStateIconName;
+            }
+
+            return GetStatusBadgeLabel(item) switch
+            {
+                var label when label == Content.DownloadNeededState => DownloadNeededStateIconName,
+                var label when label == Content.ImportNeededState => ImportNeededStateIconName,
+                var label when label == Content.UpdateNeededState => UpdateNeededStateIconName,
+                _ => null
+            };
+        }
+
+        private void DrawStateIcon(ModelHubItem item, Rect rect)
         {
             InitializeGuiContent();
 
-            if (state == ModelHubItemState.Ready)
+            if (item.State == ModelHubItemState.Ready)
             {
                 GUI.Label(rect, Content.ReadyStateGlyph, _readyStateGlyphStyle);
                 return;
             }
 
-            var icon = state switch
+            var iconName = GetStateIconName(item);
+            GUIContent icon = null;
+            if (string.Equals(iconName, ErrorStateIconName, System.StringComparison.Ordinal))
             {
-                ModelHubItemState.ActionRequired => _actionRequiredStateIconContent,
-                _ => _errorStateIconContent
-            };
+                icon = _errorStateIconContent;
+            }
+            else if (string.Equals(iconName, UpdateNeededStateIconName, System.StringComparison.Ordinal))
+            {
+                icon = _actionRequiredStateIconContent;
+            }
+            else if (!string.IsNullOrWhiteSpace(iconName))
+            {
+                icon = EditorGUIUtility.IconContent(iconName);
+            }
 
             if (icon != null)
             {
@@ -135,7 +165,7 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static Color GetStatusBadgeColor(ModelHubItem item)
+        internal static Color GetStatusBadgeColor(ModelHubItem item)
         {
             if (item.HasRevisionConflict)
             {
@@ -147,10 +177,12 @@ namespace Doji.AI.ModelHub.Editor
                 return new Color(0.34f, 0.55f, 0.36f, 1f);
             }
 
-            var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath);
-            return hasCacheSnapshot
-                ? new Color(0.76f, 0.60f, 0.24f, 1f)
-                : new Color(0.68f, 0.30f, 0.28f, 1f);
+            if (item.State == ModelHubItemState.Error)
+            {
+                return new Color(0.68f, 0.30f, 0.28f, 1f);
+            }
+
+            return new Color(0.76f, 0.60f, 0.24f, 1f);
         }
 
         private static string GetStatusBadgeTooltip(ModelHubItem item)

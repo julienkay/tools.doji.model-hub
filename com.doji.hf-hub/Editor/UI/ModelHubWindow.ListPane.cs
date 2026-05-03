@@ -166,7 +166,7 @@ namespace Doji.AI.ModelHub.Editor
                 iconY,
                 ListItemIconSize,
                 ListItemIconSize);
-            DrawStateIcon(item.State, iconRect);
+            DrawStateIcon(item, iconRect);
         }
 
         /// <summary>

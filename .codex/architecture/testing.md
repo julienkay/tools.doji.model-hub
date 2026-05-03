@@ -77,6 +77,8 @@ Editor UI and manifest editing:
   - file-selection button gating
 - `com.doji.hf-hub/Tests/Editor/UI/ModelHubWindowStatusRenderingTests.cs`
   - stable error/conflict icon asset selection
+  - state-specific download/import/update icon asset selection
+  - failed-row badge label and color mapping
 - `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
   - explicit `files` serialization

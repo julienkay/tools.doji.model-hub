@@ -5,6 +5,11 @@ namespace Doji.AI.ModelHub.Editor
 {
     internal sealed partial class ModelHubWindow
     {
+        internal const string DownloadNeededStateIconName = "Download-Available@2x";
+        internal const string ImportNeededStateIconName = "Import-Available@2x";
+        internal const string UpdateNeededStateIconName = "Update-Available@2x";
+        internal const string ErrorStateIconName = "console.erroricon";
+
         private static Color GetHeaderBackgroundColor()
         {
             return EditorGUIUtility.isProSkin
@@ -43,8 +48,8 @@ namespace Doji.AI.ModelHub.Editor
             _jumpToStorageContent.tooltip = Content.JumpToStorageTooltip;
             _manageContent ??= new GUIContent(Content.ManageLabel);
             _locateContent ??= new GUIContent(Content.LocateLabel, Content.LocateTooltip);
-            _actionRequiredStateIconContent ??= EditorGUIUtility.IconContent("info");
-            _errorStateIconContent ??= EditorGUIUtility.IconContent("console.warnicon");
+            _actionRequiredStateIconContent ??= EditorGUIUtility.IconContent(UpdateNeededStateIconName);
+            _errorStateIconContent ??= EditorGUIUtility.IconContent(ErrorStateIconName);
         }
 
         private void InitializeGuiStyles()

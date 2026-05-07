@@ -93,6 +93,27 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Ensures manifest dirty-state tracking also includes optional file selections.
+        /// </summary>
+        [Test]
+        public void BuildStateKey_IncludesOptionalFileSelection()
+        {
+            var stateKey = ModelManifestInspectorUtility.BuildStateKey(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry(
+                        "hf-internal-testing",
+                        "tiny-random-bert",
+                        "main",
+                        files: null,
+                        optionalFiles: new[] { "onnx/model_q4.onnx" })
+                });
+
+            Assert.That(stateKey, Does.Contain("\"optionalFiles\":[\"onnx/model_q4.onnx\"]"));
+        }
+
+        /// <summary>
         /// Ensures manifest serialization omits empty revision but preserves an explicitly entered `main`.
         /// </summary>
         [Test]
@@ -139,6 +160,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Ensures manifest serialization writes optional files when a row declares them.
+        /// </summary>
+        [Test]
+        public void TryBuildManifestJson_WritesOptionalFiles()
+        {
+            var success = ModelManifestInspectorUtility.TryBuildManifestJson(
+                1,
+                new[]
+                {
+                    new ManifestModelEntry(
+                        "hf-internal-testing",
+                        "tiny-random-bert",
+                        "main",
+                        files: new[] { "tokenizer.json" },
+                        optionalFiles: new[] { "onnx/model.onnx" })
+                },
+                out var serializedJson,
+                out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(serializedJson, Does.Contain(@"""optionalFiles"": ["));
+            Assert.That(serializedJson, Does.Contain(@"""onnx/model.onnx"""));
+        }
+
+        /// <summary>
         /// Ensures project-local manifest files are editable when the backing file is not read-only.
         /// </summary>
         [Test]
@@ -177,7 +224,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     Id = "onnx-community/tiny-clip-test-ONNX",
                     Revision = "refs/pr/7",
-                    Files = new[] { "onnx/model.onnx" }
+                    Files = new[] { "onnx/model.onnx" },
+                    OptionalFiles = new[] { "onnx/model_q4.onnx" }
                 }
             });
 
@@ -189,6 +237,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(document.models[0].id, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
             Assert.That(document.models[0].revision, Is.EqualTo("refs/pr/7"));
             Assert.That(document.models[0].files, Is.EqualTo(new[] { "onnx/model.onnx" }));
+            Assert.That(document.models[0].optionalFiles, Is.EqualTo(new[] { "onnx/model_q4.onnx" }));
         }
 
         /// <summary>
@@ -208,7 +257,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "onnx-community",
                         "tiny-clip-test-ONNX",
                         string.Empty,
-                        new[] { " tokenizer.json ", "onnx\\model.onnx", "onnx/model.onnx" })
+                        new[] { " tokenizer.json ", "onnx\\model.onnx", "onnx/model.onnx" },
+                        new[] { " onnx\\model_q4.onnx ", "onnx/model_q4.onnx" })
                 },
                 out var errorMessage);
 
@@ -224,6 +274,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(filesProperty.arraySize, Is.EqualTo(2));
             Assert.That(filesProperty.GetArrayElementAtIndex(0).stringValue, Is.EqualTo("onnx/model.onnx"));
             Assert.That(filesProperty.GetArrayElementAtIndex(1).stringValue, Is.EqualTo("tokenizer.json"));
+            var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
+            Assert.That(optionalFilesProperty.arraySize, Is.EqualTo(1));
+            Assert.That(optionalFilesProperty.GetArrayElementAtIndex(0).stringValue, Is.EqualTo("onnx/model_q4.onnx"));
         }
 
         private static void SetProjectManifest(ProjectManifestAsset asset, int version, ProjectManifestModelAssetEntry[] models)
@@ -244,6 +297,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
                 {
                     filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
+                }
+
+                var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
+                var optionalFiles = models[i].OptionalFiles ?? System.Array.Empty<string>();
+                optionalFilesProperty.arraySize = optionalFiles.Length;
+                for (var fileIndex = 0; fileIndex < optionalFiles.Length; fileIndex++)
+                {
+                    optionalFilesProperty.GetArrayElementAtIndex(fileIndex).stringValue = optionalFiles[fileIndex];
                 }
             }
 

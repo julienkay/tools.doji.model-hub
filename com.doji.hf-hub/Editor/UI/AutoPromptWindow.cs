@@ -30,10 +30,12 @@ namespace Doji.AI.ModelHub.Editor
             public const string LaterButton = "Later";
             public const string OpenButton = "Open Model Hub";
             public const string ResolveConflictButton = "Resolve Conflict";
+            public const string ConfigureButton = "Configure";
             public const string ImportAllButton = "Import All";
             public const string ImportButton = "Import";
-            public const string DownloadButton = "Download";
+            public const string DownloadButton = "Download + Import";
             public const string ResolveConflictTooltip = "Open Model Hub to inspect the conflicting manifests and resolve each repository to one requested revision.";
+            public const string ConfigureTooltip = "Open Model Hub to choose which optional ONNX files this manifest owner should include.";
             public const string ImportAllTooltip = "Downloads any missing models and imports all unresolved models into this project.";
             public const string ImportTooltip = "Imports this model into the project using files already in the shared cache.";
             public const string DownloadTooltip = "Downloads this model into the shared cache and imports it into the project.";
@@ -592,6 +594,11 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var unresolvedStatus = attentionStatuses[0];
+            if (unresolvedStatus.ReasonCode == DependencyReasonCode.SelectionRequired)
+            {
+                return (Content.ConfigureButton, Content.ConfigureTooltip, PromptPrimaryAction.OpenModelHub);
+            }
+
             return HasRawCache(unresolvedStatus)
                 ? (Content.ImportButton, Content.ImportTooltip, PromptPrimaryAction.StartSync)
                 : (Content.DownloadButton, Content.DownloadTooltip, PromptPrimaryAction.StartSync);

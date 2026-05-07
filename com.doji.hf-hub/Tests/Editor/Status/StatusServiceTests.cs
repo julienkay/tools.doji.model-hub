@@ -108,6 +108,23 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Dependency selection does not include any ONNX file."));
         }
 
+        /// <summary>
+        /// Verifies optional-only ONNX dependencies prompt for selection before any cache download is required.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsSelectionRequiredWhenAllOnnxFilesAreOptionalAndNoneAreEnabled()
+        {
+            var dependency = CreateDependency(
+                selectedFiles: Array.Empty<string>(),
+                optionalFiles: new[] { "models/model.onnx", "models/model_q4.onnx" });
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SelectionRequired));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("This dependency has optional ONNX files, but none are currently enabled for this project owner."));
+        }
+
         [Test]
         public void BuildStatusReport_ReturnsReadyWhenRawBindingAndSharedArtifactsMatch()
         {
@@ -314,7 +331,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string packageId = "com.doji.test",
             string revision = "main",
             string repository = "doji/test-model",
-            string[] selectedFiles = null)
+            string[] selectedFiles = null,
+            string[] optionalFiles = null,
+            string[] enabledOptionalFiles = null)
         {
             return new DiscoveredModelDependency(
                 packageId,
@@ -326,7 +345,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     repository,
                     revision,
-                    selectedFiles));
+                    selectedFiles,
+                    optionalFiles),
+                enabledOptionalFiles);
         }
 
         private static void WriteRawCache(DiscoveredModelDependency dependency, string commitHash = "abc123", bool includeTokenizer = true)

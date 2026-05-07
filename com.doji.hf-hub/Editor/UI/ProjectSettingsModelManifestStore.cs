@@ -29,6 +29,7 @@ namespace Doji.AI.ModelHub.Editor
             public string id;
             public string revision;
             public string[] files;
+            public string[] optionalFiles;
         }
 
         public static string GetManifestPath(string projectRoot = null)
@@ -74,7 +75,8 @@ namespace Doji.AI.ModelHub.Editor
             drafts.Add(new ManifestModelDraft(
                 normalizedModelId,
                 string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim(),
-                files));
+                files,
+                optionalFiles: null));
             return TryWriteManifest(version, drafts, out errorMessage, projectRoot);
         }
 
@@ -122,7 +124,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             version = manifest.Version;
-            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.Files)));
+            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.Files, model.OptionalFiles)));
             return true;
         }
 
@@ -192,7 +194,8 @@ namespace Doji.AI.ModelHub.Editor
                         revision = string.IsNullOrWhiteSpace(model.Revision)
                             ? null
                             : model.Revision,
-                        files = (model.Files?.Count ?? 0) > 0 ? model.Files.ToArray() : null
+                        files = (model.Files?.Count ?? 0) > 0 ? model.Files.ToArray() : null,
+                        optionalFiles = (model.OptionalFiles?.Count ?? 0) > 0 ? model.OptionalFiles.ToArray() : null
                     })
                     .ToArray()
             };

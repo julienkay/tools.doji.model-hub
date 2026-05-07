@@ -107,8 +107,16 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         if (GUILayout.Button(actionContent, GUILayout.Width(actionButtonWidth)))
                         {
-                            EditorOperations.StartBackgroundSync(item);
-                            Refresh();
+                            if (item.HasSelectionRequired)
+                            {
+                                _selectedDetailTab = DetailTab.Summary;
+                                GUI.FocusControl(null);
+                            }
+                            else
+                            {
+                                EditorOperations.StartBackgroundSync(item);
+                                Refresh();
+                            }
                         }
                     }
                 }
@@ -264,6 +272,7 @@ namespace Doji.AI.ModelHub.Editor
                 DrawOptionalValueRow(Content.RepositorySizeLabel, FormatByteSize(item.RepositorySizeBytes));
             }
             DrawRepositoryLinkRow(item);
+            DrawOptionalSelectionsSection(item);
 
             if (item.HasRevisionConflict)
             {
@@ -1068,6 +1077,62 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     Application.OpenURL($"https://huggingface.co/{item.Repository}");
                 }
+            }
+        }
+
+        private void DrawOptionalSelectionsSection(ModelHubItem item)
+        {
+            var dependentsWithOptionalFiles = (item?.Dependents ?? Array.Empty<DependencyStatus>())
+                .Where(dependent => dependent.Dependency.HasOptionalFiles)
+                .OrderBy(dependent => dependent.Dependency.PackageDisplayName, StringComparer.Ordinal)
+                .ThenBy(dependent => dependent.Dependency.ModelId, StringComparer.Ordinal)
+                .ToArray();
+            if (dependentsWithOptionalFiles.Length == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField(Content.OptionsSection, EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(Content.OptionalSelectionDescription, MessageType.None);
+
+            foreach (var dependent in dependentsWithOptionalFiles)
+            {
+                var dependency = dependent.Dependency;
+                EditorGUILayout.LabelField(
+                    $"{dependency.PackageDisplayName} / {dependency.ModelId}",
+                    EditorStyles.boldLabel);
+
+                foreach (var optionalFile in dependency.OptionalFiles)
+                {
+                    var isEnabled = dependency.EnabledOptionalFiles.Contains(optionalFile, StringComparer.Ordinal);
+                    EditorGUI.BeginChangeCheck();
+                    var nextEnabled = EditorGUILayout.ToggleLeft(optionalFile, isEnabled);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        var enabledFiles = dependency.EnabledOptionalFiles.ToList();
+                        if (nextEnabled)
+                        {
+                            if (!enabledFiles.Contains(optionalFile, StringComparer.Ordinal))
+                            {
+                                enabledFiles.Add(optionalFile);
+                            }
+                        }
+                        else
+                        {
+                            enabledFiles.RemoveAll(path => string.Equals(path, optionalFile, StringComparison.Ordinal));
+                        }
+
+                        _optionalFileSelectionSource.SetEnabledOptionalFiles(
+                            dependency.PackageId,
+                            dependency.ModelId,
+                            enabledFiles);
+                        Refresh();
+                        GUI.FocusControl(null);
+                    }
+                }
+
+                EditorGUILayout.Space(4f);
             }
         }
 

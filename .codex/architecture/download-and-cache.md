@@ -20,6 +20,8 @@ Current raw-cache layout:
 
 Revision ref maps requested revision to resolved commit. Snapshot metadata records cached file inventory for that commit.
 
+Project-local remote inventory metadata may also exist before any raw-cache download. That pre-download inventory is editor UX support for optional file selection and size estimates, not raw-cache identity.
+
 Current implementation note:
 
 - snapshot metadata currently also stores requested revision even though ref files are authoritative for revision-to-commit mapping; treat that revision field as implementation detail, not stable cache identity
@@ -82,10 +84,18 @@ Download flow:
 3. Compute effective dependency file set:
    - all repo files for whole-repo dependency
    - selected explicit repo paths for selected-file dependency
+   - required files plus enabled optional files for optional-selection dependency
 4. Download missing files from that effective set into raw snapshot cache.
 5. Write one repo-level metadata file describing cached files now present for that snapshot.
 
 This keeps cache repo-scoped while still supporting exact-file dependency selection.
+
+Optional-file selection rules:
+
+- package authors declare available optional files in manifest
+- project stores enabled optional file paths per owner dependency
+- download only respects effective selection after project overrides are applied
+- if no optional ONNX file is enabled and no required ONNX exists, HF Hub should not download whole repo by default
 
 Selection rule:
 
@@ -93,6 +103,8 @@ Selection rule:
 - cache still remains repo-snapshot-scoped, not owner-selection-scoped
 - raw cache metadata answers "what files are cached for this repo commit"
 - owner metadata answers "what files this dependency selected"
+
+Pre-download selection UX should use remote repo inventory metadata rather than waiting for raw cache to exist. Selection belongs before download.
 
 ## Reliability
 
@@ -119,9 +131,11 @@ These are treated as auto-healable because `GetOrDownloadAsync` already resolves
 
 Two automatic heal triggers fire using `DownloadOnly` mode so no re-import runs unless necessary:
 
-1. **At editor startup** — `BackgroundSyncManager.ResumeIfNeeded` runs `HealCorruptionAtStartup` when no persisted sync queue exists. If any dependency has a corruption code, a scoped download-only sync starts immediately.
-2. **On Model Hub window refresh** — `ModelHubWindow.Refresh` calls `StartHealCorruptionIfNeeded` after rebuilding the report. Only corruption-code dependencies are included.
+1. **At editor startup** - `BackgroundSyncManager.ResumeIfNeeded` runs `HealCorruptionAtStartup` when no persisted sync queue exists. If any dependency has a corruption code, a scoped download-only sync starts immediately.
+2. **On Model Hub window refresh** - `ModelHubWindow.Refresh` calls `StartHealCorruptionIfNeeded` after rebuilding the report. Only corruption-code dependencies are included.
 
 `SyncStateChanged` events (fired on sync completion or failure) call `RefreshReport` instead of `Refresh` to avoid an infinite heal loop when corruption persists across retries.
 
 `RawCacheFilesMissing` is intentionally excluded from auto-heal because it is a legitimate user-driven state (new file selection), not corruption. It surfaces the **Update + Import** button instead.
+
+Likewise, optional-file `Selection Required` state is not corruption and must never auto-heal into a whole-repo download. It requires explicit project choice.

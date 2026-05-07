@@ -137,6 +137,7 @@ namespace Doji.AI.ModelHub.Editor
             public string id;
             public string revision;
             public string[] files;
+            public string[] optionalFiles;
         }
 
         internal static bool IsModelManifestAssetPath(string assetPath)
@@ -224,7 +225,8 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         id = model?.ModelId ?? string.Empty,
                         revision = model?.Revision ?? string.Empty,
-                        files = model?.Files?.ToArray()
+                        files = model?.Files?.ToArray(),
+                        optionalFiles = model?.OptionalFiles?.ToArray()
                     })
                     .ToArray()
             };
@@ -244,7 +246,8 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(model => new ManifestModelDraft(
                     model?.ModelId,
                     string.IsNullOrWhiteSpace(model?.Revision) ? "main" : model.Revision,
-                    model?.HasExplicitFileSelection == true ? model.Files : null))
+                    model?.HasRequiredFiles == true ? model.Files : null,
+                    model?.HasOptionalFileSelection == true ? model.OptionalFiles : null))
                 .ToArray();
             if (!ManifestFactory.TryCreateManifest(version, drafts, out var manifest, out errorMessage))
             {
@@ -259,7 +262,8 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         id = model?.ModelId ?? string.Empty,
                         revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                        files = model?.HasExplicitFileSelection == true ? model.Files.ToArray() : null
+                        files = model?.HasRequiredFiles == true ? model.Files.ToArray() : null,
+                        optionalFiles = model?.HasOptionalFileSelection == true ? model.OptionalFiles.ToArray() : null
                     })
                     .ToArray()
             };
@@ -278,7 +282,8 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         id = model?.ModelId ?? string.Empty,
                         revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                        files = model?.HasExplicitFileSelection == true ? model.Files.ToArray() : null
+                        files = model?.HasRequiredFiles == true ? model.Files.ToArray() : null,
+                        optionalFiles = model?.HasOptionalFileSelection == true ? model.OptionalFiles.ToArray() : null
                     })
                     .ToArray()
             };
@@ -315,6 +320,7 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         var modelProperty = modelsProperty.GetArrayElementAtIndex(index);
                         var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                        var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
                         return new ManifestModelDocument
                         {
                             id = modelProperty.FindPropertyRelative("<Id>k__BackingField")?.stringValue,
@@ -323,6 +329,11 @@ namespace Doji.AI.ModelHub.Editor
                                 ? null
                                 : Enumerable.Range(0, filesProperty.arraySize)
                                     .Select(fileIndex => filesProperty.GetArrayElementAtIndex(fileIndex).stringValue)
+                                    .ToArray(),
+                            optionalFiles = optionalFilesProperty == null
+                                ? null
+                                : Enumerable.Range(0, optionalFilesProperty.arraySize)
+                                    .Select(fileIndex => optionalFilesProperty.GetArrayElementAtIndex(fileIndex).stringValue)
                                     .ToArray()
                         };
                     })
@@ -347,7 +358,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var document = BuildDocument(version, models);
             var drafts = (document.models ?? Array.Empty<ManifestModelDocument>())
-                .Select(model => new ManifestModelDraft(model.id, model.revision, model.files))
+                .Select(model => new ManifestModelDraft(model.id, model.revision, model.files, model.optionalFiles))
                 .ToArray();
             if (!ManifestFactory.TryCreateManifest(document.version, drafts, out _, out errorMessage))
             {
@@ -378,6 +389,14 @@ namespace Doji.AI.ModelHub.Editor
                 for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
                 {
                     filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
+                }
+
+                var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
+                var optionalFiles = sourceModel.optionalFiles ?? Array.Empty<string>();
+                optionalFilesProperty.arraySize = optionalFiles.Length;
+                for (var fileIndex = 0; fileIndex < optionalFiles.Length; fileIndex++)
+                {
+                    optionalFilesProperty.GetArrayElementAtIndex(fileIndex).stringValue = optionalFiles[fileIndex];
                 }
             }
 

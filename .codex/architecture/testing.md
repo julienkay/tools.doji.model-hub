@@ -13,7 +13,8 @@ Manifest and discovery:
 - `com.doji.hf-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
   - manifest parse and normalization
   - duplicate id validation
-  - selected-file preservation
+  - selected-file and optional-file preservation
+  - owner-scoped optional file override application
   - project settings manifest serialization inputs
 
 Cache and repository inventory:
@@ -32,6 +33,8 @@ Import and generated assets:
 - `com.doji.hf-hub/Tests/Editor/Import/ProjectImportServiceTests.cs`
   - whole-repo import from repository inventory
   - selected-file import subset
+  - optional-file selection asset persistence
+  - generated `.sentis` prune on selection shrink
   - shared import reuse across owners
   - partial conversion warnings
   - no-ONNX selection failure
@@ -47,12 +50,14 @@ Status and sync:
 - `com.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs`
   - raw cache missing and invalid cases
   - selected-file missing file detection
+  - `SelectionRequired` state for optional-only ONNX dependencies
   - whole-repo no-ONNX failure
   - same-repo later-added broader selection marks only new owner as cache-update-needed
   - binding/shared stale detection
   - imported-only ready fallback after raw cache removal
 - `com.doji.hf-hub/Tests/Editor/Status/ModelHubServiceTests.cs`
   - status aggregation into Model Hub rows
+  - selection-required diagnostics
   - same-repo multi-owner selection growth aggregates into one update-needed row
 - `com.doji.hf-hub/Tests/Editor/Sync/SyncServiceTests.cs`
   - sync success and failure orchestration
@@ -67,7 +72,7 @@ Runtime locator:
   - registry writes
   - owner-specific and global lookup
   - `FromPretrained(...)` and `LoadRuntimeModel(...)`
-  - selected-file runtime subset exposure
+  - selected-file and optional-file runtime subset exposure
 - `com.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
   - runtime path mapping and layout assumptions
 
@@ -78,10 +83,11 @@ Editor UI and manifest editing:
 - `com.doji.hf-hub/Tests/Editor/UI/ModelHubWindowStatusRenderingTests.cs`
   - stable error/conflict icon asset selection
   - state-specific download/import/update icon asset selection
+  - selection-required badge and configure/download+import action labels
   - failed-row badge label and color mapping
 - `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
-  - explicit `files` serialization
+  - explicit `files` and `optionalFiles` serialization
   - ScriptableObject manifest document load/save normalization
 - `com.doji.hf-hub/Tests/Editor/UI/ProjectSettingsTests.cs`
   - project settings manifest workflow

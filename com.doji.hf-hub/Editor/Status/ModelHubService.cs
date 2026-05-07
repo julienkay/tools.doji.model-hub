@@ -205,6 +205,7 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RevisionConflict => null,
                 DependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
+                DependencyReasonCode.SelectionRequired => "Choose at least one optional ONNX file for this manifest owner before downloading or importing.",
                 DependencyReasonCode.NoSelectedOnnxFiles => "This dependency does not currently select any ONNX file.",
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
                 DependencyReasonCode.RawCacheMetadataMissingAfterImport => null,

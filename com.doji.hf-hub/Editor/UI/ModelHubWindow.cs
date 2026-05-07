@@ -70,6 +70,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly Dictionary<string, bool> _sectionExpandedStates = new(StringComparer.Ordinal);
         private readonly Dictionary<string, RepoFileEditSession> _fileEditSessions = new(StringComparer.Ordinal);
         private readonly IRemoteSnapshotSizeEstimateService _remoteSnapshotSizeEstimateService = new RemoteSnapshotSizeEstimateService();
+        private readonly IProjectOptionalFileSelectionSource _optionalFileSelectionSource = new ProjectOptionalFileSelectionSource();
         private Rect _headerAddButtonRect;
         private static readonly QuantizationOption[] DefaultQuantizationOptions =
         {

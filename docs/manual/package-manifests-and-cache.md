@@ -20,6 +20,13 @@ Example:
       "files": [
         "onnx/model.onnx"
       ]
+    },
+    {
+      "id": "julienkay/sentis-MiDaS",
+      "optionalFiles": [
+        "onnx/midas_v21_small_256.onnx",
+        "onnx/dpt_swin2_tiny_256.onnx"
+      ]
     }
   ]
 }
@@ -69,6 +76,7 @@ Use this when model dependencies need to ship through non-package project conten
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
 - `files`: optional exact repo-relative file paths. Omit this field to require the whole repository. If present, it must contain at least one non-empty path.
+- `optionalFiles`: optional exact repo-relative file paths the project owner may enable before download or import.
 
 Model ids must be unique inside one manifest.
 
@@ -78,6 +86,7 @@ One manifest entry means one HuggingFace model id, one resolved repository snaps
 
 - omit `files` to require the whole repository file inventory for that resolved revision
 - include `files` to require only those exact repo-relative files
+- include `optionalFiles` when package authors want project-owned pre-download choice without splitting one repo into duplicate manifest rows
 
 HF Hub normalizes selected paths before storing them:
 
@@ -93,6 +102,8 @@ During sync HF Hub:
 3. downloads only the files required by current manifest owners
 4. keeps cached raw files and full repo inventory in shared cache metadata
 5. converts only the selected `.onnx` files to `.sentis`
+
+If a dependency declares only optional ONNX files and none are enabled yet, HF Hub shows `Selection Needed` instead of downloading the whole repository. The project owner must choose at least one optional ONNX file first.
 
 Selected non-ONNX files still matter. HF Hub downloads and tracks them in raw cache when they are part of dependency scope, but it does not expose import settings for them and does not generate runtime `.sentis` output from them.
 
@@ -141,7 +152,7 @@ The page also shows:
 - effective cache root after overrides
 - current Sentis version
 
-Selecting a model manifest asset in a package shows a focused Inspector for declared models, with shortcuts into Model Hub and the source file location. Writable package sources can add or remove model entries, switch between `All files` and explicit file selection, and apply those changes directly from the Inspector; installed package cache entries stay read-only.
+Selecting a model manifest asset in a package shows a focused Inspector for declared models, with shortcuts into Model Hub and the source file location. Writable package sources can add or remove model entries, switch between whole-repo scope, always-required files, and optional files, and apply those changes directly from the Inspector; installed package cache entries stay read-only.
 
 If the Inspector already knows a declared repository does not exist on HuggingFace, HF Hub keeps that invalid dependency out of Model Hub and skips it during sync until the manifest entry is fixed.
 
@@ -177,6 +188,10 @@ Selected ONNX rows behave like a traditional importer. Each repository keeps one
 
 Unselected rows remain visible so you can inspect full repository inventory even when current project depends on only one subset of files.
 
+Optional file choice happens before raw cache exists. When a manifest owner declares `optionalFiles`, the Summary tab shows owner-scoped checkboxes so you can enable ONNX variants before download.
+
+HF Hub stores those enabled optional-file choices in `Assets/Doji/HfHub/HF Hub Optional File Selections.asset`. The asset is project-owned and keyed by manifest owner plus model id, so different package or project manifests can enable different optional files from the same repository.
+
 Project-owned file overrides live in `ProjectModelConversionOverridesAsset`. HF Hub creates or updates that asset automatically when you apply file-level conversion changes. You can also create it manually from `Assets > Create > Doji > AI > HF Hub Conversion Overrides`.
 
 The diagnostics tab can also show repository diagnostics for cases that need maintainer attention:
@@ -194,8 +209,10 @@ Header actions include:
   - `Add model to project...` to append one entry to `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
   - `Add model to package...` to pick a local package inside the project and create or update its `hf-hub-manifest.json`
 - add-model popups and manifest editing rows both include a file-scope picker for `All files` or explicit repo file selection
+- manifest editing rows also support optional exact repo-relative files for pre-download owner choice
 - clickable repository link to open resolved repository page on HuggingFace
-- `Download` when the repository is not cached on this machine yet; current behavior downloads and imports in one action
+- `Configure` when a manifest owner must choose optional ONNX files first
+- `Download + Import` when the repository is not cached on this machine yet
 - `Import` when raw cache already exists and HF Hub needs to materialize `.sentis` output into the project
 - `Manage` for ready entries, with:
   - `Remove From Project` to delete generated runtime assets and import metadata from this project

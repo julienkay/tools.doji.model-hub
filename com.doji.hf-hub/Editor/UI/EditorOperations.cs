@@ -59,6 +59,13 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (item.HasSelectionRequired)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"HF Hub cannot import '{item.Repository}' until at least one optional ONNX file is enabled for each owner that requires a selection.");
+                return;
+            }
+
             BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision, SyncOperationMode.Full);
         }
 

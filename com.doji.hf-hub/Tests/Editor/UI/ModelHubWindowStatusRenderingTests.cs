@@ -94,6 +94,52 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(ModelHubWindow.GetStateIconName(updateItem), Is.EqualTo("Update-Available@2x"));
         }
 
+        /// <summary>
+        /// Ensures optional-selection rows use a distinct status badge before download starts.
+        /// </summary>
+        [Test]
+        public void SelectionRequiredState_UsesSelectionNeededBadgeLabel()
+        {
+            var item = CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.SelectionRequired,
+                rawSnapshotRootPath: null,
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>());
+
+            Assert.That(ModelHubWindow.GetStatusBadgeLabel(item), Is.EqualTo("Selection Needed"));
+            Assert.That(ModelHubWindow.GetStateIconName(item), Is.EqualTo("FilterByLabel"));
+        }
+
+        /// <summary>
+        /// Ensures primary action becomes Configure when no optional ONNX file is enabled yet.
+        /// </summary>
+        [Test]
+        public void PrimaryActionContent_UsesConfigureLabelForSelectionRequiredState()
+        {
+            var item = CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.SelectionRequired,
+                rawSnapshotRootPath: null,
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>());
+
+            Assert.That(ModelHubWindow.GetPrimaryActionContent(item, isSyncRunning: false).text, Is.EqualTo("Configure"));
+        }
+
+        /// <summary>
+        /// Ensures missing-cache rows now advertise the combined download and import action honestly.
+        /// </summary>
+        [Test]
+        public void PrimaryActionContent_UsesDownloadAndImportLabelWhenCacheIsMissing()
+        {
+            var item = CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.RawCacheRevisionRefMissing,
+                rawSnapshotRootPath: null,
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>());
+
+            Assert.That(ModelHubWindow.GetPrimaryActionContent(item, isSyncRunning: false).text, Is.EqualTo("Download + Import"));
+        }
+
         private static ModelHubItem CreateItem(
             ModelHubItemState state,
             DependencyReasonCode reasonCode,

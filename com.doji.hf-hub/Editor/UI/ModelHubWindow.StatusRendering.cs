@@ -17,6 +17,11 @@ namespace Doji.AI.ModelHub.Editor
                 return Content.ImportedState;
             }
 
+            if (item.HasSelectionRequired)
+            {
+                return Content.SelectionNeededState;
+            }
+
             var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath);
             var hasRuntimeFiles = item.RuntimeFiles.Count > 0;
 
@@ -52,6 +57,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var label when label == Content.ImportedState => ImportedStatusBadgeWidth,
                 var label when label == Content.DownloadNeededState => DownloadNeededStatusBadgeWidth,
+                var label when label == Content.SelectionNeededState => DownloadNeededStatusBadgeWidth,
                 _ => DefaultStatusBadgeWidth
             };
         }
@@ -127,6 +133,7 @@ namespace Doji.AI.ModelHub.Editor
 
             return GetStatusBadgeLabel(item) switch
             {
+                var label when label == Content.SelectionNeededState => "FilterByLabel",
                 var label when label == Content.DownloadNeededState => DownloadNeededStateIconName,
                 var label when label == Content.ImportNeededState => ImportNeededStateIconName,
                 var label when label == Content.UpdateNeededState => UpdateNeededStateIconName,
@@ -202,6 +209,11 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var hasRuntimeFiles = item.RuntimeFiles.Count > 0;
+
+            if (item.HasSelectionRequired)
+            {
+                return Content.SelectionNeededTooltip;
+            }
 
             if (!hasCacheSnapshot)
             {

@@ -56,6 +56,12 @@ Current Model Hub UI is also too late in pipeline:
 - raw ONNX inventory and conversion controls are not first-class
 - background sync still couples raw download and runtime materialization in one operation
 
+Approved direction:
+
+- optional package-authored files are selected before download
+- that pre-download selection must not depend on `Files` tab visibility
+- `Files` tab remains detailed source-plus-output inventory plus recipe editing once selection exists
+
 ## Core Rule
 
 Split two concerns cleanly:
@@ -101,16 +107,25 @@ First configurable slice should support:
 
 - per-file recipe at `repo + repoPath`
 - one effective recipe per file in one Unity project
+- package-authored optional files inside one repo dependency
+- project-owned enable or disable of those files before download
 - project-level overrides from Model Hub UI
 - future package-authored defaults, but not required in same phase
 
-First slice should keep current import behavior that every discovered `.onnx` file in snapshot is still considered part of import set.
+First slice should no longer keep current import behavior that every discovered `.onnx` file in snapshot is part of import set.
 
-That means first slice does not yet add:
+Instead:
 
-- per-file opt-out
+- package manifest declares optional files
+- project chooses enabled optional files
+- repo materialization uses union of enabled ONNX files across owners
+- per-file recipe editing applies only to files in effective selection
+
+That means first slice still does not yet add:
+
 - multiple `.sentis` variants for same `repoPath`
-- package-level declaration of several selectable runtime variants in same project
+- recipe-specific runtime public API
+- non-concrete pattern semantics in manifest truth
 
 ### Why One Effective Recipe Per File
 
@@ -135,7 +150,9 @@ HF Hub should support layered recipe sources.
 
 Future manifest schema should allow package authors to declare default conversion intent for a file or artifact group.
 
-This belongs in manifest v2, not current v1 schema.
+Package-authored optional bundle selection belongs in current additive `version: 1` extension.
+
+Richer conversion defaults can still grow later.
 
 Package defaults exist so package authors can express known-good import expectations when a repo contains multiple ONNX variants or requires specific static dimensions.
 
@@ -290,6 +307,8 @@ That tab should be editable when project override is allowed.
 
 Non-ONNX files can remain visible later if manifest v2 adds artifact grouping, but first slice only needs actionable ONNX rows.
 
+Selection should not depend on this tab being visible. Repos with optional variants must stay configurable before raw cache exists.
+
 ## Download Versus Materialize
 
 Current background sync still does:
@@ -422,12 +441,11 @@ Converted cache key should match file conversion identity exactly so copying int
 
 - multiple runtime variants for same `repoPath`
 - recipe-specific runtime public API
-- package-authored file exclusion semantics
 - turning project overrides into hidden machine-local preferences
+- treating optional-bundle selection as machine-local cache preference instead of project-owned state
 
 ## Open Questions
 
 - should project overrides live in one dedicated asset or inside expanded project manifest asset schema
-- should first editable slice allow per-file disable, or keep strict convert-all-ONNX policy until manifest v2 artifact contracts exist
 - should conflict on package-default recipe mismatch be hard error immediately, or warning until manifest v2 ships
 - how much ONNX inspection data can be extracted cheaply without triggering heavy import cost

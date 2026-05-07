@@ -20,7 +20,9 @@ namespace Doji.AI.ModelHub.Editor
             public const string ImportAllTooltip = "Resolve declared repositories, download missing raw snapshots, and import generated runtime assets.";
             public const string ImportLabel = "Import";
             public const string ImportTooltip = "Resolve and import only this repository entry.";
-            public const string DownloadLabel = "Download";
+            public const string ConfigureLabel = "Configure";
+            public const string ConfigureTooltip = "Choose optional ONNX files for this manifest owner before downloading or importing.";
+            public const string DownloadLabel = "Download + Import";
             public const string DownloadTooltip = "Download this repository into cache first, then import it into the project.";
             public const string UpdateAndImportLabel = "Update + Import";
             public const string UpdateAndImportTooltip = "Download newly selected files into cache, then re-import this repository.";
@@ -46,6 +48,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string FilesSection = "Files";
             public const string DiagnosticsSection = "Diagnostics";
             public const string DiscoveryIssuesSection = "Discovery Issues";
+            public const string OptionsSection = "Options";
             public const string RepositoryLabel = "Repository";
             public const string RequestedRevisionLabel = "Requested Revision";
             public const string ManifestOwnersLabel = "Manifest Owners";
@@ -126,6 +129,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string ImportNeededState = "Import Needed";
             public const string UpdateNeededState = "Update Needed";
             public const string DownloadNeededState = "Download Needed";
+            public const string SelectionNeededState = "Selection Needed";
             public const string RepairNeededState = "Needs Repair";
             public const string ConflictState = "Conflict";
             public const string RevisionConflictTooltip = "This repository is declared at multiple requested revisions. Resolve manifests to one revision before importing or removing files.";
@@ -133,10 +137,13 @@ namespace Doji.AI.ModelHub.Editor
             public const string ImportedTooltip = "This model is downloaded and imported into this project.";
             public const string ImportedWithoutCacheTooltip = "This model is imported into this project. Raw cache was removed from this machine.";
             public const string DownloadNeededTooltip = "This model has not been downloaded yet.";
+            public const string SelectionNeededTooltip = "Choose optional ONNX files for this manifest owner before downloading or importing.";
             public const string RepairNeededTooltip = "This model is in the project, but something is wrong and it needs to be fixed.";
             public const string ImportFailedTooltip = "This model is downloaded, but it could not be imported into the project.";
             public const string UpdateNeededTooltip = "This model is downloaded and in the project, but it needs to be updated.";
             public const string ImportNeededTooltip = "This model is downloaded in cache, but not yet imported into the project.";
+            public const string OptionalSelectionDescription = "These optional repo files are enabled per manifest owner and included in this project only when checked.";
+            public const string NoOptionalSelectionsMessage = "No optional file selections are declared for this repository.";
             public const string ReadyStateGlyph = "\u2713";
         }
     }

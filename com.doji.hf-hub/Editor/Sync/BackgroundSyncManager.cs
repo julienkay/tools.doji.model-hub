@@ -90,7 +90,9 @@ namespace Doji.AI.ModelHub.Editor
         {
             var statusReport = new StatusService().BuildStatusReport(discoveryReport);
             return statusReport.DependencyStatuses
-                .Where(status => status.ReasonCode != DependencyReasonCode.InvalidRepository)
+                .Where(status =>
+                    status.ReasonCode != DependencyReasonCode.InvalidRepository &&
+                    status.ReasonCode != DependencyReasonCode.SelectionRequired)
                 .Select(status => status.Dependency)
                 .Where(dependencyFilter ?? (_ => true))
                 .Select(GetDependencyKey)
@@ -291,6 +293,7 @@ namespace Doji.AI.ModelHub.Editor
         private static void Complete(SyncReport report)
         {
             Runner.RemoveProgressIfExists();
+            RebuildRuntimeRegistries();
             var consoleReport = EditorOperations.BuildSyncConsoleReport(report);
             if (report.FailureCount > 0 || report.DiscoveryIssues.Count > 0)
             {
@@ -410,6 +413,45 @@ namespace Doji.AI.ModelHub.Editor
         private static void NotifySyncStateChanged()
         {
             SyncStateChanged?.Invoke();
+        }
+
+        private static void RebuildRuntimeRegistries()
+        {
+            var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
+            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
+            var readyResults = statusReport.DependencyStatuses
+                .Where(status => status.State == DependencyState.Ready && status.ImportedMetadata != null)
+                .Select(status => new ModelSyncResult(
+                    SyncOperationMode.Full,
+                    status.Dependency,
+                    null,
+                    new ImportedModelArtifact(
+                        ProjectPaths.GetRuntimeSnapshotFolder(status.Dependency.Repository, status.ImportedMetadata.ResolvedCommitHash),
+                        status.BindingMetadataPath,
+                        status.ImportedMetadata,
+                        status.ImportedMetadata.SharedImportMetadataPath),
+                    null))
+                .ToArray();
+
+            var registryService = new RuntimeLocatorRegistryService();
+            registryService.WriteRegistries(readyResults);
+
+            var readyPackageIds = new HashSet<string>(
+                readyResults.Select(result => result.Dependency.PackageId),
+                StringComparer.Ordinal);
+
+            foreach (var packageId in discoveryReport.Dependencies.Select(dependency => dependency.PackageId).Distinct(StringComparer.Ordinal))
+            {
+                if (readyPackageIds.Contains(packageId))
+                {
+                    continue;
+                }
+
+                var registryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(packageId);
+                AssetDatabase.DeleteAsset(registryAssetPath);
+            }
+
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
     }
 }

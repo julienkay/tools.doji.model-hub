@@ -48,9 +48,19 @@ namespace Doji.AI.ModelHub.Editor
 
         private GUIContent GetImportActionContent(ModelHubItem item, bool isSyncRunning = false)
         {
+            return GetPrimaryActionContent(item, isSyncRunning);
+        }
+
+        internal static GUIContent GetPrimaryActionContent(ModelHubItem item, bool isSyncRunning = false)
+        {
             if (item != null && item.HasRevisionConflict)
             {
                 return new GUIContent(Content.ImportLabel, Content.RevisionConflictActionTooltip);
+            }
+
+            if (item?.HasSelectionRequired == true)
+            {
+                return new GUIContent(Content.ConfigureLabel, isSyncRunning ? Content.SyncInProgressTooltip : Content.ConfigureTooltip);
             }
 
             var hasCacheSnapshot = !string.IsNullOrWhiteSpace(item?.RawSnapshotRootPath);
@@ -75,7 +85,7 @@ namespace Doji.AI.ModelHub.Editor
 
             return hasMissingCacheFiles
                 ? new GUIContent(Content.UpdateAndImportLabel, Content.UpdateAndImportTooltip)
-                : _importContent;
+                : new GUIContent(Content.ImportLabel, Content.ImportTooltip);
         }
 
         private static void LocateManifest(ModelHubItem item)

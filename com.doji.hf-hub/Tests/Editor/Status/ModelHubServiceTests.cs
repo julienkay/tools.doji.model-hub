@@ -135,6 +135,37 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies selection-required dependencies surface a configure-first diagnostic instead of download-needed text.
+        /// </summary>
+        [Test]
+        public void BuildReport_ShowsSelectionRequiredDiagnosticWhenOptionalOnnxNeedsOwnerChoice()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        "com.doji.pkg-a",
+                        "Package A",
+                        "model-a",
+                        DependencyState.Missing,
+                        reasonCode: DependencyReasonCode.SelectionRequired,
+                        maintainerMessage: "This dependency has optional ONNX files, but none are currently enabled for this project owner.",
+                        selectedFiles: Array.Empty<string>(),
+                        optionalFiles: new[] { "model.onnx", "model_q4.onnx" },
+                        includeRawMetadata: false)
+                });
+
+            var hubReport = new ModelHubService().BuildReport(report);
+
+            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.ActionRequired));
+            Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional ONNX file for this manifest owner before downloading or importing."));
+        }
+
+        /// <summary>
         /// Verifies when a second owner later broadens same-repository selection, Model Hub shows one update-needed row and keeps already-imported files visible.
         /// </summary>
         [Test]
@@ -566,6 +597,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
             bool includeRawMetadata = true,
             string[] selectedFiles = null,
+            string[] optionalFiles = null,
             bool includeExtraRepositoryFile = false,
             RepositoryFileMetadata[] extraRepositoryFiles = null)
         {
@@ -579,7 +611,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     revision,
-                    selectedFiles));
+                    selectedFiles,
+                    optionalFiles));
 
             var metadata = new ImportedModelMetadata
             {

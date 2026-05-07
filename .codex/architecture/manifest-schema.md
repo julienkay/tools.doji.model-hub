@@ -8,7 +8,11 @@ Recommended location:
 
 - `Packages/<package-id>/hf-hub-manifest.json`
 
-Manifest stays on `version: 1` and supports both whole-repo and selected-file dependencies.
+Manifest stays on `version: 1` and supports:
+
+- whole-repo dependencies
+- required explicit-file dependencies
+- package-authored optional exact file paths inside one repo dependency
 
 ```json
 {
@@ -24,6 +28,14 @@ Manifest stays on `version: 1` and supports both whole-repo and selected-file de
       "files": [
         "onnx/model.onnx"
       ]
+    },
+    {
+      "id": "julienkay/sentis-MiDaS",
+      "revision": "main",
+      "optionalFiles": [
+        "onnx/midas_v21_small_256.onnx",
+        "onnx/dpt_swin2_tiny_256.onnx"
+      ]
     }
   ]
 }
@@ -34,7 +46,8 @@ Field intent:
 - `version`: manifest format version
 - `id`: canonical HuggingFace model id, also used as repo snapshot identity and runtime lookup key
 - `revision`: branch, tag, or commit to resolve from HuggingFace
-- `files`: optional list of exact repo-relative file paths required by this dependency owner; when omitted, dependency scope is whole repo
+- `files`: optional list of exact repo-relative file paths always required by this dependency owner; when omitted, dependency scope is whole repo unless `optionalFiles` narrows it
+- `optionalFiles`: optional list of exact repo-relative file paths this dependency owner may enable per project
 
 Canonical HuggingFace model id definition:
 
@@ -46,10 +59,44 @@ Canonical HuggingFace model id definition:
 Manifest meaning:
 
 - one entry resolves one upstream repo revision to one concrete commit
-- one entry either depends on whole repo or on explicit repo-relative file paths inside that repo
+- one entry owns one canonical repo id for one manifest owner
+- duplicate `id` values inside one manifest are invalid
+- optional model variants must not be modeled as duplicate manifest rows with same `id`
+- one entry may depend on whole repo, on explicit always-required files, or on required files plus optional files inside that repo
 - ONNX conversion and runtime materialization operate only on selected `.onnx` files for that dependency scope
 
 File selection uses exact repo-relative paths first. Pattern-based authoring can layer on later if needed, but manifest truth is still concrete file selection.
+
+## Optional Files
+
+Optional files solve cases like MiDaS where one upstream repo contains several interchangeable ONNX variants and package authors do not want to force every project to download or import all of them.
+
+Rules:
+
+- optional file paths use same exact-path normalization as top-level `files`
+- overlap between `files` and `optionalFiles` is invalid
+- top-level `files` remain always-required and are not controlled by user toggles
+- project-owned selection data records enabled optional file paths per owner dependency
+
+## Effective Selection
+
+Manifest no longer tells whole truth by itself once `optionalFiles` exist.
+
+Effective owner selection is:
+
+1. all top-level required `files`
+2. plus every path from `optionalFiles` enabled for that owner in current Unity project
+3. or whole-repo inventory when neither `files` nor `optionalFiles` narrows dependency scope
+
+Project-owned selection overrides must stay outside package manifest so installed package manifests can remain immutable.
+
+Selection storage rule:
+
+- package manifest declares available optional files
+- project-owned override data records enabled optional file paths per owner dependency
+- status, download, import, and runtime registry logic all reason over effective selection, not raw manifest text alone
+
+If effective selection contains no ONNX file, HF Hub should surface a user-actionable `Selection Required` style state rather than silently downloading whole repo or treating package as broken.
 
 ## Selection Boundary
 
@@ -81,3 +128,4 @@ HF Hub keeps manifest identity close to upstream:
 - `id` is repo id
 - `revision` is resolution input
 - `files` narrows dependency scope inside repo when needed
+- `optionalFiles` lists project-selectable exact repo paths when needed

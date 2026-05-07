@@ -206,6 +206,7 @@ namespace Doji.AI.ModelHub.Editor
                 sharedMetadataFilePath,
                 recipeSetHash);
             WriteBindingMetadata(bindingMetadataAbsolutePath, bindingMetadata);
+            PruneDeselectedRuntimeFiles(dependency.Repository, resolvedCommitHash);
 
             AssetDatabase.SaveAssets();
 
@@ -549,6 +550,78 @@ namespace Doji.AI.ModelHub.Editor
 
                 currentFolder = nextFolder;
             }
+        }
+
+        private static void PruneDeselectedRuntimeFiles(string repository, string resolvedCommitHash)
+        {
+            var runtimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(repository, resolvedCommitHash);
+            var runtimeSnapshotAbsolutePath = ProjectPaths.ToAbsolutePath(runtimeSnapshotAssetPath);
+            if (!Directory.Exists(runtimeSnapshotAbsolutePath))
+            {
+                return;
+            }
+
+            var referencedRuntimeAssetPaths = GetReferencedRuntimeAssetPaths(repository, resolvedCommitHash);
+            foreach (var absoluteRuntimeFilePath in Directory.EnumerateFiles(runtimeSnapshotAbsolutePath, "*.sentis", SearchOption.AllDirectories))
+            {
+                var runtimeAssetPath = ToAssetPath(absoluteRuntimeFilePath);
+                if (referencedRuntimeAssetPaths.Contains(runtimeAssetPath))
+                {
+                    continue;
+                }
+
+                AssetDatabase.DeleteAsset(runtimeAssetPath);
+            }
+        }
+
+        private static HashSet<string> GetReferencedRuntimeAssetPaths(string repository, string resolvedCommitHash)
+        {
+            var referencedRuntimeAssetPaths = new HashSet<string>(StringComparer.Ordinal);
+            var bindingsRootAbsolutePath = ProjectPaths.ToProjectAbsolutePath("Library/Doji/HfHub/imports/bindings");
+            if (!Directory.Exists(bindingsRootAbsolutePath))
+            {
+                return referencedRuntimeAssetPaths;
+            }
+
+            foreach (var bindingMetadataAbsolutePath in Directory.EnumerateFiles(
+                         bindingsRootAbsolutePath,
+                         "hf-hub-binding.json",
+                         SearchOption.AllDirectories))
+            {
+                if (!TryReadBindingMetadata(bindingMetadataAbsolutePath, out var bindingMetadata) ||
+                    !string.Equals(bindingMetadata.Repository, repository, StringComparison.Ordinal) ||
+                    !string.Equals(bindingMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
+                {
+                    continue;
+                }
+
+                var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
+                if (!TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata) ||
+                    !string.Equals(sharedMetadata.Repository, repository, StringComparison.Ordinal) ||
+                    !string.Equals(sharedMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                foreach (var runtimeFile in sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                {
+                    if (string.Equals(runtimeFile.Kind, "sentis", StringComparison.Ordinal) &&
+                        !string.IsNullOrWhiteSpace(runtimeFile.AssetPath))
+                    {
+                        referencedRuntimeAssetPaths.Add(runtimeFile.AssetPath);
+                    }
+                }
+            }
+
+            return referencedRuntimeAssetPaths;
+        }
+
+        private static string ToAssetPath(string absolutePath)
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var projectRelativePath = Path.GetRelativePath(projectRoot, absolutePath);
+            return projectRelativePath.Replace('\\', '/');
         }
 
         private static string GetSentisVersion()

@@ -29,7 +29,13 @@ The current package already covers the main editor-side vertical slice:
 - project-owned `.sentis` generation plus generated-asset metadata for stale detection
 - local status classification as `Ready`, `Missing`, `Stale`, or `Failed`
 
-The remaining active architecture slice is the runtime locator contract that removes hard-coded project paths from package runtime usage and supports future multi-file model pipelines.
+The next approved architecture slice is optional package-owned model selection:
+
+- package authors can declare optional exact repo-relative files inside one repo dependency
+- projects choose enabled optional files before download or import
+- raw cache stays repo-scoped
+- generated runtime artifacts stay repo-scoped
+- owner bindings and runtime registries stay owner-scoped
 
 ## Package Boundary
 

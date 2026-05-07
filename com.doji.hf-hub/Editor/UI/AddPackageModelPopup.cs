@@ -89,6 +89,7 @@ namespace Doji.AI.ModelHub.Editor
                                     _selectedFiles = files ?? Array.Empty<string>();
                                     editorWindow?.Repaint();
                                 },
+                                "All files (whole repository)",
                                 () => editorWindow?.Repaint()));
                     }
                 }

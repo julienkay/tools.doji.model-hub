@@ -241,6 +241,44 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies owner-enabled optional file selections also constrain runtime registry output.
+        /// </summary>
+        [Test]
+        public async System.Threading.Tasks.Task FromPretrained_OptionalFileSelectionDoesNotExposeDisabledSiblingOnnx()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    files: null,
+                    optionalFiles: new[] { "model.onnx", "model_bnb4.onnx" }),
+                enabledOptionalFiles: new[] { "model.onnx" });
+
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+            var importService = new ProjectImportService();
+            var importedArtifact = await importService.ImportAsync(
+                dependency,
+                cachedSnapshot,
+                System.Threading.CancellationToken.None);
+
+            _registryService.WriteRegistries(new[]
+            {
+                new ModelSyncResult(SyncOperationMode.Full, dependency, cachedSnapshot, importedArtifact, null)
+            });
+
+            var repository = Hub.FromPretrained("doji/test-model");
+
+            Assert.That(repository.TryGetSentisPath("model.onnx", out _), Is.True);
+            Assert.That(repository.TryGetSentisPath("model_bnb4.onnx", out _), Is.False);
+        }
+
+        /// <summary>
         /// Verifies single-string repo lookup throws when multiple owners publish same repo.
         /// </summary>
         [Test]

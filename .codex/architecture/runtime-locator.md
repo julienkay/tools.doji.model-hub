@@ -20,6 +20,14 @@ Current API direction:
 - `pretrained.LoadModel("onnx/model.onnx")`
 - `ModelHub.LoadRuntimeModel(repoId, "onnx/model.onnx")`
 
+Optional package-authored file toggles do not participate in public runtime lookup.
+
+Reason:
+
+- runtime code already has stable lookup shape: `repoId + repoPath`
+- optional file selection is package-management/editor state
+- once project enables and imports a file, runtime should load it by original repo-relative path
+
 ## Why Repo-Level Dependencies
 
 Repo-level manifest entries simplify almost every layer:
@@ -62,11 +70,17 @@ That simplicity depends on one project-level rule:
 - one Unity project may publish only one requested revision for one canonical `repo_id`
 - if multiple owners request same `repo_id` at different revisions, HF Hub blocks editor sync for that repo until project resolves conflict to one revision
 
+Additional owner rule:
+
+- one owner manifest may publish only one dependency entry for one canonical `repo_id`
+- optional files inside one repo must stay inside that single owner entry, not as duplicate manifest rows
+
 ## Current Implementation Limits
 
 - runtime locator currently reads registry JSON and generated payloads through direct filesystem APIs under `Application.streamingAssetsPath`
 - treat current implementation as desktop/editor-first until HF Hub has a platform-safe runtime loader for cases where `StreamingAssets` is packed or virtualized
 - owner-specific runtime lookup assumes each owner publishes its own registry; package manifests and ScriptableObject project manifest assets now publish distinct owner identities, while the Project Settings JSON manifest remains one shared project-level owner
+- owner registry entry should contain only files in that owner's effective selection, even when shared repo runtime payload contains larger union for other owners
 
 ## Ambiguity Contract
 
@@ -78,3 +92,24 @@ If multiple owners declare same `repo_id`:
 - owner-specific overload is required
 
 That keeps default API simple while preserving explicit escape hatch for rare multi-owner collisions.
+
+## Owner Versus Repo Union
+
+Optional files create two legitimate file sets:
+
+- repo materialization union: all generated runtime files needed by any owner of one repo
+- owner effective selection: files one specific owner should see in its runtime registry
+
+Runtime locator must publish owner effective selection, not repo union.
+
+Why:
+
+- package runtime code should not accidentally discover variants its package did not select
+- owner registry is package contract surface
+- repo-union output is implementation detail needed for shared import reuse
+
+This means:
+
+- shared `StreamingAssets` folder may contain more `.sentis` files than one owner registry exposes
+- `TryResolveRuntimeModel(packageId, repoId, out model)` returns only that owner's selected files
+- global repo lookup remains union across owners only in ambiguity sense, not in per-owner file exposure

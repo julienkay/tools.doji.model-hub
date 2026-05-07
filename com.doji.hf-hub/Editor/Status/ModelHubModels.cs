@@ -194,6 +194,7 @@ namespace Doji.AI.ModelHub.Editor
             .Distinct(StringComparer.Ordinal)
             .Count();
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
+        public bool HasSelectionRequired => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.SelectionRequired);
         public bool HasMissingCacheFiles => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing);
         public bool HasImportedArtifacts => _runtimeFiles.Length > 0;
         public bool NeedsAttention => State != ModelHubItemState.Ready;

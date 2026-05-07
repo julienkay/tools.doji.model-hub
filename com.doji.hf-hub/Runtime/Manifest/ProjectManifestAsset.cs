@@ -25,7 +25,8 @@ namespace Doji.AI.ModelHub
                 .Select(model => new ManifestModelDraft(
                     model?.Id,
                     model?.Revision,
-                    model?.Files?.Length > 0 ? model.Files : null))
+                    model?.Files?.Length > 0 ? model.Files : null,
+                    model?.OptionalFiles?.Length > 0 ? model.OptionalFiles : null))
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
@@ -50,6 +51,9 @@ namespace Doji.AI.ModelHub
 
         [field: SerializeField]
         public string[] Files { get; set; }
+
+        [field: SerializeField]
+        public string[] OptionalFiles { get; set; }
     }
 
     [Serializable]
@@ -82,11 +86,47 @@ namespace Doji.AI.ModelHub
         [SerializeField]
         private string[] _files;
 
+        [SerializeField]
+        private string[] _optionalFiles;
+
         public ProjectManifestAssetEntryDocument(ProjectManifestModelAssetEntry model)
         {
             _id = model?.Id;
             _revision = model?.Revision;
             _files = model?.Files;
+            _optionalFiles = model?.OptionalFiles;
         }
+    }
+
+    /// <summary>
+    /// Stores project-owned optional file selections keyed by manifest owner and model id.
+    /// </summary>
+    [CreateAssetMenu(
+        fileName = "HF Hub Optional File Selections",
+        menuName = "Doji/AI/HF Hub Optional File Selections",
+        order = 1001)]
+    public sealed class ProjectOptionalFileSelectionsAsset : ScriptableObject
+    {
+        [field: SerializeField]
+        public int Version { get; private set; } = 1;
+
+        [field: SerializeField]
+        public ProjectOptionalFileSelectionEntry[] Selections { get; set; } = Array.Empty<ProjectOptionalFileSelectionEntry>();
+    }
+
+    /// <summary>
+    /// Stores one owner-scoped enabled optional-file set in Unity-serializable form.
+    /// </summary>
+    [Serializable]
+    public sealed class ProjectOptionalFileSelectionEntry
+    {
+        [field: SerializeField]
+        public string OwnerId { get; set; }
+
+        [field: SerializeField]
+        public string ModelId { get; set; }
+
+        [field: SerializeField]
+        public string[] EnabledOptionalFiles { get; set; }
     }
 }

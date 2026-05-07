@@ -155,8 +155,19 @@ namespace Doji.AI.ModelHub.Editor
         {
             var modelResults = new List<ModelSyncResult>();
             var revisionConflicts = RevisionConflictDetector.Detect(discoveryReport?.Dependencies);
+            var statusByDependencyKey = new StatusService().BuildStatusReport(discoveryReport).DependencyStatuses
+                .ToDictionary(
+                    status => $"{status.Dependency.PackageId}:{status.Dependency.ModelId}",
+                    status => status,
+                    StringComparer.Ordinal);
             foreach (var dependency in discoveryReport.Dependencies)
             {
+                if (statusByDependencyKey.TryGetValue($"{dependency.PackageId}:{dependency.ModelId}", out var dependencyStatus) &&
+                    dependencyStatus.ReasonCode == DependencyReasonCode.SelectionRequired)
+                {
+                    continue;
+                }
+
                 if (revisionConflicts.TryGetValue(dependency.Repository, out var revisionConflict))
                 {
                     modelResults.Add(ModelSyncResult.CreateRevisionConflictFailure(dependency, revisionConflict));

@@ -173,6 +173,48 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies optional-file selection shrinks remove no-longer-selected generated Sentis outputs.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_PrunesDeselectedRuntimeFiles_WhenOptionalSelectionShrinks()
+        {
+            var initialDependency = new DiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    files: null,
+                    optionalFiles: new[] { "model.onnx", "model_bnb4.onnx" }),
+                enabledOptionalFiles: new[] { "model.onnx", "model_bnb4.onnx" });
+            var shrunkDependency = new DiscoveredModelDependency(
+                "com.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/com.doji.test",
+                "/tmp/com.doji.test/hf-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    files: null,
+                    optionalFiles: new[] { "model.onnx", "model_bnb4.onnx" }),
+                enabledOptionalFiles: new[] { "model.onnx" });
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+
+            var firstArtifact = await _service.ImportAsync(initialDependency, cachedSnapshot, CancellationToken.None);
+            var secondArtifact = await _service.ImportAsync(shrunkDependency, cachedSnapshot, CancellationToken.None);
+
+            Assert.That(firstArtifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out var firstVariantRuntimeFile), Is.True);
+            Assert.That(secondArtifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
+            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(firstVariantRuntimeFile.AssetPath)), Is.False);
+        }
+
+        /// <summary>
         /// Verifies whole-repo dependencies fail with a clear message when repository inventory contains no ONNX file.
         /// </summary>
         [Test]
@@ -332,6 +374,49 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 128 }));
         }
 
+        /// <summary>
+        /// Verifies project optional selection source creates a project-owned asset and owner-scoped entry.
+        /// </summary>
+        [Test]
+        public void ProjectOptionalFileSelectionSource_SetEnabledOptionalFiles_CreatesAssetAndEntry()
+        {
+            var source = new ProjectOptionalFileSelectionSource();
+
+            source.SetEnabledOptionalFiles(
+                "com.doji.test",
+                "doji/test-model",
+                new[] { "model_q4.onnx" });
+
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectOptionalFileSelectionsAsset>(ProjectOptionalFileSelectionSource.DefaultAssetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Selections, Has.Length.EqualTo(1));
+            Assert.That(asset.Selections[0].OwnerId, Is.EqualTo("com.doji.test"));
+            Assert.That(asset.Selections[0].ModelId, Is.EqualTo("doji/test-model"));
+            Assert.That(asset.Selections[0].EnabledOptionalFiles, Is.EqualTo(new[] { "model_q4.onnx" }));
+        }
+
+        /// <summary>
+        /// Verifies clearing enabled optional files removes the project-owned entry instead of storing an empty override.
+        /// </summary>
+        [Test]
+        public void ProjectOptionalFileSelectionSource_SetEnabledOptionalFiles_RemovesEntryWhenSelectionCleared()
+        {
+            var source = new ProjectOptionalFileSelectionSource();
+            source.SetEnabledOptionalFiles(
+                "com.doji.test",
+                "doji/test-model",
+                new[] { "model_q4.onnx" });
+
+            source.SetEnabledOptionalFiles(
+                "com.doji.test",
+                "doji/test-model",
+                Array.Empty<string>());
+
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectOptionalFileSelectionsAsset>(ProjectOptionalFileSelectionSource.DefaultAssetPath);
+            Assert.That(asset, Is.Not.Null);
+            Assert.That(asset.Selections, Is.Empty);
+        }
+
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "com.doji.test",
             string manifestHash = "manifesthash")
@@ -473,6 +558,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static void CleanupRecipeOverrideAsset()
         {
             DeleteAssetIfExists(ProjectModelRecipeSource.DefaultAssetPath);
+            DeleteAssetIfExists(ProjectOptionalFileSelectionSource.DefaultAssetPath);
             DeleteEmptyAssetFolderIfExists("Assets/Doji/HfHub");
             DeleteEmptyAssetFolderIfExists("Assets/Doji");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);

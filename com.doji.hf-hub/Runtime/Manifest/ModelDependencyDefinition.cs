@@ -13,21 +13,25 @@ namespace Doji.AI.ModelHub
     public sealed class ModelDependencyDefinition
     {
         private readonly string[] _files;
+        private readonly string[] _optionalFiles;
 
         /// <summary>
         /// Creates an immutable model dependency definition from one manifest entry.
         /// </summary>
         /// <param name="id">Canonical HuggingFace model identifier, matching Hub `from_pretrained(...)` style source naming.</param>
         /// <param name="revision">Branch, tag, or commit to resolve from the Hub.</param>
-        /// <param name="files">Optional exact repo-relative file selection. When omitted, the whole repository is required.</param>
+        /// <param name="files">Optional exact repo-relative required file selection. When omitted alongside <paramref name="optionalFiles"/>, the whole repository is required.</param>
+        /// <param name="optionalFiles">Optional exact repo-relative file paths that project owners may enable individually.</param>
         public ModelDependencyDefinition(
             string id,
             string revision,
-            IReadOnlyList<string> files = null)
+            IReadOnlyList<string> files = null,
+            IReadOnlyList<string> optionalFiles = null)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Revision = revision ?? throw new ArgumentNullException(nameof(revision));
             _files = NormalizeSelectedFiles(files);
+            _optionalFiles = NormalizeSelectedFiles(optionalFiles);
         }
 
         /// <summary>
@@ -42,21 +46,31 @@ namespace Doji.AI.ModelHub
 
         /// <summary>
         /// Exact repo-relative file paths required by this dependency.
-        /// Empty means the whole repository is required.
+        /// Empty can still mean optional files are declared separately.
         /// </summary>
         public IReadOnlyList<string> Files => _files;
 
         /// <summary>
-        /// Whether this dependency selects an explicit subset of repository files instead of the whole repository.
+        /// Exact repo-relative file paths a project owner may opt into for this dependency.
         /// </summary>
-        public bool HasExplicitFileSelection => _files.Length > 0;
+        public IReadOnlyList<string> OptionalFiles => _optionalFiles;
+
+        /// <summary>
+        /// Whether this dependency declares any explicit required or optional repository file paths.
+        /// </summary>
+        public bool HasExplicitFileSelection => _files.Length > 0 || _optionalFiles.Length > 0;
+
+        /// <summary>
+        /// Whether this dependency still means "whole repository" instead of an explicit required/optional file set.
+        /// </summary>
+        public bool SelectsWholeRepository => !HasExplicitFileSelection;
 
         /// <summary>
         /// Effective branch, tag, or commit after applying manifest defaulting rules for omitted revisions.
         /// </summary>
         public string EffectiveRevision => ManifestRevision.NormalizeForResolution(Revision);
 
-        internal string DependencySelectionHash => ComputeSelectionHash(_files);
+        internal string DependencySelectionHash => ComputeSelectionHash(_files, SelectsWholeRepository);
 
         internal static string[] NormalizeSelectedFiles(IReadOnlyList<string> files)
         {
@@ -76,10 +90,10 @@ namespace Doji.AI.ModelHub
                 : repoPath.Trim().Replace('\\', '/');
         }
 
-        internal static string ComputeSelectionHash(IReadOnlyList<string> files)
+        internal static string ComputeSelectionHash(IReadOnlyList<string> files, bool selectsWholeRepository = false)
         {
             var normalizedFiles = NormalizeSelectedFiles(files);
-            if (normalizedFiles.Length == 0)
+            if (selectsWholeRepository)
             {
                 return ComputeTextHash("all\n");
             }

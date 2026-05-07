@@ -1,19 +1,20 @@
 # Current Work
 
 ## Focus
-Manifest inspector UX now shared across package JSON, Project Settings JSON, and `ProjectManifestAsset` ScriptableObject manifests; next work is Unity-side validation of inspector behavior and any remaining inline validation gaps.
+Optional file selection is implemented. Next session should focus on verification follow-up, any user-reported fixes, and broader polish around the new owner-scoped `optionalFiles` workflow.
 
 ## Next Tasks
-- [ ] Verify in Unity that existing `ProjectManifestAsset` assets show shared inspector, preserve Apply/Revert flow, and still appear in Model Hub discovery.
-- [ ] Decide whether invalid revision state needs stronger inline row messaging beyond tooltip + disabled file-selection button across all manifest surfaces.
+- [ ] Run the new editor tests inside Unity and fix any failures.
+- [ ] Verify the pre-download optional-file UX in Model Hub against real manifests, especially multi-owner same-repo cases.
+- [ ] Decide whether project-owned optional selections should stay as a user-creatable asset menu item or become HF Hub-internal only.
 
 ## Blockers And Decisions Needed
-- First slice remains exact explicit repo paths only. No glob support yet.
-- Whole-repo import/status depend on populated raw `RepositoryFiles` inventory; keep downloader metadata aligned with that contract.
+- No architectural blockers remain for the file-path-first `optionalFiles` slice.
+- Validation is still pending in-editor because this repo does not have a CLI Unity test/build path.
 
 ## Read Before Editing
-- [com.doji.hf-hub/Editor/UI/ManifestDocumentEditor.cs](../com.doji.hf-hub/Editor/UI/ManifestDocumentEditor.cs)
-- [com.doji.hf-hub/Editor/UI/ProjectManifestAssetInspector.cs](../com.doji.hf-hub/Editor/UI/ProjectManifestAssetInspector.cs)
-- [com.doji.hf-hub/Editor/UI/ManifestModelListEditor.cs](../com.doji.hf-hub/Editor/UI/ManifestModelListEditor.cs)
-- [com.doji.hf-hub/Editor/UI/ModelIdPopupValidationController.cs](../com.doji.hf-hub/Editor/UI/ModelIdPopupValidationController.cs)
-- [com.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs](../com.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs)
+- [.codex/architecture/manifest-schema.md](./architecture/manifest-schema.md)
+- [com.doji.hf-hub/Editor/Discovery/EditorManifestDiscovery.cs](../com.doji.hf-hub/Editor/Discovery/EditorManifestDiscovery.cs)
+- [com.doji.hf-hub/Editor/Import/ProjectImportService.cs](../com.doji.hf-hub/Editor/Import/ProjectImportService.cs)
+- [com.doji.hf-hub/Editor/Status/StatusService.cs](../com.doji.hf-hub/Editor/Status/StatusService.cs)
+- [com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs](../com.doji.hf-hub/Editor/UI/ModelHubWindow.DetailsPane.cs)

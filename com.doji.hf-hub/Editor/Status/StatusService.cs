@@ -73,6 +73,19 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
+            if (dependency.RequiresOptionalOnnxSelection)
+            {
+                return Missing(
+                    dependency,
+                    DependencyReasonCode.SelectionRequired,
+                    "This dependency has optional ONNX files, but none are currently enabled for this project owner.",
+                    revisionRefPath,
+                    null,
+                    null,
+                    runtimePreviewAssetPath,
+                    bindingMetadataAssetPath);
+            }
+
             if (!File.Exists(revisionRefPath))
             {
                 if (TryBuildImportedOnlyStatus(

@@ -15,18 +15,20 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelEntry
     {
-        public ManifestModelEntry(string owner, string name, string revision, string[] files = null)
+        public ManifestModelEntry(string owner, string name, string revision, string[] files = null, string[] optionalFiles = null)
         {
             Owner = owner ?? string.Empty;
             Name = name ?? string.Empty;
             Revision = revision ?? string.Empty;
             Files = ModelDependencyDefinition.NormalizeSelectedFiles(files);
+            OptionalFiles = ModelDependencyDefinition.NormalizeSelectedFiles(optionalFiles);
         }
 
         public string Owner { get; set; }
         public string Name { get; set; }
         public string Revision { get; set; }
         public string[] Files { get; set; }
+        public string[] OptionalFiles { get; set; }
 
         public string ModelId => string.IsNullOrWhiteSpace(Owner)
             ? Name ?? string.Empty
@@ -40,12 +42,21 @@ namespace Doji.AI.ModelHub.Editor
             !string.IsNullOrWhiteSpace(Owner) &&
             !string.IsNullOrWhiteSpace(Name);
 
-        public bool HasExplicitFileSelection => (Files ?? Array.Empty<string>()).Length > 0;
-        public string FileSelectionSummary => HasExplicitFileSelection
+        public bool HasRequiredFiles => (Files ?? Array.Empty<string>()).Length > 0;
+        public bool HasOptionalFileSelection => (OptionalFiles ?? Array.Empty<string>()).Length > 0;
+        public bool HasExplicitFileSelection => HasRequiredFiles || HasOptionalFileSelection;
+        public string FileSelectionSummary => HasRequiredFiles
             ? Files.Length == 1
                 ? "1 file"
                 : $"{Files.Length} files"
-            : "All files";
+            : HasOptionalFileSelection
+                ? "None"
+                : "All files";
+        public string OptionalFileSelectionSummary => HasOptionalFileSelection
+            ? OptionalFiles.Length == 1
+                ? "1 file"
+                : $"{OptionalFiles.Length} files"
+            : "None";
 
         public static ManifestModelEntry FromDocumentModel(ModelManifestInspectorUtility.ManifestModelDocument model)
         {
@@ -53,14 +64,15 @@ namespace Doji.AI.ModelHub.Editor
             var slashIndex = identifier.IndexOf('/');
             if (slashIndex <= 0 || slashIndex >= identifier.Length - 1)
             {
-                return new ManifestModelEntry(string.Empty, identifier, model?.revision ?? string.Empty, model?.files);
+                return new ManifestModelEntry(string.Empty, identifier, model?.revision ?? string.Empty, model?.files, model?.optionalFiles);
             }
 
             return new ManifestModelEntry(
                 identifier.Substring(0, slashIndex),
                 identifier.Substring(slashIndex + 1),
                 model?.revision ?? string.Empty,
-                model?.files);
+                model?.files,
+                model?.optionalFiles);
         }
     }
 
@@ -175,19 +187,22 @@ namespace Doji.AI.ModelHub.Editor
         {
             const float ownerWidth = 120f;
             const float revisionWidth = 110f;
-            const float filesWidth = 96f;
+            const float filesWidth = 80f;
+            const float optionalFilesWidth = 80f;
             const float iconWidth = 18f;
-            var modelWidth = rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 26f;
+            var modelWidth = rect.width - ownerWidth - revisionWidth - filesWidth - optionalFilesWidth - iconWidth - 32f;
             var ownerRect = new Rect(rect.x + 14f, rect.y, ownerWidth, rect.height);
             var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, modelWidth), rect.height);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, rect.height);
             var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, rect.height);
-            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, rect.height);
+            var optionalFilesRect = new Rect(filesRect.xMax + 6f, rect.y, optionalFilesWidth, rect.height);
+            var iconRect = new Rect(optionalFilesRect.xMax + 4f, rect.y, iconWidth, rect.height);
 
             EditorGUI.LabelField(ownerRect, "Owner");
             EditorGUI.LabelField(modelRect, "Model");
             EditorGUI.LabelField(revisionRect, "Revision");
-            EditorGUI.LabelField(filesRect, "Files");
+            EditorGUI.LabelField(filesRect, "Required");
+            EditorGUI.LabelField(optionalFilesRect, "Optional");
             EditorGUI.LabelField(iconRect, GUIContent.none);
         }
 
@@ -203,13 +218,15 @@ namespace Doji.AI.ModelHub.Editor
 
             const float ownerWidth = 120f;
             const float revisionWidth = 110f;
-            const float filesWidth = 96f;
+            const float filesWidth = 80f;
+            const float optionalFilesWidth = 80f;
             const float iconWidth = 18f;
             var ownerRect = new Rect(rect.x, rect.y, ownerWidth, EditorGUIUtility.singleLineHeight);
-            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 22f), EditorGUIUtility.singleLineHeight);
+            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - filesWidth - optionalFilesWidth - iconWidth - 28f), EditorGUIUtility.singleLineHeight);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, EditorGUIUtility.singleLineHeight);
             var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, EditorGUIUtility.singleLineHeight);
-            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
+            var optionalFilesRect = new Rect(filesRect.xMax + 6f, rect.y, optionalFilesWidth, EditorGUIUtility.singleLineHeight);
+            var iconRect = new Rect(optionalFilesRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
 
             if (_isEditable)
             {
@@ -232,7 +249,7 @@ namespace Doji.AI.ModelHub.Editor
                 var validationState = _getValidationState?.Invoke(entry.ModelId, entry.Revision);
                 using (new EditorGUI.DisabledScope(!CanOpenFileSelection(entry, validationState, hasValidationProvider)))
                 {
-                    if (GUI.Button(filesRect, BuildFileSelectionContent(entry, validationState)))
+                    if (GUI.Button(filesRect, BuildFileSelectionContent(entry.FileSelectionSummary, validationState)))
                     {
                         PopupWindow.Show(
                             filesRect,
@@ -246,6 +263,25 @@ namespace Doji.AI.ModelHub.Editor
                                     _onChanged?.Invoke();
                                     _requestRepaint();
                                 },
+                                "All files (whole repository)",
+                                _requestRepaint));
+                    }
+
+                    if (GUI.Button(optionalFilesRect, BuildFileSelectionContent(entry.OptionalFileSelectionSummary, validationState)))
+                    {
+                        PopupWindow.Show(
+                            optionalFilesRect,
+                            new ManifestFileSelectionPopup(
+                                entry.ModelId,
+                                string.IsNullOrWhiteSpace(entry.Revision) ? RevisionPlaceholder : entry.Revision,
+                                entry.OptionalFiles,
+                                files =>
+                                {
+                                    entry.OptionalFiles = ModelDependencyDefinition.NormalizeSelectedFiles(files);
+                                    _onChanged?.Invoke();
+                                    _requestRepaint();
+                                },
+                                "No optional files",
                                 _requestRepaint));
                     }
                 }
@@ -256,6 +292,7 @@ namespace Doji.AI.ModelHub.Editor
                 EditorGUI.LabelField(modelRect, entry.Name);
                 EditorGUI.LabelField(revisionRect, entry.Revision);
                 EditorGUI.LabelField(filesRect, entry.FileSelectionSummary);
+                EditorGUI.LabelField(optionalFilesRect, entry.OptionalFileSelectionSummary);
             }
 
             DrawValidationIcon(iconRect, entry);
@@ -281,12 +318,12 @@ namespace Doji.AI.ModelHub.Editor
                 (!entry.HasAnyModelIdContent || !entry.HasCompleteModelId);
         }
 
-        private static GUIContent BuildFileSelectionContent(ManifestModelEntry entry, ManifestModelValidationState validationState)
+        private static GUIContent BuildFileSelectionContent(string summary, ManifestModelValidationState validationState)
         {
             var tooltip = validationState?.Status == ManifestModelValidationStatus.Invalid
                 ? validationState.Message ?? "Repository revision was not found on Hugging Face."
                 : null;
-            return new GUIContent(entry.FileSelectionSummary, tooltip);
+            return new GUIContent(summary, tooltip);
         }
 
         private void DrawValidationIcon(Rect rect, ManifestModelEntry entry)
@@ -698,6 +735,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly Action _requestRepaint;
         private readonly IHttpClient _httpClient = new HttpClient();
         private readonly HashSet<string> _selectedFiles;
+        private readonly string _emptySelectionLabel;
 
         private Vector2 _scrollPosition;
         private string _searchText = string.Empty;
@@ -713,12 +751,14 @@ namespace Doji.AI.ModelHub.Editor
             string revision,
             IReadOnlyList<string> selectedFiles,
             Action<string[]> onApply,
+            string emptySelectionLabel = "All files (whole repository)",
             Action requestRepaint = null)
         {
             _repository = repository?.Trim();
             _revision = string.IsNullOrWhiteSpace(revision) ? "main" : revision.Trim();
             _onApply = onApply ?? throw new ArgumentNullException(nameof(onApply));
             _requestRepaint = requestRepaint ?? (() => { });
+            _emptySelectionLabel = string.IsNullOrWhiteSpace(emptySelectionLabel) ? "None" : emptySelectionLabel;
             _selectedFiles = new HashSet<string>(
                 ModelDependencyDefinition.NormalizeSelectedFiles(selectedFiles),
                 StringComparer.Ordinal);
@@ -836,7 +876,7 @@ namespace Doji.AI.ModelHub.Editor
                 "Selection",
                 _selectedFiles.Count > 0
                     ? $"{_selectedFiles.Count} files"
-                    : "All files (whole repository)");
+                    : _emptySelectionLabel);
         }
 
         private void DrawInventoryList()

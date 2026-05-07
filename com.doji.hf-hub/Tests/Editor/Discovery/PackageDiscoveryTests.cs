@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -204,6 +205,113 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(errorMessage, Is.Null);
             Assert.That(manifest.Models[0].HasExplicitFileSelection, Is.True);
             Assert.That(manifest.Models[0].Files, Is.EqualTo(new[] { "onnx/model.onnx", "tokenizer.json" }));
+        }
+
+        /// <summary>
+        /// Verifies manifest parser preserves optional explicit file selection alongside required files.
+        /// </summary>
+        [Test]
+        public void TryParse_ReadsOptionalFileSelection()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert"",
+      ""files"": [
+        ""tokenizer.json""
+      ],
+      ""optionalFiles"": [
+        ""onnx/model.onnx"",
+        ""onnx/model_q4.onnx""
+      ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.True);
+            Assert.That(errorMessage, Is.Null);
+            Assert.That(manifest.Models[0].Files, Is.EqualTo(new[] { "tokenizer.json" }));
+            Assert.That(manifest.Models[0].OptionalFiles, Is.EqualTo(new[] { "onnx/model.onnx", "onnx/model_q4.onnx" }));
+        }
+
+        /// <summary>
+        /// Verifies manifest validation rejects the same repo path when it is declared in both required and optional file sets.
+        /// </summary>
+        [Test]
+        public void TryParse_RejectsDuplicatePathAcrossRequiredAndOptionalFiles()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""hf-internal-testing/tiny-random-bert"",
+      ""files"": [
+        ""onnx/model.onnx""
+      ],
+      ""optionalFiles"": [
+        ""onnx/model.onnx""
+      ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(manifest, Is.Null);
+            Assert.That(errorMessage, Is.EqualTo("Manifest model `hf-internal-testing/tiny-random-bert` declares file `onnx/model.onnx` more than once across required and optional file sets."));
+        }
+
+        /// <summary>
+        /// Verifies editor discovery applies owner-scoped optional file selections without leaking them to sibling owners.
+        /// </summary>
+        [Test]
+        public void ApplyProjectOptionalSelections_UsesOwnerScopedOverrides()
+        {
+            var firstDependency = new DiscoveredModelDependency(
+                "com.doji.first",
+                "First Package",
+                "1.0.0",
+                "/tmp/com.doji.first",
+                "/tmp/com.doji.first/hf-hub-manifest.json",
+                "hash-a",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    files: null,
+                    optionalFiles: new[] { "model.onnx", "model_q4.onnx" }));
+            var secondDependency = new DiscoveredModelDependency(
+                "com.doji.second",
+                "Second Package",
+                "1.0.0",
+                "/tmp/com.doji.second",
+                "/tmp/com.doji.second/hf-hub-manifest.json",
+                "hash-b",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    files: null,
+                    optionalFiles: new[] { "model.onnx", "model_q4.onnx" }));
+            var report = new DiscoveryReport(
+                new[] { firstDependency, secondDependency },
+                Array.Empty<ManifestDiscoveryIssue>());
+            var selectionSource = new FakeProjectOptionalFileSelectionSource(
+                ("com.doji.first", "doji/test-model", new[] { "model_q4.onnx" }));
+
+            var resolved = EditorManifestDiscovery.ApplyProjectOptionalSelections(report, selectionSource);
+
+            Assert.That(resolved.Dependencies.Count, Is.EqualTo(2));
+
+            var firstResolved = resolved.Dependencies.Single(dependency => dependency.PackageId == "com.doji.first");
+            Assert.That(firstResolved.SelectedFiles, Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(firstResolved.EnabledOptionalFiles, Is.EqualTo(new[] { "model_q4.onnx" }));
+
+            var secondResolved = resolved.Dependencies.Single(dependency => dependency.PackageId == "com.doji.second");
+            Assert.That(secondResolved.SelectedFiles, Is.Empty);
+            Assert.That(secondResolved.EnabledOptionalFiles, Is.Empty);
         }
 
         /// <summary>
@@ -635,6 +743,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
                 }
+
+                var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
+                var optionalFiles = models[i].OptionalFiles ?? Array.Empty<string>();
+                optionalFilesProperty.arraySize = optionalFiles.Length;
+                for (var fileIndex = 0; fileIndex < optionalFiles.Length; fileIndex++)
+                {
+                    optionalFilesProperty.GetArrayElementAtIndex(fileIndex).stringValue = optionalFiles[fileIndex];
+                }
             }
 
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
@@ -681,6 +797,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(assetLabel, Is.Not.EqualTo(settingsLabel));
             Assert.That(guidAssetLabel, Is.Not.EqualTo(settingsLabel));
             Assert.That(packageLabel, Is.EqualTo("com.some.package"));
+        }
+
+        private sealed class FakeProjectOptionalFileSelectionSource : IProjectOptionalFileSelectionSource
+        {
+            private readonly (string ownerId, string modelId, string[] enabledOptionalFiles)[] _entries;
+
+            public FakeProjectOptionalFileSelectionSource(params (string ownerId, string modelId, string[] enabledOptionalFiles)[] entries)
+            {
+                _entries = entries ?? Array.Empty<(string ownerId, string modelId, string[] enabledOptionalFiles)>();
+            }
+
+            public string[] GetEnabledOptionalFiles(string ownerId, string modelId, IReadOnlyList<string> declaredOptionalFiles)
+            {
+                var entry = _entries.FirstOrDefault(item =>
+                    string.Equals(item.ownerId, ownerId, StringComparison.Ordinal) &&
+                    string.Equals(item.modelId, modelId, StringComparison.Ordinal));
+                return entry.enabledOptionalFiles ?? Array.Empty<string>();
+            }
+
+            public void SetEnabledOptionalFiles(string ownerId, string modelId, IReadOnlyList<string> enabledOptionalFiles)
+            {
+            }
         }
     }
 }

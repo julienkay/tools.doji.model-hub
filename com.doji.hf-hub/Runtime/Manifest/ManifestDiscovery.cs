@@ -27,7 +27,8 @@ namespace Doji.AI.ModelHub
             string packageResolvedPath,
             string manifestPath,
             string manifestHash,
-            ModelDependencyDefinition model)
+            ModelDependencyDefinition model,
+            IReadOnlyList<string> enabledOptionalFiles = null)
         {
             PackageId = packageId;
             PackageDisplayName = packageDisplayName;
@@ -38,8 +39,24 @@ namespace Doji.AI.ModelHub
             ModelId = model.Id;
             Repository = model.Id;
             Revision = model.EffectiveRevision;
-            SelectedFiles = (model.Files ?? Array.Empty<string>()).ToArray();
-            DependencySelectionHash = model.DependencySelectionHash;
+            RequiredFiles = (model.Files ?? Array.Empty<string>()).ToArray();
+            OptionalFiles = (model.OptionalFiles ?? Array.Empty<string>()).ToArray();
+
+            var enabledOptionalLookup = new HashSet<string>(
+                ModelDependencyDefinition.NormalizeSelectedFiles(enabledOptionalFiles),
+                StringComparer.Ordinal);
+            EnabledOptionalFiles = OptionalFiles
+                .Where(enabledOptionalLookup.Contains)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            SelectedFiles = RequiredFiles
+                .Concat(EnabledOptionalFiles)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            DependencySelectionHash = ModelDependencyDefinition.ComputeSelectionHash(
+                SelectedFiles,
+                SelectsWholeRepository);
         }
 
         /// <summary>
@@ -95,8 +112,23 @@ namespace Doji.AI.ModelHub
         public string Revision { get; }
 
         /// <summary>
-        /// Exact repo-relative file paths required by this dependency.
-        /// Empty means the whole repository is required.
+        /// Exact repo-relative file paths always required by this dependency.
+        /// </summary>
+        public IReadOnlyList<string> RequiredFiles { get; }
+
+        /// <summary>
+        /// Exact repo-relative file paths this manifest owner may enable per project.
+        /// </summary>
+        public IReadOnlyList<string> OptionalFiles { get; }
+
+        /// <summary>
+        /// Optional repo-relative file paths currently enabled for this owner in this project.
+        /// </summary>
+        public IReadOnlyList<string> EnabledOptionalFiles { get; }
+
+        /// <summary>
+        /// Effective exact repo-relative file paths selected for this dependency after applying project-owned optional-file overrides.
+        /// Empty means no optional file is currently enabled.
         /// </summary>
         public IReadOnlyList<string> SelectedFiles { get; }
 
@@ -109,7 +141,24 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Whether this dependency selects explicit repo paths instead of requiring the full repository.
         /// </summary>
-        public bool HasExplicitFileSelection => SelectedFiles.Count > 0;
+        public bool HasExplicitFileSelection => RequiredFiles.Count > 0 || OptionalFiles.Count > 0;
+
+        /// <summary>
+        /// Whether this dependency still means the whole repository rather than an explicit required/optional file set.
+        /// </summary>
+        public bool SelectsWholeRepository => !HasExplicitFileSelection;
+
+        /// <summary>
+        /// Whether this dependency declares any optional repo file paths.
+        /// </summary>
+        public bool HasOptionalFiles => OptionalFiles.Count > 0;
+
+        /// <summary>
+        /// Whether the manifest declares optional ONNX files but none are currently enabled for this owner.
+        /// </summary>
+        public bool RequiresOptionalOnnxSelection => !SelectsWholeRepository &&
+            !SelectedFiles.Any(ModelDependencyDefinition.IsOnnxFile) &&
+            OptionalFiles.Any(ModelDependencyDefinition.IsOnnxFile);
 
         internal IReadOnlyList<string> GetSelectedRepoPaths(
             IEnumerable<string> repositoryFiles,
@@ -414,7 +463,13 @@ namespace Doji.AI.ModelHub
                         return false;
                     }
 
-                    models.Add(new ManifestModelDraft(id, revision, files));
+                    var optionalFiles = ReadOptionalStringArray(modelElement, "optionalFiles", modelIndex, out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return false;
+                    }
+
+                    models.Add(new ManifestModelDraft(id, revision, files, optionalFiles));
                     modelIndex++;
                 }
 
@@ -538,16 +593,19 @@ namespace Doji.AI.ModelHub
         public ManifestModelDraft(
             string id,
             string revision,
-            IReadOnlyList<string> files = null)
+            IReadOnlyList<string> files = null,
+            IReadOnlyList<string> optionalFiles = null)
         {
             Id = id;
             Revision = revision;
             Files = files?.Count > 0 ? files.ToArray() : null;
+            OptionalFiles = optionalFiles?.Count > 0 ? optionalFiles.ToArray() : null;
         }
 
         public string Id { get; }
         public string Revision { get; }
         public IReadOnlyList<string> Files { get; }
+        public IReadOnlyList<string> OptionalFiles { get; }
     }
 
     /// <summary>
@@ -593,13 +651,30 @@ namespace Doji.AI.ModelHub
                 }
 
                 var revision = ManifestRevision.NormalizeForResolution(model.Revision);
-                var files = ValidateSelectedFiles(model, id, modelIndex, out errorMessage);
+                var files = ValidateSelectedFiles(model?.Files, id, modelIndex, "files", out errorMessage);
                 if (errorMessage != null)
                 {
                     return false;
                 }
 
-                finalizedModels.Add(new ModelDependencyDefinition(id, revision, files));
+                var optionalFiles = ValidateSelectedFiles(model?.OptionalFiles, id, modelIndex, "optionalFiles", out errorMessage);
+                if (errorMessage != null)
+                {
+                    return false;
+                }
+
+                if (files != null && optionalFiles != null)
+                {
+                    var duplicatePath = files
+                        .FirstOrDefault(filePath => optionalFiles.Contains(filePath, StringComparer.Ordinal));
+                    if (!string.IsNullOrWhiteSpace(duplicatePath))
+                    {
+                        errorMessage = $"Manifest model `{id}` declares file `{duplicatePath}` more than once across required and optional file sets.";
+                        return false;
+                    }
+                }
+
+                finalizedModels.Add(new ModelDependencyDefinition(id, revision, files, optionalFiles));
             }
 
             manifest = new PackageManifest(version, finalizedModels);
@@ -626,24 +701,25 @@ namespace Doji.AI.ModelHub
         }
 
         private static string[] ValidateSelectedFiles(
-            ManifestModelDraft model,
+            IReadOnlyList<string> files,
             string id,
             int modelIndex,
+            string propertyName,
             out string errorMessage)
         {
             errorMessage = null;
-            if (model?.Files == null)
+            if (files == null)
             {
                 return null;
             }
 
             var validatedFiles = new List<string>();
             var seenFiles = new HashSet<string>(StringComparer.Ordinal);
-            for (var fileIndex = 0; fileIndex < model.Files.Count; fileIndex++)
+            for (var fileIndex = 0; fileIndex < files.Count; fileIndex++)
             {
-                if (!TryValidateRequiredString(model.Files[fileIndex], "files", modelIndex, out var filePath, out errorMessage))
+                if (!TryValidateRequiredString(files[fileIndex], propertyName, modelIndex, out var filePath, out errorMessage))
                 {
-                    errorMessage = $"Manifest model at index {modelIndex} must define `files[{fileIndex}]` as a non-empty string.";
+                    errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}[{fileIndex}]` as a non-empty string.";
                     return null;
                 }
 

@@ -41,6 +41,8 @@ Document actual behavior, including:
 
 ## Documentation standards
 
+Write from orientation to depth: start with the reader's context, the workflow or problem being solved, and the expected outcome, then move into steps, concrete outputs, reference details, edge cases, and constraints.
+
 Prefer task-oriented docs first, then reference depth:
 
 1. Landing page with workflow map

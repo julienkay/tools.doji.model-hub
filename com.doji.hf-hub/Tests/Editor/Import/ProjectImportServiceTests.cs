@@ -162,7 +162,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
-                    new[] { "model.onnx" }));
+                    new[] { new ModelDependencyFileDefinition("model.onnx") }));
             var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
 
             var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
@@ -188,8 +188,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
-                    files: null,
-                    optionalFiles: new[] { "model.onnx", "model_bnb4.onnx" }),
+                    new[]
+                    {
+                        new ModelDependencyFileDefinition("model.onnx", true),
+                        new ModelDependencyFileDefinition("model_bnb4.onnx", true)
+                    }),
                 enabledOptionalFiles: new[] { "model.onnx", "model_bnb4.onnx" });
             var shrunkDependency = new DiscoveredModelDependency(
                 "com.doji.test",
@@ -201,8 +204,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
-                    files: null,
-                    optionalFiles: new[] { "model.onnx", "model_bnb4.onnx" }),
+                    new[]
+                    {
+                        new ModelDependencyFileDefinition("model.onnx", true),
+                        new ModelDependencyFileDefinition("model_bnb4.onnx", true)
+                    }),
                 enabledOptionalFiles: new[] { "model.onnx" });
             var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
 

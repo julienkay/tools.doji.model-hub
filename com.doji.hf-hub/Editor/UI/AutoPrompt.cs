@@ -29,7 +29,7 @@ namespace Doji.AI.ModelHub.Editor
         internal static bool ShouldPrompt(StatusReport report)
         {
             return report != null &&
-                   report.NeedsAttention &&
+                   report.NeedsStartupPrompt &&
                    (report.DependencyStatuses.Count > 0 || report.DiscoveryIssues.Count > 0);
         }
 
@@ -103,7 +103,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             return !_loggedForCurrentDomain &&
                 report != null &&
-                report.NeedsAttention &&
+                report.NeedsStartupPrompt &&
                 !AutoPromptWindow.IsOpen();
         }
 

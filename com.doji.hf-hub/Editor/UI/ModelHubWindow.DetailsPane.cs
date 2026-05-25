@@ -1103,14 +1103,14 @@ namespace Doji.AI.ModelHub.Editor
                     $"{dependency.PackageDisplayName} / {dependency.ModelId}",
                     EditorStyles.boldLabel);
 
-                foreach (var optionalFile in dependency.OptionalFiles)
+                foreach (var optionalFile in dependency.GetOptionalRepoPaths())
                 {
-                    var isEnabled = dependency.EnabledOptionalFiles.Contains(optionalFile, StringComparer.Ordinal);
+                    var isEnabled = dependency.GetEnabledOptionalRepoPaths().Contains(optionalFile, StringComparer.Ordinal);
                     EditorGUI.BeginChangeCheck();
                     var nextEnabled = EditorGUILayout.ToggleLeft(optionalFile, isEnabled);
                     if (EditorGUI.EndChangeCheck())
                     {
-                        var enabledFiles = dependency.EnabledOptionalFiles.ToList();
+                        var enabledFiles = dependency.GetEnabledOptionalRepoPaths().ToList();
                         if (nextEnabled)
                         {
                             if (!enabledFiles.Contains(optionalFile, StringComparer.Ordinal))

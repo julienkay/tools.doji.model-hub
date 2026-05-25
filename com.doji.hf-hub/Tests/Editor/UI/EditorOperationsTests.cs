@@ -102,16 +102,65 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(message, Does.Not.Contain("dependencyy"));
         }
 
+        /// <summary>
+        /// Verifies startup reminder ignores optional ONNX choices that have not been enabled by the project.
+        /// </summary>
+        [Test]
+        public void BuildUnresolvedDependencyReminder_IgnoresSelectionRequiredOnlyStatuses()
+        {
+            var projectOwnerId = CreateProjectOwnerId();
+            var report = new StatusReport(
+                System.Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        projectOwnerId,
+                        "Project",
+                        DependencyState.Missing,
+                        "Choose optional ONNX file.",
+                        DependencyReasonCode.SelectionRequired)
+                });
+
+            var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
+
+            Assert.That(message, Is.EqualTo("HF Hub: no unresolved model dependencies."));
+        }
+
+        /// <summary>
+        /// Verifies enabled optional files still contribute to startup reminders once they are missing imports.
+        /// </summary>
+        [Test]
+        public void BuildUnresolvedDependencyReminder_IncludesEnabledOptionalMissingStatuses()
+        {
+            var projectOwnerId = CreateProjectOwnerId();
+            var report = new StatusReport(
+                System.Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus(
+                        projectOwnerId,
+                        "Project",
+                        DependencyState.Missing,
+                        "Raw cache revision ref is missing.",
+                        DependencyReasonCode.RawCacheRevisionRefMissing)
+                });
+
+            var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
+
+            Assert.That(message, Does.Contain("(1 dependency)"));
+        }
+
         private static DependencyStatus CreateDependencyStatus(
             string packageId,
             string packageDisplayName,
             DependencyState state,
-            string maintainerMessage)
+            string maintainerMessage,
+            DependencyReasonCode? reasonCode = null)
         {
             return new DependencyStatus(
                 CreateDependency(packageId, packageDisplayName),
                 state,
-                state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing,
+                reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing),
                 maintainerMessage,
                 null,
                 null,

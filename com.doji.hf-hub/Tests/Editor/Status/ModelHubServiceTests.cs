@@ -151,8 +151,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         DependencyState.Missing,
                         reasonCode: DependencyReasonCode.SelectionRequired,
                         maintainerMessage: "This dependency has optional ONNX files, but none are currently enabled for this project owner.",
-                        selectedFiles: Array.Empty<string>(),
-                        optionalFiles: new[] { "model.onnx", "model_q4.onnx" },
+                        fileEntries: new[]
+                        {
+                            new ModelDependencyFileDefinition("model.onnx", true),
+                            new ModelDependencyFileDefinition("model_q4.onnx", true)
+                        },
                         includeRawMetadata: false)
                 });
 
@@ -597,7 +600,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
             bool includeRawMetadata = true,
             string[] selectedFiles = null,
-            string[] optionalFiles = null,
+            ModelDependencyFileDefinition[] fileEntries = null,
             bool includeExtraRepositoryFile = false,
             RepositoryFileMetadata[] extraRepositoryFiles = null)
         {
@@ -611,8 +614,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     revision,
-                    selectedFiles,
-                    optionalFiles));
+                    fileEntries ?? ToRequiredFileEntries(selectedFiles)));
 
             var metadata = new ImportedModelMetadata
             {
@@ -695,6 +697,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
 
             return baseFiles.Concat(additionalFiles).ToArray();
+        }
+
+        private static ModelDependencyFileDefinition[] ToRequiredFileEntries(string[] selectedFiles)
+        {
+            return (selectedFiles ?? Array.Empty<string>())
+                .Select(path => new ModelDependencyFileDefinition(path))
+                .ToArray();
         }
 
         private string CreateTempFileWithSize(int sizeInBytes)

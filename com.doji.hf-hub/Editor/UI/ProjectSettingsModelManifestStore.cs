@@ -28,8 +28,14 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string id;
             public string revision;
-            public string[] files;
-            public string[] optionalFiles;
+            public ManifestFileDocument[] files;
+        }
+
+        [Serializable]
+        private sealed class ManifestFileDocument
+        {
+            public string path;
+            public bool optional;
         }
 
         public static string GetManifestPath(string projectRoot = null)
@@ -75,8 +81,7 @@ namespace Doji.AI.ModelHub.Editor
             drafts.Add(new ManifestModelDraft(
                 normalizedModelId,
                 string.IsNullOrWhiteSpace(revision) ? DefaultRevision : revision.Trim(),
-                files,
-                optionalFiles: null));
+                ToRequiredFileEntries(files)));
             return TryWriteManifest(version, drafts, out errorMessage, projectRoot);
         }
 
@@ -124,7 +129,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             version = manifest.Version;
-            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.Files, model.OptionalFiles)));
+            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.FileEntries)));
             return true;
         }
 
@@ -194,12 +199,20 @@ namespace Doji.AI.ModelHub.Editor
                         revision = string.IsNullOrWhiteSpace(model.Revision)
                             ? null
                             : model.Revision,
-                        files = (model.Files?.Count ?? 0) > 0 ? model.Files.ToArray() : null,
-                        optionalFiles = (model.OptionalFiles?.Count ?? 0) > 0 ? model.OptionalFiles.ToArray() : null
+                        files = (model.FileEntries?.Count ?? 0) > 0
+                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional }).ToArray()
+                            : null
                     })
                     .ToArray()
             };
             return JsonUtility.ToJson(document, true);
+        }
+
+        private static ModelDependencyFileDefinition[] ToRequiredFileEntries(IReadOnlyList<string> files)
+        {
+            return ModelDependencyDefinition.NormalizeSelectedFiles(files)
+                .Select(path => new ModelDependencyFileDefinition(path))
+                .ToArray();
         }
     }
 }

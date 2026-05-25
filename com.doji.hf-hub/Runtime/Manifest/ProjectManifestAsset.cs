@@ -25,8 +25,9 @@ namespace Doji.AI.ModelHub
                 .Select(model => new ManifestModelDraft(
                     model?.Id,
                     model?.Revision,
-                    model?.Files?.Length > 0 ? model.Files : null,
-                    model?.OptionalFiles?.Length > 0 ? model.OptionalFiles : null))
+                    model?.Files?.Length > 0
+                        ? model.Files.Select(file => file?.ToDefinition()).ToArray()
+                        : null))
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
@@ -50,10 +51,25 @@ namespace Doji.AI.ModelHub
         public string Revision { get; set; } = "main";
 
         [field: SerializeField]
-        public string[] Files { get; set; }
+        public ProjectManifestFileAssetEntry[] Files { get; set; }
+    }
+
+    /// <summary>
+    /// Stores one selected repository file and whether project owners may opt into it.
+    /// </summary>
+    [Serializable]
+    public sealed class ProjectManifestFileAssetEntry
+    {
+        [field: SerializeField]
+        public string Path { get; set; }
 
         [field: SerializeField]
-        public string[] OptionalFiles { get; set; }
+        public bool Optional { get; set; }
+
+        internal ModelDependencyFileDefinition ToDefinition()
+        {
+            return new ModelDependencyFileDefinition(Path, Optional);
+        }
     }
 
     [Serializable]
@@ -84,17 +100,13 @@ namespace Doji.AI.ModelHub
         private string _revision;
 
         [SerializeField]
-        private string[] _files;
-
-        [SerializeField]
-        private string[] _optionalFiles;
+        private ProjectManifestFileAssetEntry[] _files;
 
         public ProjectManifestAssetEntryDocument(ProjectManifestModelAssetEntry model)
         {
             _id = model?.Id;
             _revision = model?.Revision;
             _files = model?.Files;
-            _optionalFiles = model?.OptionalFiles;
         }
     }
 

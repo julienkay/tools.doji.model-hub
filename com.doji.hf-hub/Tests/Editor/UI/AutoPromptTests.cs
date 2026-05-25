@@ -31,7 +31,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("com.doji.test"));
             Assert.That(viewModel.Dependents[0].PackageDisplayName, Is.EqualTo("Test Package"));
             Assert.That(viewModel.Details, Is.EqualTo(string.Empty));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download + Import"));
             Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("Downloads this model"));
         }
 
@@ -141,6 +141,70 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.Details, Does.Contain("1 discovery issues also need attention."));
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import All"));
             Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("all unresolved models"));
+        }
+
+        /// <summary>
+        /// Verifies optional ONNX choices that have not been enabled stay out of startup prompt copy.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_IgnoresSelectionRequiredStatusesForStartupPrompt()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Missing,
+                        repository: "alpha/optional-only",
+                        reasonCode: DependencyReasonCode.SelectionRequired),
+                    CreateStatus(
+                        DependencyState.Missing,
+                        repository: "beta/required-missing",
+                        reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing)
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Headline, Is.EqualTo("AI Model Required"));
+            Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Dependents[0].Repository, Is.EqualTo("beta/required-missing"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download + Import"));
+        }
+
+        /// <summary>
+        /// Verifies startup prompt is suppressed when only unenabled optional ONNX selection is pending.
+        /// </summary>
+        [Test]
+        public void ShouldPrompt_ReturnsFalseWhenOnlyOptionalSelectionIsRequired()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Missing,
+                        reasonCode: DependencyReasonCode.SelectionRequired)
+                });
+
+            Assert.That(AutoPrompt.ShouldPrompt(report), Is.False);
+        }
+
+        /// <summary>
+        /// Verifies enabled optional files behave like selected dependencies for startup prompts when missing.
+        /// </summary>
+        [Test]
+        public void ShouldPrompt_ReturnsTrueWhenEnabledOptionalFileIsMissing()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(
+                        DependencyState.Missing,
+                        reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing)
+                });
+
+            Assert.That(AutoPrompt.ShouldPrompt(report), Is.True);
         }
 
         /// <summary>

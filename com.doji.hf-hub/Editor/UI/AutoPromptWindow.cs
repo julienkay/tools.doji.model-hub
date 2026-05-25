@@ -176,7 +176,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var attentionStatuses = report.DependencyStatuses
-                .Where(status => status.NeedsAttention)
+                .Where(status => status.NeedsStartupPrompt)
                 .ToArray();
             var dependents = attentionStatuses
                 .Select(status => new DependentPromptEntry(

@@ -115,14 +115,39 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void BuildStatusReport_ReturnsSelectionRequiredWhenAllOnnxFilesAreOptionalAndNoneAreEnabled()
         {
             var dependency = CreateDependency(
-                selectedFiles: Array.Empty<string>(),
-                optionalFiles: new[] { "models/model.onnx", "models/model_q4.onnx" });
+                fileEntries: new[]
+                {
+                    new ModelDependencyFileDefinition("models/model.onnx", true),
+                    new ModelDependencyFileDefinition("models/model_q4.onnx", true)
+                });
 
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SelectionRequired));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("This dependency has optional ONNX files, but none are currently enabled for this project owner."));
+        }
+
+        /// <summary>
+        /// Verifies enabled optional ONNX files become part of the effective selection and report missing cache files.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsMissingWhenEnabledOptionalRawCacheFileIsAbsent()
+        {
+            var dependency = CreateDependency(
+                fileEntries: new[]
+                {
+                    new ModelDependencyFileDefinition("models/model.onnx", true),
+                    new ModelDependencyFileDefinition("models/model_q4.onnx", true)
+                },
+                enabledOptionalFiles: new[] { "models/model.onnx", "models/model_q4.onnx" });
+            WriteRawCache(dependency);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("models/model_q4.onnx"));
         }
 
         [Test]
@@ -332,7 +357,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string revision = "main",
             string repository = "doji/test-model",
             string[] selectedFiles = null,
-            string[] optionalFiles = null,
+            ModelDependencyFileDefinition[] fileEntries = null,
             string[] enabledOptionalFiles = null)
         {
             return new DiscoveredModelDependency(
@@ -345,9 +370,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     repository,
                     revision,
-                    selectedFiles,
-                    optionalFiles),
+                    fileEntries ?? ToRequiredFileEntries(selectedFiles)),
                 enabledOptionalFiles);
+        }
+
+        private static ModelDependencyFileDefinition[] ToRequiredFileEntries(string[] selectedFiles)
+        {
+            return (selectedFiles ?? Array.Empty<string>())
+                .Select(path => new ModelDependencyFileDefinition(path))
+                .ToArray();
         }
 
         private static void WriteRawCache(DiscoveredModelDependency dependency, string commitHash = "abc123", bool includeTokenizer = true)

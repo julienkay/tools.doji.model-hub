@@ -26,15 +26,24 @@ Manifest stays on `version: 1` and supports:
       "id": "onnx-community/tiny-clip-test-ONNX",
       "revision": "main",
       "files": [
-        "onnx/model.onnx"
+        {
+          "path": "onnx/model.onnx",
+          "optional": false
+        }
       ]
     },
     {
       "id": "julienkay/sentis-MiDaS",
       "revision": "main",
-      "optionalFiles": [
-        "onnx/midas_v21_small_256.onnx",
-        "onnx/dpt_swin2_tiny_256.onnx"
+      "files": [
+        {
+          "path": "onnx/midas_v21_small_256.onnx",
+          "optional": true
+        },
+        {
+          "path": "onnx/dpt_swin2_tiny_256.onnx",
+          "optional": true
+        }
       ]
     }
   ]
@@ -46,8 +55,9 @@ Field intent:
 - `version`: manifest format version
 - `id`: canonical HuggingFace model id, also used as repo snapshot identity and runtime lookup key
 - `revision`: branch, tag, or commit to resolve from HuggingFace
-- `files`: optional list of exact repo-relative file paths always required by this dependency owner; when omitted, dependency scope is whole repo unless `optionalFiles` narrows it
-- `optionalFiles`: optional list of exact repo-relative file paths this dependency owner may enable per project
+- `files`: optional list of exact repo-relative file objects. Omit or leave empty for whole-repository scope.
+- `files[].path`: exact repo-relative file path selected by this dependency owner
+- `files[].optional`: whether the path is project-selectable instead of always required; default/omitted means `false`
 
 Canonical HuggingFace model id definition:
 
@@ -73,26 +83,26 @@ Optional files solve cases like MiDaS where one upstream repo contains several i
 
 Rules:
 
-- optional file paths use same exact-path normalization as top-level `files`
-- overlap between `files` and `optionalFiles` is invalid
-- top-level `files` remain always-required and are not controlled by user toggles
+- optional file paths use same exact-path normalization as required file paths
+- a path appears once in `files`; its `optional` flag carries required vs optional intent
+- required file rows (`optional: false`) remain always-required and are not controlled by user toggles
 - project-owned selection data records enabled optional file paths per owner dependency
 
 ## Effective Selection
 
-Manifest no longer tells whole truth by itself once `optionalFiles` exist.
+Manifest no longer tells whole truth by itself once optional file rows exist.
 
 Effective owner selection is:
 
-1. all top-level required `files`
-2. plus every path from `optionalFiles` enabled for that owner in current Unity project
-3. or whole-repo inventory when neither `files` nor `optionalFiles` narrows dependency scope
+1. all `files` entries where `optional` is false
+2. plus every optional file enabled for that owner in current Unity project
+3. or whole-repo inventory when `files` is omitted or empty
 
 Project-owned selection overrides must stay outside package manifest so installed package manifests can remain immutable.
 
 Selection storage rule:
 
-- package manifest declares available optional files
+- package manifest declares available selected files and which selected files are optional
 - project-owned override data records enabled optional file paths per owner dependency
 - status, download, import, and runtime registry logic all reason over effective selection, not raw manifest text alone
 
@@ -127,5 +137,4 @@ HF Hub keeps manifest identity close to upstream:
 
 - `id` is repo id
 - `revision` is resolution input
-- `files` narrows dependency scope inside repo when needed
-- `optionalFiles` lists project-selectable exact repo paths when needed
+- `files` narrows dependency scope inside repo when needed, with `optional` carrying project-selectable exact repo paths

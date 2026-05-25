@@ -124,7 +124,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
 
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.Models, Has.Length.EqualTo(1));
-            Assert.That(manifest.Models[0].Files, Is.EqualTo(new[] { "models/model_small.onnx" }));
+            Assert.That(manifest.Models[0].Files.Select(file => file.Path), Is.EqualTo(new[] { "models/model_small.onnx" }));
+            Assert.That(manifest.Models[0].Files.Select(file => file.Optional), Is.EqualTo(new[] { false }));
             Assert.That(rawMetadata.RepositoryFiles.Select(file => file.RepoPath), Is.EqualTo(new[]
             {
                 "models/model_large.onnx",

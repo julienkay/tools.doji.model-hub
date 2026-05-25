@@ -195,12 +195,12 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string BuildUnresolvedDependencyReminder(StatusReport report)
         {
-            if (report == null || !report.NeedsAttention)
+            if (report == null || !report.NeedsStartupPrompt)
             {
                 return "HF Hub: no unresolved model dependencies.";
             }
 
-            var unresolvedCount = report.DependencyStatuses.Count(status => status.NeedsAttention);
+            var unresolvedCount = report.DependencyStatuses.Count(status => status.NeedsStartupPrompt);
             var issueCount = report.DiscoveryIssues.Count;
             var builder = new StringBuilder();
             builder.Append("HF Hub: unresolved model dependencies.");

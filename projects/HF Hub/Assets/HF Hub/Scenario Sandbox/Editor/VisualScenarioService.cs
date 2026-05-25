@@ -446,7 +446,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                     {
                         Id = entry.Repository,
                         Revision = entry.Revision,
-                        Files = GetOptionalSelectedFiles(entry)
+                        Files = GetSelectedFileEntries(entry)
                     }
                 });
             return manifestAsset;
@@ -505,7 +505,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         {
                             _id = entry.Repository,
                             _revision = entry.Revision,
-                            _files = GetOptionalSelectedFiles(entry)
+                            _files = GetSelectedFileEntries(entry)
                         }
                     }
                 });
@@ -516,10 +516,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return NormalizeSelectedFiles(entry?.SelectedFiles);
         }
 
-        private static string[] GetOptionalSelectedFiles(VisualScenarioEntry entry)
+        private static ProjectManifestFileAssetEntry[] GetSelectedFileEntries(VisualScenarioEntry entry)
         {
             var selectedFiles = GetSelectedFiles(entry);
-            return selectedFiles.Length > 0 ? selectedFiles : null;
+            return selectedFiles.Length > 0
+                ? selectedFiles
+                    .Select(path => new ProjectManifestFileAssetEntry { Path = path })
+                    .ToArray()
+                : null;
         }
 
         private static string[] GetRepositoryFilePaths(VisualScenarioEntry entry)
@@ -888,7 +892,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string _revision;
 
             [SerializeField]
-            public string[] _files;
+            public ProjectManifestFileAssetEntry[] _files;
         }
 
         [Serializable]

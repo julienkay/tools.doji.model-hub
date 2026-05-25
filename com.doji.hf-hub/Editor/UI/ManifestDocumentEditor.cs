@@ -327,8 +327,7 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(model => new ManifestModelDraft(
                     model?.ModelId,
                     model?.Revision,
-                    model?.Files,
-                    model?.OptionalFiles))
+                    model?.HasExplicitFileSelection == true ? model.FileEntries : null))
                 .ToArray();
             return ProjectSettingsModelManifestStore.TryWriteManifest(version, drafts, out errorMessage);
         }

@@ -15,20 +15,18 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelEntry
     {
-        public ManifestModelEntry(string owner, string name, string revision, string[] files = null, string[] optionalFiles = null)
+        public ManifestModelEntry(string owner, string name, string revision, ModelDependencyFileDefinition[] files = null)
         {
             Owner = owner ?? string.Empty;
             Name = name ?? string.Empty;
             Revision = revision ?? string.Empty;
-            Files = ModelDependencyDefinition.NormalizeSelectedFiles(files);
-            OptionalFiles = ModelDependencyDefinition.NormalizeSelectedFiles(optionalFiles);
+            FileEntries = ModelDependencyDefinition.NormalizeFileEntries(files);
         }
 
         public string Owner { get; set; }
         public string Name { get; set; }
         public string Revision { get; set; }
-        public string[] Files { get; set; }
-        public string[] OptionalFiles { get; set; }
+        public ModelDependencyFileDefinition[] FileEntries { get; set; }
 
         public string ModelId => string.IsNullOrWhiteSpace(Owner)
             ? Name ?? string.Empty
@@ -42,21 +40,12 @@ namespace Doji.AI.ModelHub.Editor
             !string.IsNullOrWhiteSpace(Owner) &&
             !string.IsNullOrWhiteSpace(Name);
 
-        public bool HasRequiredFiles => (Files ?? Array.Empty<string>()).Length > 0;
-        public bool HasOptionalFileSelection => (OptionalFiles ?? Array.Empty<string>()).Length > 0;
-        public bool HasExplicitFileSelection => HasRequiredFiles || HasOptionalFileSelection;
-        public string FileSelectionSummary => HasRequiredFiles
-            ? Files.Length == 1
-                ? "1 file"
-                : $"{Files.Length} files"
-            : HasOptionalFileSelection
-                ? "None"
-                : "All files";
-        public string OptionalFileSelectionSummary => HasOptionalFileSelection
-            ? OptionalFiles.Length == 1
-                ? "1 file"
-                : $"{OptionalFiles.Length} files"
-            : "None";
+        public bool HasExplicitFileSelection => (FileEntries ?? Array.Empty<ModelDependencyFileDefinition>()).Length > 0;
+        public string FileSelectionSummary => HasExplicitFileSelection
+            ? FileEntries.Length == 1
+                ? FileEntries[0].Optional ? "1 optional" : "1 file"
+                : $"{FileEntries.Length} files"
+            : "All files";
 
         public static ManifestModelEntry FromDocumentModel(ModelManifestInspectorUtility.ManifestModelDocument model)
         {
@@ -64,15 +53,22 @@ namespace Doji.AI.ModelHub.Editor
             var slashIndex = identifier.IndexOf('/');
             if (slashIndex <= 0 || slashIndex >= identifier.Length - 1)
             {
-                return new ManifestModelEntry(string.Empty, identifier, model?.revision ?? string.Empty, model?.files, model?.optionalFiles);
+                return new ManifestModelEntry(
+                    string.Empty,
+                    identifier,
+                    model?.revision ?? string.Empty,
+                    (model?.files ?? Array.Empty<ModelManifestInspectorUtility.ManifestFileDocument>())
+                    .Select(file => file?.ToDefinition())
+                    .ToArray());
             }
 
             return new ManifestModelEntry(
                 identifier.Substring(0, slashIndex),
                 identifier.Substring(slashIndex + 1),
                 model?.revision ?? string.Empty,
-                model?.files,
-                model?.optionalFiles);
+                (model?.files ?? Array.Empty<ModelManifestInspectorUtility.ManifestFileDocument>())
+                .Select(file => file?.ToDefinition())
+                .ToArray());
         }
     }
 
@@ -154,7 +150,7 @@ namespace Doji.AI.ModelHub.Editor
                 onAddCallback = _ =>
                 {
                     Array.Resize(ref _models, _models.Length + 1);
-                    _models[^1] = new ManifestModelEntry(string.Empty, string.Empty, string.Empty);
+                    _models[^1] = new ManifestModelEntry(string.Empty, string.Empty, string.Empty, files: null);
                     ConfigureList();
                     _onChanged?.Invoke();
                 },
@@ -188,21 +184,18 @@ namespace Doji.AI.ModelHub.Editor
             const float ownerWidth = 120f;
             const float revisionWidth = 110f;
             const float filesWidth = 80f;
-            const float optionalFilesWidth = 80f;
             const float iconWidth = 18f;
-            var modelWidth = rect.width - ownerWidth - revisionWidth - filesWidth - optionalFilesWidth - iconWidth - 32f;
+            var modelWidth = rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 26f;
             var ownerRect = new Rect(rect.x + 14f, rect.y, ownerWidth, rect.height);
             var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, modelWidth), rect.height);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, rect.height);
             var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, rect.height);
-            var optionalFilesRect = new Rect(filesRect.xMax + 6f, rect.y, optionalFilesWidth, rect.height);
-            var iconRect = new Rect(optionalFilesRect.xMax + 4f, rect.y, iconWidth, rect.height);
+            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, rect.height);
 
             EditorGUI.LabelField(ownerRect, "Owner");
             EditorGUI.LabelField(modelRect, "Model");
             EditorGUI.LabelField(revisionRect, "Revision");
-            EditorGUI.LabelField(filesRect, "Required");
-            EditorGUI.LabelField(optionalFilesRect, "Optional");
+            EditorGUI.LabelField(filesRect, "Files");
             EditorGUI.LabelField(iconRect, GUIContent.none);
         }
 
@@ -219,14 +212,12 @@ namespace Doji.AI.ModelHub.Editor
             const float ownerWidth = 120f;
             const float revisionWidth = 110f;
             const float filesWidth = 80f;
-            const float optionalFilesWidth = 80f;
             const float iconWidth = 18f;
             var ownerRect = new Rect(rect.x, rect.y, ownerWidth, EditorGUIUtility.singleLineHeight);
-            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - filesWidth - optionalFilesWidth - iconWidth - 28f), EditorGUIUtility.singleLineHeight);
+            var modelRect = new Rect(ownerRect.xMax + 6f, rect.y, Mathf.Max(60f, rect.width - ownerWidth - revisionWidth - filesWidth - iconWidth - 22f), EditorGUIUtility.singleLineHeight);
             var revisionRect = new Rect(modelRect.xMax + 6f, rect.y, revisionWidth, EditorGUIUtility.singleLineHeight);
             var filesRect = new Rect(revisionRect.xMax + 6f, rect.y, filesWidth, EditorGUIUtility.singleLineHeight);
-            var optionalFilesRect = new Rect(filesRect.xMax + 6f, rect.y, optionalFilesWidth, EditorGUIUtility.singleLineHeight);
-            var iconRect = new Rect(optionalFilesRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
+            var iconRect = new Rect(filesRect.xMax + 4f, rect.y, iconWidth, EditorGUIUtility.singleLineHeight);
 
             if (_isEditable)
             {
@@ -256,32 +247,14 @@ namespace Doji.AI.ModelHub.Editor
                             new ManifestFileSelectionPopup(
                                 entry.ModelId,
                                 string.IsNullOrWhiteSpace(entry.Revision) ? RevisionPlaceholder : entry.Revision,
-                                entry.Files,
+                                entry.FileEntries,
                                 files =>
                                 {
-                                    entry.Files = ModelDependencyDefinition.NormalizeSelectedFiles(files);
+                                    entry.FileEntries = ModelDependencyDefinition.NormalizeFileEntries(files);
                                     _onChanged?.Invoke();
                                     _requestRepaint();
                                 },
                                 "All files (whole repository)",
-                                _requestRepaint));
-                    }
-
-                    if (GUI.Button(optionalFilesRect, BuildFileSelectionContent(entry.OptionalFileSelectionSummary, validationState)))
-                    {
-                        PopupWindow.Show(
-                            optionalFilesRect,
-                            new ManifestFileSelectionPopup(
-                                entry.ModelId,
-                                string.IsNullOrWhiteSpace(entry.Revision) ? RevisionPlaceholder : entry.Revision,
-                                entry.OptionalFiles,
-                                files =>
-                                {
-                                    entry.OptionalFiles = ModelDependencyDefinition.NormalizeSelectedFiles(files);
-                                    _onChanged?.Invoke();
-                                    _requestRepaint();
-                                },
-                                "No optional files",
                                 _requestRepaint));
                     }
                 }
@@ -292,7 +265,6 @@ namespace Doji.AI.ModelHub.Editor
                 EditorGUI.LabelField(modelRect, entry.Name);
                 EditorGUI.LabelField(revisionRect, entry.Revision);
                 EditorGUI.LabelField(filesRect, entry.FileSelectionSummary);
-                EditorGUI.LabelField(optionalFilesRect, entry.OptionalFileSelectionSummary);
             }
 
             DrawValidationIcon(iconRect, entry);
@@ -731,10 +703,10 @@ namespace Doji.AI.ModelHub.Editor
 
         private readonly string _repository;
         private readonly string _revision;
-        private readonly Action<string[]> _onApply;
+        private readonly Action<ModelDependencyFileDefinition[]> _onApply;
         private readonly Action _requestRepaint;
         private readonly IHttpClient _httpClient = new HttpClient();
-        private readonly HashSet<string> _selectedFiles;
+        private readonly Dictionary<string, bool> _selectedFiles;
         private readonly string _emptySelectionLabel;
 
         private Vector2 _scrollPosition;
@@ -753,15 +725,31 @@ namespace Doji.AI.ModelHub.Editor
             Action<string[]> onApply,
             string emptySelectionLabel = "All files (whole repository)",
             Action requestRepaint = null)
+            : this(
+                repository,
+                revision,
+                ToRequiredFileEntries(selectedFiles),
+                files => onApply?.Invoke(files?.Where(file => file.Optional == false).Select(file => file.Path).ToArray()),
+                emptySelectionLabel,
+                requestRepaint)
+        {
+        }
+
+        public ManifestFileSelectionPopup(
+            string repository,
+            string revision,
+            IReadOnlyList<ModelDependencyFileDefinition> selectedFiles,
+            Action<ModelDependencyFileDefinition[]> onApply,
+            string emptySelectionLabel = "All files (whole repository)",
+            Action requestRepaint = null)
         {
             _repository = repository?.Trim();
             _revision = string.IsNullOrWhiteSpace(revision) ? "main" : revision.Trim();
             _onApply = onApply ?? throw new ArgumentNullException(nameof(onApply));
             _requestRepaint = requestRepaint ?? (() => { });
             _emptySelectionLabel = string.IsNullOrWhiteSpace(emptySelectionLabel) ? "None" : emptySelectionLabel;
-            _selectedFiles = new HashSet<string>(
-                ModelDependencyDefinition.NormalizeSelectedFiles(selectedFiles),
-                StringComparer.Ordinal);
+            _selectedFiles = ModelDependencyDefinition.NormalizeFileEntries(selectedFiles)
+                .ToDictionary(file => file.Path, file => file.Optional, StringComparer.Ordinal);
         }
 
         public override Vector2 GetWindowSize()
@@ -797,7 +785,10 @@ namespace Doji.AI.ModelHub.Editor
                 if (GUILayout.Button("Apply", GUILayout.Width(96f)))
                 {
                     _onApply(_selectedFiles.Count > 0
-                        ? _selectedFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray()
+                        ? _selectedFiles
+                            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                            .Select(pair => new ModelDependencyFileDefinition(pair.Key, pair.Value))
+                            .ToArray()
                         : null);
                     editorWindow?.Close();
                 }
@@ -827,7 +818,7 @@ namespace Doji.AI.ModelHub.Editor
                 var repositoryPaths = new HashSet<string>(
                     repositoryFiles.Select(file => file.RepoPath),
                     StringComparer.Ordinal);
-                var missingSelectedFiles = _selectedFiles
+                var missingSelectedFiles = _selectedFiles.Keys
                     .Where(path => !repositoryPaths.Contains(path))
                     .OrderBy(path => path, StringComparer.Ordinal)
                     .ToArray();
@@ -875,7 +866,7 @@ namespace Doji.AI.ModelHub.Editor
             EditorGUILayout.LabelField(
                 "Selection",
                 _selectedFiles.Count > 0
-                    ? $"{_selectedFiles.Count} files"
+                    ? $"{_selectedFiles.Count} files ({_selectedFiles.Count(pair => pair.Value)} optional)"
                     : _emptySelectionLabel);
         }
 
@@ -895,13 +886,13 @@ namespace Doji.AI.ModelHub.Editor
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    var isSelected = _selectedFiles.Contains(file.RepoPath);
+                    var isSelected = _selectedFiles.ContainsKey(file.RepoPath);
                     var nextSelected = EditorGUILayout.Toggle(isSelected, GUILayout.Width(18f));
                     if (nextSelected != isSelected)
                     {
                         if (nextSelected)
                         {
-                            _selectedFiles.Add(file.RepoPath);
+                            _selectedFiles[file.RepoPath] = false;
                         }
                         else
                         {
@@ -909,7 +900,24 @@ namespace Doji.AI.ModelHub.Editor
                         }
                     }
 
+                    var previousColor = GUI.color;
+                    if (!nextSelected)
+                    {
+                        GUI.color = new Color(previousColor.r, previousColor.g, previousColor.b, previousColor.a * 0.45f);
+                    }
+
                     EditorGUILayout.LabelField(file.RepoPath);
+                    GUI.color = previousColor;
+                    using (new EditorGUI.DisabledScope(!nextSelected))
+                    {
+                        var isOptional = nextSelected && _selectedFiles.TryGetValue(file.RepoPath, out var optional) && optional;
+                        var nextOptional = EditorGUILayout.ToggleLeft("Optional", isOptional, GUILayout.Width(76f));
+                        if (nextSelected && nextOptional != isOptional)
+                        {
+                            _selectedFiles[file.RepoPath] = nextOptional;
+                        }
+                    }
+
                     GUILayout.Label(FormatSize(file.SizeInBytes), EditorStyles.miniLabel, GUILayout.Width(72f));
                 }
             }
@@ -938,7 +946,7 @@ namespace Doji.AI.ModelHub.Editor
             return _filterMode switch
             {
                 FileFilterMode.Onnx => ModelDependencyDefinition.IsOnnxFile(file.RepoPath),
-                FileFilterMode.Selected => _selectedFiles.Contains(file.RepoPath),
+                FileFilterMode.Selected => _selectedFiles.ContainsKey(file.RepoPath),
                 _ => true
             };
         }
@@ -961,6 +969,13 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return $"{sizeInBytes.Value / 1024f / 1024f:0.#} MB";
+        }
+
+        private static ModelDependencyFileDefinition[] ToRequiredFileEntries(IReadOnlyList<string> selectedFiles)
+        {
+            return ModelDependencyDefinition.NormalizeSelectedFiles(selectedFiles)
+                .Select(path => new ModelDependencyFileDefinition(path))
+                .ToArray();
         }
     }
 }

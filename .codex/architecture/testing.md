@@ -87,7 +87,7 @@ Editor UI and manifest editing:
   - failed-row badge label and color mapping
 - `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
-  - explicit `files` and `optionalFiles` serialization
+  - explicit `files` serialization with per-file `optional` flags
   - ScriptableObject manifest document load/save normalization
 - `com.doji.hf-hub/Tests/Editor/UI/ProjectSettingsTests.cs`
   - project settings manifest workflow

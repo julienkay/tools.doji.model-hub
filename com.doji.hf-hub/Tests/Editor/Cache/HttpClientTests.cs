@@ -177,7 +177,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
-                    files));
+                    ToRequiredFileEntries(files)));
+        }
+
+        private static ModelDependencyFileDefinition[] ToRequiredFileEntries(string[] files)
+        {
+            return (files ?? Array.Empty<string>())
+                .Select(path => new ModelDependencyFileDefinition(path))
+                .ToArray();
         }
 
         private static HeadResponse CreateHeadResponse(string requestUrl, IReadOnlyDictionary<string, string> headers)

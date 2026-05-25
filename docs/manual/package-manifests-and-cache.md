@@ -18,14 +18,23 @@ Example:
     {
       "id": "onnx-community/tiny-clip-test-ONNX",
       "files": [
-        "onnx/model.onnx"
+        {
+          "path": "onnx/model.onnx",
+          "optional": false
+        }
       ]
     },
     {
       "id": "julienkay/sentis-MiDaS",
-      "optionalFiles": [
-        "onnx/midas_v21_small_256.onnx",
-        "onnx/dpt_swin2_tiny_256.onnx"
+      "files": [
+        {
+          "path": "onnx/midas_v21_small_256.onnx",
+          "optional": true
+        },
+        {
+          "path": "onnx/dpt_swin2_tiny_256.onnx",
+          "optional": true
+        }
       ]
     }
   ]
@@ -75,8 +84,9 @@ Use this when model dependencies need to ship through non-package project conten
 - `version`: manifest schema version. Current value is `1`.
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
-- `files`: optional exact repo-relative file paths. Omit this field to require the whole repository. If present, it must contain at least one non-empty path.
-- `optionalFiles`: optional exact repo-relative file paths the project owner may enable before download or import.
+- `files`: optional exact repo-relative file objects. Omit this field to require the whole repository. If present, each entry has `path` and optional `optional`.
+- `files[].path`: exact repo-relative file path.
+- `files[].optional`: `true` when the project owner may enable that file before download or import; omitted or `false` means the file is always required.
 
 Model ids must be unique inside one manifest.
 
@@ -86,7 +96,7 @@ One manifest entry means one HuggingFace model id, one resolved repository snaps
 
 - omit `files` to require the whole repository file inventory for that resolved revision
 - include `files` to require only those exact repo-relative files
-- include `optionalFiles` when package authors want project-owned pre-download choice without splitting one repo into duplicate manifest rows
+- set `files[].optional` when package authors want project-owned pre-download choice without splitting one repo into duplicate manifest rows
 
 HF Hub normalizes selected paths before storing them:
 
@@ -188,7 +198,7 @@ Selected ONNX rows behave like a traditional importer. Each repository keeps one
 
 Unselected rows remain visible so you can inspect full repository inventory even when current project depends on only one subset of files.
 
-Optional file choice happens before raw cache exists. When a manifest owner declares `optionalFiles`, the Summary tab shows owner-scoped checkboxes so you can enable ONNX variants before download.
+Optional file choice happens before raw cache exists. When a manifest owner declares optional file rows, the Summary tab shows owner-scoped checkboxes so you can enable ONNX variants before download.
 
 HF Hub stores those enabled optional-file choices in `Assets/Doji/HfHub/HF Hub Optional File Selections.asset`. The asset is project-owned and keyed by manifest owner plus model id, so different package or project manifests can enable different optional files from the same repository.
 
@@ -208,8 +218,8 @@ Header actions include:
 - `+` menu with:
   - `Add model to project...` to append one entry to `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
   - `Add model to package...` to pick a local package inside the project and create or update its `hf-hub-manifest.json`
-- add-model popups and manifest editing rows both include a file-scope picker for `All files` or explicit repo file selection
-- manifest editing rows also support optional exact repo-relative files for pre-download owner choice
+- add-model popups and manifest editing rows both include one file picker for `All files` or explicit repo file selection
+- selected file rows can be marked optional for pre-download owner choice
 - clickable repository link to open resolved repository page on HuggingFace
 - `Configure` when a manifest owner must choose optional ONNX files first
 - `Download + Import` when the repository is not cached on this machine yet

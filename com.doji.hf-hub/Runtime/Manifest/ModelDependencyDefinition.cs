@@ -10,28 +10,52 @@ namespace Doji.AI.ModelHub
     /// Describes one canonical HuggingFace model id that a Unity package requires from the Hub.
     /// </summary>
     [Serializable]
+    public sealed class ModelDependencyFileDefinition
+    {
+        public ModelDependencyFileDefinition(string path, bool optional = false)
+        {
+            Path = NormalizePath(path);
+            Optional = optional;
+        }
+
+        /// <summary>
+        /// Exact repository-relative file path selected by this dependency.
+        /// </summary>
+        public string Path { get; }
+
+        /// <summary>
+        /// Whether the selected file is project-selectable rather than always required.
+        /// </summary>
+        public bool Optional { get; }
+
+        internal static string NormalizePath(string path)
+        {
+            return ModelDependencyDefinition.NormalizeRepoPath(path);
+        }
+    }
+
+    /// <summary>
+    /// Describes one exact file selected by a model dependency manifest entry.
+    /// </summary>
+    [Serializable]
     public sealed class ModelDependencyDefinition
     {
-        private readonly string[] _files;
-        private readonly string[] _optionalFiles;
+        private readonly ModelDependencyFileDefinition[] _fileEntries;
 
         /// <summary>
         /// Creates an immutable model dependency definition from one manifest entry.
         /// </summary>
         /// <param name="id">Canonical HuggingFace model identifier, matching Hub `from_pretrained(...)` style source naming.</param>
         /// <param name="revision">Branch, tag, or commit to resolve from the Hub.</param>
-        /// <param name="files">Optional exact repo-relative required file selection. When omitted alongside <paramref name="optionalFiles"/>, the whole repository is required.</param>
-        /// <param name="optionalFiles">Optional exact repo-relative file paths that project owners may enable individually.</param>
+        /// <param name="files">Optional exact repo-relative selected files. Optional entries are project-selectable; required entries are always selected.</param>
         public ModelDependencyDefinition(
             string id,
             string revision,
-            IReadOnlyList<string> files = null,
-            IReadOnlyList<string> optionalFiles = null)
+            IReadOnlyList<ModelDependencyFileDefinition> files = null)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Revision = revision ?? throw new ArgumentNullException(nameof(revision));
-            _files = NormalizeSelectedFiles(files);
-            _optionalFiles = NormalizeSelectedFiles(optionalFiles);
+            _fileEntries = NormalizeFileEntries(files);
         }
 
         /// <summary>
@@ -45,20 +69,15 @@ namespace Doji.AI.ModelHub
         public string Revision { get; }
 
         /// <summary>
-        /// Exact repo-relative file paths required by this dependency.
-        /// Empty can still mean optional files are declared separately.
+        /// Exact repo-relative file selections, with optional flag stored beside each path.
+        /// Empty means the whole repository is selected.
         /// </summary>
-        public IReadOnlyList<string> Files => _files;
-
-        /// <summary>
-        /// Exact repo-relative file paths a project owner may opt into for this dependency.
-        /// </summary>
-        public IReadOnlyList<string> OptionalFiles => _optionalFiles;
+        public IReadOnlyList<ModelDependencyFileDefinition> FileEntries => _fileEntries;
 
         /// <summary>
         /// Whether this dependency declares any explicit required or optional repository file paths.
         /// </summary>
-        public bool HasExplicitFileSelection => _files.Length > 0 || _optionalFiles.Length > 0;
+        public bool HasExplicitFileSelection => _fileEntries.Length > 0;
 
         /// <summary>
         /// Whether this dependency still means "whole repository" instead of an explicit required/optional file set.
@@ -70,7 +89,20 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public string EffectiveRevision => ManifestRevision.NormalizeForResolution(Revision);
 
-        internal string DependencySelectionHash => ComputeSelectionHash(_files, SelectsWholeRepository);
+        internal string DependencySelectionHash => ComputeSelectionHash(
+            _fileEntries.Where(file => !file.Optional).Select(file => file.Path).ToArray(),
+            SelectsWholeRepository);
+
+        internal static ModelDependencyFileDefinition[] NormalizeFileEntries(IReadOnlyList<ModelDependencyFileDefinition> files)
+        {
+            return (files ?? Array.Empty<ModelDependencyFileDefinition>())
+                .Where(file => !string.IsNullOrWhiteSpace(file?.Path))
+                .Select(file => new ModelDependencyFileDefinition(file.Path, file.Optional))
+                .GroupBy(file => file.Path, StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .OrderBy(file => file.Path, StringComparer.Ordinal)
+                .ToArray();
+        }
 
         internal static string[] NormalizeSelectedFiles(IReadOnlyList<string> files)
         {

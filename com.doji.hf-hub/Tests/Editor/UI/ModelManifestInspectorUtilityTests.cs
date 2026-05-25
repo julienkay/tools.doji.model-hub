@@ -86,10 +86,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "hf-internal-testing",
                         "tiny-random-bert",
                         "main",
-                        new[] { "onnx/model.onnx" })
+                        new[] { new ModelDependencyFileDefinition("onnx/model.onnx") })
                 });
 
-            Assert.That(stateKey, Does.Contain("\"files\":[\"onnx/model.onnx\"]"));
+            Assert.That(stateKey, Does.Contain("\"path\":\"onnx/model.onnx\""));
         }
 
         /// <summary>
@@ -106,11 +106,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "hf-internal-testing",
                         "tiny-random-bert",
                         "main",
-                        files: null,
-                        optionalFiles: new[] { "onnx/model_q4.onnx" })
+                        new[] { new ModelDependencyFileDefinition("onnx/model_q4.onnx", true) })
                 });
 
-            Assert.That(stateKey, Does.Contain("\"optionalFiles\":[\"onnx/model_q4.onnx\"]"));
+            Assert.That(stateKey, Does.Contain("\"path\":\"onnx/model_q4.onnx\""));
+            Assert.That(stateKey, Does.Contain("\"optional\":true"));
         }
 
         /// <summary>
@@ -148,7 +148,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new[]
                 {
                     new ManifestModelEntry("hf-internal-testing", "tiny-random-bert", "main"),
-                    new ManifestModelEntry("hf-internal-testing", "tiny-random-gpt2", "main", new[] { "onnx/model.onnx" })
+                    new ManifestModelEntry("hf-internal-testing", "tiny-random-gpt2", "main", new[] { new ModelDependencyFileDefinition("onnx/model.onnx") })
                 },
                 out var serializedJson,
                 out var errorMessage);
@@ -173,16 +173,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "hf-internal-testing",
                         "tiny-random-bert",
                         "main",
-                        files: new[] { "tokenizer.json" },
-                        optionalFiles: new[] { "onnx/model.onnx" })
+                        new[]
+                        {
+                            new ModelDependencyFileDefinition("tokenizer.json"),
+                            new ModelDependencyFileDefinition("onnx/model.onnx", true)
+                        })
                 },
                 out var serializedJson,
                 out var errorMessage);
 
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
-            Assert.That(serializedJson, Does.Contain(@"""optionalFiles"": ["));
+            Assert.That(serializedJson, Does.Not.Contain(@"""optionalFiles"": ["));
             Assert.That(serializedJson, Does.Contain(@"""onnx/model.onnx"""));
+            Assert.That(serializedJson, Does.Contain(@"""optional"": true"));
         }
 
         /// <summary>
@@ -224,8 +228,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     Id = "onnx-community/tiny-clip-test-ONNX",
                     Revision = "refs/pr/7",
-                    Files = new[] { "onnx/model.onnx" },
-                    OptionalFiles = new[] { "onnx/model_q4.onnx" }
+                    Files = new[]
+                    {
+                        new ProjectManifestFileAssetEntry { Path = "onnx/model.onnx" },
+                        new ProjectManifestFileAssetEntry { Path = "onnx/model_q4.onnx", Optional = true }
+                    }
                 }
             });
 
@@ -236,8 +243,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(document.version, Is.EqualTo(1));
             Assert.That(document.models[0].id, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
             Assert.That(document.models[0].revision, Is.EqualTo("refs/pr/7"));
-            Assert.That(document.models[0].files, Is.EqualTo(new[] { "onnx/model.onnx" }));
-            Assert.That(document.models[0].optionalFiles, Is.EqualTo(new[] { "onnx/model_q4.onnx" }));
+            Assert.That(document.models[0].files[0].path, Is.EqualTo("onnx/model.onnx"));
+            Assert.That(document.models[0].files[0].optional, Is.False);
+            Assert.That(document.models[0].files[1].path, Is.EqualTo("onnx/model_q4.onnx"));
+            Assert.That(document.models[0].files[1].optional, Is.True);
         }
 
         /// <summary>
@@ -257,8 +266,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "onnx-community",
                         "tiny-clip-test-ONNX",
                         string.Empty,
-                        new[] { " tokenizer.json ", "onnx\\model.onnx", "onnx/model.onnx" },
-                        new[] { " onnx\\model_q4.onnx ", "onnx/model_q4.onnx" })
+                        new[]
+                        {
+                            new ModelDependencyFileDefinition(" tokenizer.json "),
+                            new ModelDependencyFileDefinition("onnx\\model.onnx"),
+                            new ModelDependencyFileDefinition("onnx/model.onnx"),
+                            new ModelDependencyFileDefinition(" onnx\\model_q4.onnx ", true),
+                            new ModelDependencyFileDefinition("onnx/model_q4.onnx", true)
+                        })
                 },
                 out var errorMessage);
 
@@ -271,12 +286,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
             Assert.That(modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue, Is.Empty);
             var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
-            Assert.That(filesProperty.arraySize, Is.EqualTo(2));
-            Assert.That(filesProperty.GetArrayElementAtIndex(0).stringValue, Is.EqualTo("onnx/model.onnx"));
-            Assert.That(filesProperty.GetArrayElementAtIndex(1).stringValue, Is.EqualTo("tokenizer.json"));
-            var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
-            Assert.That(optionalFilesProperty.arraySize, Is.EqualTo(1));
-            Assert.That(optionalFilesProperty.GetArrayElementAtIndex(0).stringValue, Is.EqualTo("onnx/model_q4.onnx"));
+            Assert.That(filesProperty.arraySize, Is.EqualTo(3));
+            Assert.That(filesProperty.GetArrayElementAtIndex(0).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("onnx/model.onnx"));
+            Assert.That(filesProperty.GetArrayElementAtIndex(0).FindPropertyRelative("<Optional>k__BackingField").boolValue, Is.False);
+            Assert.That(filesProperty.GetArrayElementAtIndex(1).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("onnx/model_q4.onnx"));
+            Assert.That(filesProperty.GetArrayElementAtIndex(1).FindPropertyRelative("<Optional>k__BackingField").boolValue, Is.True);
+            Assert.That(filesProperty.GetArrayElementAtIndex(2).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("tokenizer.json"));
         }
 
         private static void SetProjectManifest(ProjectManifestAsset asset, int version, ProjectManifestModelAssetEntry[] models)
@@ -292,19 +307,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = models[i].Id;
                 modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = models[i].Revision;
                 var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
-                var files = models[i].Files ?? System.Array.Empty<string>();
+                var files = models[i].Files ?? System.Array.Empty<ProjectManifestFileAssetEntry>();
                 filesProperty.arraySize = files.Length;
                 for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
                 {
-                    filesProperty.GetArrayElementAtIndex(fileIndex).stringValue = files[fileIndex];
-                }
-
-                var optionalFilesProperty = modelProperty.FindPropertyRelative("<OptionalFiles>k__BackingField");
-                var optionalFiles = models[i].OptionalFiles ?? System.Array.Empty<string>();
-                optionalFilesProperty.arraySize = optionalFiles.Length;
-                for (var fileIndex = 0; fileIndex < optionalFiles.Length; fileIndex++)
-                {
-                    optionalFilesProperty.GetArrayElementAtIndex(fileIndex).stringValue = optionalFiles[fileIndex];
+                    var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
+                    fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex].Path;
+                    fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex].Optional;
                 }
             }
 

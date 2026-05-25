@@ -217,8 +217,7 @@ namespace Doji.AI.ModelHub.Editor
                     var model = new ModelDependencyDefinition(
                         dependency.ModelId,
                         dependency.Revision,
-                        dependency.RequiredFiles,
-                        dependency.OptionalFiles);
+                        dependency.FileEntries.ToArray());
                     return new DiscoveredModelDependency(
                         dependency.PackageId,
                         dependency.PackageDisplayName,
@@ -230,7 +229,7 @@ namespace Doji.AI.ModelHub.Editor
                         selectionSource.GetEnabledOptionalFiles(
                             dependency.PackageId,
                             dependency.ModelId,
-                            dependency.OptionalFiles));
+                            dependency.GetOptionalRepoPaths()));
                 })
                 .OrderBy(dependency => dependency.PackageId, StringComparer.Ordinal)
                 .ThenBy(dependency => dependency.ModelId, StringComparer.Ordinal)

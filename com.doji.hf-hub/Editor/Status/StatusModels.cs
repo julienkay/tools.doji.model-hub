@@ -106,6 +106,7 @@ namespace Doji.AI.ModelHub.Editor
         public string BindingMetadataPath { get; }
         public ImportedModelMetadata ImportedMetadata { get; }
         public bool NeedsAttention => State != DependencyState.Ready;
+        public bool NeedsStartupPrompt => NeedsAttention && ReasonCode != DependencyReasonCode.SelectionRequired;
     }
 
     /// <summary>
@@ -134,6 +135,7 @@ namespace Doji.AI.ModelHub.Editor
         public int StaleCount => _dependencyStatuses.Count(status => status.State == DependencyState.Stale);
         public int FailedCount => _dependencyStatuses.Count(status => status.State == DependencyState.Failed);
         public bool NeedsAttention => DiscoveryIssues.Count > 0 || _dependencyStatuses.Any(status => status.NeedsAttention);
+        public bool NeedsStartupPrompt => DiscoveryIssues.Count > 0 || _dependencyStatuses.Any(status => status.NeedsStartupPrompt);
     }
 
     /// <summary>

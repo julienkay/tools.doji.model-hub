@@ -1,4 +1,18 @@
 - name: AI Model Hub
   href: ../index.md
-- name: Model Manifests and Cache
+- name: Getting Started
+  href: getting-started.md
+  items:
+  - name: For Package Maintainers
+    href: getting-started-package-maintainers.md
+  - name: For Unity Project Users
+    href: getting-started-project-users.md
+- name: Reference
   href: package-manifests-and-cache.md
+  items:
+  - name: Manifest Schema
+    href: manifest-reference.md
+  - name: Editor Surfaces
+    href: editor-surfaces.md
+  - name: Import, Cache, and Runtime Output
+    href: import-cache-runtime.md

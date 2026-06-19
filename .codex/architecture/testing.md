@@ -85,6 +85,8 @@ Editor UI and manifest editing:
   - state-specific download/import/update icon asset selection
   - selection-required badge and configure/download+import action labels
   - failed-row badge label and color mapping
+- `com.doji.hf-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`
+  - inspected static ONNX input shapes become read-only Files tab display rows
 - `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
   - explicit `files` serialization with per-file `optional` flags

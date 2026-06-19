@@ -1,6 +1,5 @@
 using System;
 using Unity.InferenceEngine;
-using Unity.InferenceEngine.Editor.Onnx;
 
 namespace Doji.AI.ModelHub.Editor.Bridge
 {
@@ -19,7 +18,7 @@ namespace Doji.AI.ModelHub.Editor.Bridge
                 throw new ArgumentException("ONNX file path is required.", nameof(onnxFilePath));
             }
 
-            var converter = new ONNXModelConverter(onnxFilePath);
+            var converter = new Unity.InferenceEngine.Editor.Onnx.ONNXModelConverter(onnxFilePath);
             return converter.Convert();
         }
     }

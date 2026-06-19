@@ -8,12 +8,19 @@
         "com.unity.nuget.newtonsoft-json": "3.2.2"
       }
     },
+    "com.doji.formats.onnx": {
+      "version": "file:../../../../com.doji.formats.onnx/com.doji.formats.onnx",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {}
+    },
     "com.doji.hf-hub": {
       "version": "file:../../../com.doji.hf-hub",
       "depth": 0,
       "source": "local",
       "dependencies": {
         "com.doji.downloads": "1.0.0",
+        "com.doji.onnx-model-loader": "1.0.0",
         "com.unity.ai.inference": "2.6.1",
         "com.unity.nuget.newtonsoft-json": "3.2.2"
       }
@@ -24,6 +31,15 @@
       "source": "embedded",
       "dependencies": {
         "com.doji.hf-hub": "1.0.0"
+      }
+    },
+    "com.doji.onnx-model-loader": {
+      "version": "file:../../../../com.doji.onnx-model-loader/com.doji.onnx-model-loader",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.doji.formats.onnx": "1.0.0",
+        "com.unity.ai.inference": "2.6.1"
       }
     },
     "com.unity.ai.inference": {

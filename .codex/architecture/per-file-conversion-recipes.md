@@ -272,7 +272,15 @@ This keeps editor bridge and future runtime converter behind same contract.
 
 Model Hub file configuration needs lightweight ONNX inspection before conversion.
 
-HF Hub should extract and cache file-level inspection data such as:
+HF Hub uses ONNX inspection only to discover the model signature needed for recipe UI and validation. It must not import the ONNX file as a Unity asset, hold a long-lived `ModelAsset`, or load multi-GB model payloads just to draw Model Hub.
+
+Current integration boundary:
+
+- `com.doji.hf-hub` owns recipe state, Model Hub UI, project overrides, conversion orchestration, and stale decisions
+- `com.doji.onnx-model-loader` owns lightweight ONNX signature reading
+- `OnnxModelInspector` adapts the external signature reader into HF Hub's internal `OnnxInspectedModel` shape
+
+HF Hub should extract or receive file-level inspection data such as:
 
 - input names
 - rank
@@ -281,12 +289,22 @@ HF Hub should extract and cache file-level inspection data such as:
 
 Inspection data supports:
 
-- file tab display
+- Files tab display of dynamic input shape controls
+- grouping named dynamic dimensions into shared editable rows
+- building full static shape overrides when the user gives concrete values for dynamic axes
 - validation of static-dimension overrides before conversion
 - recipe hash normalization
 - stale detection when source model signature changes across repo updates
 
 Inspection should be derived from raw cache file, not from imported Unity asset.
+
+If inspection fails or raw cache is missing, Model Hub should still show existing recipe state and fall back to raw override bindings where possible. Failure to inspect should degrade import-settings UI; it should not force a full ONNX import or block unrelated repo status display.
+
+Maintainer rule:
+
+- never use `File.ReadAllBytes`, generated full-model protobuf deserialization, Unity ONNX importer assets, or Sentis model loading for the Files tab import-settings display
+- only read the lightweight graph signature needed to identify user-facing inputs and dimensions
+- keep low-level ONNX parsing details in `com.doji.onnx-model-loader`; this project should depend on the package contract, not duplicate parser internals
 
 ## Files Tab Role
 
@@ -304,6 +322,14 @@ For each ONNX file row, UI should show:
 - file-specific diagnostics
 
 That tab should be editable when project override is allowed.
+
+Import settings currently use the inspected ONNX signature this way:
+
+- static dimensions are displayed as part of each input's default shape but are not editable override rows
+- dynamic or unknown dimensions become editable rows initialized to `-1`
+- symbolic dimension names such as `batch` are shared across matching inputs so one UI row can update all bound axes
+- unnamed dynamic dimensions are labeled as `inputName[index]`
+- when the user enters a non-`-1` value, HF Hub writes a full shape override for the affected input because the converter needs complete static input shapes, not just changed axes
 
 Non-ONNX files can remain visible later if manifest v2 adds artifact grouping, but first slice only needs actionable ONNX rows.
 

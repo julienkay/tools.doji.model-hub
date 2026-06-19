@@ -1,7 +1,9 @@
 {
   "dependencies": {
     "com.doji.downloads": "file:../../../../com.doji.downloads/com.doji.downloads",
+    "com.doji.formats.onnx": "file:../../../../com.doji.formats.onnx/com.doji.formats.onnx",
     "com.doji.hf-hub": "file:../../../com.doji.hf-hub",
+    "com.doji.onnx-model-loader": "file:../../../../com.doji.onnx-model-loader/com.doji.onnx-model-loader",
     "com.unity.ide.rider": "3.0.40",
     "com.unity.inputsystem": "1.18.0",
     "com.unity.nuget.newtonsoft-json": "3.2.2",

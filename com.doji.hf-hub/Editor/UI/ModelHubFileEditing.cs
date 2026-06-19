@@ -104,7 +104,8 @@ namespace Doji.AI.ModelHub.Editor
             IsExpanded = true;
             QuantizationMode = ModelHubWindow.NormalizeQuantizationMode(recipe?.QuantizationMode);
             DynamicDimensions = BuildDynamicDimensions(recipe, inspectedModel);
-            DynamicDimensionsExpanded = DynamicDimensions.Count > 0;
+            InputShapes = BuildInputShapes(inspectedModel);
+            DynamicDimensionsExpanded = DynamicDimensions.Count > 0 || InputShapes.Count > 0;
             RefreshValidation();
         }
 
@@ -112,6 +113,7 @@ namespace Doji.AI.ModelHub.Editor
         public bool IsExpanded { get; set; }
         public string QuantizationMode { get; set; }
         public List<DynamicDimensionEditState> DynamicDimensions { get; }
+        public List<InputShapeDisplayState> InputShapes { get; }
         public bool DynamicDimensionsExpanded { get; set; }
         public string ValidationMessage { get; private set; }
         public bool IsDirty
@@ -326,6 +328,36 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Builds read-only shape rows used when inspected inputs have no editable dynamic dimensions.
+        /// </summary>
+        internal static List<InputShapeDisplayState> BuildInputShapes(OnnxInspectedModel inspectedModel)
+        {
+            return (inspectedModel?.Inputs ?? Array.Empty<OnnxInspectedInput>())
+                .Select(input => new InputShapeDisplayState(
+                    input.Name,
+                    input.Dimensions
+                        .Select(dimension => new InputShapeDimensionDisplayState(
+                            dimension.Label,
+                            dimension.Index,
+                            FormatInputShapeDimension(dimension),
+                            dimension.IsDynamicByDefault))
+                        .ToArray()))
+                .ToList();
+        }
+
+        private static string FormatInputShapeDimension(OnnxInspectedDimension dimension)
+        {
+            if (!dimension.IsDynamicByDefault)
+            {
+                return dimension.DefaultValue.ToString();
+            }
+
+            return dimension.IsNamed
+                ? dimension.Label
+                : "-1";
+        }
+
+        /// <summary>
         /// Reuses first explicit override value among all dimensions that share one editable label.
         /// </summary>
         private static int GetSharedOverrideValue(
@@ -363,6 +395,43 @@ namespace Doji.AI.ModelHub.Editor
         public string Label { get; set; }
         public int Value { get; set; }
         public List<DynamicDimensionBinding> Bindings { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Read-only display model for one inspected ONNX input shape.
+    /// </summary>
+    internal sealed class InputShapeDisplayState
+    {
+        private readonly InputShapeDimensionDisplayState[] _dimensions;
+
+        public InputShapeDisplayState(string name, IReadOnlyList<InputShapeDimensionDisplayState> dimensions)
+        {
+            Name = name;
+            _dimensions = dimensions?.ToArray() ?? Array.Empty<InputShapeDimensionDisplayState>();
+        }
+
+        public string Name { get; }
+        public IReadOnlyList<InputShapeDimensionDisplayState> Dimensions => _dimensions;
+        public string DisplayValue => $"[{string.Join(", ", _dimensions.Select(dimension => dimension.DisplayValue))}]";
+    }
+
+    /// <summary>
+    /// Read-only display model for one inspected ONNX input dimension.
+    /// </summary>
+    internal sealed class InputShapeDimensionDisplayState
+    {
+        public InputShapeDimensionDisplayState(string label, int index, string displayValue, bool isDynamic)
+        {
+            Label = label;
+            Index = index;
+            DisplayValue = displayValue;
+            IsDynamic = isDynamic;
+        }
+
+        public string Label { get; }
+        public int Index { get; }
+        public string DisplayValue { get; }
+        public bool IsDynamic { get; }
     }
 
     /// <summary>

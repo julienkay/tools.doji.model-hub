@@ -27,6 +27,7 @@
 - Generic download infrastructure is a separate package-owned concern and should not stay coupled to HuggingFace or model import logic.
 - Editor-only UX, prompts, Project Settings integration, and Package Manager adapters stay in `Editor`.
 - Direct long-lived references to ONNX `ModelAsset` files are undesirable because they are expensive during import and domain reload.
+- Model Hub must not load large ONNX model payloads just to display files, recipes, or import settings. ONNX inspection for UI should read only lightweight signature metadata through `com.doji.onnx-model-loader`.
 - `.sentis` is the preferred consumption format because it avoids repeated ONNX import work.
 - Generated `.sentis` artifacts should be treated as version-sensitive to the installed Sentis version.
 - Reuse raw downloads across projects whenever possible. If converted artifacts are cached later, key them by model identity and Sentis version.

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace Doji.AI.ModelHub.Editor
         private const float FileTitleIconSize = 14f;
         private const float FileTitleLeftGap = 3f;
         private const float FileTitleIconGap = 4f;
+        private const float FileBodyIndent = 34f;
 
         private static Texture2D _inferenceModelIcon;
         private static bool _didResolveInferenceModelIcon;
@@ -65,7 +67,7 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         using (new EditorGUILayout.HorizontalScope())
                         {
-                            GUILayout.Space(4f);
+                            GUILayout.Space(FileBodyIndent);
                             using (new EditorGUILayout.VerticalScope())
                             {
                                 DrawOptionalLinkRow(Content.RawCachedFileLabel, file.RawCachedFilePath, ProjectSettingsLinks.RevealPath);
@@ -174,36 +176,57 @@ namespace Doji.AI.ModelHub.Editor
         private void DrawDynamicDimsEditor(FileRecipeEditState fileState)
         {
             var dynamicDims = fileState.DynamicDimensions;
-            var foldoutLabel = $"{Content.DynamicInputShapeDimensionsLabel} ({dynamicDims.Count})";
+            var inputShapes = fileState.InputShapes;
+            var foldoutLabel = dynamicDims.Count > 0
+                ? $"{Content.DynamicInputShapeDimensionsLabel} ({dynamicDims.Count})"
+                : $"{Content.InputShapesLabel} ({inputShapes.Count})";
             fileState.DynamicDimensionsExpanded = EditorGUILayout.Foldout(
                 fileState.DynamicDimensionsExpanded,
-                new GUIContent(foldoutLabel, Content.DynamicDimsTooltip),
+                new GUIContent(foldoutLabel, dynamicDims.Count > 0 ? Content.DynamicDimsTooltip : Content.InputShapesTooltip),
                 true);
             if (!fileState.DynamicDimensionsExpanded)
             {
                 return;
             }
 
-            using (new EditorGUI.DisabledScope(dynamicDims.Count == 0))
+            EditorGUI.indentLevel++;
+            if (dynamicDims.Count == 0)
             {
-                EditorGUI.indentLevel++;
-                if (dynamicDims.Count == 0)
-                {
-                    EditorGUILayout.LabelField(Content.NoDynamicDimensionsMessage, EditorStyles.miniLabel);
-                    EditorGUI.indentLevel--;
-                    return;
-                }
+                DrawStaticInputShapes(inputShapes);
+                EditorGUI.indentLevel--;
+                return;
+            }
 
-                foreach (var dynamicDim in dynamicDims)
+            foreach (var dynamicDim in dynamicDims)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.PrefixLabel(dynamicDim.Label);
+                    dynamicDim.Value = EditorGUILayout.IntField(dynamicDim.Value);
+                }
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        private static void DrawStaticInputShapes(IReadOnlyList<InputShapeDisplayState> inputShapes)
+        {
+            if (inputShapes.Count == 0)
+            {
+                EditorGUILayout.LabelField(Content.NoDynamicDimensionsMessage, EditorStyles.miniLabel);
+                return;
+            }
+
+            using (new EditorGUI.DisabledScope(true))
+            {
+                foreach (var inputShape in inputShapes)
                 {
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        EditorGUILayout.PrefixLabel(dynamicDim.Label);
-                        dynamicDim.Value = EditorGUILayout.IntField(dynamicDim.Value);
+                        EditorGUILayout.PrefixLabel(inputShape.Name);
+                        EditorGUILayout.TextField(inputShape.DisplayValue);
                     }
                 }
-
-                EditorGUI.indentLevel--;
             }
         }
 

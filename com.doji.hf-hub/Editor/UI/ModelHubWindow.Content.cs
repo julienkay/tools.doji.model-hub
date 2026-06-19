@@ -105,6 +105,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string RecipeSourceLabel = "Recipe Source";
             public const string QuantizationModeLabel = "Quantization";
             public const string DynamicInputShapeDimensionsLabel = "Dynamic Input Shape Dimensions";
+            public const string InputShapesLabel = "Input Shapes";
             public const string OverrideAssetLabel = "Override Asset";
             public const string ApplyLabel = "Apply";
             public const string RevertLabel = "Revert";
@@ -113,6 +114,7 @@ namespace Doji.AI.ModelHub.Editor
             public const string CancelLabel = "Cancel";
             public const string OkLabel = "OK";
             public const string DynamicDimsTooltip = "Specify dynamic dimension size on import. -1 keeps dimension dynamic.";
+            public const string InputShapesTooltip = "Discovered ONNX input shapes. Static dimensions are fixed and shown read-only.";
             public const string NoDynamicDimensionsMessage = "No dynamic dimensions discovered.";
             public const string ApplyAndDownloadTooltip = "Save file import settings, then download and import this repository.";
             public const string ApplyAndReimportTooltip = "Save file import settings, then reimport this repository.";

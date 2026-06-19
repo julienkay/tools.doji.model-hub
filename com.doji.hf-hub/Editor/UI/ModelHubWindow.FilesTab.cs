@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -19,7 +20,21 @@ namespace Doji.AI.ModelHub.Editor
         private const float FileBodyIndent = 34f;
 
         private static Texture2D _inferenceModelIcon;
+        private static Texture2D _textFileIcon;
+        private static Texture2D _markdownFileIcon;
+        private static Texture2D _jsonFileIcon;
+        private static Texture2D _defaultFileIcon;
         private static bool _didResolveInferenceModelIcon;
+        private static bool _didResolveFileTypeIcons;
+
+        internal enum FileHeaderIconKind
+        {
+            Model,
+            Text,
+            Markdown,
+            Json,
+            Default
+        }
 
         /// <summary>
         /// Small popup option model for quantization mode selection.
@@ -101,7 +116,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Draws the file block title row with the same model icon used by the inference package when available.
+        /// Draws the file block title row with an icon chosen from the repository file type.
         /// </summary>
         private static void DrawFileHeader(FileRecipeEditState fileState, string repoPath)
         {
@@ -118,7 +133,7 @@ namespace Doji.AI.ModelHub.Editor
                 EditorGUI.LabelField(foldoutRect, GUIContent.none);
             }
 
-            var icon = GetInferenceModelIcon();
+            var icon = GetFileHeaderIcon(repoPath);
             if (icon == null)
             {
                 DrawFileHeaderLabel(contentRect, repoPath);
@@ -131,6 +146,89 @@ namespace Doji.AI.ModelHub.Editor
             var labelRect = new Rect(contentRect.x + labelOffset, contentRect.y, contentRect.width - labelOffset, contentRect.height);
             GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
             DrawFileHeaderLabel(labelRect, repoPath);
+        }
+
+        private static Texture2D GetFileHeaderIcon(string repoPath)
+        {
+            EnsureFileTypeIcons();
+
+            return GetFileHeaderIconKind(repoPath) switch
+            {
+                FileHeaderIconKind.Model => GetInferenceModelIcon() ?? _defaultFileIcon,
+                FileHeaderIconKind.Text => _textFileIcon ?? _defaultFileIcon,
+                FileHeaderIconKind.Markdown => _markdownFileIcon ?? _textFileIcon ?? _defaultFileIcon,
+                FileHeaderIconKind.Json => _jsonFileIcon ?? _textFileIcon ?? _defaultFileIcon,
+                _ => _defaultFileIcon
+            };
+        }
+
+        internal static FileHeaderIconKind GetFileHeaderIconKind(string repoPath)
+        {
+            var extension = Path.GetExtension(repoPath ?? string.Empty);
+            if (IsAiModelFileExtension(extension))
+            {
+                return FileHeaderIconKind.Model;
+            }
+
+            return extension?.ToLowerInvariant() switch
+            {
+                ".txt" => FileHeaderIconKind.Text,
+                ".md" => FileHeaderIconKind.Markdown,
+                ".json" => FileHeaderIconKind.Json,
+                _ => FileHeaderIconKind.Default
+            };
+        }
+
+        private static bool IsAiModelFileExtension(string extension)
+        {
+            return extension?.ToLowerInvariant() switch
+            {
+                ".onnx" => true,
+                ".sentis" => true,
+                ".safetensors" => true,
+                ".bin" => true,
+                ".pt" => true,
+                ".pth" => true,
+                ".ckpt" => true,
+                ".gguf" => true,
+                ".tflite" => true,
+                ".pb" => true,
+                ".h5" => true,
+                _ => false
+            };
+        }
+
+        private static void EnsureFileTypeIcons()
+        {
+            if (_didResolveFileTypeIcons)
+            {
+                return;
+            }
+
+            _didResolveFileTypeIcons = true;
+            _textFileIcon = GetTypeIcon(typeof(TextAsset)) ?? FindEditorIcon("TextAsset Icon", "TextScriptImporter Icon");
+            _markdownFileIcon = _textFileIcon;
+            _jsonFileIcon = _textFileIcon;
+            _defaultFileIcon = FindEditorIcon("DefaultAsset Icon", "Prefab Icon");
+        }
+
+        private static Texture2D GetTypeIcon(Type type)
+        {
+            return EditorGUIUtility.ObjectContent(null, type).image as Texture2D;
+        }
+
+        private static Texture2D FindEditorIcon(params string[] iconNames)
+        {
+            foreach (var iconName in iconNames)
+            {
+                var icon = EditorGUIUtility.FindTexture(iconName);
+                if (icon != null)
+                {
+                    return icon;
+                }
+            }
+
+            return null;
         }
 
         private static Texture2D GetInferenceModelIcon()

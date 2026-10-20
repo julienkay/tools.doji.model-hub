@@ -289,11 +289,10 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Finalizes a successful background sync run, removes persisted state, and refreshes visible editor status.
+        /// Finalizes a successful background sync run and refreshes visible editor status. The runner deletes the state and the progress entry.
         /// </summary>
         private static void Complete(SyncReport report)
         {
-            Runner.RemoveProgressIfExists();
             RebuildRuntimeRegistries();
             var consoleReport = EditorOperations.BuildSyncConsoleReport(report);
             if (report.FailureCount > 0 || report.DiscoveryIssues.Count > 0)
@@ -325,7 +324,6 @@ namespace Doji.AI.ModelHub.Editor
         private static void Fail(PersistentItemQueueState state, SyncReport report)
         {
             Runner.SaveState(state);
-            Runner.RemoveProgressIfExists();
             UnityEngine.Debug.LogWarning(EditorOperations.BuildSyncConsoleReport(report));
             ProjectSettingsProvider.Refresh();
             NotifySyncStateChanged();

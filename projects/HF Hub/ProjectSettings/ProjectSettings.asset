@@ -686,7 +686,7 @@ PlayerSettings:
   webEnableSubmoduleStrippingCompatibility: 0
   webProgressiveAssetLoading: 0
   scriptingDefineSymbols:
-    Standalone: APP_UI_EDITOR_ONLY;UNITY_ASTOOLS_EXPERIMENTAL
+    Standalone: APP_UI_EDITOR_ONLY;UNITY_ASTOOLS_EXPERIMENTAL;SENTIS_ANALYTICS_ENABLED
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}

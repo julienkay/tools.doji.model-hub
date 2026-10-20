@@ -41,7 +41,7 @@ namespace Doji.AI.ModelHub.Editor
                 resolvedSnapshot.Repository,
                 resolvedSnapshot.ResolvedCommitHash);
 
-            using var fileLock = FileLock.Acquire(lockPath, DefaultLockTimeout);
+            using var fileLock = await FileLock.AcquireAsync(lockPath, DefaultLockTimeout, cancellationToken);
 
             TryReadMetadata(metadataPath, out var existingMetadata);
             Directory.CreateDirectory(snapshotRoot);

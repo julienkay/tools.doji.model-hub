@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Doji.Downloads;
-using Doji.Downloads.Editor;
 using Newtonsoft.Json.Linq;
 using UnityEngine.Networking;
 
@@ -109,7 +108,7 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class UnityWebRequestTransport : IHttpTransport
     {
-        private readonly UnityWebRequestResumableDownloader _downloader = new();
+        private readonly ResumableDownloader _downloader = new();
 
         /// <summary>
         /// Reads response headers for a Hub file without downloading the payload.
@@ -118,7 +117,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             using var request = UnityWebRequest.Head(url);
             request.SetRequestHeader("Accept-Encoding", "identity");
-            await UnityWebRequestResumableDownloader.SendAsync(request, cancellationToken);
+            await request.SendAsync(cancellationToken);
 
             var headers = request.GetResponseHeaders() ?? new Dictionary<string, string>();
 
@@ -133,7 +132,7 @@ namespace Doji.AI.ModelHub.Editor
         public async Task<JsonResponse> GetJsonAsync(string url, CancellationToken cancellationToken)
         {
             using var request = UnityWebRequest.Get(url);
-            await UnityWebRequestResumableDownloader.SendAsync(request, cancellationToken);
+            await request.SendAsync(cancellationToken);
             var headers = request.GetResponseHeaders() ?? new Dictionary<string, string>();
             return new JsonResponse(
                 request.url,

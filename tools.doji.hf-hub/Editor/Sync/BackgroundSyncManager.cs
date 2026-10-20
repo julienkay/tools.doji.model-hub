@@ -81,7 +81,8 @@ namespace Doji.AI.ModelHub.Editor
             Runner.StartOrResume(
                 () => PersistentItemQueueState.Create(pendingKeys.Select(key => BuildStateKey(mode, key))),
                 RunAsync,
-                exception => UnityEngine.Debug.LogError($"HF Hub background sync failed: {exception.Message}"));
+                exception => UnityEngine.Debug.LogError($"HF Hub background sync failed: {exception.Message}"),
+                OnCanceled);
         }
 
         internal static string[] BuildPendingDependencyKeys(
@@ -264,7 +265,7 @@ namespace Doji.AI.ModelHub.Editor
                     },
                     context);
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (activeDependency != null)
                 {
@@ -304,6 +305,16 @@ namespace Doji.AI.ModelHub.Editor
                 UnityEngine.Debug.Log(consoleReport);
             }
 
+            ProjectSettingsProvider.Refresh();
+            NotifySyncStateChanged();
+        }
+
+        /// <summary>
+        /// Refreshes editor status after the user cancelled the sync. The runner already deleted the persisted state.
+        /// </summary>
+        private static void OnCanceled()
+        {
+            UnityEngine.Debug.Log("HF Hub sync canceled.");
             ProjectSettingsProvider.Refresh();
             NotifySyncStateChanged();
         }

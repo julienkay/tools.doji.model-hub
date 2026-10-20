@@ -117,12 +117,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void AcquireLock_BlocksSecondOpenUntilDisposed()
         {
             var lockPath = Path.Combine(_rootDirectory, "cache.lock");
-            using var firstLock = FileLock.Acquire(lockPath, TimeSpan.FromSeconds(1));
-
-            Assert.Throws<IOException>(() =>
+            Assert.That(FileLock.TryAcquire(lockPath, out var firstLock), Is.True);
+            using (firstLock)
             {
-                using var _ = FileLock.Acquire(lockPath, TimeSpan.Zero);
-            });
+                Assert.That(FileLock.TryAcquire(lockPath, out _), Is.False);
+            }
+
+            Assert.That(FileLock.TryAcquire(lockPath, out var secondLock), Is.True);
+            secondLock.Dispose();
         }
 
         /// <summary>

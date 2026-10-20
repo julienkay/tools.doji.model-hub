@@ -1,0 +1,55 @@
+# HF Hub
+
+## Purpose
+
+HF Hub is package management for AI models in Unity.
+
+An AI-powered Unity package needs model files that are too large to ship with
+it. Git LFS, OpenUPM, the Asset Store, and GitHub all make large binaries hard
+to distribute. HF Hub removes that problem: the package references its models
+on HuggingFace, and HF Hub gets them into the user's project.
+
+## Users
+
+- **Package developers** build AI-powered Unity packages. They declare the
+  models their package needs in a manifest. They do not host, ship, or
+  version the model files themselves.
+- **Package consumers** install those packages as usual. HF Hub detects the
+  required models and gets them into the project with one click.
+
+## Principles
+
+- **Reference, do not ship.** Models stay on HuggingFace. Packages and
+  projects contain a manifest, not the model files. Do not commit downloaded
+  models, cache contents, or generated `.sentis` files.
+- **The package owns the manifest.** A package declares its own model
+  dependencies. A consumer project does not need to know which models its
+  packages use.
+- **One click for consumers.** Detect missing models, ask the user once, then
+  download and import them. Do not make the user find files, pick revisions,
+  or convert models by hand.
+- **Download once, reuse everywhere.** Keep raw downloads in a shared local
+  cache, so many projects use the same files.
+- **Built for Sentis.** Convert ONNX files to project-owned `.sentis` assets.
+  They load fast and do not need repeated ONNX import. Treat `.sentis` output
+  as specific to the installed Sentis version, and regenerate it when that
+  version changes.
+- **Keep the Editor fast.** Do not hold long-lived references to large ONNX
+  assets. Do not load full models only to show their files or settings.
+- **Runtime-safe core.** Keep Hub logic out of `Editor` when it does not need
+  `UnityEditor`, so runtime downloads can reuse it later. Only editor UX and
+  Package Manager integration belong in `Editor`.
+- **Follow `huggingface_hub`.** Use the official Python library as the
+  reference for Hub API, download, cache, and manifest behavior.
+
+## Out of scope
+
+- Hosting or mirroring models outside HuggingFace.
+- Training, fine-tuning, or editing models.
+- Inference engines other than Sentis.
+
+## Decision test
+
+Does the change make it easier for a package developer to depend on a model,
+or for a consumer to get that model into a project? If not, do not make the
+change.

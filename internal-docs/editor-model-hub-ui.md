@@ -325,7 +325,7 @@ Companion project now includes maintainer-only visual sandbox under:
 
 Detailed maintainer behavior, constraints, and supported workflow live in:
 
-- `.codex/architecture/visual-scenario-sandbox.md`
+- `internal-docs/visual-scenario-sandbox.md`
 
 ## Shared Import Storage
 

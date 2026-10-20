@@ -39,9 +39,9 @@ Today shared import reuse is keyed by:
 
 See:
 
-- [ProjectPaths.GetSharedImportFolder](../../../tools.doji.hf-hub/Editor/Import/ProjectPaths.cs)
-- [ProjectImportService.ImportAsync](../../../tools.doji.hf-hub/Editor/Import/ProjectImportService.cs)
-- [StatusService.IsSharedCurrent](../../../tools.doji.hf-hub/Editor/Status/StatusService.cs)
+- [ProjectPaths.GetSharedImportFolder](../tools.doji.hf-hub/Editor/Import/ProjectPaths.cs)
+- [ProjectImportService.ImportAsync](../tools.doji.hf-hub/Editor/Import/ProjectImportService.cs)
+- [StatusService.IsSharedCurrent](../tools.doji.hf-hub/Editor/Status/StatusService.cs)
 
 That means:
 
@@ -52,7 +52,7 @@ That means:
 
 Current Model Hub UI is also too late in pipeline:
 
-- [ModelHubWindow](../../../tools.doji.hf-hub/Editor/UI/ModelHubWindow.cs) `Files` tab shows generated runtime files only
+- [ModelHubWindow](../tools.doji.hf-hub/Editor/UI/ModelHubWindow.cs) `Files` tab shows generated runtime files only
 - raw ONNX inventory and conversion controls are not first-class
 - background sync still couples raw download and runtime materialization in one operation
 
@@ -136,9 +136,9 @@ Runtime API currently resolves files by:
 
 See:
 
-- [ModelHub](../../../tools.doji.hf-hub/Runtime/Core/ModelHub.cs)
-- [PretrainedRepository](../../../tools.doji.hf-hub/Runtime/Core/PretrainedRepository.cs)
-- [ResolvedRuntimeModel](../../../tools.doji.hf-hub/Runtime/Locator/ResolvedRuntimeModel.cs)
+- [ModelHub](../tools.doji.hf-hub/Runtime/Core/ModelHub.cs)
+- [PretrainedRepository](../tools.doji.hf-hub/Runtime/Core/PretrainedRepository.cs)
+- [ResolvedRuntimeModel](../tools.doji.hf-hub/Runtime/Locator/ResolvedRuntimeModel.cs)
 
 Keeping one effective recipe per `repo + repoPath` preserves that runtime contract and avoids adding recipe identifiers to public runtime lookup before they are clearly needed.
 
@@ -244,7 +244,7 @@ Keep it separate from package manifest parsing so package-owned declaration and 
 
 Current converter seam is too small:
 
-- [IOnnxModelConverter.ConvertFromFile(string)](../../../tools.doji.hf-hub/Runtime/Conversion/IOnnxModelConverter.cs)
+- [IOnnxModelConverter.ConvertFromFile(string)](../tools.doji.hf-hub/Runtime/Conversion/IOnnxModelConverter.cs)
 
 Configurable conversion needs explicit request and result types.
 
@@ -344,7 +344,7 @@ Current background sync still does:
 
 in one pass.
 
-See [BackgroundSyncManager.RunAsync](../../../tools.doji.hf-hub/Editor/Sync/BackgroundSyncManager.cs).
+See [BackgroundSyncManager.RunAsync](../tools.doji.hf-hub/Editor/Sync/BackgroundSyncManager.cs).
 
 Per-file recipes make this split architecturally important:
 

@@ -8,7 +8,7 @@ Use `Tools/Doji/HF Hub/Import All` to resolve discovered repository dependencies
 
 Current sync flow:
 
-1. Scan installed packages for `hf-hub-manifest.json`, `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`, and ScriptableObject project assets for `ProjectManifestAsset`.
+1. Scan installed packages for `hf-hub-manifest.json`, `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`, and ScriptableObject project assets for `ProjectManifestAsset`.
 2. Validate manifest contents.
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Read the repository file inventory for that commit.

@@ -10,7 +10,7 @@ HF Hub discovers three manifest types in one Unity project.
 
 Use the Project Settings manifest when model dependencies belong to the current Unity project itself.
 
-- location: `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
+- location: `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
 - edit from: `Project Settings > Doji > AI > AI Model Hub`
 - add from: Model Hub `+ > Add model to project...`
 

@@ -17,7 +17,7 @@ Project-owned dependencies can be added from:
 Project Settings writes to:
 
 ```text
-ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json
+ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
 ```
 
 ScriptableObject project manifests are normal Unity assets and are discovered in addition to the Project Settings manifest.

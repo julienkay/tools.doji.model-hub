@@ -10,7 +10,7 @@ Use it as navigation aid, not as replacement for reading test code.
 
 Manifest and discovery:
 
-- `com.doji.hf-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
   - manifest parse and normalization
   - duplicate id validation
   - selected-file and optional-file preservation
@@ -19,18 +19,18 @@ Manifest and discovery:
 
 Cache and repository inventory:
 
-- `com.doji.hf-hub/Tests/Editor/Cache/HttpClientTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Cache/HttpClientTests.cs`
   - repository tree inventory
   - selected-file resolution against remote inventory
-- `com.doji.hf-hub/Tests/Editor/Cache/RawCacheTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Cache/RawCacheTests.cs`
   - raw metadata persistence
   - repository inventory persistence
-- `com.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs`
   - cached repo and revision validation state
 
 Import and generated assets:
 
-- `com.doji.hf-hub/Tests/Editor/Import/ProjectImportServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Import/ProjectImportServiceTests.cs`
   - whole-repo import from repository inventory
   - selected-file import subset
   - optional-file selection asset persistence
@@ -38,16 +38,16 @@ Import and generated assets:
   - shared import reuse across owners
   - partial conversion warnings
   - no-ONNX selection failure
-- `com.doji.hf-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`
   - raw cache removal
   - shared import cleanup
   - revision-conflict removal blocking
-- `com.doji.hf-hub/Tests/Editor/Import/OnnxModelConverterArchitectureTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Import/OnnxModelConverterArchitectureTests.cs`
   - conversion pipeline assumptions
 
 Status and sync:
 
-- `com.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs`
   - raw cache missing and invalid cases
   - selected-file missing file detection
   - `SelectionRequired` state for optional-only ONNX dependencies
@@ -55,49 +55,49 @@ Status and sync:
   - same-repo later-added broader selection marks only new owner as cache-update-needed
   - binding/shared stale detection
   - imported-only ready fallback after raw cache removal
-- `com.doji.hf-hub/Tests/Editor/Status/ModelHubServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Status/ModelHubServiceTests.cs`
   - status aggregation into Model Hub rows
   - selection-required diagnostics
   - same-repo multi-owner selection growth aggregates into one update-needed row
-- `com.doji.hf-hub/Tests/Editor/Sync/SyncServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Sync/SyncServiceTests.cs`
   - sync success and failure orchestration
-- `com.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and heal paths
-- `com.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage
 
 Runtime locator:
 
-- `com.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorServiceTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorServiceTests.cs`
   - registry writes
   - owner-specific and global lookup
   - `FromPretrained(...)` and `LoadRuntimeModel(...)`
   - selected-file and optional-file runtime subset exposure
-- `com.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
   - runtime path mapping and layout assumptions
 
 Editor UI and manifest editing:
 
-- `com.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs`
   - file-selection button gating
-- `com.doji.hf-hub/Tests/Editor/UI/ModelHubWindowStatusRenderingTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ModelHubWindowStatusRenderingTests.cs`
   - stable error/conflict icon asset selection
   - state-specific download/import/update icon asset selection
   - selection-required badge and configure/download+import action labels
   - failed-row badge label and color mapping
-- `com.doji.hf-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`
   - inspected static ONNX input shapes become read-only Files tab display rows
-- `com.doji.hf-hub/Tests/Editor/UI/ModelHubFileIconTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ModelHubFileIconTests.cs`
   - Files tab header icon classification by repository file extension
-- `com.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ModelManifestInspectorUtilityTests.cs`
   - manifest dirty tracking
   - explicit `files` serialization with per-file `optional` flags
   - ScriptableObject manifest document load/save normalization
-- `com.doji.hf-hub/Tests/Editor/UI/ProjectSettingsTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/ProjectSettingsTests.cs`
   - project settings manifest workflow
-- `com.doji.hf-hub/Tests/Editor/UI/EditorOperationsTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/EditorOperationsTests.cs`
   - UI command gating
-- `com.doji.hf-hub/Tests/Editor/UI/AutoPromptTests.cs`
+- `tools.doji.hf-hub/Tests/Editor/UI/AutoPromptTests.cs`
   - prompt summarization
 
 ## Selected-File vs Whole-Repo Matrix

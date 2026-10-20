@@ -2,15 +2,15 @@
 
 ## Project Intent
 
-This repository contains the Unity package `com.doji.hf-hub` and its companion project `HF Hub`.
+This repository contains the Unity package `tools.doji.hf-hub` and its companion project `HF Hub`.
 
 Reference and Download AI models from HuggingFace
 
-It is built with Unity 6000.3 LTS. There is no compile step, CLI build command, or test runner to invoke. Do not attempt to build, compile, or run the project. 
+The companion project uses Unity 6000.6. The package supports Unity 6000.3 LTS and later. There is no compile step, CLI build command, or test runner to invoke. Do not attempt to build, compile, or run the project. 
 
 ## Package Direction
 
-- `com.doji.hf-hub` is a Unity-package-friendly reference and import layer for HuggingFace models. It solves the problem of creating packages or projects that use large AI models without shipping them inside the UPM package or Unity projects or even including them in the repo / git LFS explicitly. Essentially package management for AI models specifically for Unity (Sentis).
+- `tools.doji.hf-hub` is a Unity-package-friendly reference and import layer for HuggingFace models. It solves the problem of creating packages or projects that use large AI models without shipping them inside the UPM package or Unity projects or even including them in the repo / git LFS explicitly. Essentially package management for AI models specifically for Unity (Sentis).
 - Prefer a package-owned manifest workflow: UPM packages declare remote model dependencies, the Hub detects those manifests when packages are present in a project, then downloads source ONNX files into a shared local cache and converts them into project-owned `.sentis` assets after user confirmation.
 - Prefer runtime-safe implementations for Hub logic whenever possible so future runtime downloads can reuse same code. Keep only UnityEditor integration points, editor UX, and Package Manager adapters in `Editor`.
 - Optimize for Sentis editor and runtime behavior. Avoid long-lived references to large ONNX `ModelAsset` files when they would force expensive import work during domain reloads.
@@ -28,7 +28,7 @@ It is built with Unity 6000.3 LTS. There is no compile step, CLI build command, 
 Prefer these locations:
 
 - repository root: orient from the repository root for searches, docs, and cross-package work; from this companion Unity project working directory, the repository root is `../..`
-- `com.doji.hf-hub/`: local package under development
+- `tools.doji.hf-hub/`: local package under development
 - `docs/`: user-facing package documentation only; keep maintainer notes and internal architecture docs out of DocFX content
 - `.codex/skills/`: project-specific skills; when a task matches one, read and follow the relevant `SKILL.md`
 - `references/`: maintainer-only upstream notes and local reference checkouts; keep maintainer docs there, reuse existing clones before downloading again

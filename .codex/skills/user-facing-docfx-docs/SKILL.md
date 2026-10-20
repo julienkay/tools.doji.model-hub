@@ -1,6 +1,6 @@
 ---
 name: user-facing-docfx-docs
-description: Write or revise user-facing DocFX documentation for the in-development `com.doji.hf-hub` Unity package. Use when expanding the manual, documenting package manifests, shared cache behavior, HuggingFace download workflows, Sentis-related outputs, editor status surfaces, or improving DocFX navigation while keeping maintainer-only build notes out of consumer docs.
+description: Write or revise user-facing DocFX documentation for the in-development `tools.doji.hf-hub` Unity package. Use when expanding the manual, documenting package manifests, shared cache behavior, HuggingFace download workflows, Sentis-related outputs, editor status surfaces, or improving DocFX navigation while keeping maintainer-only build notes out of consumer docs.
 ---
 
 # User-Facing DocFX Docs
@@ -24,10 +24,10 @@ Do not guess from UI text alone. Verify against implementation before documentin
 
 Read only the files needed for the current page, usually:
 
-- package-level constants and manifest contracts in `com.doji.hf-hub/Runtime/`
-- runtime-safe manifest and model dependency types in `com.doji.hf-hub/Runtime/`
-- editor package discovery, menu items, cache services, and download logic in `com.doji.hf-hub/Editor/`
-- package tests in `com.doji.hf-hub/Tests/` when behavior or edge cases need confirmation
+- package-level constants and manifest contracts in `tools.doji.hf-hub/Runtime/`
+- runtime-safe manifest and model dependency types in `tools.doji.hf-hub/Runtime/`
+- editor package discovery, menu items, cache services, and download logic in `tools.doji.hf-hub/Editor/`
+- package tests in `tools.doji.hf-hub/Tests/` when behavior or edge cases need confirmation
 - existing user docs in `docs/` so new pages match the current manual structure
 
 Document actual behavior, including:
@@ -126,7 +126,7 @@ For manifest and cache reference pages:
 - Prefer concrete file names, menu paths, cache paths, generated output paths, and manifest filenames.
 - Put screenshot placeholders under `docs/images/`, preferably grouped by topic such as `docs/images/manual/`.
 - Treat `hf-hub-manifest.json` as the primary package author entry point unless the current implementation adds another stronger user-facing workflow.
-- Prefer `com.doji.hf-hub/` as the package-owned source of truth and `projects/HF Hub/Assets` only when documenting companion-project examples or sample scenes.
+- Prefer `tools.doji.hf-hub/` as the package-owned source of truth and `projects/HF Hub/Assets` only when documenting companion-project examples or sample scenes.
 - Reflect the active architecture direction: shared Hub logic should be documented as runtime-safe where implemented, with editor-only integration called out separately.
 
 ## Local preview workflow

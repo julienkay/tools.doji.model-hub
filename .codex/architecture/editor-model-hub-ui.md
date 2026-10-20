@@ -23,7 +23,7 @@ Project Settings should only answer:
 Current editable settings:
 
 - cache location override
-- project manifest entries stored at `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
+- project manifest entries stored at `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
 
 Keep environment-variable override support for tests and explicit maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set.
 

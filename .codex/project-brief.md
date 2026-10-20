@@ -2,13 +2,13 @@
 
 ## Mission
 
-`com.doji.hf-hub` makes HuggingFace-hosted ML models usable in Unity without shipping large binary model files inside UPM packages.
+`tools.doji.hf-hub` makes HuggingFace-hosted ML models usable in Unity without shipping large binary model files inside UPM packages.
 
-`com.doji.downloads` provides reusable durable download infrastructure for that workflow while staying independent from HuggingFace and Sentis specifics.
+`tools.doji.downloads` provides reusable durable download infrastructure for that workflow while staying independent from HuggingFace and Sentis specifics.
 
 ## Baseline Versions
 
-- Unity version: `6000.3.10f1`
+- Unity version: `6000.6.4f1` (package minimum: `6000.3`)
 - Sentis version: `2.6.1`
 
 ## Intended Workflow
@@ -27,7 +27,7 @@
 - Generic download infrastructure is a separate package-owned concern and should not stay coupled to HuggingFace or model import logic.
 - Editor-only UX, prompts, Project Settings integration, and Package Manager adapters stay in `Editor`.
 - Direct long-lived references to ONNX `ModelAsset` files are undesirable because they are expensive during import and domain reload.
-- Model Hub must not load large ONNX model payloads just to display files, recipes, or import settings. ONNX inspection for UI should read only lightweight signature metadata through `com.doji.onnx-model-loader`.
+- Model Hub must not load large ONNX model payloads just to display files, recipes, or import settings. ONNX inspection for UI should read only lightweight signature metadata through `tools.doji.formats.onnx`.
 - `.sentis` is the preferred consumption format because it avoids repeated ONNX import work.
 - Generated `.sentis` artifacts should be treated as version-sensitive to the installed Sentis version.
 - Reuse raw downloads across projects whenever possible. If converted artifacts are cached later, key them by model identity and Sentis version.
@@ -42,7 +42,7 @@
 ## Working Roots
 
 - Repository root: `../..` from `projects/HF Hub`
-- Package under development: `com.doji.hf-hub/`
+- Package under development: `tools.doji.hf-hub/`
 - Companion project assets and scenes: `projects/HF Hub/Assets`
 - Internal maintainer docs: `.codex/`
 - Local reference checkouts: `references/`

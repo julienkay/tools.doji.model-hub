@@ -28,7 +28,7 @@ Related docs:
 ## Phase 1: Package-Owned Manifest Workflow And Discovery
 
 - Model dependencies are declared by UPM packages in `hf-hub-manifest.json`, not by individual Unity projects.
-- `com.doji.hf-hub` now defines the core runtime-side manifest and dependency model, including `ModelHub`, `HfHubPackageManifest`, `HfHubModelDependencyDefinition`, manifest parsing, and shared discovery and reporting types.
+- `tools.doji.hf-hub` now defines the core runtime-side manifest and dependency model, including `ModelHub`, `HfHubPackageManifest`, `HfHubModelDependencyDefinition`, manifest parsing, and shared discovery and reporting types.
 - Editor discovery is intentionally narrow at this layer: installed package enumeration plus status/reporting over discovered manifest data.
 - The package root includes `hf-hub-manifest.template.json` as a copyable starting point for package authors.
 
@@ -94,11 +94,11 @@ Related docs:
 - [Download And Cache](./architecture/download-and-cache.md)
 - [Import And Generated Assets](./architecture/import-and-generated-assets.md)
 
-## Downloader Extraction Into `com.doji.downloads`
+## Downloader Extraction Into `tools.doji.downloads`
 
-- Generic resumable transfer, persisted job state, recovery primitives, and queue mechanics were extracted out of `com.doji.hf-hub` into `com.doji.downloads`.
-- `com.doji.hf-hub` kept ownership of HuggingFace-specific resolution, cache policy, prompts, status surfaces, and model import orchestration.
-- The extraction is established enough that downloader behavior now has package-owned tests in `com.doji.downloads`.
+- Generic resumable transfer, persisted job state, recovery primitives, and queue mechanics were extracted out of `tools.doji.hf-hub` into `tools.doji.downloads`.
+- `tools.doji.hf-hub` kept ownership of HuggingFace-specific resolution, cache policy, prompts, status surfaces, and model import orchestration.
+- The extraction is established enough that downloader behavior now has package-owned tests in `tools.doji.downloads`.
 
 Why it matters:
 

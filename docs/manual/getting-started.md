@@ -4,6 +4,29 @@ HF Hub separates model declaration from model materialization.
 
 Package maintainers describe which HuggingFace repositories and files a package needs. Unity project users decide which project-scoped optional files to include, then import the selected sources into generated runtime assets.
 
+## Installation
+
+HF Hub and its dependencies `tools.doji.downloads` and `tools.doji.formats.onnx` are published on OpenUPM. Add a scoped registry for `tools.doji` to `Packages/manifest.json`, then add the package:
+
+```json
+{
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [ "tools.doji" ]
+    }
+  ],
+  "dependencies": {
+    "tools.doji.hf-hub": "1.0.0"
+  }
+}
+```
+
+HF Hub requires Unity 6000.3 LTS or later and Unity Inference Engine (Sentis) `2.6.1`, which Package Manager installs automatically.
+
+Package maintainers add `tools.doji.hf-hub` to the `dependencies` of their own `package.json` instead, so their users get HF Hub with the package.
+
 ## For Package Maintainers
 
 Use this path when you publish or maintain a Unity package that needs AI model files.

@@ -1,22 +1,22 @@
 ---
 name: unity-hf-hub-test-creation
-description: Add or revise Unity tests for `com.doji.hf-hub`. Use when creating regression coverage for package runtime models, editor package discovery, manifest parsing, menu/editor workflows, asmdef-visible test seams, or package test-suite structure under `com.doji.hf-hub/Tests/`.
+description: Add or revise Unity tests for `tools.doji.hf-hub`. Use when creating regression coverage for package runtime models, editor package discovery, manifest parsing, menu/editor workflows, asmdef-visible test seams, or package test-suite structure under `tools.doji.hf-hub/Tests/`.
 ---
 
 # Unity HF Hub Test Creation
 
-Use this skill when adding or updating tests for `com.doji.hf-hub`.
+Use this skill when adding or updating tests for `tools.doji.hf-hub`.
 
 Primary scope:
 
-- `com.doji.hf-hub/Tests/`
-- `com.doji.hf-hub/Editor/`
-- `com.doji.hf-hub/Runtime/`
+- `tools.doji.hf-hub/Tests/`
+- `tools.doji.hf-hub/Editor/`
+- `tools.doji.hf-hub/Runtime/`
 - temp directories or in-memory data used by editor tests
 
 ## Choose test target first
 
-- Put editor discovery and manifest-scan coverage in `com.doji.hf-hub/Tests/Editor/`.
+- Put editor discovery and manifest-scan coverage in `tools.doji.hf-hub/Tests/Editor/`.
 - Add runtime tests only when package gets runtime test assembly and runtime behavior needs direct coverage.
 - Prefer extending existing fixture for same output contract before creating new fixture.
 - Create new fixture only when assertions cover distinct contract and would make existing fixture noisy.
@@ -46,7 +46,7 @@ Primary scope:
 
 ## Project-specific conventions
 
-- Keep package-owned tests inside `com.doji.hf-hub/Tests/`, not companion project `projects/HF Hub/Assets`.
+- Keep package-owned tests inside `tools.doji.hf-hub/Tests/`, not companion project `projects/HF Hub/Assets`.
 - Editor tests need editor-only asmdef with explicit references and `optionalUnityReferences: [ "TestAssemblies" ]`.
 - If tests need `internal` members, expose them deliberately with `InternalsVisibleTo` instead of widening runtime/editor API.
 - Preserve Unity `.meta` files for new test folders, asmdefs, and scripts.

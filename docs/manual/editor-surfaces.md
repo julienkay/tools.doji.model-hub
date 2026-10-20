@@ -9,7 +9,7 @@ Use `Project Settings > Doji > AI > AI Model Hub` for project configuration.
 Current settings:
 
 - shared cache location override for this project
-- editable project model manifest stored under `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
+- editable project model manifest stored under `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
 - same repository-exists validation icons used by the package-manifest Inspector
 
 Manifest validation icons validate both repository id and effective revision. A green check means HF Hub could resolve that exact `id` plus revision combination on Hugging Face. An invalid branch, tag, or commit shows as invalid even when the repository itself exists.
@@ -43,7 +43,7 @@ Use `Window > AI Model Hub` to inspect declared and imported repositories.
 
 The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
 
-The `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json` source shows as `Project Settings` in editor UI. ScriptableObject project manifest assets show their asset name, for example `Custom Dependencies` or `HF Hub Project Manifest`, and HF Hub tracks each asset as its own owner for bindings, registries, and stale/removal checks.
+The `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json` source shows as `Project Settings` in editor UI. ScriptableObject project manifest assets show their asset name, for example `Custom Dependencies` or `HF Hub Project Manifest`, and HF Hub tracks each asset as its own owner for bindings, registries, and stale/removal checks.
 
 For each repository, the window shows:
 
@@ -89,7 +89,7 @@ Unenabled optional files do not count as selected files in Model Hub status, `Fi
 
 Header actions include:
 
-- `+ > Add model to project...` to append one entry to `ProjectSettings/Packages/com.doji.hf-hub/hf-hub-manifest.json`
+- `+ > Add model to project...` to append one entry to `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
 - `+ > Add model to package...` to pick a local package inside the project and create or update its `hf-hub-manifest.json`
 - `Configure` when a manifest owner must choose optional ONNX files first
 - `Download + Import` when the repository is not cached on this machine yet

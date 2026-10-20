@@ -2,7 +2,7 @@
 
 ## Scope
 
-This package targets Unity `6000.3.10f1` with Sentis `2.6.1`.
+The companion project uses Unity `6000.6.4f1` with Sentis `2.6.1`. The package supports Unity 6000.3 LTS and later.
 
 The goal is a narrow end-to-end path:
 
@@ -22,7 +22,7 @@ Out of scope for v1:
 
 The current package already covers the main editor-side vertical slice:
 
-- package manifest discovery and normalized dependency modeling in `com.doji.hf-hub/Runtime`
+- package manifest discovery and normalized dependency modeling in `tools.doji.hf-hub/Runtime`
 - editor package enumeration plus status surfaces for discovery results
 - shared raw-cache infrastructure and HuggingFace-specific metadata handling
 - background sync orchestration through Unity `Progress` with persisted resume state
@@ -39,11 +39,11 @@ The next approved architecture slice is optional package-owned model selection:
 
 ## Package Boundary
 
-One important boundary: generic resumable download infrastructure is not embedded inside `com.doji.hf-hub`.
+One important boundary: generic resumable download infrastructure is not embedded inside `tools.doji.hf-hub`.
 
 Instead we depend on:
 
-- a downloader package `com.doji.downloads`
+- a downloader package `tools.doji.downloads`
 - purpose-built (maintened by us), but generic with no HuggingFace or Sentis knowledge
 
 Why:

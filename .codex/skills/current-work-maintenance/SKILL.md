@@ -77,7 +77,7 @@ Short sentence.
 
 ## Read Before Editing
 - .codex/architecture/runtime-locator.md
-- com.doji.hf-hub/...
+- tools.doji.hf-hub/...
 ```
 
 ## Editing Standard

@@ -321,9 +321,30 @@ namespace Doji.AI.ModelHub.Editor
                 yield break;
             }
 
-            if (problems.Length > 0)
+            var skipped = item.SkippedOnnxRepoPaths;
+            if (skipped.Count > 0)
             {
-                yield return UiKit.Callout(UiTone.Warning, null, string.Join("\n", problems));
+                var attempted = item.ImportedFileCount + skipped.Count;
+                yield return UiKit.Callout(
+                    UiTone.Warning,
+                    skipped.Count == 1
+                        ? $"1 of {attempted} model files could not be converted to Sentis."
+                        : $"{skipped.Count} of {attempted} model files could not be converted to Sentis.",
+                    $"They use operators or data types that Sentis does not support, so they were skipped. The other files are imported.\n\n{string.Join("\n", skipped)}");
+            }
+
+            var warnings = item.Diagnostics
+                .Where(diagnostic => diagnostic.Severity is "error" or "warning")
+                .Select(diagnostic => diagnostic.Message)
+                .Where(message => !skipped.Any(path => message?.Contains(path) == true))
+                .Distinct()
+                .ToArray();
+            if (warnings.Length > 0)
+            {
+                yield return UiKit.Callout(
+                    UiTone.Warning,
+                    warnings.Length == 1 ? "Imported with a warning." : $"Imported with {warnings.Length} warnings.",
+                    string.Join("\n", warnings));
             }
         }
 

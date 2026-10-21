@@ -49,7 +49,29 @@ namespace Doji.AI.ModelHub.Editor
         public string RuntimeSnapshotAssetPath { get; set; }
         public ImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<ImportDiagnostic>();
         public ImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<ImportedRuntimeFileMetadata>();
+
+        /// <summary>
+        /// Selected ONNX files that Sentis could not convert. They count as imported, so a partial
+        /// conversion does not look out of date; their reasons are in <see cref="Diagnostics"/>.
+        /// </summary>
+        public string[] SkippedRepoPaths { get; set; } = Array.Empty<string>();
+
         public string ImportedAtUtc { get; set; }
+
+        /// <summary>
+        /// ONNX files the import handled: converted to <c>.sentis</c>, or skipped as unsupported. Sorted.
+        /// </summary>
+        public string[] GetImportedOrSkippedOnnxRepoPaths()
+        {
+            return (RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                .Where(file => string.Equals(file?.Kind, "sentis", StringComparison.Ordinal))
+                .Select(file => file.RepoPath)
+                .Concat(SkippedRepoPaths ?? Array.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
     }
 
     /// <summary>
@@ -101,6 +123,7 @@ namespace Doji.AI.ModelHub.Editor
         public string SharedImportMetadataPath { get; set; }
         public ImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<ImportDiagnostic>();
         public ImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<ImportedRuntimeFileMetadata>();
+        public string[] SkippedRepoPaths { get; set; } = Array.Empty<string>();
         public string ImportedAtUtc { get; set; }
     }
 

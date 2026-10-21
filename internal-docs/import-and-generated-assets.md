@@ -65,6 +65,7 @@ Shared import metadata records:
 - repository and resolved commit
 - raw snapshot root and raw metadata path
 - persisted import warnings when conversion is partial but still usable
+- `SharedImportMetadata.SkippedRepoPaths`: selected ONNX files that failed conversion. Status compares the selected ONNX set with converted plus skipped files (`GetImportedOrSkippedOnnxRepoPaths`), so a partial conversion stays current instead of looking stale after every import. Metadata written before this field existed has no skip record, so such a model needs one more import
 - generated runtime snapshot path
 - generated runtime file list
 - Sentis version

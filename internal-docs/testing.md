@@ -82,6 +82,9 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/UI/ManifestModelEntryTests.cs`
   - file-selection button gating and incomplete-row detection
   - model id parsing from `owner/name` and Hugging Face URLs
+- `tools.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs` (partial conversion)
+  - a recorded skipped ONNX file keeps the dependency ready
+  - a selected ONNX file with neither output nor skip record stays stale
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelStatusTests.cs`
   - status kind, tone, and primary action for every Model Hub state
 - `tools.doji.hf-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`

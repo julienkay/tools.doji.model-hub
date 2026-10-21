@@ -465,14 +465,10 @@ namespace Doji.AI.ModelHub.Editor
 
             var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(
                 (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
-                (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).Select(file => file.RepoPath))
+                sharedMetadata.GetImportedOrSkippedOnnxRepoPaths())
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
-            var runtimeRepoPaths = (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
-                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
-                .Select(file => file.RepoPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
+            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedOnnxRepoPaths();
             if (!runtimeRepoPaths.SequenceEqual(selectedOnnxRepoPaths, StringComparer.Ordinal))
             {
                 return false;
@@ -573,11 +569,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var runtimeRepoPaths = (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
-                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
-                .Select(file => file.RepoPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
+            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedOnnxRepoPaths();
             return runtimeRepoPaths.SequenceEqual(
                 (selectedOnnxRepoPaths ?? Array.Empty<string>())
                 .OrderBy(path => path, StringComparer.Ordinal),
@@ -612,6 +604,7 @@ namespace Doji.AI.ModelHub.Editor
                 SharedImportMetadataPath = bindingMetadata?.SharedImportMetadataPath,
                 Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = sharedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
+                SkippedRepoPaths = sharedMetadata?.SkippedRepoPaths ?? Array.Empty<string>(),
                 ImportedAtUtc = sharedMetadata?.ImportedAtUtc
             };
         }
@@ -666,10 +659,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(
                 mismatches,
                 "runtime file set",
-                string.Join("|", (sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
-                    .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
-                    .Select(file => file.RepoPath)
-                    .OrderBy(path => path, StringComparer.Ordinal)),
+                string.Join("|", sharedMetadata.GetImportedOrSkippedOnnxRepoPaths()),
                 string.Join("|", dependency.GetSelectedOnnxRepoPaths(
                         (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
                         (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath))

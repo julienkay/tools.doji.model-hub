@@ -24,7 +24,7 @@ Whole-repository dependencies still follow the same ONNX rule. HF Hub reads full
 
 If a project declares the same repository at multiple requested revisions, HF Hub marks each conflicting row as error and does not write cache or import changes for that repository. `Import All` can still sync other repositories in the project, but conflicting rows fail until manifests agree on one revision.
 
-If a repo contains multiple ONNX files and Unity Inference cannot convert one variant, HF Hub keeps the repo sync and any successful `.sentis` outputs for the other ONNX files. HF Hub records that skipped file as import warning in Model Hub diagnostics so later refreshes still show what was only partially converted. Sync only fails when a repo contains ONNX files and none of them convert successfully.
+If a repo contains multiple ONNX files and Unity Inference cannot convert one variant, HF Hub keeps the repo sync and any successful `.sentis` outputs for the other ONNX files. The model counts as imported: Model Hub shows it as **Ready**, with a warning that lists the skipped files. HF Hub does not try to convert them again until the model, its file selection, its import settings, or the Sentis version changes. Sync only fails when a repo contains ONNX files and none of them convert successfully.
 
 ## Runtime Use
 

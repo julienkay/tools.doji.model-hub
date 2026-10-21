@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
@@ -150,6 +151,39 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("models/model_q4.onnx"));
+        }
+
+        /// <summary>
+        /// A partial conversion, where Sentis skipped one selected ONNX file, is imported and not out of date.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsReadyWhenSkippedOnnxFileIsRecorded()
+        {
+            var selected = new[] { "models/model.onnx", "models/model_bnb4.onnx" };
+            var dependency = CreateDependency(selectedFiles: selected);
+            WriteRawCacheWithMissingAdditionalOnnx(dependency, cacheAdditionalOnnx: true);
+            WriteGeneratedArtifactsForExpandedInventory(dependency, selectedOnnxRepoPaths: selected, skippedRepoPaths: new[] { "models/model_bnb4.onnx" });
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.None), report.DependencyStatuses[0].MaintainerMessage);
+            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(DependencyState.Ready));
+        }
+
+        /// <summary>
+        /// A selected ONNX file with neither a .sentis output nor a skip record still needs an import.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ReturnsStaleWhenSelectedOnnxFileWasNeitherImportedNorSkipped()
+        {
+            var selected = new[] { "models/model.onnx", "models/model_bnb4.onnx" };
+            var dependency = CreateDependency(selectedFiles: selected);
+            WriteRawCacheWithMissingAdditionalOnnx(dependency, cacheAdditionalOnnx: true);
+            WriteGeneratedArtifactsForExpandedInventory(dependency, selectedOnnxRepoPaths: selected);
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.DependencyStatuses[0].State, Is.Not.EqualTo(DependencyState.Ready));
         }
 
         [Test]
@@ -548,9 +582,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 }, Formatting.Indented));
         }
 
-        private static void WriteRawCacheWithMissingAdditionalOnnx(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        private static void WriteRawCacheWithMissingAdditionalOnnx(DiscoveredModelDependency dependency, string commitHash = "abc123", bool cacheAdditionalOnnx = false)
         {
             var rawModelPath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model.onnx");
+            var additionalModelPath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model_bnb4.onnx");
             var rawMetadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
             var revisionRefPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
 
@@ -558,8 +593,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Directory.CreateDirectory(Path.GetDirectoryName(revisionRefPath) ?? throw new InvalidOperationException());
 
             File.WriteAllText(rawModelPath, "onnx");
+            if (cacheAdditionalOnnx)
+            {
+                File.WriteAllText(additionalModelPath, "onnxbnb4");
+            }
+
             File.WriteAllText(revisionRefPath, commitHash);
             Directory.CreateDirectory(Path.GetDirectoryName(rawMetadataPath));
+            var cachedFiles = new List<RawCacheFileMetadata>
+            {
+                new RawCacheFileMetadata
+                {
+                    RepoPath = "models/model.onnx",
+                    CachedFilePath = rawModelPath
+                }
+            };
+            if (cacheAdditionalOnnx)
+            {
+                cachedFiles.Add(new RawCacheFileMetadata
+                {
+                    RepoPath = "models/model_bnb4.onnx",
+                    CachedFilePath = additionalModelPath
+                });
+            }
+
             File.WriteAllText(
                 rawMetadataPath,
                 JsonConvert.SerializeObject(new RawCacheMetadata
@@ -581,23 +638,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
                             SizeInBytes = 8
                         }
                     },
-                    Files = new[]
-                    {
-                        new RawCacheFileMetadata
-                        {
-                            RepoPath = "models/model.onnx",
-                            CachedFilePath = rawModelPath
-                        }
-                    },
+                    Files = cachedFiles.ToArray(),
                     DownloadedAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
         }
 
-        private static void WriteGeneratedArtifactsForExpandedInventory(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        private static void WriteGeneratedArtifactsForExpandedInventory(
+            DiscoveredModelDependency dependency,
+            string commitHash = "abc123",
+            string[] selectedOnnxRepoPaths = null,
+            string[] skippedRepoPaths = null)
         {
             var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
             var sentisVersion = StatusService.GetCurrentSentisVersion();
-            var recipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" });
+            var recipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(selectedOnnxRepoPaths ?? new[] { "models/model.onnx" });
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(
@@ -634,6 +688,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RecipeSetHash = recipeSetHash,
                     RuntimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, commitHash),
                     RuntimeFiles = runtimeFiles,
+                    SkippedRepoPaths = skippedRepoPaths ?? Array.Empty<string>(),
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
 

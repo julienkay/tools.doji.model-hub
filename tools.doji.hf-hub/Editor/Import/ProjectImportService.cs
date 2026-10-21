@@ -106,6 +106,7 @@ namespace Doji.AI.ModelHub.Editor
             var onnxFileCount = 0;
             var sentisFileCount = 0;
             var conversionFailures = new List<string>();
+            var skippedRepoPaths = new List<string>();
             var diagnostics = new List<ImportDiagnostic>();
             foreach (var snapshotFile in cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
             {
@@ -136,6 +137,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
                     conversionFailures.Add(failureMessage);
+                    skippedRepoPaths.Add(snapshotFile.RepoPath);
                     diagnostics.Add(new ImportDiagnostic
                     {
                         Severity = "warning",
@@ -194,6 +196,7 @@ namespace Doji.AI.ModelHub.Editor
                 cachedSnapshot,
                 snapshotRootAssetPath,
                 runtimeFiles,
+                skippedRepoPaths,
                 diagnostics,
                 sentisVersion,
                 recipeSetHash);
@@ -387,11 +390,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var runtimeRepoPaths = runtimeFiles
-                .Where(file => string.Equals(file.Kind, "sentis", StringComparison.Ordinal))
-                .Select(file => file.RepoPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
+            var runtimeRepoPaths = metadata.GetImportedOrSkippedOnnxRepoPaths();
             if (!runtimeRepoPaths.SequenceEqual(
                     (selectedOnnxRepoPaths ?? Array.Empty<string>())
                     .OrderBy(path => path, StringComparer.Ordinal),
@@ -411,6 +410,7 @@ namespace Doji.AI.ModelHub.Editor
             CachedSnapshot cachedSnapshot,
             string snapshotRootAssetPath,
             IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
+            IReadOnlyList<string> skippedRepoPaths,
             IReadOnlyList<ImportDiagnostic> diagnostics,
             string sentisVersion,
             string recipeSetHash)
@@ -433,6 +433,7 @@ namespace Doji.AI.ModelHub.Editor
                 RuntimeSnapshotAssetPath = snapshotRootAssetPath,
                 Diagnostics = diagnostics?.ToArray() ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = runtimeFiles.ToArray(),
+                SkippedRepoPaths = skippedRepoPaths?.ToArray() ?? Array.Empty<string>(),
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")
             };
         }
@@ -497,6 +498,7 @@ namespace Doji.AI.ModelHub.Editor
                 SharedImportMetadataPath = bindingMetadata.SharedImportMetadataPath,
                 Diagnostics = sharedMetadata.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
+                SkippedRepoPaths = sharedMetadata.SkippedRepoPaths ?? Array.Empty<string>(),
                 ImportedAtUtc = sharedMetadata.ImportedAtUtc
             };
         }

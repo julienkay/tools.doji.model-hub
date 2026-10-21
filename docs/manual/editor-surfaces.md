@@ -34,7 +34,7 @@ The details pane shows the status and the next action for the selected model.
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
 | Error | The import failed, or the imported files are broken. The details explain why. | **Retry Import** |
 | Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
-| Ready | The model is imported. | None |
+| Ready | The model is imported. If some ONNX files could not be converted to Sentis, a warning lists them; the other files are imported. | None |
 
 **Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending. HF Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
 

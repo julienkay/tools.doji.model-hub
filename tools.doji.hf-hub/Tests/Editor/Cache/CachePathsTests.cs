@@ -35,6 +35,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// A manifest id that differs only in letter case finds the existing repository folder, with its locks and
+        /// index, instead of starting a second copy.
+        /// </summary>
+        [Test]
+        public void GetRepositoryRoot_ReusesFolderThatDiffersInCase()
+        {
+            var existing = Path.Combine(_cacheRoot, "models--julienkay--sentis-MiDaS");
+            Directory.CreateDirectory(existing);
+
+            var root = CachePaths.GetRepositoryRoot("julienkay/sentis-midas");
+
+            Assert.That(Directory.Exists(root), Is.True);
+            Assert.That(root, Is.EqualTo(existing).IgnoreCase);
+            Assert.That(
+                Path.GetFileName(Path.GetDirectoryName(CachePaths.GetBlobLockPath("julienkay/sentis-midas", "abc"))),
+                Is.EqualTo(Path.GetFileName(root)));
+            Assert.That(
+                Path.GetFileName(Path.GetDirectoryName(CachePaths.GetSnapshotMetadataPath("julienkay/sentis-midas", "abc123"))),
+                Is.EqualTo(Path.GetFileName(root)));
+        }
+
+        /// <summary>
         /// Refs, snapshots, and blobs sit inside the repository folder as in huggingface_hub; a revision
         /// with slashes becomes nested folders.
         /// </summary>

@@ -197,8 +197,12 @@ namespace Doji.AI.ModelHub.Editor
 
             // List the resolved commit, not the branch, so file etags always belong to that commit.
             var repositoryFiles = await ListRepositoryFilesAsync(repository, resolvedCommit, cancellationToken);
+
+            // The Hub matches ids without letter case and returns its own spelling, which names the cache folder,
+            // as in huggingface_hub. "julienkay/sentis-midas" is stored as "models--julienkay--sentis-MiDaS".
+            var canonicalRepository = apiResponse.Value<string>("id");
             return new ResolvedRepositoryInventory(
-                repository,
+                string.Equals(canonicalRepository, repository, StringComparison.OrdinalIgnoreCase) ? canonicalRepository : repository,
                 revision,
                 resolvedCommit,
                 repositoryFiles);
@@ -257,7 +261,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return new ResolvedSnapshotVersion(
-                dependency.Repository,
+                repositoryInventory.Repository,
                 dependency.Revision,
                 repositoryInventory.ResolvedCommitHash,
                 repositoryInventory.Files,

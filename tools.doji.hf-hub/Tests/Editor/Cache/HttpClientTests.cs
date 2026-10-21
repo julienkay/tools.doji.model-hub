@@ -129,6 +129,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies the Hub's spelling of the id names the download, as in huggingface_hub, and that an id the Hub
+        /// answers with a different name is not adopted.
+        /// </summary>
+        [TestCase("doji/Test-Model", "doji/Test-Model")]
+        [TestCase("other/renamed-model", "doji/test-model")]
+        [TestCase(null, "doji/test-model")]
+        public async Task ResolveSnapshotVersionAsync_UsesHubSpellingOfTheId(string hubId, string expected)
+        {
+            var transport = new FakeTransport();
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    new JObject { ["sha"] = "abc123", ["id"] = hubId });
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true",
+                    new JArray
+                    {
+                        new JObject { ["type"] = "file", ["path"] = "onnx/model.onnx", ["size"] = 20, ["oid"] = "git-sha1" }
+                    });
+
+            var client = new HttpClient(transport);
+            var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(new[] { "onnx/model.onnx" }), CancellationToken.None);
+
+            Assert.That(resolved.Repository, Is.EqualTo(expected));
+        }
+
+        /// <summary>
         /// Verifies repository inventory follows paged tree responses by reading the Link header.
         /// </summary>
         [Test]

@@ -130,7 +130,41 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetRepositoryRoot(string repository)
         {
-            return Path.Combine(GetCacheRoot(), GetRepositoryFolderName(repository));
+            return Path.Combine(GetCacheRoot(), ResolveRepositoryFolderName(repository));
+        }
+
+        /// <summary>
+        /// Gets the cache folder name of a repository, reusing an existing folder whose name differs only in letter
+        /// case. Hub ids are not case-sensitive, so a manifest that writes <c>julienkay/sentis-midas</c> finds the
+        /// <c>models--julienkay--sentis-MiDaS</c> folder that a download or Python created, also on file systems that
+        /// are case-sensitive.
+        /// </summary>
+        internal static string ResolveRepositoryFolderName(string repository)
+        {
+            var folderName = GetRepositoryFolderName(repository);
+            var cacheRoot = GetCacheRoot();
+            if (Directory.Exists(Path.Combine(cacheRoot, folderName)) || !Directory.Exists(cacheRoot))
+            {
+                return folderName;
+            }
+
+            try
+            {
+                foreach (var folder in Directory.EnumerateDirectories(cacheRoot, RepositoryTypePrefix + RepositoryIdSeparator + "*"))
+                {
+                    var name = Path.GetFileName(folder);
+                    if (string.Equals(name, folderName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return name;
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Fall back to the requested spelling.
+            }
+
+            return folderName;
         }
 
         /// <summary>
@@ -182,7 +216,7 @@ namespace Doji.AI.ModelHub.Editor
             return Path.Combine(
                 GetCacheRoot(),
                 ".locks",
-                GetRepositoryFolderName(repository),
+                ResolveRepositoryFolderName(repository),
                 SanitizePathSegment(NormalizeEtag(etag)) + ".lock");
         }
 
@@ -195,7 +229,7 @@ namespace Doji.AI.ModelHub.Editor
             return Path.Combine(
                 GetDataRoot(),
                 "index",
-                GetRepositoryFolderName(repository),
+                ResolveRepositoryFolderName(repository),
                 SanitizePathSegment(commitHash) + ".json");
         }
 

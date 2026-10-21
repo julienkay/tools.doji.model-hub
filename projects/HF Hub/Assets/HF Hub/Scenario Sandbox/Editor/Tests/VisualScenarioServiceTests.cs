@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Doji.AI.ModelHub.Editor.Tests;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -14,6 +15,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
     {
         private string _cacheRoot;
         private string _scenarioAssetPath;
+        private TestProjectStateScope _projectScope;
 
         [SetUp]
         public void SetUp()
@@ -23,6 +25,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
             Environment.SetEnvironmentVariable("HF_HUB_CACHE", _cacheRoot);
             Environment.SetEnvironmentVariable("DOJI_HF_HUB_DATA_ROOT", _cacheRoot + "-hfhub-data");
             _scenarioAssetPath = AssetDatabase.GenerateUniqueAssetPath("Assets/HF Hub/Scenario Sandbox/Scenario Test Asset.asset");
+            _projectScope = new TestProjectStateScope(
+                TestProjectStateScope.DefaultRoots.Append("Assets/HF Hub/Scenario Sandbox/Generated").ToArray());
         }
 
         [TearDown]
@@ -33,20 +37,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                 AssetDatabase.DeleteAsset(_scenarioAssetPath);
             }
 
-            AssetDatabase.DeleteAsset("Assets/HF Hub/Scenario Sandbox/Generated");
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-
-            var sandboxStreamingRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "StreamingAssets", "hf-hub", "sandbox"));
-            if (Directory.Exists(sandboxStreamingRoot))
-            {
-                Directory.Delete(sandboxStreamingRoot, true);
-            }
-
-            var importsRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library", "Doji", "HfHub", "imports"));
-            if (Directory.Exists(importsRoot))
-            {
-                Directory.Delete(importsRoot, true);
-            }
+            _projectScope?.Dispose();
+            _projectScope = null;
 
             if (Directory.Exists(_cacheRoot))
             {

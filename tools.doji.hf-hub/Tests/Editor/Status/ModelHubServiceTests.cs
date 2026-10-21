@@ -12,10 +12,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class ModelHubServiceTests
     {
         private readonly List<string> _tempPaths = new();
+        private TestProjectStateScope _projectScope;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _projectScope = new TestProjectStateScope();
+        }
 
         [TearDown]
         public void TearDown()
         {
+            _projectScope?.Dispose();
+            _projectScope = null;
+
             foreach (var path in _tempPaths)
             {
                 if (File.Exists(path))

@@ -3,6 +3,7 @@
     "rootNamespace": "Doji.AI.ModelHub.Sandbox.Editor.Tests",
     "references": [
         "Doji.ModelHub",
+        "Doji.ModelHub.Editor.Tests",
         "Doji.ModelHub.VisualSandbox",
         "Doji.ModelHub.VisualSandbox.Editor",
         "Unity.InferenceEngine",

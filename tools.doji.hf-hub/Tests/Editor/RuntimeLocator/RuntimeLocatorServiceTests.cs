@@ -13,18 +13,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class RuntimeLocatorServiceTests
     {
         private RuntimeLocatorRegistryService _registryService;
+        private TestProjectStateScope _projectScope;
 
         [SetUp]
         public void SetUp()
         {
             _registryService = new RuntimeLocatorRegistryService();
-            CleanupRuntimeArtifacts();
+            _projectScope = new TestProjectStateScope();
         }
 
         [TearDown]
         public void TearDown()
         {
-            CleanupRuntimeArtifacts();
+            _projectScope?.Dispose();
+            _projectScope = null;
         }
 
         /// <summary>
@@ -482,12 +484,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
         }
 
-        private static void CleanupRuntimeArtifacts()
-        {
-            DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        }
-
         private static string GetInferenceSampleOnnxPath()
         {
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly);
@@ -496,14 +492,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var samplePath = Path.Combine(packageInfo.resolvedPath, "Samples~", "Run a model", "SingleInputSingleOuput.onnx");
             Assert.That(File.Exists(samplePath), Is.True, $"Expected local ONNX sample at {samplePath}");
             return samplePath;
-        }
-
-        private static void DeleteAssetIfExists(string assetPath)
-        {
-            if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(ProjectPaths.ToAbsolutePath(assetPath)))
-            {
-                AssetDatabase.DeleteAsset(assetPath);
-            }
         }
 
         private static string NormalizePath(string path)

@@ -14,6 +14,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class StatusServiceTests
     {
         private TestCacheScope _cacheScope;
+        private TestProjectStateScope _projectScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -25,13 +26,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
             _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
-            CleanupProjectArtifacts();
+            _projectScope = new TestProjectStateScope();
         }
 
         [TearDown]
         public void TearDown()
         {
-            CleanupProjectArtifacts();
+            _projectScope?.Dispose();
+            _projectScope = null;
 
             if (Directory.Exists(_rootDirectory))
             {
@@ -768,30 +770,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     StatusService.GetCurrentSentisVersion(),
                     OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" })));
             File.WriteAllText(sharedMetadataAbsolutePath, "{ invalid json");
-        }
-
-        private static void CleanupProjectArtifacts()
-        {
-            DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
-            DeleteProjectFolderIfExists("Library/Doji/HfHub/imports");
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        }
-
-        private static void DeleteAssetIfExists(string assetPath)
-        {
-            if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(ProjectPaths.ToAbsolutePath(assetPath)))
-            {
-                AssetDatabase.DeleteAsset(assetPath);
-            }
-        }
-
-        private static void DeleteProjectFolderIfExists(string projectRelativePath)
-        {
-            var absolutePath = ProjectPaths.ToProjectAbsolutePath(projectRelativePath);
-            if (Directory.Exists(absolutePath))
-            {
-                Directory.Delete(absolutePath, true);
-            }
         }
 
         private static void DeleteGeneratedRuntimeFiles(DiscoveredModelDependency dependency)

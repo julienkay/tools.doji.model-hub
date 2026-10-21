@@ -6,6 +6,16 @@ This page maps durable behavior contracts to package-owned tests so maintainers 
 
 Use it as navigation aid, not as replacement for reading test code.
 
+## Fixtures That Touch Shared State
+
+Tests run inside the companion project, where a maintainer may have real models imported, and on a machine with a real Hugging Face cache. Fixtures must never wipe either.
+
+- `TestCacheScope` points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at a temporary folder, so tests never read or write the real cache or HF Hub's own metadata.
+- `TestProjectStateScope` records the files under `Assets/StreamingAssets/hf-hub` and `Library/Doji/HfHub/imports` (or other roots you pass) at `SetUp`, and at `TearDown` deletes only the files and folders the test added. Use fake repository ids such as `doji/test-model`, so test output never overwrites a real import.
+- Pass project files that would change a test's result, such as the conversion overrides and optional-file selections assets, as isolated files. The scope moves them aside for the test and restores them, `.meta` and GUID included, afterwards.
+
+Create both in `SetUp` and dispose them in `TearDown`. Do not delete those folders wholesale. The companion project's sandbox tests reference `Doji.ModelHub.Editor.Tests` to reuse the same scope.
+
 ## Coverage Map
 
 Manifest and discovery:

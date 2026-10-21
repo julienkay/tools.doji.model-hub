@@ -15,20 +15,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
     internal sealed class ProjectImportServiceTests
     {
         private ProjectImportService _service;
+        private TestProjectStateScope _projectScope;
 
         [SetUp]
         public void SetUp()
         {
             _service = new ProjectImportService();
-            CleanupProjectArtifacts();
-            CleanupRecipeOverrideAsset();
+            _projectScope = new TestProjectStateScope(
+                TestProjectStateScope.DefaultRoots.Append("Assets/Doji").ToArray(),
+                new[] { ProjectModelRecipeSource.DefaultAssetPath, ProjectOptionalFileSelectionSource.DefaultAssetPath });
         }
 
         [TearDown]
         public void TearDown()
         {
-            CleanupProjectArtifacts();
-            CleanupRecipeOverrideAsset();
+            _projectScope?.Dispose();
+            _projectScope = null;
         }
 
         /// <summary>
@@ -552,54 +554,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var samplePath = Path.Combine(packageInfo.resolvedPath, "Samples~", "Run a model", "SingleInputSingleOuput.onnx");
             Assert.That(File.Exists(samplePath), Is.True, $"Expected local ONNX sample at {samplePath}");
             return samplePath;
-        }
-
-        private static void CleanupProjectArtifacts()
-        {
-            DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
-            DeleteProjectFolderIfExists("Library/Doji/HfHub/imports");
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        }
-
-        private static void CleanupRecipeOverrideAsset()
-        {
-            DeleteAssetIfExists(ProjectModelRecipeSource.DefaultAssetPath);
-            DeleteAssetIfExists(ProjectOptionalFileSelectionSource.DefaultAssetPath);
-            DeleteEmptyAssetFolderIfExists("Assets/Doji/HfHub");
-            DeleteEmptyAssetFolderIfExists("Assets/Doji");
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        }
-
-        private static void DeleteAssetIfExists(string assetPath)
-        {
-            if (AssetDatabase.LoadMainAssetAtPath(assetPath) != null || Directory.Exists(ProjectPaths.ToAbsolutePath(assetPath)))
-            {
-                AssetDatabase.DeleteAsset(assetPath);
-            }
-        }
-
-        private static void DeleteEmptyAssetFolderIfExists(string assetPath)
-        {
-            if (!AssetDatabase.IsValidFolder(assetPath))
-            {
-                return;
-            }
-
-            var absolutePath = ProjectPaths.ToAbsolutePath(assetPath);
-            if (Directory.Exists(absolutePath) &&
-                !Directory.EnumerateFileSystemEntries(absolutePath).Any())
-            {
-                AssetDatabase.DeleteAsset(assetPath);
-            }
-        }
-
-        private static void DeleteProjectFolderIfExists(string projectRelativePath)
-        {
-            var absolutePath = ProjectPaths.ToProjectAbsolutePath(projectRelativePath);
-            if (Directory.Exists(absolutePath))
-            {
-                Directory.Delete(absolutePath, true);
-            }
         }
 
         private sealed class ThrowingOnnxConverter : IOnnxModelConverter

@@ -147,11 +147,11 @@ namespace Doji.AI.ModelHub
         public bool HasOptionalFiles => _fileEntries.Any(file => file.Optional);
 
         /// <summary>
-        /// Whether the manifest declares optional ONNX files but none are currently enabled for this owner.
+        /// Whether the manifest declares optional model files but none are currently enabled for this owner.
         /// </summary>
-        public bool RequiresOptionalOnnxSelection => !SelectsWholeRepository &&
-            !SelectedFiles.Any(ModelDependencyDefinition.IsOnnxFile) &&
-            _fileEntries.Any(file => file.Optional && ModelDependencyDefinition.IsOnnxFile(file.Path));
+        public bool RequiresOptionalModelSelection => !SelectsWholeRepository &&
+            !SelectedFiles.Any(ModelFiles.IsModelFile) &&
+            _fileEntries.Any(file => file.Optional && ModelFiles.IsModelFile(file.Path));
 
         internal IReadOnlyList<string> GetOptionalRepoPaths()
         {
@@ -166,21 +166,41 @@ namespace Doji.AI.ModelHub
             return _enabledOptionalFilePaths;
         }
 
+        /// <summary>
+        /// Returns every repository file this dependency needs: the listed files plus the companion files of listed ONNX
+        /// files, or the whole repository.
+        /// </summary>
         internal IReadOnlyList<string> GetSelectedRepoPaths(
             IEnumerable<string> repositoryFiles,
             IEnumerable<string> fallbackFiles = null)
         {
-            if (HasExplicitFileSelection)
-            {
-                return SelectedFiles;
-            }
-
-            return (repositoryFiles ?? fallbackFiles ?? Array.Empty<string>())
+            var knownFiles = (repositoryFiles ?? fallbackFiles ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(ModelDependencyDefinition.NormalizeRepoPath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (!HasExplicitFileSelection)
+            {
+                return knownFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray();
+            }
+
+            return SelectedFiles
+                .Concat(SelectedFiles.SelectMany(path => ModelFiles.GetCompanionFiles(path, knownFiles)))
+                .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns the selected model files: ONNX files to convert and Sentis files to load as downloaded.
+        /// </summary>
+        internal IReadOnlyList<string> GetSelectedModelRepoPaths(
+            IEnumerable<string> repositoryFiles,
+            IEnumerable<string> fallbackFiles = null)
+        {
+            return GetSelectedRepoPaths(repositoryFiles, fallbackFiles)
+                .Where(ModelFiles.IsModelFile)
                 .ToArray();
         }
 
@@ -189,8 +209,25 @@ namespace Doji.AI.ModelHub
             IEnumerable<string> fallbackFiles = null)
         {
             return GetSelectedRepoPaths(repositoryFiles, fallbackFiles)
-                .Where(ModelDependencyDefinition.IsOnnxFile)
+                .Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx)
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Returns why this selection cannot load, or null. A whole-repository dependency on a repository with both ONNX
+        /// and Sentis files must list its files, so HF Hub never picks a format silently.
+        /// </summary>
+        internal string GetSelectionProblem(IEnumerable<string> repositoryFiles, IEnumerable<string> fallbackFiles = null)
+        {
+            var selected = GetSelectedRepoPaths(repositoryFiles, fallbackFiles);
+            if (SelectsWholeRepository && ModelFiles.Describe(selected) == RepositoryModelFormat.Mixed)
+            {
+                return $"Repository `{Repository}` has both ONNX and Sentis files. List the files you use in the manifest.";
+            }
+
+            return selected.Any(ModelFiles.IsModelFile)
+                ? null
+                : $"Dependency `{ModelId}` does not select any model file. Select at least one `.onnx` or `.sentis` file.";
         }
 
         internal bool RequiresRepoPath(

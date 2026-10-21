@@ -2,12 +2,13 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace Doji.AI.ModelHub.Editor
+namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Computes paths in the shared Hugging Face cache and in HF Hub's own index.
+    /// Computes paths in the shared Hugging Face cache and in HF Hub's own folder.
     /// The cache uses the same location and layout as the <c>huggingface_hub</c> Python library,
-    /// so Unity and Python tools reuse each other's downloads.
+    /// so Unity and Python tools reuse each other's downloads. The Editor and desktop players share it; mobile and
+    /// Web players keep their own copy under <see cref="UnityEngine.Application.persistentDataPath"/>.
     /// </summary>
     internal static class CachePaths
     {
@@ -36,12 +37,44 @@ namespace Doji.AI.ModelHub.Editor
         private const string CompanyFolderName = "Doji";
         private const string ProductFolderName = "HfHub";
 
+        private static string _persistentDataPath;
+
         /// <summary>
-        /// Gets the cache folder in use: the Project Settings custom folder, or the Hugging Face default.
+        /// Editor hook for the Project Settings custom cache folder. Returns null to use the default.
+        /// </summary>
+        internal static Func<string> CacheRootOverride { get; set; }
+
+        /// <summary>
+        /// Gets the cache folder in use: the Editor's custom folder, the Hugging Face default in the Editor and on
+        /// desktop players, or a folder under <c>persistentDataPath</c> on other players.
         /// </summary>
         public static string GetCacheRoot()
         {
-            return ProjectSettings.instance.GetEffectiveCacheLocation();
+            var overrideRoot = CacheRootOverride?.Invoke();
+            if (!string.IsNullOrWhiteSpace(overrideRoot))
+            {
+                return overrideRoot;
+            }
+
+            return UsesSharedHuggingFaceCache
+                ? GetDefaultCacheRoot()
+                : Path.Combine(GetPersistentDataPath(), "huggingface", "hub");
+        }
+
+        /// <summary>
+        /// Whether this platform uses the user's Hugging Face cache, shared with Python tools: the Editor and desktop
+        /// players. Mobile and Web players have no shared user folder.
+        /// </summary>
+        internal static bool UsesSharedHuggingFaceCache => IsEditorOrDesktop(UnityEngine.Application.platform);
+
+        internal static bool IsEditorOrDesktop(UnityEngine.RuntimePlatform platform)
+        {
+            return platform is UnityEngine.RuntimePlatform.WindowsEditor
+                or UnityEngine.RuntimePlatform.OSXEditor
+                or UnityEngine.RuntimePlatform.LinuxEditor
+                or UnityEngine.RuntimePlatform.WindowsPlayer
+                or UnityEngine.RuntimePlatform.OSXPlayer
+                or UnityEngine.RuntimePlatform.LinuxPlayer;
         }
 
         /// <summary>
@@ -94,7 +127,13 @@ namespace Doji.AI.ModelHub.Editor
                 return dataRootOverride;
             }
 
-            if (UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsEditor)
+            var platform = UnityEngine.Application.platform;
+            if (!IsEditorOrDesktop(platform))
+            {
+                return Path.Combine(GetPersistentDataPath(), "hf-hub");
+            }
+
+            if (platform is UnityEngine.RuntimePlatform.WindowsEditor or UnityEngine.RuntimePlatform.WindowsPlayer)
             {
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -102,13 +141,35 @@ namespace Doji.AI.ModelHub.Editor
                     ProductFolderName);
             }
 
-            if (UnityEngine.Application.platform == UnityEngine.RuntimePlatform.OSXEditor)
+            if (platform is UnityEngine.RuntimePlatform.OSXEditor or UnityEngine.RuntimePlatform.OSXPlayer)
             {
                 return Path.Combine(GetUserHome(), "Library", "Application Support", CompanyFolderName, ProductFolderName);
             }
 
             var cacheHome = ReadPathVariable("XDG_CACHE_HOME") ?? Path.Combine(GetUserHome(), ".cache");
             return Path.Combine(cacheHome, "doji", "hf-hub");
+        }
+
+        /// <summary>
+        /// Folder of converted Sentis models, shared by every project on this machine and keyed by what produced them.
+        /// </summary>
+        public static string GetConvertedRoot()
+        {
+            return Path.Combine(GetDataRoot(), "converted");
+        }
+
+        /// <summary>
+        /// <c>Application.persistentDataPath</c>, read once: Unity allows reading it only on the main thread.
+        /// </summary>
+        private static string GetPersistentDataPath()
+        {
+            return _persistentDataPath ??= UnityEngine.Application.persistentDataPath;
+        }
+
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void CaptureMainThreadPaths()
+        {
+            _persistentDataPath = UnityEngine.Application.persistentDataPath;
         }
 
         /// <summary>

@@ -28,6 +28,7 @@ namespace Doji.AI.ModelHub.Editor
 
         static LegacyCacheMigration()
         {
+            EditorCacheRoot.Register();
             if (SessionState.GetBool(SessionKey, false))
             {
                 return;

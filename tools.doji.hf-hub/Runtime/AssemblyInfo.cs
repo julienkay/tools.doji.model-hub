@@ -12,3 +12,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyInformationalVersion("1.0.0")]
 [assembly: InternalsVisibleTo("Doji.ModelHub.Editor")]
 [assembly: InternalsVisibleTo("Doji.ModelHub.Editor.Tests")]
+[assembly: InternalsVisibleTo("Doji.ModelHub.VisualSandbox.Editor")]

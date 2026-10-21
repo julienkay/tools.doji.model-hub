@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Doji.AI.ModelHub.Editor
+namespace Doji.AI.ModelHub
 {
     /// <summary>
     /// Lock on one blob in the shared Hugging Face cache, compatible with the <c>filelock</c> package that
@@ -110,6 +110,13 @@ namespace Doji.AI.ModelHub.Editor
 
         private static bool TryLockStream(FileStream stream)
         {
+#if !(UNITY_EDITOR || UNITY_STANDALONE)
+            // Mobile and Web players own their cache alone, so a lock inside this process is enough.
+            lock (HeldInProcess)
+            {
+                return HeldInProcess.Add(Path.GetFullPath(stream.Name));
+            }
+#else
             if (IsWindows)
             {
                 try
@@ -125,10 +132,17 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return flock(GetDescriptor(stream), LockExclusive | LockNonBlocking) == 0;
+#endif
         }
 
         private static void UnlockStream(FileStream stream)
         {
+#if !(UNITY_EDITOR || UNITY_STANDALONE)
+            lock (HeldInProcess)
+            {
+                HeldInProcess.Remove(Path.GetFullPath(stream.Name));
+            }
+#else
             if (IsWindows)
             {
                 stream.Unlock(0, 1);
@@ -136,8 +150,14 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             flock(GetDescriptor(stream), LockUnlock);
+#endif
         }
 
+#if !(UNITY_EDITOR || UNITY_STANDALONE)
+        private static readonly System.Collections.Generic.HashSet<string> HeldInProcess = new();
+#endif
+
+#if UNITY_EDITOR || UNITY_STANDALONE
         private static bool IsWindows => Environment.OSVersion.Platform == PlatformID.Win32NT;
 
         private static int GetDescriptor(FileStream stream)
@@ -147,5 +167,6 @@ namespace Doji.AI.ModelHub.Editor
 
         [DllImport("libc", SetLastError = true)]
         private static extern int flock(int fd, int operation);
+#endif
     }
 }

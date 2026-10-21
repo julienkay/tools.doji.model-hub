@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace Doji.AI.ModelHub.Editor
+namespace Doji.AI.ModelHub
 {
     /// <summary>
     /// File operations for the shared Hugging Face cache: snapshot entries that link to blobs, and sizes that
@@ -112,6 +112,7 @@ namespace Doji.AI.ModelHub.Editor
                 return null;
             }
 
+#if UNITY_EDITOR || UNITY_STANDALONE
             try
             {
                 return Environment.OSVersion.Platform == PlatformID.Win32NT
@@ -122,7 +123,12 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return null;
             }
+#else
+            return null;
+#endif
         }
+
+#if UNITY_EDITOR || UNITY_STANDALONE
 
         private static string GetFinalPathWindows(string linkPath)
         {
@@ -157,6 +163,8 @@ namespace Doji.AI.ModelHub.Editor
             return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(linkPath) ?? string.Empty, target));
         }
 
+#endif
+
         /// <summary>
         /// Checks once per cache folder whether symlinks can be created there, like <c>are_symlinks_supported</c>.
         /// </summary>
@@ -167,6 +175,10 @@ namespace Doji.AI.ModelHub.Editor
                 return ForceSymlinkSupport.Value;
             }
 
+#if !(UNITY_EDITOR || UNITY_STANDALONE)
+            // Mobile and Web players keep a private cache, so copies cost nothing extra and need no native calls.
+            return false;
+#else
             if (string.IsNullOrWhiteSpace(folder))
             {
                 return false;
@@ -183,6 +195,7 @@ namespace Doji.AI.ModelHub.Editor
                 SymlinkSupportByFolder[folder] = supported;
                 return supported;
             }
+#endif
         }
 
         private static bool ProbeSymlinkSupport(string folder)
@@ -215,6 +228,9 @@ namespace Doji.AI.ModelHub.Editor
 
         private static bool TryCreateSymlink(string relativeTarget, string linkPath)
         {
+#if !(UNITY_EDITOR || UNITY_STANDALONE)
+            return false;
+#else
             try
             {
                 if (Environment.OSVersion.Platform == PlatformID.Win32NT)
@@ -232,6 +248,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 return false;
             }
+#endif
         }
 
         private static void DeleteFileOrLink(string path)
@@ -260,6 +277,7 @@ namespace Doji.AI.ModelHub.Editor
                 : path + Path.DirectorySeparatorChar;
         }
 
+#if UNITY_EDITOR || UNITY_STANDALONE
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern byte CreateSymbolicLinkW(string symlinkFileName, string targetFileName, uint flags);
 
@@ -271,5 +289,6 @@ namespace Doji.AI.ModelHub.Editor
 
         [DllImport("libc", SetLastError = true)]
         private static extern int readlink(string path, byte[] buffer, int size);
+#endif
     }
 }

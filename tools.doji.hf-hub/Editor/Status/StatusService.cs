@@ -73,7 +73,7 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
-            if (dependency.RequiresOptionalOnnxSelection)
+            if (dependency.RequiresOptionalModelSelection)
             {
                 return Missing(
                     dependency,

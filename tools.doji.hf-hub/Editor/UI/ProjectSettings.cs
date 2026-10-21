@@ -93,4 +93,24 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
     }
+
+    /// <summary>
+    /// Connects the runtime cache paths to this project's cache folder setting.
+    /// </summary>
+    [InitializeOnLoad]
+    internal static class EditorCacheRoot
+    {
+        static EditorCacheRoot()
+        {
+            Register();
+        }
+
+        /// <summary>
+        /// Makes <see cref="CachePaths.GetCacheRoot"/> use the Project Settings folder. Safe to call more than once.
+        /// </summary>
+        public static void Register()
+        {
+            CachePaths.CacheRootOverride ??= () => ProjectSettings.instance.GetEffectiveCacheLocation();
+        }
+    }
 }

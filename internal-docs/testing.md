@@ -90,6 +90,8 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`
   - pre-download inventory for manifests without a revision
   - refresh of estimates saved without a file list
+- `tools.doji.hf-hub/Tests/Editor/Cache/BlobLockTests.cs`
+  - blob lock exclusion, waiting, and cancellation; waits run on the thread pool because the main thread is blocked during a test
 - `tools.doji.hf-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`
   - optional-file selections asset resolves its script, so choices survive asset refresh
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`

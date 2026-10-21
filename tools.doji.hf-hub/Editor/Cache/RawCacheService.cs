@@ -85,6 +85,11 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            // Same lock as huggingface_hub, so Unity and Python never write one blob at the same time.
+            using var blobLock = await BlobLock.AcquireAsync(
+                CachePaths.GetBlobLockPath(resolvedSnapshot.Repository, etag),
+                () => UnityEngine.Debug.Log($"HF Hub is waiting for another program that is downloading {file.RepoPath} of {resolvedSnapshot.Repository}."),
+                cancellationToken);
             var blobPath = CachePaths.GetBlobPath(resolvedSnapshot.Repository, etag);
             var isNewBlob = !IsCompleteBlob(blobPath, file.SizeInBytes);
             if (isNewBlob)

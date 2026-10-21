@@ -20,7 +20,7 @@ Layout, as in `huggingface_hub`:
 <cache-root>/models--<owner>--<name>/refs/<revision>           (nested for revisions with "/", e.g. refs/pr/1)
 <cache-root>/models--<owner>--<name>/snapshots/<commit>/<repo-file>   (relative symlink to ../../blobs/<etag>, or a plain file)
 <cache-root>/models--<owner>--<name>/blobs/<etag>
-<cache-root>/.locks/models--<owner>--<name>/<etag>.lock       (used from phase 3 of the switch)
+<cache-root>/.locks/models--<owner>--<name>/<etag>.lock
 ```
 
 Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`RawCacheService.DownloadIntoSnapshotAsync`, `CacheFiles`):
@@ -33,6 +33,17 @@ Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `
 6. Files without an etag download straight into the snapshot.
 
 On Windows a symlink reports 0 bytes, so sizes go through `CacheFiles.GetLength`, which opens the file and follows the link.
+
+Each blob download and link runs under `BlobLock` on `.locks/models--<owner>--<name>/<etag>.lock`, the lock file `huggingface_hub` uses, so Unity and Python never write one blob at the same time. `BlobLock` matches the `filelock` package:
+
+- Windows: open with read, write, and delete sharing, then lock byte 0, length 1 (`FileStream.Lock`, the same region as `msvcrt.locking(fd, LK_NBLCK, 1)`).
+- macOS and Linux: `flock(LOCK_EX | LOCK_NB)` through P/Invoke. .NET's `FileStream.Lock` uses `fcntl` record locks there, which do not exclude `flock`.
+
+A waiting download polls every 100 ms, logs once that it waits for another program, and stops when the sync is cancelled. The lock file is not deleted after release; `filelock` handles existing lock files.
+
+The Windows path was checked against a Python process that locks like `filelock` (`os.open` plus `msvcrt.locking`), in both directions. The `flock` path is not yet checked on macOS or Linux.
+
+The per-snapshot index lock (`<data-root>/index/.../<commit>.json.lock`) is HF Hub's own and only guards the index entry.
 
 Remove from Cache deletes the snapshot's links. Until phase 5 adds per-blob cleanup, blobs are deleted only when no snapshot folder of that repository remains, because Python tools may still use them.
 

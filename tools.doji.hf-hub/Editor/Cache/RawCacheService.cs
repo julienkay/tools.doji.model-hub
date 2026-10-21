@@ -305,7 +305,7 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
-        private static void WriteMetadata(string metadataPath, RawCacheMetadata metadata)
+        internal static void WriteMetadata(string metadataPath, RawCacheMetadata metadata)
         {
             var metadataDirectory = Path.GetDirectoryName(metadataPath);
             if (!string.IsNullOrWhiteSpace(metadataDirectory))
@@ -324,7 +324,7 @@ namespace Doji.AI.ModelHub.Editor
             File.Move(temporaryPath, metadataPath);
         }
 
-        private static void WriteRevisionRef(string repository, string requestedRevision, string resolvedCommitHash)
+        internal static void WriteRevisionRef(string repository, string requestedRevision, string resolvedCommitHash)
         {
             var refPath = CachePaths.GetRevisionRefPath(repository, requestedRevision);
             var refDirectory = Path.GetDirectoryName(refPath);

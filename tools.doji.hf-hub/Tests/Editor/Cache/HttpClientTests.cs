@@ -87,6 +87,47 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies the etag comes from the tree listing, like huggingface_hub's X-Linked-Etag: the LFS sha256 for
+        /// large files and the git blob id otherwise, not the CDN's ETag after HEAD follows the redirect.
+        /// </summary>
+        [Test]
+        public async Task ResolveSnapshotVersionAsync_UsesTreeListingEtags()
+        {
+            var transport = new FakeTransport();
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    new JObject { ["sha"] = "abc123" });
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+                CreateJsonResponse(
+                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    new JArray
+                    {
+                        new JObject { ["type"] = "file", ["path"] = "config.json", ["size"] = 10, ["oid"] = "git-sha1" },
+                        new JObject
+                        {
+                            ["type"] = "file",
+                            ["path"] = "onnx/model.onnx",
+                            ["size"] = 20,
+                            ["oid"] = "pointer-sha1",
+                            ["lfs"] = new JObject { ["oid"] = "lfs-sha256", ["size"] = 20 },
+                            ["xetHash"] = "xet-hash"
+                        }
+                    });
+            foreach (var path in new[] { "config.json", "onnx/model.onnx" })
+            {
+                transport.HeadResponses[$"https://huggingface.co/doji/test-model/resolve/abc123/{path}"] =
+                    CreateHeadResponse("https://cdn.example/" + path, new Dictionary<string, string> { ["etag"] = "\"xet-hash\"" });
+            }
+
+            var client = new HttpClient(transport);
+            var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(new[] { "config.json", "onnx/model.onnx" }), CancellationToken.None);
+
+            Assert.That(resolved.Files.Single(file => file.RepoPath == "onnx/model.onnx").EntityTag, Is.EqualTo("lfs-sha256"));
+            Assert.That(resolved.Files.Single(file => file.RepoPath == "config.json").EntityTag, Is.EqualTo("git-sha1"));
+        }
+
+        /// <summary>
         /// Verifies repository inventory follows paged tree responses by reading the Link header.
         /// </summary>
         [Test]

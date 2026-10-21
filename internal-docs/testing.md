@@ -32,9 +32,15 @@ Cache and repository inventory:
 - `tools.doji.hf-hub/Tests/Editor/Cache/HttpClientTests.cs`
   - repository tree inventory
   - selected-file resolution against remote inventory
+  - blob etags come from the tree listing (`lfs.oid`, else `oid`), not the CDN `ETag`
 - `tools.doji.hf-hub/Tests/Editor/Cache/RawCacheTests.cs`
   - raw metadata persistence
   - repository inventory persistence
+- `tools.doji.hf-hub/Tests/Editor/Cache/LegacyCacheMigrationTests.cs`
+  - old `raw/` snapshots move into blobs, refs, and the index; the old folder is removed
+  - large-file blobs are named by content sha256, not the old xet-hash etag
+  - partial, unlisted, and wrong-size files are dropped; existing blobs and newer refs win
+  - a repository with a locked blob stays in `raw/` and migrates on retry
 - `tools.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs`
   - cached repo and revision validation state
 

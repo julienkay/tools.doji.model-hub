@@ -17,12 +17,6 @@ entry when it ships or is rejected.
   packages request conflicting revisions. Never pick a winner silently.
 - **Offline and portable cache.** Reuse and move the shared cache without
   network access.
-- **Shared `huggingface_hub` cache.** Use the Python library's cache location
-  (`HF_HUB_CACHE`) and layout (`models--owner--name`, `blobs/`, `refs/`,
-  `snapshots/`, `.locks/`), so Unity and Python tools reuse each other's
-  downloads. Move HF Hub's bookkeeping out of snapshot folders into a
-  rebuildable index under the Doji folder, and migrate the existing `raw/`
-  cache by moving files, not downloading them again.
 - **Cache overview.** A treemap of the whole shared cache in Model Hub, per
   repository or per file, marking models this project does not use and
   partial downloads, with Remove from Cache. Build it on the shared cache.

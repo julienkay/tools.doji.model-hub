@@ -93,6 +93,8 @@ File content is stored once in `blobs/`. Each snapshot file is a link to its blo
 
 HF Hub decides what is downloaded by looking at the files in the cache, so models that Python tools downloaded count too. It keeps a small index outside the cache, with each repository's file list, in `%LocalAppData%/Doji/HfHub/index` on Windows, `~/Library/Application Support/Doji/HfHub/index` on macOS, and `~/.cache/doji/hf-hub/index` on Linux. Manifest selection stays owner-scoped and is not inferred from cache contents.
 
+Earlier versions of HF Hub kept downloads in a private `raw` folder next to that index. On the first editor start after an update, HF Hub moves those files into the Hugging Face cache without downloading them again, then deletes the `raw` folder. Partial downloads are not kept. The Console lists the models it moved.
+
 If downloaded files are removed but generated project assets still exist, the model stays usable in that project. HF Hub keeps it in imported state and downloads files again only when a later update or import needs them.
 
 ## Generated Project Artifacts

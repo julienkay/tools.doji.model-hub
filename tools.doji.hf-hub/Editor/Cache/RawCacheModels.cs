@@ -31,6 +31,12 @@ namespace Doji.AI.ModelHub.Editor
     {
         public string RepoPath { get; set; }
         public long? SizeInBytes { get; set; }
+
+        /// <summary>
+        /// The etag <c>huggingface_hub</c> names the blob by: the LFS sha256 for large files, the git blob id
+        /// otherwise. Null when the listing did not include it.
+        /// </summary>
+        public string EntityTag { get; set; }
     }
 
     /// <summary>

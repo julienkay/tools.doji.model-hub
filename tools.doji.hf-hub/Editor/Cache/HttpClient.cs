@@ -233,7 +233,12 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var fileUrl = BuildResolveUrl(dependency.Repository, repositoryInventory.ResolvedCommitHash, repoPath);
                 var response = await _transport.HeadAsync(fileUrl, cancellationToken);
+                inventoryByRepoPath.TryGetValue(repoPath, out var listedFile);
+
+                // Prefer the tree listing's etag. HEAD follows the redirect to the CDN, whose ETag (a xet hash for
+                // large files) differs from the X-Linked-Etag that huggingface_hub names blobs by.
                 var entityTag = NormalizeEntityTag(
+                    listedFile?.EntityTag ??
                     response.GetHeader(LinkedETagHeaderName) ??
                     response.GetHeader(ETagHeaderName));
                 var contentLengthHeader = response.GetHeader(LinkedSizeHeaderName) ?? response.GetHeader(ContentLengthHeaderName);
@@ -244,11 +249,9 @@ namespace Doji.AI.ModelHub.Editor
                     sizeInBytes = parsedSize;
                 }
 
-                if (!sizeInBytes.HasValue &&
-                    inventoryByRepoPath.TryGetValue(repoPath, out var inventoryFile) &&
-                    inventoryFile.SizeInBytes.HasValue)
+                if (!sizeInBytes.HasValue && listedFile?.SizeInBytes != null)
                 {
-                    sizeInBytes = inventoryFile.SizeInBytes.Value;
+                    sizeInBytes = listedFile.SizeInBytes.Value;
                 }
 
                 files.Add(new ResolvedRepoFile(repoPath, response.RequestUrl, entityTag, sizeInBytes));
@@ -348,7 +351,8 @@ namespace Doji.AI.ModelHub.Editor
                     repositoryFiles.Add(new RepositoryFileMetadata
                     {
                         RepoPath = repoPath,
-                        SizeInBytes = entry.Value<long?>("size")
+                        SizeInBytes = entry.Value<long?>("size"),
+                        EntityTag = (entry["lfs"] as JObject)?.Value<string>("oid") ?? entry.Value<string>("oid")
                     });
                 }
 

@@ -87,12 +87,13 @@ Overview requests the remote inventory (`RemoteSnapshotSizeEstimateService.Ensur
 | `Conflict` | any dependent has `RevisionConflict` | none | n/a |
 | `Ready` | item state `Ready` | none | n/a |
 | `ChooseFiles` | any dependent has `SelectionRequired` | **Choose Files** | switches to Overview |
-| `DownloadNeeded` | no cache snapshot | **Download & Import** (with size) | `StartForRepository(..., Full)` |
+| `RepairNeeded` | any dependent has a `DependencyStatus.DamagedCacheCodes` code | **Repair** (with size) | `StartForRepository(..., Full)` |
+| `DownloadNeeded` | no cache snapshot | **Download & Import** (with size) | same |
 | `Error` | item state `Error` with cache | **Retry Import** | same |
 | `UpdateNeeded` | `RawCacheFilesMissing`, or runtime files exist but are stale | **Update** | same |
 | `ImportNeeded` | cache exists, nothing imported | **Import** | same |
 
-All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync.
+All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync. Nothing starts a download without a user action; see "Damaged Cache" in `download-and-cache.md`.
 
 - `Remove Imported Files` deletes owner binding metadata for this project and garbage-collects shared runtime assets only when no bindings still reference them.
 - `Remove from Cache` deletes this machine's raw cache entry while leaving generated project assets intact.

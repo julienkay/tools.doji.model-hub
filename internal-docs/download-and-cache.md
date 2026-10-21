@@ -117,27 +117,25 @@ Download path remains first-class infrastructure:
 
 Each file download can resume independently. Snapshot lock protects repo metadata write and duplicate snapshot work.
 
-## Auto-Heal for Cache Corruption
+## Damaged Cache
 
-Some cache states indicate genuine on-disk corruption rather than a missing download:
+Some cache states mean the downloaded files exist but their bookkeeping is damaged, rather than a download is missing:
 
 | Code | Meaning |
 |---|---|
-| `RawCacheMetadataInvalid` | Snapshot metadata JSON is absent or unparseable |
-| `RawCacheMetadataMismatch` | Metadata repository or revision fields do not match declared dependency |
+| `RawCacheMetadataInvalid` | Snapshot metadata JSON is absent, unparseable, or lists no files |
+| `RawCacheMetadataMismatch` | Metadata repository, revision, or commit does not match the declared dependency and revision ref |
 | `RawCacheRevisionRefUnreadable` | Revision ref file exists but cannot be read |
 
-These are treated as auto-healable because `GetOrDownloadAsync` already resolves the correct state from the HuggingFace API and writes clean metadata on every download. No manual intervention by the user is needed.
+`DependencyStatus.DamagedCacheCodes` names this set. Model Hub shows these models as `Needs repair` with a **Repair** button and the download size; the setup prompt counts them as downloads. The fix is a normal sync: `GetOrDownloadAsync` resolves the revision again, downloads the selected files it cannot verify, and writes clean metadata.
 
-The metadata repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot. A case-sensitive check reported that shared snapshot as `RawCacheMetadataMismatch`, and auto-heal then downloaded the whole repository for the other spelling.
+HF Hub never repairs on its own. An earlier auto-heal started download-only syncs at editor startup and on every Model Hub refresh. With damaged metadata it cannot tell which files are still good, so it downloaded every selected file again, for whole-repository dependencies the whole repository, without asking. That broke the product rule to ask the user once before downloading.
 
-Two automatic heal triggers fire using `DownloadOnly` mode so no re-import runs unless necessary:
+Rules:
 
-1. **At editor startup** - `BackgroundSyncManager.ResumeIfNeeded` runs `HealCorruptionAtStartup` when no persisted sync queue exists. If any dependency has a corruption code, a scoped download-only sync starts immediately.
-2. **On Model Hub window refresh** - `ModelHubWindow.Refresh` calls `StartHealCorruptionIfNeeded` after rebuilding the report. Only corruption-code dependencies are included.
+- start downloads only from an explicit user action: the setup prompt, a Model Hub button, **Import All**, or the menu
+- `BackgroundSyncManager.ResumeIfNeeded` only resumes a persisted queue the user already started
 
-`SyncStateChanged` events (fired on sync completion or failure) call `RefreshReport` instead of `Refresh` to avoid an infinite heal loop when corruption persists across retries.
+The metadata repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot. A case-sensitive check reported that shared snapshot as `RawCacheMetadataMismatch`.
 
-`RawCacheFilesMissing` is intentionally excluded from auto-heal because it is a legitimate user-driven state (new file selection), not corruption. It surfaces the **Update + Import** button instead.
-
-Likewise, optional-file `Selection Required` state is not corruption and must never auto-heal into a whole-repo download. It requires explicit project choice.
+`RawCacheFilesMissing` is not damage: the selection grew after the first download. It shows as `Update needed`.

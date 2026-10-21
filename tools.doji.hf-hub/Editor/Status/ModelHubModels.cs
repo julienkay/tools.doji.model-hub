@@ -149,6 +149,7 @@ namespace Doji.AI.ModelHub.Editor
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
         public bool HasSelectionRequired => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.SelectionRequired);
         public bool HasMissingCacheFiles => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing);
+        public bool HasDamagedCache => _dependents.Any(item => item.HasDamagedCache);
         public bool HasImportedArtifacts => _runtimeFiles.Length > 0;
         public bool NeedsAttention => State != ModelHubItemState.Ready;
 

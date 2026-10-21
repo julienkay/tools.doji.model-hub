@@ -62,7 +62,7 @@ Status and sync:
 - `tools.doji.hf-hub/Tests/Editor/Sync/SyncServiceTests.cs`
   - sync success and failure orchestration
 - `tools.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
-  - background gating and heal paths
+  - background gating and damaged-cache codes
   - case-only repository id differences are not treated as corrupt cache
 - `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage

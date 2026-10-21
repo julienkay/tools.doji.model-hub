@@ -55,6 +55,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Damaged cache needs a fresh download, so the prompt does not offer a plain Import.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_TreatsDamagedCacheAsDownload()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Failed, hasRawCache: true, reasonCode: DependencyReasonCode.RawCacheMetadataInvalid)
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+        }
+
+        /// <summary>
         /// The primary button shows the total download size when every size is known.
         /// </summary>
         [Test]

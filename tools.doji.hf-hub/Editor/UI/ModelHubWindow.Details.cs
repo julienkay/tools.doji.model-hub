@@ -149,7 +149,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var label = status.ActionLabel;
                 var size = UiKit.FormatBytes(item.SourceSizeBytes);
-                if (status.Kind == ModelStatusKind.DownloadNeeded && !string.IsNullOrWhiteSpace(size))
+                if ((status.Kind is ModelStatusKind.DownloadNeeded or ModelStatusKind.RepairNeeded) && !string.IsNullOrWhiteSpace(size))
                 {
                     label = $"{label}  ·  {size}";
                 }

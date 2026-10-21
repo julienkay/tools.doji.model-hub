@@ -66,6 +66,17 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class DependencyStatus
     {
         /// <summary>
+        /// Reason codes that mean the downloaded files exist but their cache bookkeeping is damaged.
+        /// The fix is to download the selected files again.
+        /// </summary>
+        internal static readonly HashSet<DependencyReasonCode> DamagedCacheCodes = new()
+        {
+            DependencyReasonCode.RawCacheMetadataInvalid,
+            DependencyReasonCode.RawCacheMetadataMismatch,
+            DependencyReasonCode.RawCacheRevisionRefUnreadable,
+        };
+
+        /// <summary>
         /// Stores local cache/import state, diagnostic message, and resolved paths for one dependency.
         /// </summary>
         public DependencyStatus(
@@ -107,6 +118,7 @@ namespace Doji.AI.ModelHub.Editor
         public ImportedModelMetadata ImportedMetadata { get; }
         public bool NeedsAttention => State != DependencyState.Ready;
         public bool NeedsStartupPrompt => NeedsAttention && ReasonCode != DependencyReasonCode.SelectionRequired;
+        public bool HasDamagedCache => DamagedCacheCodes.Contains(ReasonCode);
     }
 
     /// <summary>

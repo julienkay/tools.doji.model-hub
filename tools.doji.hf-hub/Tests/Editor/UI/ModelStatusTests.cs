@@ -26,7 +26,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var status = ModelStatus.From(CreateItem(
                 ModelHubItemState.Error,
-                DependencyReasonCode.RawCacheMetadataInvalid,
+                DependencyReasonCode.SharedImportMetadataInvalid,
                 rawSnapshotRootPath: "/cache/doji/test-model/abc123",
                 runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>()));
 
@@ -118,6 +118,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.Conflict));
             Assert.That(status.Action, Is.EqualTo(ModelActionKind.None));
             Assert.That(status.Tone, Is.EqualTo(UiTone.Error));
+        }
+
+        /// <summary>
+        /// Damaged cache bookkeeping asks for a repair download instead of fixing itself in the background.
+        /// </summary>
+        [TestCase(DependencyReasonCode.RawCacheMetadataInvalid)]
+        [TestCase(DependencyReasonCode.RawCacheMetadataMismatch)]
+        [TestCase(DependencyReasonCode.RawCacheRevisionRefUnreadable)]
+        public void DamagedCache_OffersRepair(DependencyReasonCode reasonCode)
+        {
+            var status = ModelStatus.From(CreateItem(
+                ModelHubItemState.Error,
+                reasonCode,
+                rawSnapshotRootPath: "/cache/doji/test-model/abc123",
+                runtimeFiles: ImportedFiles));
+
+            Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.RepairNeeded));
+            Assert.That(status.Action, Is.EqualTo(ModelActionKind.Sync));
+            Assert.That(status.ActionLabel, Is.EqualTo("Repair"));
         }
 
         /// <summary>

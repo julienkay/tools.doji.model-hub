@@ -180,7 +180,7 @@ namespace Doji.AI.ModelHub.Editor
                         group.Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
                         group.Select(status => status.Dependency.ManifestPath).Distinct().ToArray(),
                         group.Any(status => status.ReasonCode == DependencyReasonCode.RevisionConflict),
-                        group.Any(status => !HasRawCache(status) || status.ReasonCode == DependencyReasonCode.RawCacheFilesMissing),
+                        group.Any(status => !HasRawCache(status) || status.ReasonCode == DependencyReasonCode.RawCacheFilesMissing || status.HasDamagedCache),
                         size);
                 })
                 .OrderBy(model => ModelStatus.GetModelName(model.Repository), StringComparer.OrdinalIgnoreCase)

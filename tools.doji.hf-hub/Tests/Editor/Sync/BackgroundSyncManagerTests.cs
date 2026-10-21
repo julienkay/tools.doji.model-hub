@@ -136,11 +136,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies CorruptionHealCodes contains exactly the three codes that indicate cache corruption
+        /// Verifies DamagedCacheCodes contains exactly the three codes that indicate damaged cache bookkeeping
         /// and not transient-missing or invalid-repo codes.
         /// </summary>
         [Test]
-        public void CorruptionHealCodes_ContainsExactlyExpectedCodes()
+        public void DamagedCacheCodes_ContainsExactlyExpectedCodes()
         {
             var expected = new HashSet<DependencyReasonCode>
             {
@@ -149,26 +149,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 DependencyReasonCode.RawCacheRevisionRefUnreadable,
             };
 
-            Assert.That(BackgroundSyncManager.CorruptionHealCodes, Is.EquivalentTo(expected));
+            Assert.That(DependencyStatus.DamagedCacheCodes, Is.EquivalentTo(expected));
         }
 
         /// <summary>
-        /// Verifies CorruptionHealCodes does not include codes that should NOT trigger auto-heal.
+        /// Verifies DamagedCacheCodes does not include codes that mean a normal download or user choice.
         /// </summary>
         [Test]
-        public void CorruptionHealCodes_ExcludesNonCorruptionCodes()
+        public void DamagedCacheCodes_ExcludesNonCorruptionCodes()
         {
-            Assert.That(BackgroundSyncManager.CorruptionHealCodes, Has.No.Member(DependencyReasonCode.InvalidRepository));
-            Assert.That(BackgroundSyncManager.CorruptionHealCodes, Has.No.Member(DependencyReasonCode.RawCacheRevisionRefMissing));
-            Assert.That(BackgroundSyncManager.CorruptionHealCodes, Has.No.Member(DependencyReasonCode.None));
+            Assert.That(DependencyStatus.DamagedCacheCodes, Has.No.Member(DependencyReasonCode.InvalidRepository));
+            Assert.That(DependencyStatus.DamagedCacheCodes, Has.No.Member(DependencyReasonCode.RawCacheRevisionRefMissing));
+            Assert.That(DependencyStatus.DamagedCacheCodes, Has.No.Member(DependencyReasonCode.None));
         }
 
         /// <summary>
-        /// Verifies BuildPendingDependencyKeys returns a corrupt dependency when filtered by CorruptionHealCodes.
+        /// Verifies BuildPendingDependencyKeys returns a damaged-cache dependency when filtered by DamagedCacheCodes.
         /// Corruption state: rev ref exists, snapshot dir exists, metadata JSON is absent.
         /// </summary>
         [Test]
-        public void BuildPendingDependencyKeys_IncludesCorruptDependency_WhenFilteredByCorruptionHealCodes()
+        public void BuildPendingDependencyKeys_IncludesDamagedDependency_WhenFilteredByDamagedCacheCodes()
         {
             var commitHash = "deadbeef01";
             var modelId = $"doji/corrupt-{Guid.NewGuid():N}";
@@ -199,7 +199,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     var statusReport = new StatusService().BuildStatusReport(
                         new DiscoveryReport(new[] { dep }, Array.Empty<ManifestDiscoveryIssue>()));
                     var status = statusReport.DependencyStatuses[0];
-                    return BackgroundSyncManager.CorruptionHealCodes.Contains(status.ReasonCode);
+                    return DependencyStatus.DamagedCacheCodes.Contains(status.ReasonCode);
                 });
 
             Assert.That(pendingKeys, Has.Length.EqualTo(1));
@@ -211,7 +211,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// but dependency has no cache at all (RawCacheRevisionRefMissing, not a corruption code).
         /// </summary>
         [Test]
-        public void BuildPendingDependencyKeys_ExcludesMissingDependency_WhenFilteredByCorruptionHealCodes()
+        public void BuildPendingDependencyKeys_ExcludesMissingDependency_WhenFilteredByDamagedCacheCodes()
         {
             var modelId = $"doji/missing-{Guid.NewGuid():N}";
             var dependency = new DiscoveredModelDependency(
@@ -234,7 +234,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     var statusReport = new StatusService().BuildStatusReport(
                         new DiscoveryReport(new[] { dep }, Array.Empty<ManifestDiscoveryIssue>()));
                     var status = statusReport.DependencyStatuses[0];
-                    return BackgroundSyncManager.CorruptionHealCodes.Contains(status.ReasonCode);
+                    return DependencyStatus.DamagedCacheCodes.Contains(status.ReasonCode);
                 });
 
             Assert.That(pendingKeys, Is.Empty);
@@ -321,7 +321,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         /// <summary>
         /// A repository id that differs only in letter case is the same Hugging Face repository, so it is not
-        /// treated as corrupt cache. Corrupt cache is healed automatically, which could start a large download.
+        /// treated as damaged cache, which would ask the user to download it again.
         /// </summary>
         [Test]
         public void StatusService_DoesNotReportMismatch_WhenRepositoryDiffersOnlyByCase()
@@ -358,7 +358,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
             Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.Not.EqualTo(DependencyReasonCode.RawCacheMetadataMismatch));
-            Assert.That(BackgroundSyncManager.CorruptionHealCodes.Contains(statusReport.DependencyStatuses[0].ReasonCode), Is.False, statusReport.DependencyStatuses[0].ReasonCode.ToString());
+            Assert.That(DependencyStatus.DamagedCacheCodes.Contains(statusReport.DependencyStatuses[0].ReasonCode), Is.False, statusReport.DependencyStatuses[0].ReasonCode.ToString());
         }
     }
 }

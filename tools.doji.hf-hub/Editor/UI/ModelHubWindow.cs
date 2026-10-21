@@ -215,7 +215,6 @@ namespace Doji.AI.ModelHub.Editor
         private void Refresh()
         {
             RefreshReport();
-            BackgroundSyncManager.StartHealCorruptionIfNeeded();
         }
 
         private void RefreshReport()

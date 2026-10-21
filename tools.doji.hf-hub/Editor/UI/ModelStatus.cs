@@ -8,6 +8,7 @@ namespace Doji.AI.ModelHub.Editor
         DownloadNeeded,
         ImportNeeded,
         UpdateNeeded,
+        RepairNeeded,
         ChooseFiles,
         Error,
         Conflict
@@ -93,6 +94,17 @@ namespace Doji.AI.ModelHub.Editor
                     UiTone.Warning,
                     ModelActionKind.ChooseFiles,
                     "Choose Files");
+            }
+
+            if (item.HasDamagedCache)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.RepairNeeded,
+                    "Needs repair",
+                    "The downloaded files are damaged or incomplete. Download them again to repair the model.",
+                    UiTone.Warning,
+                    ModelActionKind.Sync,
+                    "Repair");
             }
 
             if (!hasCache)

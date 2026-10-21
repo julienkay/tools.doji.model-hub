@@ -11,7 +11,7 @@ Package dependencies appear when an installed package contains `hf-hub-manifest.
 Project-owned dependencies can be added from:
 
 - `Project Settings > Doji > AI > AI Model Hub`
-- Model Hub `+ > Add model to project...`
+- Model Hub `+ Add Model`
 - `Assets > Create > Doji > AI > HF Hub Project Manifest`
 
 Project Settings writes to:
@@ -26,7 +26,7 @@ ScriptableObject project manifests are normal Unity assets and are discovered in
 
 Open `Window > AI Model Hub`.
 
-When a manifest owner declares optional file rows, the Summary tab shows owner-scoped checkboxes. Enabling an optional file includes it in this project only.
+Select the model. When its manifest marks files as optional, the **Optional files** section of the **Overview** tab lists them with their sizes. Turning on a file includes it in this project only.
 
 HF Hub stores project-owned optional-file choices in:
 
@@ -38,12 +38,14 @@ Unenabled optional files do not count as selected files for status, download, im
 
 ## Download And Import
 
-Use Model Hub actions or `Tools/Doji/HF Hub/Import All`.
+Use the setup prompt, the action button of a model in Model Hub, **Import All** in the Model Hub toolbar, or `Tools/Doji/HF Hub/Import All`.
 
-- `Configure`: choose optional ONNX files before download or import.
-- `Download + Import`: download selected source files into shared cache, then generate runtime files.
-- `Import`: raw cache already exists, but generated project files need to be materialized.
-- `Manage`: remove generated project assets or remove this machine's raw cache entry.
+- `Download & Import`: download the selected files into the shared cache, then generate runtime files.
+- `Import`: the files are already downloaded; generate the project files.
+- `Update`: download newly selected files and import again.
+- `Choose Files`: turn on at least one optional file first.
+
+The `⋮` menu of a model can remove the imported files from the project or the downloaded files from the cache. See [Editor Surfaces](editor-surfaces.md#status-and-actions).
 
 Generated `.sentis` files are project-owned and live under:
 

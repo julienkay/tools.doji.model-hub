@@ -10,7 +10,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [TestCase("model.onnx", ModelHubWindow.FileHeaderIconKind.Model)]
         [TestCase("weights.safetensors", ModelHubWindow.FileHeaderIconKind.Model)]
         [TestCase("notes.txt", ModelHubWindow.FileHeaderIconKind.Text)]
-        [TestCase("README.md", ModelHubWindow.FileHeaderIconKind.Markdown)]
+        [TestCase("README.md", ModelHubWindow.FileHeaderIconKind.Text)]
         [TestCase("config.json", ModelHubWindow.FileHeaderIconKind.Json)]
         [TestCase("tokenizer.model", ModelHubWindow.FileHeaderIconKind.Default)]
         public void GetFileHeaderIconKind_MapsKnownExtensions(string repoPath, ModelHubWindow.FileHeaderIconKind expectedKind)

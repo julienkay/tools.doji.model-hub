@@ -12,7 +12,7 @@ Use the Project Settings manifest when model dependencies belong to the current 
 
 - location: `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
 - edit from: `Project Settings > Doji > AI > AI Model Hub`
-- add from: Model Hub `+ > Add model to project...`
+- add from: Model Hub `+ Add Model`
 
 This is the main project-scoped manifest.
 
@@ -129,4 +129,4 @@ Required and optional are both part of the manifest's explicit file scope. The `
 
 Until the project enables an optional file, HF Hub ignores that file for status, download, import, generated runtime registries, and startup prompts. After the project enables it, the file behaves like any other selected dependency file and missing cache or generated output requires action.
 
-If a dependency declares only optional ONNX files and none are enabled yet, HF Hub shows `Selection Needed` in Model Hub instead of downloading the whole repository. That state does not open the startup auto prompt by itself.
+If a dependency declares only optional ONNX files and none are enabled yet, HF Hub shows `Choose files` in Model Hub instead of downloading the whole repository. That state does not open the startup auto prompt by itself.

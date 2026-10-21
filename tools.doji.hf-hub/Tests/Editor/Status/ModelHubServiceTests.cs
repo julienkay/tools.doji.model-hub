@@ -484,8 +484,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].Files[1].SupportsImportRecipeEditing, Is.True);
         }
 
+        /// <summary>
+        /// Verifies file rows report raw-cache and runtime disk usage for the Storage tab.
+        /// </summary>
         [Test]
-        public void BuildReport_BuildsStorageTreemapTilesFromCombinedRawAndRuntimeDiskUsage()
+        public void BuildReport_ReportsPerFileDiskUsage()
         {
             var rawPath = CreateTempFileWithSize(12);
             var runtimeAssetPath = CreateRuntimeAssetFileWithSize("Assets/StreamingAssets/hf-hub/tests/model.sentis", 7);
@@ -499,28 +502,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var hubReport = new ModelHubService().BuildReport(report);
 
-            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles.Count, Is.EqualTo(1));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RepoPath, Is.EqualTo("model.onnx"));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RawSizeOnDiskBytes, Is.EqualTo(12));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].RuntimeSizeOnDiskBytes, Is.EqualTo(7));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles[0].TotalSizeOnDiskBytes, Is.EqualTo(19));
-        }
-
-        [Test]
-        public void BuildReport_SkipsStorageTreemapTilesWhenFilesAreNotOnDisk()
-        {
-            var report = new StatusReport(
-                Array.Empty<ManifestDiscoveryIssue>(),
-                new[]
-                {
-                    CreateDependencyStatus("tools.doji.pkg-a", "Package A", "model-a")
-                });
-
-            var hubReport = new ModelHubService().BuildReport(report);
-
-            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
-            Assert.That(hubReport.Items[0].StorageTreemapTiles, Is.Empty);
+            var file = hubReport.Items.Single().Files.Single(item => item.RepoPath == "model.onnx");
+            Assert.That(file.RawSizeOnDiskBytes, Is.EqualTo(12));
+            Assert.That(file.RuntimeSizeOnDiskBytes, Is.EqualTo(7));
         }
 
         /// <summary>

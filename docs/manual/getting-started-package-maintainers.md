@@ -81,7 +81,7 @@ Mark a selected file as optional when the package can work with more than one mo
 
 The `optional` flag does not mean "download if present." It means "show this selected repo file as project-selectable." Until the project enables an optional file, HF Hub ignores that file for status, download, import, runtime registry output, and startup prompts.
 
-If every ONNX file in a dependency is optional, Model Hub shows `Selection Needed` until the project enables at least one optional ONNX file.
+If every ONNX file in a dependency is optional, Model Hub shows `Choose files` until the project turns on at least one optional ONNX file.
 
 ## Authoring In Unity
 

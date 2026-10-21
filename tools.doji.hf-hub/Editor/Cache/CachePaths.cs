@@ -11,7 +11,13 @@ namespace Doji.AI.ModelHub.Editor
     {
         private const string CompanyFolderName = "Doji";
         private const string ProductFolderName = "HfHub";
-        private const string CacheRootEnvironmentVariable = "DOJI_HF_HUB_CACHE_ROOT";
+        internal const string CacheRootEnvironmentVariable = "DOJI_HF_HUB_CACHE_ROOT";
+
+        /// <summary>
+        /// Whether the cache root comes from the environment variable instead of Project Settings.
+        /// </summary>
+        internal static bool IsCacheRootOverriddenByEnvironment =>
+            !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(CacheRootEnvironmentVariable));
 
         /// <summary>
         /// Gets shared per-user cache root for this package.

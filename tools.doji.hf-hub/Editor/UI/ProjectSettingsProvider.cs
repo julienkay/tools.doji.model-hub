@@ -1,23 +1,18 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
-using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Project Settings surface for project-scoped Model Hub configuration.
+    /// Project Settings page: models this project declares itself, and where downloads are cached.
     /// </summary>
     internal static class ProjectSettingsProvider
     {
-        private const float ContentInset = 14f;
-        private static readonly GUIContent UseDefaultCacheLocationContent = new("Use Default Cache Location", "Store raw HuggingFace snapshots in the platform default shared cache folder.");
-        private static readonly GUIContent CustomCacheLocationContent = new("Custom Cache Location", "Override the shared cache root for this Unity project when the default location is disabled.");
-        private static readonly GUIContent RevealCacheFolderContent = new("Reveal Cache Folder", "Reveal the effective shared cache folder used by this project.");
-        private static readonly GUIContent OpenModelHubContent = new("Open Model Hub", "Open the main repository inventory window.");
-        private static ManifestDocumentEditor _projectManifestEditor;
+        private const string StyleSheet = "Settings.uss";
+        private static WeakReference<VisualElement> _currentRoot;
 
         [SettingsProvider]
         private static SettingsProvider CreateSettingsProvider()
@@ -25,98 +20,150 @@ namespace Doji.AI.ModelHub.Editor
             return new SettingsProvider(EditorOperations.ProjectSettingsPath, SettingsScope.Project)
             {
                 label = "AI Model Hub",
-                guiHandler = _ => DrawGui(),
-                keywords = new HashSet<string>(new[] { "AI", "Model", "Hub", "HuggingFace", "Sentis", "Inference", "Cache" })
+                activateHandler = (_, rootElement) => Build(rootElement),
+                deactivateHandler = () => _currentRoot = null,
+                keywords = new HashSet<string>(new[] { "AI", "Model", "Hub", "HuggingFace", "Hugging Face", "Sentis", "Inference", "Cache", "Download" })
             };
         }
 
-        private static void DrawGui()
-        {
-            var settings = ProjectSettings.instance;
-            EnsureProjectManifestEditor();
-
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                GUILayout.Space(ContentInset);
-                using (new EditorGUILayout.VerticalScope())
-                {
-                    EditorGUILayout.LabelField("AI Model Hub", EditorStyles.boldLabel);
-                    EditorGUILayout.HelpBox(
-                        "Project Settings stores configuration. Use Window > AI Model Hub to inspect imported repositories, dependents, and generated files.",
-                        MessageType.Info);
-
-                    EditorGUILayout.Space();
-                    EditorGUILayout.LabelField("Cache", EditorStyles.boldLabel);
-
-                    var useDefaultCacheLocation = EditorGUILayout.Toggle(UseDefaultCacheLocationContent, settings.UseDefaultCacheLocation);
-                    var customCacheLocation = settings.CustomCacheLocation;
-                    using (new EditorGUI.DisabledScope(useDefaultCacheLocation))
-                    {
-                        customCacheLocation = EditorGUILayout.DelayedTextField(CustomCacheLocationContent, customCacheLocation);
-                    }
-
-                    if (useDefaultCacheLocation != settings.UseDefaultCacheLocation ||
-                        !string.Equals(customCacheLocation, settings.CustomCacheLocation, StringComparison.Ordinal))
-                    {
-                        settings.UpdateCacheLocation(useDefaultCacheLocation, customCacheLocation);
-                    }
-
-                    EditorGUILayout.Space();
-                    using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-                    {
-                        EditorGUILayout.LabelField("Default Cache", CachePaths.GetDefaultCacheRoot());
-                        EditorGUILayout.LabelField("Effective Cache", CachePaths.GetCacheRoot());
-                        EditorGUILayout.LabelField("Sentis Version", StatusService.GetCurrentSentisVersion());
-                    }
-
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        if (GUILayout.Button(RevealCacheFolderContent, GUILayout.Width(150f)))
-                        {
-                            ProjectSettingsLinks.RevealPath(CachePaths.GetCacheRoot());
-                        }
-
-                        if (GUILayout.Button(OpenModelHubContent, GUILayout.Width(120f)))
-                        {
-                            ModelHubWindow.OpenWindow();
-                        }
-                    }
-
-                    EditorGUILayout.Space();
-                    EditorGUILayout.Space();
-                    _projectManifestEditor.Draw();
-                }
-            }
-        }
-
+        /// <summary>
+        /// Reloads the page after the project manifest or cache changed elsewhere. Keeps unapplied edits.
+        /// </summary>
         internal static void Refresh()
         {
-            _projectManifestEditor = null;
-            if (SettingsWindowIsOpen())
+            if (_currentRoot == null || !_currentRoot.TryGetTarget(out var root) || root.panel == null)
             {
-                SettingsService.OpenProjectSettings(EditorOperations.ProjectSettingsPath);
+                return;
             }
+
+            var editor = root.Q<ManifestEditorElement>();
+            if (editor != null && !editor.HasPendingChanges)
+            {
+                editor.Reload();
+            }
+
+            UpdateCacheSection(root);
         }
 
-        private static void EnsureProjectManifestEditor()
+        private static void Build(VisualElement rootElement)
         {
-            _projectManifestEditor ??= new ManifestDocumentEditor(
+            var root = UiKit.Element("ps");
+            UiKit.ApplyTheme(root, ManifestEditorElement.StyleSheet, StyleSheet);
+            rootElement.Add(root);
+            _currentRoot = new WeakReference<VisualElement>(root);
+
+            var header = UiKit.Element("ps-header");
+            header.Add(UiKit.Text("AI Model Hub", "hf-title"));
+            header.Add(UiKit.Spacer());
+            header.Add(UiKit.Button("Open Model Hub", () => ModelHubWindow.OpenWindow()));
+            root.Add(header);
+            root.Add(UiKit.Text(
+                "Packages bring their own model lists. Add models here that this project needs directly.",
+                "ps-intro"));
+
+            var models = UiKit.Element("hf-section");
+            models.Add(new ManifestEditorElement(
                 new ProjectSettingsManifestDocumentStore(),
-                new ManifestDocumentEditorOptions
+                new ManifestEditorOptions
                 {
-                    Title = "Model Dependencies",
-                    ShowVersion = false,
-                    ShowOpenModelHubButton = false,
-                    ShowReadOnlyInfoBox = false,
-                    RequestRepaint = InternalEditorUtility.RepaintAllViews,
+                    Title = "Project models",
+                    EmptyMessage = "No project models. Packages can still bring their own.",
                     AfterApply = InternalEditorUtility.RepaintAllViews
-                });
+                }));
+            root.Add(models);
+
+            root.Add(BuildCacheSection());
+
+            root.Add(UiKit.Text(
+                $"Sentis {StatusService.GetCurrentSentisVersion()}. Imported models are built for this version and re-imported when it changes.",
+                "ps-footer"));
+            UpdateCacheSection(root);
         }
 
-        private static bool SettingsWindowIsOpen()
+        private static VisualElement BuildCacheSection()
         {
-            return Resources.FindObjectsOfTypeAll<EditorWindow>()
-                .Any(window => string.Equals(window.GetType().FullName, "UnityEditor.SettingsWindow", StringComparison.Ordinal));
+            var settings = ProjectSettings.instance;
+            var section = UiKit.Section("Download cache");
+            var card = UiKit.Element("hf-card");
+
+            var location = new RadioButtonGroup(null, new List<string> { "Default folder", "Custom folder" })
+            {
+                name = "cacheLocation",
+                value = settings.UseDefaultCacheLocation ? 0 : 1
+            };
+            location.AddToClassList("ps-location");
+            card.Add(location);
+
+            var custom = UiKit.Element("ps-custom");
+            custom.name = "customRow";
+            var customField = new TextField { name = "customPath", value = settings.CustomCacheLocation ?? string.Empty, isDelayed = true };
+            customField.textEdition.placeholder = "Choose a folder";
+            custom.Add(customField);
+            custom.Add(UiKit.Button("Browse…", () =>
+            {
+                var folder = EditorUtility.OpenFolderPanel("Choose Cache Folder", customField.value, string.Empty);
+                if (!string.IsNullOrWhiteSpace(folder))
+                {
+                    customField.value = folder;
+                }
+            }));
+            card.Add(custom);
+
+            var path = UiKit.Element("ps-path");
+            path.Add(UiKit.Text("In use", "hf-kv__key"));
+            var pathValue = UiKit.Text(string.Empty, "ps-path__value");
+            pathValue.name = "effectivePath";
+            path.Add(pathValue);
+            path.Add(UiKit.LinkButton(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(CachePaths.GetCacheRoot())));
+            card.Add(path);
+
+            var envNote = UiKit.Callout(
+                UiTone.Info,
+                null,
+                $"The {CachePaths.CacheRootEnvironmentVariable} environment variable is set, so it overrides this setting.");
+            envNote.name = "envNote";
+            envNote.AddToClassList("ps-env-note");
+            card.Add(envNote);
+
+            card.Add(UiKit.Text(
+                "All Unity projects on this machine share the cache, so each model downloads only once.",
+                "ps-card-hint"));
+            section.Add(card);
+
+            location.RegisterValueChangedCallback(evt =>
+            {
+                settings.UpdateCacheLocation(evt.newValue == 0, customField.value);
+                UpdateCacheSection(section);
+            });
+            customField.RegisterValueChangedCallback(evt =>
+            {
+                settings.UpdateCacheLocation(location.value == 0, evt.newValue);
+                UpdateCacheSection(section);
+            });
+            return section;
+        }
+
+        private static void UpdateCacheSection(VisualElement root)
+        {
+            var location = root.Q<RadioButtonGroup>("cacheLocation");
+            if (location == null)
+            {
+                return;
+            }
+
+            var isOverridden = CachePaths.IsCacheRootOverriddenByEnvironment;
+            location.SetEnabled(!isOverridden);
+            var customRow = root.Q("customRow");
+            UiKit.SetVisible(customRow, location.value == 1);
+            customRow?.SetEnabled(!isOverridden);
+            UiKit.SetVisible(root.Q("envNote"), isOverridden);
+
+            var effectivePath = root.Q<Label>("effectivePath");
+            if (effectivePath != null)
+            {
+                effectivePath.text = CachePaths.GetCacheRoot();
+                effectivePath.tooltip = effectivePath.text;
+            }
         }
     }
 }

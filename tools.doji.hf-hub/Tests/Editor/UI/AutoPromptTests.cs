@@ -25,14 +25,58 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Headline, Is.EqualTo("AI Model Required"));
-            Assert.That(viewModel.Body, Does.Contain("download it into shared cache"));
-            Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
-            Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("tools.doji.test"));
-            Assert.That(viewModel.Dependents[0].PackageDisplayName, Is.EqualTo("Test Package"));
-            Assert.That(viewModel.Details, Is.EqualTo(string.Empty));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download + Import"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("Downloads this model"));
+            Assert.That(viewModel.Headline, Is.EqualTo("Test Package needs an AI model"));
+            Assert.That(viewModel.Body, Does.Contain("downloads it from Hugging Face"));
+            Assert.That(viewModel.Models.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Models[0].Repository, Is.EqualTo("doji/test-model"));
+            Assert.That(viewModel.Models[0].Owners, Is.EqualTo(new[] { "Test Package" }));
+            Assert.That(viewModel.IssueCount, Is.EqualTo(0));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.StartSync));
+        }
+
+        /// <summary>
+        /// Files selected after the first download still need a download, so the prompt does not offer a plain Import.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_TreatsMissingCacheFilesAsDownload()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing, hasRawCache: true, reasonCode: DependencyReasonCode.RawCacheFilesMissing)
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+        }
+
+        /// <summary>
+        /// The primary button shows the total download size when every size is known.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_ShowsTotalDownloadSizeOnPrimaryAction()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing, "alpha/model-a"),
+                    CreateStatus(DependencyState.Missing, "beta/model-b")
+                });
+            var sizes = new System.Collections.Generic.Dictionary<string, long?>
+            {
+                ["alpha/model-a"] = 1024L * 1024L,
+                ["beta/model-b"] = 2L * 1024L * 1024L
+            };
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report, sizes);
+
+            Assert.That(viewModel.PrimaryActionLabel, Does.StartWith("Download & Import All"));
+            Assert.That(viewModel.PrimaryActionLabel, Does.EndWith("3 MB"));
         }
 
         /// <summary>
@@ -59,8 +103,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
-            Assert.That(viewModel.Dependents[0].DisplayLabel, Is.EqualTo("HF Hub Project Manifest"));
+            Assert.That(viewModel.Models.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Models[0].Owners, Is.EqualTo(new[] { "HF Hub Project Manifest" }));
         }
 
         /// <summary>
@@ -79,7 +123,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("shared cache"));
+            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("already downloaded"));
         }
 
         /// <summary>
@@ -98,7 +142,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("shared cache"));
+            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("already downloaded"));
         }
 
         /// <summary>
@@ -126,21 +170,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Headline, Is.EqualTo("2 manifest dependencies need AI models."));
-            Assert.That(viewModel.Dependents.Select(entry => entry.DisplayLabel).ToArray(), Is.EqualTo(new[]
-            {
-                "tools.doji.test",
-                "tools.doji.test"
-            }));
-            Assert.That(viewModel.Dependents.Select(entry => entry.Repository).ToArray(), Is.EqualTo(new[]
+            Assert.That(viewModel.Headline, Is.EqualTo("Test Package needs 2 AI models"));
+            Assert.That(viewModel.Models.Select(entry => entry.Repository).ToArray(), Is.EqualTo(new[]
             {
                 "alpha/model-a",
                 "beta/model-b"
             }));
-            Assert.That(viewModel.Details, Does.Contain("Needs attention in 2 manifest dependencies."));
-            Assert.That(viewModel.Details, Does.Contain("1 discovery issues also need attention."));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import All"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("all unresolved models"));
+            Assert.That(viewModel.IssueCount, Is.EqualTo(1));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import All"));
         }
 
         /// <summary>
@@ -165,10 +202,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Headline, Is.EqualTo("AI Model Required"));
-            Assert.That(viewModel.Dependents.Count, Is.EqualTo(1));
-            Assert.That(viewModel.Dependents[0].Repository, Is.EqualTo("beta/required-missing"));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download + Import"));
+            Assert.That(viewModel.Headline, Is.EqualTo("Test Package needs an AI model"));
+            Assert.That(viewModel.Models.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Models[0].Repository, Is.EqualTo("beta/required-missing"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
         }
 
         /// <summary>
@@ -231,9 +268,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Body, Does.Contain("Resolve each repository to one revision"));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Resolve Conflict"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("Open Model Hub"));
+            Assert.That(viewModel.Headline, Is.EqualTo("Model revisions conflict"));
+            Assert.That(viewModel.Models.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Models[0].IsConflict, Is.True);
+            Assert.That(viewModel.Body, Does.Contain("use one revision"));
+            Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.OpenModelHub));
         }
 
         /// <summary>
@@ -267,8 +306,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
-            Assert.That(viewModel.Body, Does.Contain("updating package versions"));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Resolve Conflict"));
+            Assert.That(viewModel.Body, Does.Contain("Update a package"));
+            Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.OpenModelHub));
         }
 
         /// <summary>

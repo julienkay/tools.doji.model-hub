@@ -1,88 +1,36 @@
-using System;
 using UnityEditor;
 using UnityEditorInternal;
-using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Reuses shared manifest inspector UX for `ProjectManifestAsset` ScriptableObject manifests.
+    /// Shows the shared manifest editor for <see cref="ProjectManifestAsset"/> ScriptableObject manifests.
     /// </summary>
     [CustomEditor(typeof(ProjectManifestAsset), false)]
     internal sealed class ProjectManifestAssetInspector : UnityEditor.Editor
     {
-        private const float ContentInset = 14f;
-        private ManifestDocumentEditor _editor;
-        private bool _suppressUnsavedPrompt;
+        private ManifestEditorElement _editor;
 
-        public override void OnInspectorGUI()
+        public override VisualElement CreateInspectorGUI()
         {
-            EnsureEditor();
-
-            var previousGuiEnabled = GUI.enabled;
-            GUI.enabled = true;
-            try
-            {
-                using (new EditorGUILayout.HorizontalScope())
+            var root = new VisualElement();
+            UiKit.ApplyTheme(root, ManifestEditorElement.StyleSheet);
+            root.AddToClassList("me-host");
+            _editor = new ManifestEditorElement(
+                new ProjectManifestAssetDocumentStore((ProjectManifestAsset)target),
+                new ManifestEditorOptions
                 {
-                    GUILayout.Space(ContentInset);
-                    using (new EditorGUILayout.VerticalScope())
-                    {
-                        _editor.Draw();
-                    }
-                }
-            }
-            finally
-            {
-                GUI.enabled = previousGuiEnabled;
-            }
+                    ShowOpenModelHubButton = true,
+                    AfterApply = InternalEditorUtility.RepaintAllViews
+                });
+            root.Add(_editor);
+            return root;
         }
 
         private void OnDisable()
         {
-            if (!_suppressUnsavedPrompt && _editor is { HasUserEdits: true, HasPendingChanges: true })
-            {
-                var targetObject = target;
-                EditorApplication.delayCall += () =>
-                {
-                    _suppressUnsavedPrompt = true;
-                    _editor?.PromptForUnsavedChanges(
-                        targetObject,
-                        () =>
-                        {
-                            Selection.activeObject = targetObject;
-                            if (targetObject != null)
-                            {
-                                EditorGUIUtility.PingObject(targetObject);
-                            }
-                        });
-                    _suppressUnsavedPrompt = false;
-                };
-            }
-        }
-
-        private void EnsureEditor()
-        {
-            if (_editor != null)
-            {
-                return;
-            }
-
-            _editor = new ManifestDocumentEditor(
-                new ProjectManifestAssetDocumentStore((ProjectManifestAsset)target),
-                new ManifestDocumentEditorOptions
-                {
-                    Title = "Model Dependencies",
-                    ShowVersion = false,
-                    ShowOpenModelHubButton = true,
-                    ShowReadOnlyInfoBox = false,
-                    RequestRepaint = Repaint,
-                    AfterApply = () =>
-                    {
-                        Repaint();
-                        InternalEditorUtility.RepaintAllViews();
-                    }
-                });
+            ManifestInspectorUnsavedChanges.PromptLater(_editor, target);
         }
     }
 }

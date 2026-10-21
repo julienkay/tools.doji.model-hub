@@ -17,8 +17,9 @@ namespace Doji.AI.ModelHub.Editor
     {
         private const string StateDirectoryName = "Doji/HfHub";
         private const string StateFileName = "sync-state.json";
+        private const string OperationName = "HF Hub Sync";
         private static readonly EditorPersistentOperationRunner Runner = new(
-            "HF Hub Sync",
+            OperationName,
             "Syncing model dependencies",
             GetStatePath());
 
@@ -37,6 +38,39 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         public static bool IsRunning => Runner.IsRunning;
+
+        /// <summary>
+        /// Cancels the running sync. Finished files stay in the cache.
+        /// </summary>
+        public static void Cancel()
+        {
+            Runner.Cancel();
+        }
+
+        /// <summary>
+        /// Reads the running sync's progress from Unity's Progress API, for in-window progress UI.
+        /// </summary>
+        internal static bool TryGetProgress(out float progress, out string description)
+        {
+            progress = 0f;
+            description = null;
+            if (!Runner.IsRunning)
+            {
+                return false;
+            }
+
+            foreach (var item in Progress.EnumerateItems())
+            {
+                if (item.running && string.Equals(item.name, OperationName, StringComparison.Ordinal))
+                {
+                    progress = item.progress;
+                    description = item.description;
+                    return true;
+                }
+            }
+
+            return true;
+        }
 
         /// <summary>
         /// Starts a new background sync or resumes the persisted one if a previous run was interrupted.

@@ -4,109 +4,45 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Shows a focused inspector for HF Hub model manifests while leaving normal text assets on Unity's built-in inspector.
+    /// Shows the manifest editor for HF Hub model manifests and Unity's built-in inspector for other text assets.
     /// </summary>
     [CustomEditor(typeof(TextAsset), false)]
     internal sealed class ModelManifestInspector : UnityEditor.Editor
     {
-        private const float ContentInset = 14f;
-        private string _inspectedAssetPath;
-        private ManifestDocumentEditor _editor;
+        private ManifestEditorElement _editor;
         private UnityEditor.Editor _builtInInspector;
-        private bool _suppressUnsavedPrompt;
 
-        public override void OnInspectorGUI()
+        public override VisualElement CreateInspectorGUI()
         {
             var assetPath = AssetDatabase.GetAssetPath(target);
             if (!ModelManifestInspectorUtility.IsModelManifestAssetPath(assetPath))
             {
-                DrawFallbackInspector();
-                return;
+                return null;
             }
 
-            EnsureEditor(assetPath);
-
-            var previousGuiEnabled = GUI.enabled;
-            GUI.enabled = true;
-            try
-            {
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    GUILayout.Space(ContentInset);
-                    using (new EditorGUILayout.VerticalScope())
-                    {
-                        _editor.Draw();
-                    }
-                }
-            }
-            finally
-            {
-                GUI.enabled = previousGuiEnabled;
-            }
-        }
-
-        private void OnDisable()
-        {
-            if (!_suppressUnsavedPrompt && _editor is { HasUserEdits: true, HasPendingChanges: true })
-            {
-                var targetObject = target;
-                var assetPath = _inspectedAssetPath;
-                EditorApplication.delayCall += () =>
-                {
-                    _suppressUnsavedPrompt = true;
-                    _editor?.PromptForUnsavedChanges(
-                        targetObject,
-                        () =>
-                        {
-                            Selection.activeObject = targetObject;
-                            if (targetObject != null)
-                            {
-                                EditorGUIUtility.PingObject(targetObject);
-                            }
-                        });
-                    _suppressUnsavedPrompt = false;
-                };
-            }
-
-            if (_builtInInspector != null)
-            {
-                DestroyImmediate(_builtInInspector);
-                _builtInInspector = null;
-            }
-        }
-
-        private void EnsureEditor(string assetPath)
-        {
-            if (string.Equals(_inspectedAssetPath, assetPath, StringComparison.Ordinal) && _editor != null)
-            {
-                return;
-            }
-
-            _inspectedAssetPath = assetPath;
-            _editor = new ManifestDocumentEditor(
+            var root = new VisualElement();
+            UiKit.ApplyTheme(root, ManifestEditorElement.StyleSheet);
+            root.AddToClassList("me-host");
+            _editor = new ManifestEditorElement(
                 new AssetManifestDocumentStore(assetPath),
-                new ManifestDocumentEditorOptions
-                {
-                    Title = "Model Dependencies",
-                    ShowVersion = false,
-                    ShowOpenModelHubButton = true,
-                    ShowReadOnlyInfoBox = true,
-                    RequestRepaint = Repaint
-                });
+                new ManifestEditorOptions { ShowOpenModelHubButton = true });
+            root.Add(_editor);
+            return root;
         }
 
-        private void DrawFallbackInspector()
+        public override void OnInspectorGUI()
         {
             if (_builtInInspector == null)
             {
                 var builtInInspectorType = typeof(UnityEditor.Editor).Assembly.GetType("UnityEditor.TextAssetInspector");
                 if (builtInInspectorType != null)
                 {
-                    UnityEditor.Editor.CreateCachedEditor(target, builtInInspectorType, ref _builtInInspector);
+                    CreateCachedEditor(target, builtInInspectorType, ref _builtInInspector);
                 }
             }
 
@@ -117,6 +53,39 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             DrawDefaultInspector();
+        }
+
+        private void OnDisable()
+        {
+            ManifestInspectorUnsavedChanges.PromptLater(_editor, target);
+            if (_builtInInspector != null)
+            {
+                DestroyImmediate(_builtInInspector);
+                _builtInInspector = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asks about unapplied manifest edits after an inspector closes, and reselects the manifest on Cancel.
+    /// </summary>
+    internal static class ManifestInspectorUnsavedChanges
+    {
+        public static void PromptLater(ManifestEditorElement editor, UnityEngine.Object target)
+        {
+            if (editor == null || !editor.HasPendingChanges)
+            {
+                return;
+            }
+
+            EditorApplication.delayCall += () =>
+            {
+                if (!editor.PromptForUnsavedChanges() && target != null)
+                {
+                    Selection.activeObject = target;
+                    EditorGUIUtility.PingObject(target);
+                }
+            };
         }
     }
 

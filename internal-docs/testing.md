@@ -63,6 +63,7 @@ Status and sync:
   - sync success and failure orchestration
 - `tools.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and heal paths
+  - case-only repository id differences are not treated as corrupt cache
 - `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage
 
@@ -78,13 +79,16 @@ Runtime locator:
 
 Editor UI and manifest editing:
 
-- `tools.doji.hf-hub/Tests/Editor/UI/ManifestModelListEditorTests.cs`
-  - file-selection button gating
-- `tools.doji.hf-hub/Tests/Editor/UI/ModelHubWindowStatusRenderingTests.cs`
-  - stable error/conflict icon asset selection
-  - state-specific download/import/update icon asset selection
-  - selection-required badge and configure/download+import action labels
-  - failed-row badge label and color mapping
+- `tools.doji.hf-hub/Tests/Editor/UI/ManifestModelEntryTests.cs`
+  - file-selection button gating and incomplete-row detection
+  - model id parsing from `owner/name` and Hugging Face URLs
+- `tools.doji.hf-hub/Tests/Editor/UI/ModelStatusTests.cs`
+  - status kind, tone, and primary action for every Model Hub state
+- `tools.doji.hf-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`
+  - pre-download inventory for manifests without a revision
+  - refresh of estimates saved without a file list
+- `tools.doji.hf-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`
+  - optional-file selections asset resolves its script, so choices survive asset refresh
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`
   - inspected static ONNX input shapes become read-only Files tab display rows
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelHubFileIconTests.cs`
@@ -98,7 +102,8 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/UI/EditorOperationsTests.cs`
   - UI command gating
 - `tools.doji.hf-hub/Tests/Editor/UI/AutoPromptTests.cs`
-  - prompt summarization
+  - prompt grouping by repository, headline, and primary action
+  - download detection for missing cache files and total download size label
 
 ## Selected-File vs Whole-Repo Matrix
 

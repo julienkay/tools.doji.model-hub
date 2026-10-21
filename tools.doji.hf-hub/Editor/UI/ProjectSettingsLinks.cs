@@ -239,7 +239,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Project Settings manifest",
                     true,
                     false,
-                    "Edit Project Settings model manifest so all owners request one revision.");
+                    "Change the revision in Project Settings > AI Model Hub.");
             }
 
             if (ProjectManifestDiscovery.IsProjectManifestAssetOwnerId(dependency.PackageId) ||
@@ -250,7 +250,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Project manifest asset",
                     true,
                     false,
-                    "Edit project manifest asset so all owners request one revision.");
+                    "Change the revision in this manifest asset.");
             }
 
             if (IsEmbeddedPackageAssetPath(assetPath))
@@ -260,7 +260,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Embedded package",
                     true,
                     false,
-                    "Edit embedded package model manifest or change project package setup so one revision wins.");
+                    "Change the revision in this embedded package's manifest.");
             }
 
             if (IsInstalledPackageCachePath(normalizedManifestPath) ||
@@ -271,7 +271,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Installed package",
                     false,
                     true,
-                    "Change package version in Package Manager, embed/localize package, or remove one dependency.");
+                    "Update the package in Package Manager, or embed it to edit its manifest.");
             }
 
             return new ManifestOwnerResolutionInfo(
@@ -279,7 +279,7 @@ namespace Doji.AI.ModelHub.Editor
                 "Local package",
                 true,
                 false,
-                "Edit local package model manifest at source path or change project package setup so one revision wins.");
+                "Change the revision in this local package's manifest.");
         }
 
         /// <summary>
@@ -309,15 +309,15 @@ namespace Doji.AI.ModelHub.Editor
 
             if (hasPackageManagerOwners && hasEditableOwners)
             {
-                return "Conflict spans editable manifests and installed packages. Use Locate for project or local manifests. For installed packages, update package versions, embed/localize package, or remove one dependency. Copy summary if you need exact owners and paths.";
+                return "Change the revision in the manifests you can edit so they match the installed packages, or update those packages in Package Manager.";
             }
 
             if (hasPackageManagerOwners)
             {
-                return "Conflict comes from installed packages that are not directly editable in this project. Resolve by updating package versions, embedding/localizing package, or removing one dependency. Open Package Manager and copy summary for exact owners.";
+                return "The conflicting manifests belong to installed packages. Update one of the packages in Package Manager, or embed it to edit its manifest.";
             }
 
-            return "Conflict comes from project or editable package model manifests. Use Locate to open each manifest and align all requested revisions to one value.";
+            return "Open each manifest below and set the same revision in all of them.";
         }
 
         /// <summary>

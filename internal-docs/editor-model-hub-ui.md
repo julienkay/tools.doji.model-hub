@@ -2,106 +2,106 @@
 
 ## Intent
 
-The editor UX is split into two surfaces with different jobs:
+All editor UI is UI Toolkit, built in C# with USS. There is no UXML: lists, tabs, and rows are dynamic, so code builds them and USS classes style them.
 
-- `Project Settings > Doji > AI > AI Model Hub` stores project-scoped configuration.
-- `Window > AI Model Hub` is the operational inventory and diagnostics surface.
+The editor UX has four surfaces with separate jobs:
 
-This keeps settings stable and sparse while giving the Hub window room to behave more like Unity Package Manager.
+- `Window > AI Model Hub`: the operational inventory. One row per repository, status, the next action, optional files, import settings, and storage.
+- Setup prompt (`AutoPromptWindow`): a one-click "get the models your packages need" dialog.
+- `Project Settings > Doji > AI > AI Model Hub`: project-scoped configuration only (project manifest, cache folder).
+- Manifest Inspectors: authoring for package `hf-hub-manifest.json` and `ProjectManifestAsset`.
+
+User-facing behavior is documented in `docs/manual/editor-surfaces.md`. This page covers structure and rules.
+
+## Code Layout
+
+All files live in `Editor/UI/`.
+
+| File | Owns |
+|---|---|
+| `Styles/HfHub.uss` | Theme tokens (`.hf-dark`, `.hf-light`) and shared components: buttons, pills, dots, tags, callouts, cards, sections, key/value rows, search field, progress bar, empty state |
+| `Styles/ModelHubWindow.uss`, `Styles/SetupPrompt.uss`, `Styles/Settings.uss`, `Styles/ManifestEditor.uss` | Layout for one surface each. `ManifestEditor.uss` also styles the Add Model popup and the file picker |
+| `UiKit.cs` | Element factories that apply the shared classes, `ApplyTheme`, icon loading, `FormatBytes` |
+| `ModelStatus.cs` | The single mapping from `ModelHubItem` to status label, description, tone, and next action |
+| `ModelHubWindow.cs` | Window lifecycle, toolbar, sync progress banner, list, selection, keyboard navigation |
+| `ModelHubWindow.Details.cs` | Header, actions, status callouts, tabs, Overview tab, manifest-error details, empty state |
+| `ModelHubWindow.Files.cs` | Files tab, per-file import settings, apply bar, unsaved-settings prompt |
+| `ModelHubWindow.Storage.cs` | Storage tab |
+| `ModelHubFileEditing.cs` | Edit-session and recipe state models for the Files tab (no UI) |
+| `AutoPromptWindow.cs` | Setup prompt and its view model (`BuildViewModel`) |
+| `AddModelPopup.cs` | Add Model popup (project or local package target) |
+| `FileSelectionPopup.cs` | Repository file picker with required/optional selection |
+| `ManifestEditorElement.cs` | Shared manifest table used by Project Settings and both inspectors |
+| `ManifestModelValidation.cs` | `ManifestModelEntry`, model id parsing, Hugging Face validation states and controller (no UI) |
+| `ManifestDocumentStores.cs` | `IManifestDocumentStore` and the JSON, Project Settings, and asset stores |
+| `ProjectSettingsProvider.cs`, `ModelManifestInspector.cs`, `ProjectManifestAssetInspector.cs` | Host the shared elements |
+
+Maintainer rules:
+
+- Style through USS classes. Do not set `element.style.*` except for data-driven values such as progress and size-bar widths.
+- Use the `--hf-*` tokens for colors. Add a token to both `.hf-dark` and `.hf-light` instead of hard-coding a color in a surface sheet.
+- Read status copy from `ModelStatus`. Do not re-derive "download vs import" wording in a surface.
+- Keep logic that tests need (view models, parsing, status mapping) out of element-building code.
+- Stylesheets load from `Packages/tools.doji.hf-hub/Editor/UI/Styles/` through `UiKit.ApplyTheme`.
 
 ## Surface Split
 
 ### Project Settings
 
-Project Settings should only answer:
+Project Settings answers only:
 
-- where shared cache lives for this project
-- what effective cache path HF Hub is using
-- what project-scoped model ids are declared for this project
-- how to open the main Model Hub window
+- which models this project declares itself (`ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`)
+- where the shared cache lives, and which folder is in effect
+- which Sentis version imports target
 
-Current editable settings:
+Keep environment-variable override support for tests and maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set; the page shows a note when it is.
 
-- cache location override
-- project manifest entries stored at `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
-
-Keep environment-variable override support for tests and explicit maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set.
+`ProjectSettingsProvider.Refresh()` reloads the open page after other surfaces change the project manifest or cache. It never discards unapplied edits.
 
 ### Model Hub Window
 
-The Model Hub window is repository-centric, not dependency-centric.
+Primary item key is `repository` plus requested `revision`. Each row aggregates all manifest dependents of that unit.
 
-Current implementation is split by editor task area instead of keeping one large IMGUI file:
+List sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`.
 
-- `Editor/UI/ModelHubWindow.cs`: lifecycle, top-level orchestration, shared state fields
-- `Editor/UI/ModelHubWindow.Content.cs`: window-local labels and tooltips
-- `Editor/UI/ModelHubWindow.Styles.cs`: lazy GUI content and style initialization
-- `Editor/UI/ModelHubWindow.StatusRendering.cs`: row badges, icons, and color helpers
-- `Editor/UI/ModelHubWindow.Layout.cs`: pane math and draggable splitter behavior
-- `Editor/UI/ModelHubWindow.ListPane.cs`: sidebar search, grouping, and row rendering
-- `Editor/UI/ModelHubWindow.DetailsPane.cs`: details header, tabs, details/storage sections, dependents, diagnostics
-- `Editor/UI/ModelHubWindow.FilesTab.cs`: file recipe editing UI and apply/revert flow
-- `Editor/UI/ModelHubWindow.Navigation.cs`: selection, filtering, and tab-availability helpers
-- `Editor/UI/ModelHubWindow.Actions.cs`: refresh, locate, and manage actions
-- `Editor/UI/ModelHubWindow.Formatting.cs`: path/size formatting helpers used by details UI
-- `Editor/UI/ModelHubFileEditing.cs`: extracted per-file edit session and recipe state models
+Details pane:
 
-Maintainer rule:
+- header: model name, repository link, revision tag (resolved commit in tooltip), status pill
+- actions: primary action from `ModelStatus`, `Show Manifest`, and a `⋮` menu (open on Hugging Face, copy id, remove imported files, remove from cache)
+- status callout: the status description; error diagnostics are added only for error states, because download/import/update diagnostics repeat the status
+- tabs: `Overview` (optional files, details, used by), `Files` (only when inventory is known), `Storage` (only when something is on disk); the strip is hidden when only Overview exists
 
-- keep display-only helpers out of edit-state classes
-- keep recipe-building logic out of generic list/details rendering partials
-- add new UI work to existing task-area partials before creating new ones
-- prefer new partials only when ownership boundary is stable enough to name clearly
+Size labels:
 
-Primary item key:
+- `Download size` in Overview and the list size of pending rows is the remote size of the selected files (`SourceSizeBytes`)
+- `Storage` is the only place that describes local disk usage
 
-- `repository`
-- requested `revision`
+The window polls `BackgroundSyncManager.TryGetProgress` to show the progress banner and refreshes its report whenever a sync stops, in addition to `SyncStateChanged`.
 
-Each row aggregates all manifest dependents that resolve to the same repository dependency unit.
+Overview requests the remote inventory (`RemoteSnapshotSizeEstimateService.EnsureEstimateLookup`) whenever the item has no file list yet, so optional-file sizes show before any download.
 
-The `Details` tab answers:
+### Primary Action
 
-- why this repo exists in the project
-- which package or project manifests depend on it
-- what source revision metadata HF Hub resolved
-- how large the source model files are according to HuggingFace
-- what diagnostics or stale reasons apply
+| Status (`ModelStatusKind`) | Condition | Button | Runs |
+|---|---|---|---|
+| `Conflict` | any dependent has `RevisionConflict` | none | n/a |
+| `Ready` | item state `Ready` | none | n/a |
+| `ChooseFiles` | any dependent has `SelectionRequired` | **Choose Files** | switches to Overview |
+| `DownloadNeeded` | no cache snapshot | **Download & Import** (with size) | `StartForRepository(..., Full)` |
+| `Error` | item state `Error` with cache | **Retry Import** | same |
+| `UpdateNeeded` | `RawCacheFilesMissing`, or runtime files exist but are stale | **Update** | same |
+| `ImportNeeded` | cache exists, nothing imported | **Import** | same |
 
-The `Storage` tab answers:
+All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync.
 
-- what local storage state this repo is currently in
-- where the raw cache snapshot lives
-- where generated runtime files live
-- how much disk space the cache and generated runtime assets currently use
-
-Maintainer rule for size labels:
-
-- `Details > Size` means source model size reported by HuggingFace, not local disk usage
-- `Storage` is the only place that should describe current local cache/runtime footprint
-
-Ready-state actions are intentionally split by ownership boundary:
-
-### Context-Sensitive Action Button
-
-The primary action button in the details header changes label and mode based on the item's current cache and dependency state:
-
-| Visible state | Button label | Mode |
-|---|---|---|
-| No cache snapshot exists | **Download** | `Full` |
-| Cache exists but declared files not yet cached (`RawCacheFilesMissing`) | **Update + Import** | `Full` |
-| Cache complete, import stale or missing | **Import** | `Full` |
-| Item ready | **Manage** (dropdown) | n/a |
-
-All per-item actions (Download, Update + Import, Import, Manage submenu) operate on that single repository only via `StartForRepository(repository, revision, mode)`.
-Only **Import All** in the window header triggers a global sync across all dependencies.
-
-`RawCacheFilesMissing` renders as `MessageType.Info` (not warning) in the Diagnostics tab because it is a normal expected state when file selection grows after an initial download — not a corruption.
-
-- `Remove From Project` deletes owner binding metadata for this Unity project and garbage-collects shared runtime assets only when no bindings still reference them.
-- `Remove From Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
+- `Remove Imported Files` deletes owner binding metadata for this project and garbage-collects shared runtime assets only when no bindings still reference them.
+- `Remove from Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
 
 That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
+
+### Setup Prompt
+
+`AutoPrompt` opens `AutoPromptWindow` once per session when `StatusReport.NeedsStartupPrompt` is true. `BuildViewModel` groups attention statuses by repository. A repository needs a download when any dependent has no raw cache or reports `RawCacheFilesMissing`. The primary label includes the total download size only when every pending size is known. The primary action starts a full sync and opens Model Hub, which shows progress.
 
 ## Repo Metadata File Filtering
 
@@ -116,8 +116,8 @@ The predicate is `ModelDependencyDefinition.IsRepoMetadataFile(string repoPath)`
 | `ModelHubService.GetRepositoryInventory` (raw metadata path) | Strips from `RepositoryFileMetadata` list fed into selected-path expansion, file-count fields, and size estimates |
 | `ModelHubService.GetRepositoryInventory` (import metadata path) | Same, for imported metadata source |
 | `ModelHubService.GetRepositoryInventory` (persisted estimate path) | Same, for pre-download remote estimate source |
-| `ModelHubService.BuildFileItems` path union | Strips from Files tab and Storage treemap rows |
-| `ManifestFileSelectionPopup.ShouldIncludeFile` | Strips from manifest inspector file-picker (All / ONNX / Selected filter modes) |
+| `ModelHubService.BuildFileItems` path union | Strips from Files tab and Storage rows |
+| `FileSelectionPopup.LoadAsync` | Strips from the file picker |
 
 Raw cache on disk is **not** affected — the shared cache stays a faithful mirror of the Hub repository. The filter is presentation-only.
 
@@ -161,7 +161,7 @@ If same repository is declared at multiple requested revisions:
 - Model Hub still shows one row per `repository + requested revision` so users can see each conflicting request
 - every conflicting row renders `Error`
 - primary diagnostic should say repo is declared at multiple revisions and HF Hub supports only one revision per repo per project
-- `Locate` stays available so users can jump to conflicting manifests
+- `Show Manifest` and the Used by rows stay available so users can jump to conflicting manifests
 - conflict summary UI should classify owners as project, embedded/local package, or installed package so user sees whether fix is direct manifest edit or package-version change
 - conflict UX should offer clipboard summary and `Open Package Manager` when installed packages participate
 - import and manage actions stay disabled for conflicting rows until project resolves conflict to one revision
@@ -220,34 +220,28 @@ Future work can extend the same window with:
 
 Those features should reuse the repo-level item model instead of reintroducing dependency-level top rows.
 
-## Model Manifest Inspector
+## Manifest Editor
 
-`Editor/UI/ModelManifestInspector.cs` owns the custom inspector for `hf-hub-manifest.json` assets.
+`ManifestEditorElement` is the shared manifest table for the package `hf-hub-manifest.json` Inspector (`ModelManifestInspector`, a `TextAsset` editor that falls back to Unity's text inspector for other files), the `ProjectManifestAsset` Inspector, and Project Settings.
 
-Shared JSON-backed manifest editing and validation UI now lives in:
+- one `Model ID` field per row; `ManifestModelEntry.TryParseModelId` accepts `owner/name` or a Hugging Face URL
+- revision field with a `main` placeholder; authored text is preserved (see Revision Semantics)
+- `Files` opens `FileSelectionPopup`, enabled only when the row's model id and revision are known to exist
+- `Apply` and `Revert`; inspectors ask about unapplied edits when they close (`ManifestInspectorUnsavedChanges`)
+- read-only stores show labels, a `Read-only` tag, and an embed hint
 
-- `Editor/UI/ManifestDocumentEditor.cs`
-- `Editor/UI/ManifestModelListEditor.cs`
-- `Editor/UI/ModelIdPopupValidationController.cs`
+Validation (`ManifestModelValidationController`):
 
-Those helpers are reused by both:
-
-- package `hf-hub-manifest.json` custom Inspector
-- Project Settings project-manifest editor
-- add-model popups for transient repo validation
-
-Current validation behavior for the small repository-exists icon:
-
-- validation is editor-only and package-authoring focused
-- only writable package manifests trigger background validation
-- checks run on explicit `Apply` or `Revert`, not on every keystroke
-- rows show a temporary pending icon when cache has no result yet or a check is in flight
+- validation is editor-only and package-authoring focused; only editable stores validate
+- rows are checked when they load or change and after `Apply` or `Revert`; each badge shows unknown, checking, valid, or invalid
+- checks merge per row: a batch only replaces rows that are still `Checking`, so other rows keep their state and a newer edit is never overwritten by an older check
+- results not in the persistent cache stay in memory until the row changes
 - cached invalid results are promoted into shared dependency status, so Model Hub and sync skip repositories already known to be missing upstream
 
 Shared invalid-repository flow:
 
 1. `RepositoryValidationCacheService` stores repo-exists checks under `Library/.../hf-hub-repo-validation.json`
-2. `ModelManifestInspector` writes successful yes/no checks into that shared cache
+2. `ManifestEditorElement` writes successful yes/no checks into that shared cache when the store persists validation
 3. `StatusService` upgrades cached negative results into `DependencyReasonCode.InvalidRepository`
 4. `ModelHubService` filters those dependency statuses out instead of showing a broken row
 5. `BackgroundSyncManager` excludes them when building pending sync queues
@@ -258,43 +252,22 @@ Maintainer rule:
 - if a new surface needs to know that a repo is invalid, consume `DependencyReasonCode.InvalidRepository` from shared status instead of reading the cache file directly
 - keep sync and Model Hub policy aligned; do not let one surface hide invalid repos while another still tries to process them
 
-Current cache strategy:
+Cache strategy:
 
 - cache file lives under `Library/Doji/HfHub/model-manifest-validation/hf-hub-repo-validation.json`
 - cache key is `modelId` (`owner/name`)
-- cache survives inspector redraws and script reloads, but is not project data
 - entries expire by age only; anything older than 1 day is treated as a cache miss
-- stale entries are ignored on read and replaced only when a later explicit validation succeeds
 - failed network checks do not overwrite the previous cached result
 - overlapping validation requests for the same `modelId` share one in-flight task
 
-Maintainer rule:
+### Add Model Popup
 
-- do not refresh validation state from cache every `OnInspectorGUI()` call
-- preserve transient `Checking` / pending UI until the async validation pass completes
+`AddModelPopup` adds one model to the project manifest or to a local package manifest (`LocalPackageManifestStore`).
 
-### Add-Model Popup Validation
-
-`Editor/UI/AddProjectModelPopup.cs` reuses the same upstream repo-exists check shape, but not the same persistence policy.
-
-Shared popup validation flow now lives in:
-
-- `Editor/UI/ModelIdPopupValidationController.cs`
-
-Current popup behavior:
-
-- validation runs only when both `Owner` and `Model` fields are non-empty and neither field is focused
-- popup uses `RepositoryValidationCacheService.GetOrStartRepositoryValidationAsync(...)` only for in-flight request dedupe
-- popup does not read or write `Library/.../hf-hub-repo-validation.json`
-- popup validation result is transient UI state for that popup instance only
-- `Add` stays disabled until the current `owner/model` resolves as valid
-
-Maintainer rule:
-
-- keep persistent `Library` cache for manifest-inspector/package-authoring validation
-- keep add-model popup validation ephemeral unless a stronger project-wide reason appears
-- do not let short-lived project-manifest authoring UI silently expand `Library` cache churn
-- keep add-model popups repo-id-only for now; do not add revision-aware validation until those popups expose an authored revision input and can validate the exact user-entered target instead of inventing hidden defaults
+- validation runs 400 ms after the last keystroke, through `ManifestModelValidationController.ValidateDependencyAsync(..., writePersistentCache: false)`
+- the popup does not write `Library/.../hf-hub-repo-validation.json`; its result is transient
+- `Add` stays disabled until the current id resolves as valid
+- the popup is repo-id only and validates `main`; do not add revision-aware validation until it exposes a revision input
 
 ## Revision Semantics
 

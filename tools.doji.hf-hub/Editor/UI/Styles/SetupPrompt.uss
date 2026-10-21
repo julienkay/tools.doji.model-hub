@@ -1,0 +1,104 @@
+/* First-run prompt that asks to download and import missing models. */
+
+.sp {
+    padding: 20px 20px 16px 20px;
+}
+
+.sp-header {
+    flex-direction: row;
+    align-items: flex-start;
+    flex-shrink: 0;
+}
+
+.sp-header__icon {
+    width: 36px;
+    height: 36px;
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+
+.sp-header__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.sp-headline {
+    font-size: 16px;
+    -unity-font-style: bold;
+    white-space: normal;
+    color: var(--hf-text-strong);
+}
+
+.sp-body {
+    margin-top: 4px;
+    white-space: normal;
+    color: var(--hf-text-muted);
+}
+
+.sp-list {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-top: 16px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--hf-border-subtle);
+    background-color: var(--hf-surface);
+}
+
+.sp-model {
+    flex-direction: row;
+    align-items: center;
+    padding: 9px 12px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hf-border-subtle);
+}
+
+.sp-model--last {
+    border-bottom-width: 0;
+}
+
+.sp-model > .hf-dot {
+    margin-right: 10px;
+}
+
+.sp-model__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.sp-model__name {
+    -unity-font-style: bold;
+    color: var(--hf-text-strong);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sp-model__detail {
+    margin-top: 1px;
+    font-size: 11px;
+    color: var(--hf-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sp-model__size {
+    margin-left: 10px;
+    color: var(--hf-text-muted);
+    flex-shrink: 0;
+}
+
+.sp-issues {
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+.sp-footer {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 16px;
+    flex-shrink: 0;
+}
+
+.sp-footer > .hf-button {
+    height: 26px;
+}

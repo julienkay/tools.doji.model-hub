@@ -1,108 +1,155 @@
 # Editor Surfaces
 
-HF Hub splits configuration, manifest authoring, repository inventory, and import actions across Project Settings, manifest Inspectors, and Model Hub.
+HF Hub has four places in the Editor:
 
-## Project Settings
+| Surface | Open with | Use it to |
+|---|---|---|
+| Model Hub | `Window > AI Model Hub` | See every model the project needs, download and import them, choose optional files, and change import settings. |
+| Setup prompt | Opens by itself | Get the models that installed packages need, in one click. |
+| Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, and choose the download cache folder. |
+| Manifest Inspector | Select an `hf-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
-Use `Project Settings > Doji > AI > AI Model Hub` for project configuration.
+## Model Hub
 
-Current settings:
+![Model Hub with the MiDaS model selected. The list on the left groups models into Needs action and Ready. The details on the right show the status, optional files with sizes, details, and the manifests that use the model.](../images/manual/model-hub-overview.png)
 
-- shared cache location override for this project
-- editable project model manifest stored under `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
-- same repository-exists validation icons used by the package-manifest Inspector
+The list on the left shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
 
-Manifest validation icons validate both repository id and effective revision. A green check means HF Hub could resolve that exact `id` plus revision combination on Hugging Face. An invalid branch, tag, or commit shows as invalid even when the repository itself exists.
+- **Manifest errors**: manifests that HF Hub could not read. Their models are skipped until the manifest is fixed.
+- **Needs action**: models to download, import, update, or fix. Errors are listed first.
+- **Ready**: models that are imported into this project.
 
-The page also shows:
+Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not imported yet, and the size in the project for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
 
-- platform default cache root
-- effective cache root after overrides
-- current Sentis version
+### Status and actions
 
-## Manifest Inspectors
+The details pane shows the status and the next action for the selected model.
 
-Selecting a model manifest asset in a package shows a focused Inspector for declared models, with shortcuts into Model Hub and the source file location.
+| Status | Meaning | Action |
+|---|---|---|
+| Not downloaded | The selected files are not in the download cache. | **Download & Import** downloads them and imports the model. The button shows the download size when it is known. |
+| Not imported | The files are downloaded, but the model is not imported into this project. | **Import** |
+| Update needed | More files are selected than were downloaded, or the imported files are out of date. | **Update** downloads missing files and imports the model again. |
+| Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
+| Error | The import failed, or the imported files are broken. The details explain why. | **Retry Import** |
+| Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
+| Ready | The model is imported. | None |
 
-Writable package sources can add or remove model entries, choose whole-repo scope or explicit file scope, and apply those changes directly from the Inspector. Installed package cache entries stay read-only.
+**Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending.
 
-The file-scope picker uses one repository file list:
+While a download or import runs, a bar under the toolbar shows the current file and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
 
-- checked files are selected by the manifest
-- unchecked files stay visible but greyed out
-- `Optional` is available only on selected rows
-- selected rows with `Optional` off are always required
-- selected rows with `Optional` on are stored in the manifest but must be enabled per project owner in Model Hub before HF Hub downloads or imports them
-- leaving every file unchecked keeps whole-repository scope
+More actions:
 
-If the Inspector already knows a declared repository does not exist on HuggingFace, HF Hub keeps that invalid dependency out of Model Hub and skips it during sync until the manifest entry is fixed.
+- **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
+- The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Remove Imported Files**, and **Remove from Cache**.
+  - **Remove Imported Files** deletes the generated files from this project. The downloaded files stay in the cache, so you can import again without downloading.
+  - **Remove from Cache** deletes the downloaded files from this machine. Imported files in this project stay usable.
+- **+ Add Model** in the toolbar adds a Hugging Face model to the project manifest or to the manifest of a local package. See [Add a model](#add-a-model).
 
-## Model Hub Window
+### Overview tab
 
-Use `Window > AI Model Hub` to inspect declared and imported repositories.
-
-The Model Hub window groups entries by repository and revision so one HuggingFace repo appears once even when multiple package or project manifests depend on it.
-
-The `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json` source shows as `Project Settings` in editor UI. ScriptableObject project manifest assets show their asset name, for example `Custom Dependencies` or `HF Hub Project Manifest`, and HF Hub tracks each asset as its own owner for bindings, registries, and stale/removal checks.
-
-For each repository, the window shows:
-
-- local state
-- which package or project manifests depend on it
-- raw cache location
-- selected-source size and current local cache size when metadata is known
-- full repository file inventory in the `Files` tab when inventory is known
-- generated runtime `.sentis` files
-- generated runtime asset size on disk and estimated runtime size from import metadata when available
-- manifest and import diagnostics
-
-## Files Tab
-
-The `Files` tab can show:
-
-- every known repo file path for the resolved revision
-- whether that file is currently selected by any manifest owner
-- how many current manifest owners select that file
-- raw cached file location and size when that source file exists locally
-- generated `.sentis` output path when that ONNX file has been materialized into the project
-- effective conversion recipe source and editable import settings only for selected ONNX files
-
-Selected ONNX rows behave like a traditional importer. Each repository keeps one edit buffer with repo-wide `Revert` and `Apply` actions. `Apply` saves project-owned overrides and immediately reimports that repository. If raw cache is missing, HF Hub downloads the selected source files first and then imports with the applied settings.
-
-Unselected rows remain visible so you can inspect full repository inventory even when the current project depends on only one subset of files.
-
-## Optional File Choices
-
-Optional file choice happens before raw cache exists. When a manifest owner declares optional file rows, the Summary tab shows owner-scoped checkboxes so you can enable ONNX variants before download.
-
-HF Hub stores enabled optional-file choices in:
+The **Optional files** section appears when a manifest marks files as optional. Turn on the files this project needs. HF Hub stores the choice in this project only, in:
 
 ```text
 Assets/Doji/HfHub/HF Hub Optional File Selections.asset
 ```
 
-The asset is project-owned and keyed by manifest owner plus model id, so different package or project manifests can enable different optional files from the same repository.
+The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, imported, or counted in status.
 
-Unenabled optional files do not count as selected files in Model Hub status, `Files` tab owner counts, runtime registry output, or startup prompt logic. Enabled optional files do count, so missing source cache or missing generated runtime output is surfaced like any other selected file.
+**Details** shows the repository, the revision and resolved commit, how many repository files are selected, the download size, and how many Sentis models are imported.
 
-## Actions And Diagnostics
+**Used by** lists every manifest that declares the model, with its scope (all files, or the number of required and optional files) and its revision. **Manifest** selects that manifest. When the model has a revision conflict, each row also says how to fix it for that kind of manifest.
 
-Header actions include:
+### Files tab
 
-- `+ > Add model to project...` to append one entry to `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`
-- `+ > Add model to package...` to pick a local package inside the project and create or update its `hf-hub-manifest.json`
-- `Configure` when a manifest owner must choose optional ONNX files first
-- `Download + Import` when the repository is not cached on this machine yet
-- `Import` when raw cache already exists and HF Hub needs to materialize `.sentis` output into the project
-- `Manage > Remove From Project` to delete generated runtime assets and import metadata from this project
-- `Manage > Remove From Cache` to delete this machine's raw cache entry while keeping generated project assets
-- `Locate` to ping one dependent manifest in Unity; when more than one manifest declares the same repository, HF Hub shows a chooser menu first
+![Files tab with the MiDaS ONNX file expanded. It shows the quantization setting, the input shape 1 × 3 × 256 × 256, where the settings come from, and the downloaded file and imported asset.](../images/manual/model-hub-files.png)
 
-The diagnostics tab can show:
+The **Files** tab lists the files the project uses from the repository. **Show unused** also lists files that no manifest selects.
 
-- revision conflict when same repository is declared at multiple requested revisions in one project
-- partial ONNX conversion when at least one ONNX file converted successfully but another variant was skipped
+Expand an ONNX file to change how HF Hub imports it:
 
-Revision conflict matters because generated runtime paths are repository-scoped. HF Hub does not choose a winner. Conflicting rows show `Conflict`, keep `Locate` available, and block `Import`, `Remove From Project`, and `Remove From Cache` until all manifests agree on one requested revision for that repository.
+- **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the imported model smaller and can reduce accuracy.
+- **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at import, or `-1` to keep it dynamic. Dimensions with the same name share one value.
+- **Settings from**: whether the settings come from the package or from a project override.
+- **Location**: the downloaded file and the imported `.sentis` asset.
 
-When a conflict owner comes from an installed package under Unity Package Manager, that manifest may not be directly editable from the current project. Model Hub shows owner source and resolution guidance for each dependent, can copy a conflict summary to clipboard, and opens Package Manager so you can change package versions, embed or localize package sources, or remove one dependency.
+After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and imports the model again. If you switch to another model or tab with unapplied changes, HF Hub asks whether to apply or discard them.
+
+### Storage tab
+
+![Storage tab showing 63.3 MB in the download cache and 63.2 MB in this project, with one bar per file.](../images/manual/model-hub-storage.png)
+
+The **Storage** tab shows disk usage in two places:
+
+- **Download cache**: the downloaded files on this machine. All projects share this cache. **Show in Explorer** (or Finder) opens the folder.
+- **This project**: the imported Sentis models and metadata. **Show in Project** selects the folder.
+
+**By file** compares the size of each file in the cache and in the project.
+
+### Add a model
+
+![Add Model popup with a pasted Hugging Face URL, a green check that the model was found, the target set to This project, and All files selected.](../images/manual/add-model-popup.png)
+
+**+ Add Model** opens a small form:
+
+1. Enter a model id such as `julienkay/sentis-MiDaS`, or paste the model's Hugging Face URL.
+2. HF Hub checks that the model exists on Hugging Face. **Add** stays disabled until the check passes.
+3. In **Add to**, choose **This project** or a package in the project's `Packages` folder.
+4. Optionally use **Choose…** to select files. The default is all files.
+
+## Setup prompt
+
+![Setup prompt that lists five models the project needs, with the total download size on the Download & Import All button.](../images/manual/setup-prompt.png)
+
+When packages need models that are not imported yet, HF Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size.
+
+- **Download & Import** (or **Import** when the files are already downloaded) starts the work and opens Model Hub to show progress. With several models the button says **Download & Import All**. The button shows the total download size when every size is known.
+- **Open Model Hub** opens Model Hub without starting anything.
+- **Later** closes the prompt.
+
+Models that only have optional files and none turned on do not open the prompt. When the only problem is a revision conflict, the prompt offers **Open Model Hub** instead.
+
+## Project Settings
+
+![Project Settings page with the project models table and the download cache settings.](../images/manual/project-settings.png)
+
+**Project models** lists the models this project declares itself, in addition to the ones packages bring. It is stored in:
+
+```text
+ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
+```
+
+The table works like the [manifest Inspector](#manifest-inspector).
+
+**Download cache** sets where downloaded files are stored. **Default folder** uses the platform location. **Custom folder** stores them in a folder you choose. **In use** shows the folder HF Hub uses now. When the `DOJI_HF_HUB_CACHE_ROOT` environment variable is set, it overrides this setting and the page says so.
+
+The page also shows the installed Sentis version. Imported models are built for that version and imported again when it changes.
+
+## Manifest Inspector
+
+![Manifest Inspector with two models, each with a revision, a files button, and a green check.](../images/manual/manifest-inspector.png)
+
+Select an `hf-hub-manifest.json` in a package, or a project manifest asset, to edit its models in the Inspector:
+
+- **Model ID**: `owner/name`. You can paste a Hugging Face URL; HF Hub keeps only the model id.
+- **Revision**: a branch, tag, or commit. Leave it empty to use `main`.
+- **Files**: **All files**, or a summary such as `1 + 3 optional`. Click it to open the file picker.
+- The round badge shows whether the model id and revision exist on Hugging Face: a green check when found, `!` when not found, `…` while checking, and `?` when not checked yet.
+- **+ Add Model** adds a row, `−` removes one. **Apply** saves the manifest; **Revert** discards your changes. If you select another asset with unapplied changes, HF Hub asks whether to apply them.
+
+Manifests of installed packages are read-only. To edit one, embed the package in the project.
+
+If HF Hub already knows that a model id does not exist on Hugging Face, Model Hub hides that model and sync skips it until the manifest is fixed.
+
+### File picker
+
+![File picker for julienkay/sentis-MiDaS. Two ONNX files are checked; one of them is marked Optional. The footer shows 2 files, 1 optional, and the total size.](../images/manual/file-picker.png)
+
+The file picker lists the repository's files at the selected revision, with their sizes:
+
+- Check the files the manifest needs. With nothing checked, the manifest uses the whole repository.
+- **Optional** appears on checked files. Optional files are off until a project turns them on in Model Hub.
+- Filter with the search field, or show **All**, **ONNX**, or **Selected** files.
+- The footer shows the number of files, how many are optional, and their total size. **Use All Files** clears the selection.
+- If a selected file does not exist at the revision, the picker warns about it.

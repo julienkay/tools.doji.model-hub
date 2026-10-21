@@ -27,6 +27,8 @@ All files live in `Editor/UI/`.
 | `ModelHubWindow.Details.cs` | Header, actions, status callouts, tabs, Overview tab, manifest-error details, empty state |
 | `ModelHubWindow.Files.cs` | Files tab, per-file import settings, apply bar, unsaved-settings prompt |
 | `ModelHubWindow.Storage.cs` | Storage tab |
+| `ModelHubWindow.Cache.cs` | Download cache row and view: legend, treemap, selection card, removal dialogs |
+| `TreemapLayout.cs` | Squarified treemap layout (no UI) |
 | `ModelHubFileEditing.cs` | Edit-session and recipe state models for the Files tab (no UI) |
 | `AutoPromptWindow.cs` | Setup prompt and its view model (`BuildViewModel`) |
 | `AddModelPopup.cs` | Add Model popup (project or local package target) |
@@ -62,7 +64,7 @@ The default folder is the Hugging Face cache (`HF_HUB_CACHE`, `HF_HOME/hub`, `~/
 
 Primary item key is `repository` plus requested `revision`. Each row aggregates all manifest dependents of that unit.
 
-List sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`.
+List sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`. The `Download cache` row is pinned below the list, outside the search filter, with key `cache`.
 
 Details pane:
 
@@ -74,7 +76,15 @@ Details pane:
 Size labels:
 
 - `Download size` in Overview and the list size of pending rows is the remote size of the selected files (`SourceSizeBytes`)
-- `Storage` is the only place that describes local disk usage
+- `Storage` describes one model's local disk usage; the `Download cache` view describes the whole cache
+
+Download cache view:
+
+- data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete` and `.downloading` files are partial downloads. Tiles are named by the snapshot path that links to the blob, else by HF Hub's index, else by the etag
+- "used by this project" means a model repository that the current report lists, compared without letter case
+- the treemap lays out tiles with `TreemapLayout.Squarify` on `GeometryChangedEvent`, as absolutely positioned elements. The Files view nests file tiles in repository groups and merges files past the largest 120 into one tile
+- `Remove from Cache` takes every blob lock of the repository first and deletes nothing if one is held, then deletes the repository folder, its `.locks` folder, and its index folder. It removes all revisions, unlike the per-model action, which removes one revision
+- both removal actions are disabled while a sync runs
 
 The window polls `BackgroundSyncManager.TryGetProgress` to show the progress banner and refreshes its report whenever a sync stops, in addition to `SyncStateChanged`.
 

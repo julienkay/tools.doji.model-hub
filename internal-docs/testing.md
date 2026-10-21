@@ -41,6 +41,10 @@ Cache and repository inventory:
   - large-file blobs are named by content sha256, not the old xet-hash etag
   - partial, unlisted, and wrong-size files are dropped; existing blobs and newer refs win
   - a repository with a locked blob stays in `raw/` and migrates on retry
+- `tools.doji.hf-hub/Tests/Editor/Cache/CacheOverviewServiceTests.cs`
+  - whole-cache scan: repository ids and types, refs, sizes, partial downloads, linked blob names
+  - Remove from Cache deletes the repository, its locks, and its index, and deletes nothing while a blob is locked
+  - deleting a partial download keeps complete files
 - `tools.doji.hf-hub/Tests/Editor/Cache/RepositoryValidationCacheServiceTests.cs`
   - cached repo and revision validation state
 
@@ -104,6 +108,8 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs` (partial conversion)
   - a recorded skipped ONNX file keeps the dependency ready
   - a selected ONNX file with neither output nor skip record stays stale
+- `tools.doji.hf-hub/Tests/Editor/UI/TreemapLayoutTests.cs`
+  - tile areas match weights, stay in bounds, do not overlap, and stay close to square
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelStatusTests.cs`
   - status kind, tone, and primary action for every Model Hub state
 - `tools.doji.hf-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`

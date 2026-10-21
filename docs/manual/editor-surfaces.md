@@ -88,6 +88,26 @@ The **Storage** tab shows disk usage in two places:
 
 **By file** compares the size of each file in the cache and in the project.
 
+### Download cache
+
+![Download cache view with a treemap. Models this project uses are blue, a model it does not use is gray, and a partial download is a yellow strip. The selected model shows its size, partial downloads, revisions, and Remove from Cache.](../images/manual/model-hub-download-cache.png)
+
+**Download cache**, below the model list, shows everything in the Hugging Face cache on this machine: models from this project, from other Unity projects, and from Python tools. The row shows the total size.
+
+The map draws one tile per repository, sized by disk usage. **Files** splits each repository into one tile per file. Colors:
+
+- **Used by this project** (blue): a model one of this project's manifests lists.
+- **Not used by this project** (gray): anything else in the cache, including datasets and spaces.
+- **Partial downloads** (yellow): files left by interrupted downloads. In the Models view they show as a strip at the bottom of the tile.
+
+Select a tile to see its size, partial downloads, and revisions. Actions:
+
+- **Show in Model Hub** selects the model in the list, for models this project uses.
+- **Delete Partial Downloads** deletes the partial files only.
+- **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Imported files in this project stay usable.
+
+Removing is not possible while HF Hub imports models, or while another program downloads a file of that repository.
+
 ### Add a model
 
 ![Add Model popup with a pasted Hugging Face URL, a green check that the model was found, the target set to This project, and All files selected.](../images/manual/add-model-popup.png)

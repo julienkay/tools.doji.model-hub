@@ -220,6 +220,7 @@ namespace Doji.AI.ModelHub.Editor
         private void RefreshReport()
         {
             _report = EditorOperations.CreateModelHubReport();
+            RefreshCacheOverview();
             _lastRefreshTime = DateTime.Now;
             if (_list == null)
             {
@@ -305,6 +306,7 @@ namespace Doji.AI.ModelHub.Editor
             _list.focusable = true;
             _list.RegisterCallback<KeyDownEvent>(HandleListKeyDown);
             pane.Add(_list);
+            pane.Add(BuildCacheRow());
 
             var footer = UiKit.Element("mh-list-footer");
             _listFooter = UiKit.Text(string.Empty, "hf-small", "hf-faint");
@@ -361,6 +363,11 @@ namespace Doji.AI.ModelHub.Editor
             if (_rowsByKey.Count == 0 && !string.IsNullOrWhiteSpace(_searchText))
             {
                 _list.Add(UiKit.Text($"No models match “{_searchText}”.", "mh-list-empty"));
+            }
+
+            if (_cacheRow != null)
+            {
+                _rowsByKey[CacheKey] = _cacheRow;
             }
 
             EnsureSelection();
@@ -481,7 +488,7 @@ namespace Doji.AI.ModelHub.Editor
             _selectedKey = key;
             UpdateRowSelection();
             RebuildDetails();
-            if (key != null && _rowsByKey.TryGetValue(key, out var row))
+            if (key != null && _rowsByKey.TryGetValue(key, out var row) && _list.contentContainer.Contains(row))
             {
                 _list.ScrollTo(row);
             }

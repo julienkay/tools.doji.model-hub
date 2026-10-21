@@ -34,6 +34,12 @@
     --hf-bar-cache: #4C8FD6;
     --hf-bar-project: #4FB477;
     --hf-bar-track: #222222;
+    --hf-tile-used: #3E78B8;
+    --hf-tile-used-text: #FFFFFF;
+    --hf-tile-unused: #4A4A4A;
+    --hf-tile-unused-text: #D4D4D4;
+    --hf-tile-partial: #C9963F;
+    --hf-tile-partial-text: #1C1C1C;
 }
 
 .hf-light {
@@ -70,6 +76,12 @@
     --hf-bar-cache: #3E7FC6;
     --hf-bar-project: #2F9A5C;
     --hf-bar-track: #CFCFCF;
+    --hf-tile-used: #4A86C8;
+    --hf-tile-used-text: #FFFFFF;
+    --hf-tile-unused: #BEBEBE;
+    --hf-tile-unused-text: #1E1E1E;
+    --hf-tile-partial: #E3A743;
+    --hf-tile-partial-text: #1C1C1C;
 }
 
 .hf-root {

@@ -17,9 +17,6 @@ entry when it ships or is rejected.
   packages request conflicting revisions. Never pick a winner silently.
 - **Offline and portable cache.** Reuse and move the shared cache without
   network access.
-- **Cache overview.** A treemap of the whole shared cache in Model Hub, per
-  repository or per file, marking models this project does not use and
-  partial downloads, with Remove from Cache. Build it on the shared cache.
 - **Remote browsing.** Browse HuggingFace repositories in Model Hub.
 - **License display.** Show model license information on first import.
 - **`from_pretrained` helpers.** Extend the wrapper only when a concrete

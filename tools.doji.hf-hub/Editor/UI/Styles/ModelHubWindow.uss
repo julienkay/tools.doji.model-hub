@@ -583,3 +583,197 @@
     margin-left: 4px;
     color: var(--hf-text-muted);
 }
+
+/* Download cache */
+
+.mh-cache-row-container {
+    padding: 4px 0;
+    border-top-width: 1px;
+    border-top-color: var(--hf-border-subtle);
+    flex-shrink: 0;
+}
+
+.mh-cache-hint {
+    margin-top: 10px;
+}
+
+.mh-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.mh-legend__item {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 16px 4px 0;
+}
+
+.mh-legend__swatch {
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    border-radius: 2px;
+}
+
+.mh-legend__count {
+    margin-left: 6px;
+    color: var(--hf-text-muted);
+}
+
+.mh-segment {
+    flex-direction: row;
+}
+
+.mh-segment__button {
+    height: 20px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 1px;
+    border-radius: 0;
+    border-color: var(--hf-button-border);
+    background-color: var(--hf-button);
+    color: var(--hf-text);
+    font-size: 11px;
+}
+
+.mh-segment__button:hover {
+    background-color: var(--hf-button-hover);
+}
+
+.mh-segment__button--first {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+
+.mh-segment__button--last {
+    border-left-width: 0;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+.mh-segment__button--active,
+.mh-segment__button--active:hover {
+    background-color: var(--hf-accent);
+    border-color: var(--hf-accent);
+    color: var(--hf-accent-text);
+}
+
+.mh-treemap {
+    height: 320px;
+    border-radius: 6px;
+    background-color: var(--hf-surface);
+    overflow: hidden;
+}
+
+.mh-tile {
+    position: absolute;
+    padding: 3px 5px;
+    border-width: 1px;
+    border-radius: 3px;
+    border-color: var(--hf-bg);
+    overflow: hidden;
+}
+
+.mh-tile:hover {
+    border-color: var(--hf-text-muted);
+}
+
+.mh-tile--selected,
+.mh-tile--selected:hover {
+    border-width: 2px;
+    border-color: var(--hf-text-strong);
+}
+
+.mh-tile--used {
+    background-color: var(--hf-tile-used);
+}
+
+.mh-tile--unused {
+    background-color: var(--hf-tile-unused);
+}
+
+.mh-tile--partial {
+    background-color: var(--hf-tile-partial);
+}
+
+.mh-tile--used > Label {
+    color: var(--hf-tile-used-text);
+}
+
+.mh-tile--unused > Label {
+    color: var(--hf-tile-unused-text);
+}
+
+.mh-tile--partial > Label {
+    color: var(--hf-tile-partial-text);
+}
+
+.mh-tile__name {
+    font-size: 11px;
+    -unity-font-style: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mh-tile__size {
+    font-size: 10px;
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mh-tile__partial {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--hf-tile-partial);
+}
+
+.mh-tile-group {
+    position: absolute;
+    border-width: 1px;
+    border-radius: 3px;
+    border-color: var(--hf-bg);
+    background-color: var(--hf-surface-raised);
+    overflow: hidden;
+}
+
+.mh-tile-group--selected {
+    border-color: var(--hf-text-strong);
+}
+
+.mh-tile-group__name {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 1px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    color: var(--hf-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mh-cache-card {
+    margin-top: 12px;
+}
+
+.mh-cache-card__header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.mh-cache-card__title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-right: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mh-cache-card > .mh-actions {
+    margin-top: 10px;
+}

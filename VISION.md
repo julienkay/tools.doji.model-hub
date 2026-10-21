@@ -29,7 +29,13 @@ on HuggingFace, and HF Hub gets them into the user's project.
   download and import them. Do not make the user find files, pick revisions,
   or convert models by hand.
 - **Download once, reuse everywhere.** Keep raw downloads in a shared local
-  cache, so many projects use the same files.
+  cache, so many projects, and other tools that use Hugging Face models, use
+  the same files.
+- **Share the Hugging Face cache.** Use the same cache location and layout as
+  the official `huggingface_hub` Python library. A model downloaded by Python
+  tools is reused in Unity, and the other way round. Keep HF Hub's own
+  bookkeeping outside that cache, and treat it as a rebuildable index: the
+  files in the cache are the truth.
 - **Built for Sentis.** Convert ONNX files to project-owned `.sentis` assets.
   They load fast and do not need repeated ONNX import. Treat `.sentis` output
   as specific to the installed Sentis version, and regenerate it when that

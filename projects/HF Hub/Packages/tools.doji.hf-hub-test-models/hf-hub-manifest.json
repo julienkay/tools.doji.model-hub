@@ -5,9 +5,9 @@
             "id": "onnx-community/tiny-clip-test-ONNX",
             "revision": "",
             "files": [
-                "config.json",
-                "merges.txt",
-                "onnx/model.onnx"
+                { "path": "config.json" },
+                { "path": "merges.txt" },
+                { "path": "onnx/model.onnx" }
             ]
         },
         {

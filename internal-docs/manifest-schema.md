@@ -71,6 +71,7 @@ Manifest meaning:
 - one entry resolves one upstream repo revision to one concrete commit
 - one entry owns one canonical repo id for one manifest owner
 - duplicate `id` values inside one manifest are invalid
+- unknown properties at root, model, or file level are invalid, and a non-boolean `optional` is invalid; a silently ignored key can widen a file-selective entry into a whole-repo download. The legacy `optionalFiles` key gets an error with a migration hint
 - optional model variants must not be modeled as duplicate manifest rows with same `id`
 - one entry may depend on whole repo, on explicit always-required files, or on required files plus optional files inside that repo
 - ONNX conversion and runtime materialization operate only on selected `.onnx` files for that dependency scope

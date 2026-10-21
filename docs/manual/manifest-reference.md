@@ -47,6 +47,8 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 
 Model ids must be unique inside one manifest. File paths must be unique inside one model entry after trimming whitespace and converting `\` to `/`.
 
+HF Hub rejects a manifest that contains any other property, or an `optional` value that is not `true` or `false`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
+
 ## Whole-Repository Scope
 
 Omit `files` to require the whole repository file inventory for the resolved revision.

@@ -402,6 +402,10 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class ManifestParser
     {
+        private static readonly string[] RootProperties = { "version", "models" };
+        private static readonly string[] ModelProperties = { "id", "revision", "files" };
+        private static readonly string[] FileProperties = { "path", "optional" };
+
         /// <summary>
         /// Parses one manifest JSON document into immutable runtime manifest model.
         /// </summary>
@@ -426,6 +430,11 @@ namespace Doji.AI.ModelHub
                 }
 
                 var rootObject = (JObject)root;
+                if (!TryRejectUnknownProperties(rootObject, RootProperties, "Manifest root", out errorMessage))
+                {
+                    return false;
+                }
+
                 if (!TryReadRequiredInt(rootObject, "version", out var version, out errorMessage))
                 {
                     return false;
@@ -456,7 +465,16 @@ namespace Doji.AI.ModelHub
                     }
 
                     var modelElement = (JObject)modelToken;
-                    var id = ReadRequiredString(modelElement, "id", modelIndex, out errorMessage);
+                    if (!TryRejectUnknownProperties(
+                            modelElement,
+                            ModelProperties,
+                            $"Manifest model at index {modelIndex}",
+                            out errorMessage))
+                    {
+                        return false;
+                    }
+
+                    var id =ReadRequiredString(modelElement, "id", modelIndex, out errorMessage);
                     if (errorMessage != null)
                     {
                         return false;
@@ -480,6 +498,38 @@ namespace Doji.AI.ModelHub
                 errorMessage = $"Manifest contains invalid JSON: {exception.Message}";
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Rejects properties outside the v1 schema. A misspelled or outdated key must fail loudly:
+        /// a silently ignored key can turn a file-selective dependency into a whole-repository download.
+        /// </summary>
+        private static bool TryRejectUnknownProperties(
+            JObject element,
+            IReadOnlyCollection<string> allowedProperties,
+            string location,
+            out string errorMessage)
+        {
+            errorMessage = null;
+            foreach (var property in element.Properties())
+            {
+                if (allowedProperties.Contains(property.Name, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                errorMessage = $"{location} has unknown property `{property.Name}`. " +
+                    $"Allowed properties: {string.Join(", ", allowedProperties.Select(name => $"`{name}`"))}.";
+                if (string.Equals(property.Name, "optionalFiles", StringComparison.Ordinal))
+                {
+                    errorMessage += " `optionalFiles` was replaced by `files` entries with an `optional` flag, " +
+                        "for example `\"files\": [{ \"path\": \"onnx/model.onnx\", \"optional\": true }]`.";
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         private static bool TryReadRequiredInt(
@@ -571,6 +621,15 @@ namespace Doji.AI.ModelHub
                 }
 
                 var fileObject = (JObject)child;
+                if (!TryRejectUnknownProperties(
+                        fileObject,
+                        FileProperties,
+                        $"Manifest model at index {modelIndex} `{propertyName}[{fileIndex}]`",
+                        out errorMessage))
+                {
+                    return null;
+                }
+
                 var path = ReadRequiredString(fileObject, "path", modelIndex, out errorMessage);
                 if (errorMessage != null)
                 {
@@ -578,9 +637,18 @@ namespace Doji.AI.ModelHub
                     return null;
                 }
 
-                var optional = fileObject.TryGetValue("optional", StringComparison.Ordinal, out var optionalToken) &&
-                    optionalToken.Type == JTokenType.Boolean &&
-                    optionalToken.Value<bool>();
+                var optional = false;
+                if (fileObject.TryGetValue("optional", StringComparison.Ordinal, out var optionalToken))
+                {
+                    if (optionalToken.Type != JTokenType.Boolean)
+                    {
+                        errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}[{fileIndex}].optional` as a boolean when present.";
+                        return null;
+                    }
+
+                    optional = optionalToken.Value<bool>();
+                }
+
                 values.Add(new ModelDependencyFileDefinition(path, optional));
                 fileIndex++;
             }

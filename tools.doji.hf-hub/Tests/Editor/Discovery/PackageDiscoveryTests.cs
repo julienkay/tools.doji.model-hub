@@ -243,6 +243,68 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies outdated `optionalFiles` key fails with a migration hint instead of silently
+        /// turning the dependency into a whole-repository download.
+        /// </summary>
+        [Test]
+        public void TryParse_RejectsLegacyOptionalFilesWithMigrationHint()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""julienkay/sentis-MiDaS"",
+      ""optionalFiles"": [ ""onnx/midas_v21_small_256.onnx"" ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(manifest, Is.Null);
+            Assert.That(errorMessage, Does.Contain("Manifest model at index 0 has unknown property `optionalFiles`"));
+            Assert.That(errorMessage, Does.Contain(@"""optional"": true"));
+        }
+
+        /// <summary>
+        /// Verifies unknown keys fail at root, model, and file level.
+        /// </summary>
+        [TestCase(@"{ ""version"": 1, ""models"": [], ""name"": ""x"" }", "Manifest root has unknown property `name`")]
+        [TestCase(@"{ ""version"": 1, ""models"": [ { ""id"": ""a/b"", ""revison"": ""main"" } ] }", "Manifest model at index 0 has unknown property `revison`")]
+        [TestCase(@"{ ""version"": 1, ""models"": [ { ""id"": ""a/b"", ""files"": [ { ""path"": ""m.onnx"", ""optinal"": true } ] } ] }", "Manifest model at index 0 `files[0]` has unknown property `optinal`")]
+        public void TryParse_RejectsUnknownProperties(string manifestContents, string expectedMessage)
+        {
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(manifest, Is.Null);
+            Assert.That(errorMessage, Does.StartWith(expectedMessage));
+        }
+
+        /// <summary>
+        /// Verifies a non-boolean optional flag fails instead of silently meaning required.
+        /// </summary>
+        [Test]
+        public void TryParse_RejectsNonBooleanOptionalFlag()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""a/b"",
+      ""files"": [ { ""path"": ""m.onnx"", ""optional"": ""true"" } ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out _, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(errorMessage, Does.Contain("`files[0].optional` as a boolean"));
+        }
+
+        /// <summary>
         /// Verifies manifest validation rejects duplicate selected file paths.
         /// </summary>
         [Test]

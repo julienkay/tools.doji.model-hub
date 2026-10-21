@@ -85,8 +85,11 @@ Layout:
 
 ```text
 models--<owner>--<name>/refs/<revision>
+models--<owner>--<name>/blobs/<etag>
 models--<owner>--<name>/snapshots/<commit>/<repo-file>
 ```
+
+File content is stored once in `blobs/`. Each snapshot file is a link to its blob, so revisions that share a file store it once. Where the file system does not allow symbolic links (Windows without Developer Mode), snapshot files are plain copies instead, as in the Python library.
 
 HF Hub keeps its own index of cached files outside this cache, in `%LocalAppData%/Doji/HfHub/index` on Windows, `~/Library/Application Support/Doji/HfHub/index` on macOS, and `~/.cache/doji/hf-hub/index` on Linux. Manifest selection stays owner-scoped and is not inferred from cache contents.
 

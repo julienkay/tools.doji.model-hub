@@ -52,12 +52,7 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var file in filesToDownload)
             {
-                var targetPath = CachePaths.GetSnapshotFilePath(
-                    resolvedSnapshot.Repository,
-                    resolvedSnapshot.ResolvedCommitHash,
-                    file.RepoPath);
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? snapshotRoot);
-                await _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken);
+                await DownloadIntoSnapshotAsync(resolvedSnapshot, file, progress, cancellationToken);
             }
 
             var metadata = BuildMergedMetadata(snapshotRoot, existingMetadata, resolvedSnapshot);
@@ -65,6 +60,46 @@ namespace Doji.AI.ModelHub.Editor
             WriteMetadata(metadataPath, metadata);
             WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
             return new CachedSnapshot(snapshotRoot, metadataPath, metadata);
+        }
+
+        /// <summary>
+        /// Stores one file like <c>huggingface_hub</c>: content in <c>blobs/&lt;etag&gt;</c>, and the snapshot path
+        /// links to it. A blob that another revision already downloaded is reused without downloading.
+        /// Files without an etag are downloaded straight into the snapshot.
+        /// </summary>
+        private async Task DownloadIntoSnapshotAsync(
+            ResolvedSnapshotVersion resolvedSnapshot,
+            ResolvedRepoFile file,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            var snapshotPath = CachePaths.GetSnapshotFilePath(
+                resolvedSnapshot.Repository,
+                resolvedSnapshot.ResolvedCommitHash,
+                file.RepoPath);
+            var etag = CachePaths.NormalizeEtag(file.EntityTag);
+            if (string.IsNullOrWhiteSpace(etag))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath) ?? CachePaths.GetSnapshotRoot(resolvedSnapshot.Repository, resolvedSnapshot.ResolvedCommitHash));
+                await _httpClient.DownloadFileAsync(file, snapshotPath, progress, cancellationToken);
+                return;
+            }
+
+            var blobPath = CachePaths.GetBlobPath(resolvedSnapshot.Repository, etag);
+            var isNewBlob = !IsCompleteBlob(blobPath, file.SizeInBytes);
+            if (isNewBlob)
+            {
+                Directory.CreateDirectory(CachePaths.GetBlobsRoot(resolvedSnapshot.Repository));
+                await _httpClient.DownloadFileAsync(file, blobPath, progress, cancellationToken);
+            }
+
+            CacheFiles.LinkSnapshotFile(blobPath, snapshotPath, isNewBlob);
+        }
+
+        private static bool IsCompleteBlob(string blobPath, long? expectedSizeInBytes)
+        {
+            var length = CacheFiles.GetLength(blobPath);
+            return length.HasValue && (!expectedSizeInBytes.HasValue || length.Value == expectedSizeInBytes.Value);
         }
 
         public bool TryReadMetadata(string metadataPath, out RawCacheMetadata metadata)
@@ -136,7 +171,7 @@ namespace Doji.AI.ModelHub.Editor
                 return true;
             }
 
-            return new FileInfo(cachedFile.CachedFilePath).Length == resolvedFile.SizeInBytes.Value;
+            return CacheFiles.GetLength(cachedFile.CachedFilePath) == resolvedFile.SizeInBytes.Value;
         }
 
         private static bool IsLocalCacheSnapshotCurrent(

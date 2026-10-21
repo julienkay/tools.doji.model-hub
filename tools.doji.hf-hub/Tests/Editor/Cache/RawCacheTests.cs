@@ -30,6 +30,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [TearDown]
         public void TearDown()
         {
+            CacheFiles.ForceSymlinkSupport = null;
             if (Directory.Exists(_rootDirectory))
             {
                 Directory.Delete(_rootDirectory, true);
@@ -170,6 +171,66 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(secondSnapshot.SnapshotRootPath, Is.EqualTo(firstSnapshot.SnapshotRootPath));
             Assert.That(reuseClient.ResolveCallCount, Is.EqualTo(1));
             Assert.That(reuseClient.DownloadCallCount, Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// Without symlinks, a new download lands in blobs and then moves into the snapshot, like huggingface_hub.
+        /// </summary>
+        [Test]
+        public async Task GetOrDownloadAsync_WithoutSymlinks_MovesNewBlobIntoSnapshot()
+        {
+            CacheFiles.ForceSymlinkSupport = false;
+            var service = new RawCacheService(new FakeHttpClient(CreateResolvedSnapshot()));
+
+            var snapshot = await service.GetOrDownloadAsync(CreateDependency(), null, CancellationToken.None);
+
+            var modelPath = CachePaths.GetSnapshotFilePath("doji/test-model", "abc123", "models/model.onnx");
+            Assert.That(snapshot.Metadata.Files.Any(file => file.CachedFilePath == modelPath), Is.True);
+            Assert.That(File.ReadAllText(modelPath), Is.EqualTo("xxxxx"));
+            Assert.That(CacheFiles.IsSymlink(modelPath), Is.False);
+            Assert.That(File.Exists(CachePaths.GetBlobPath("doji/test-model", "etag-model")), Is.False);
+        }
+
+        /// <summary>
+        /// A blob that is already in the cache, for example from another revision or from Python, is reused
+        /// without downloading it again.
+        /// </summary>
+        [Test]
+        public async Task GetOrDownloadAsync_ReusesExistingBlob()
+        {
+            CacheFiles.ForceSymlinkSupport = false;
+            foreach (var (etag, content) in new[] { ("etag-config", "cccccc"), ("etag-model", "mmmmm") })
+            {
+                var blobPath = CachePaths.GetBlobPath("doji/test-model", etag);
+                Directory.CreateDirectory(Path.GetDirectoryName(blobPath));
+                File.WriteAllText(blobPath, content);
+            }
+
+            var httpClient = new FakeHttpClient(CreateResolvedSnapshot());
+            await new RawCacheService(httpClient).GetOrDownloadAsync(CreateDependency(), null, CancellationToken.None);
+
+            Assert.That(httpClient.DownloadCallCount, Is.EqualTo(0));
+            Assert.That(File.ReadAllText(CachePaths.GetSnapshotFilePath("doji/test-model", "abc123", "models/model.onnx")), Is.EqualTo("mmmmm"));
+            Assert.That(File.Exists(CachePaths.GetBlobPath("doji/test-model", "etag-model")), Is.True);
+        }
+
+        /// <summary>
+        /// Where the file system allows symlinks, snapshot files are relative links to blobs, like huggingface_hub.
+        /// </summary>
+        [Test]
+        public async Task GetOrDownloadAsync_WithSymlinks_LinksSnapshotToBlob()
+        {
+            CacheFiles.ForceSymlinkSupport = null;
+            Assume.That(CacheFiles.AreSymlinksSupported(_rootDirectory), Is.True, "This machine cannot create symbolic links.");
+            var service = new RawCacheService(new FakeHttpClient(CreateResolvedSnapshot()));
+
+            await service.GetOrDownloadAsync(CreateDependency(), null, CancellationToken.None);
+
+            var modelPath = CachePaths.GetSnapshotFilePath("doji/test-model", "abc123", "models/model.onnx");
+            Assert.That(CacheFiles.IsSymlink(modelPath), Is.True);
+            Assert.That(File.ReadAllText(modelPath), Is.EqualTo("xxxxx"));
+            Assert.That(CacheFiles.GetLength(modelPath), Is.EqualTo(5));
+            Assert.That(File.Exists(CachePaths.GetBlobPath("doji/test-model", "etag-model")), Is.True);
         }
 
         private static DiscoveredModelDependency CreateDependency()

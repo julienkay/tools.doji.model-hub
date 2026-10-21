@@ -18,12 +18,23 @@ Layout, as in `huggingface_hub`:
 
 ```text
 <cache-root>/models--<owner>--<name>/refs/<revision>           (nested for revisions with "/", e.g. refs/pr/1)
-<cache-root>/models--<owner>--<name>/snapshots/<commit>/<repo-file>
-<cache-root>/models--<owner>--<name>/blobs/<etag>              (written from phase 2 of the switch)
+<cache-root>/models--<owner>--<name>/snapshots/<commit>/<repo-file>   (relative symlink to ../../blobs/<etag>, or a plain file)
+<cache-root>/models--<owner>--<name>/blobs/<etag>
 <cache-root>/.locks/models--<owner>--<name>/<etag>.lock       (used from phase 3 of the switch)
 ```
 
-Today snapshot files are plain files. `huggingface_hub` accepts them: its cache scanner treats a non-symlink snapshot file as its own blob.
+Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`RawCacheService.DownloadIntoSnapshotAsync`, `CacheFiles`):
+
+1. The etag (`X-Linked-Etag` or `ETag`, without quotes) names the blob. LFS files use their sha256, small files their git sha1.
+2. A complete blob already in the cache, from another revision or from Python, is reused without a download.
+3. Otherwise the file downloads to `blobs/<etag>` (partial data in `<etag>.downloading`; upstream uses `.incomplete`, so the two do not resume each other's partial files).
+4. The snapshot path becomes a relative symlink to the blob. `CacheFiles.AreSymlinksSupported` probes each cache folder once, like `are_symlinks_supported`.
+5. Without symlinks (Windows without Developer Mode), a new blob moves into the snapshot and an existing blob is copied, exactly like upstream. HF Hub logs this once.
+6. Files without an etag download straight into the snapshot.
+
+On Windows a symlink reports 0 bytes, so sizes go through `CacheFiles.GetLength`, which opens the file and follows the link.
+
+Remove from Cache deletes the snapshot's links. Until phase 5 adds per-blob cleanup, blobs are deleted only when no snapshot folder of that repository remains, because Python tools may still use them.
 
 HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports every unknown folder in the cache root as a corrupted entry. The index lives in HF Hub's data folder (`CachePaths.GetDataRoot`):
 

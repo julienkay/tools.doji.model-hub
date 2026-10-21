@@ -382,7 +382,7 @@ namespace Doji.AI.ModelHub.Editor
                     continue;
                 }
 
-                totalBytes += new FileInfo(path).Length;
+                totalBytes += CacheFiles.GetLength(path) ?? 0;
                 foundAny = true;
             }
 
@@ -426,7 +426,7 @@ namespace Doji.AI.ModelHub.Editor
                 return null;
             }
 
-            return new FileInfo(path).Length;
+            return CacheFiles.GetLength(path);
         }
 
         private static long? GetRuntimeFileSizeOnDisk(ImportedRuntimeFileMetadata runtimeFile)

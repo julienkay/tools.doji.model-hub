@@ -88,6 +88,8 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     File.Delete(indexPath);
                 }
+
+                DeleteBlobsWhenNoSnapshotRemains(item.Repository);
             }
 
             DeleteEmptyParentFolders(revisionRefPath, Path.Combine(CachePaths.GetRepositoryRoot(item.Repository), "refs"));
@@ -205,6 +207,26 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Deletes the repository's blobs once no snapshot links to them. Other tools may keep snapshots of the
+        /// same repository in the shared cache, so blobs stay while any snapshot folder remains.
+        /// </summary>
+        private static void DeleteBlobsWhenNoSnapshotRemains(string repository)
+        {
+            var repositoryRoot = CachePaths.GetRepositoryRoot(repository);
+            var snapshotsRoot = Path.Combine(repositoryRoot, "snapshots");
+            if (Directory.Exists(snapshotsRoot) && Directory.EnumerateDirectories(snapshotsRoot).Any())
+            {
+                return;
+            }
+
+            var blobsRoot = CachePaths.GetBlobsRoot(repository);
+            if (Directory.Exists(blobsRoot))
+            {
+                Directory.Delete(blobsRoot, true);
+            }
         }
 
         /// <summary>

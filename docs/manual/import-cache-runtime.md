@@ -13,7 +13,7 @@ Current sync flow:
 3. Resolve each dependency to one concrete HuggingFace repository commit.
 4. Read the repository file inventory for that commit.
 5. Download only the files required by current manifest owners into shared raw cache.
-6. Write snapshot metadata and revision ref files.
+6. Write the revision ref and HF Hub's index entry for the commit.
 7. Materialize only the selected `.onnx` files into project-owned `.sentis` output through Unity Inference editor conversion code.
 8. Serialize resulting `.sentis` files into generated runtime snapshot.
 9. Write editor-only import metadata under `Library/Doji/HfHub/imports/`.
@@ -91,7 +91,7 @@ models--<owner>--<name>/snapshots/<commit>/<repo-file>
 
 File content is stored once in `blobs/`. Each snapshot file is a link to its blob, so revisions that share a file store it once. Where the file system does not allow symbolic links (Windows without Developer Mode), snapshot files are plain copies instead, as in the Python library.
 
-HF Hub keeps its own index of cached files outside this cache, in `%LocalAppData%/Doji/HfHub/index` on Windows, `~/Library/Application Support/Doji/HfHub/index` on macOS, and `~/.cache/doji/hf-hub/index` on Linux. Manifest selection stays owner-scoped and is not inferred from cache contents.
+HF Hub decides what is downloaded by looking at the files in the cache, so models that Python tools downloaded count too. It keeps a small index outside the cache, with each repository's file list, in `%LocalAppData%/Doji/HfHub/index` on Windows, `~/Library/Application Support/Doji/HfHub/index` on macOS, and `~/.cache/doji/hf-hub/index` on Linux. Manifest selection stays owner-scoped and is not inferred from cache contents.
 
 If downloaded files are removed but generated project assets still exist, the model stays usable in that project. HF Hub keeps it in imported state and downloads files again only when a later update or import needs them.
 

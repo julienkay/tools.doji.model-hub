@@ -64,7 +64,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Array.Empty<ManifestDiscoveryIssue>(),
                 new[]
                 {
-                    CreateStatus(DependencyState.Failed, hasRawCache: true, reasonCode: DependencyReasonCode.RawCacheMetadataInvalid)
+                    CreateStatus(DependencyState.Failed, hasRawCache: true, reasonCode: DependencyReasonCode.RawCacheRevisionRefUnreadable)
                 });
 
             var viewModel = AutoPromptWindow.BuildViewModel(report);

@@ -195,7 +195,6 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RuntimeFilesMissing => "Generated runtime files are missing. Re-import this model.",
                 DependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
                 DependencyReasonCode.RawSnapshotRootMissing => "Cached source files are missing. Download this model again before importing.",
-                DependencyReasonCode.RawCacheMetadataInvalid => "Cached source metadata is invalid. Download this model again.",
                 DependencyReasonCode.RawCacheFilesMissing => "Cached source files are missing. Update the model cache.",
                 DependencyReasonCode.ImportBindingInvalid => "Project import binding metadata is invalid. Re-import this model.",
                 DependencyReasonCode.SharedImportMetadataInvalid => "Generated runtime metadata is invalid. Re-import this model.",
@@ -203,12 +202,10 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.ImportBindingStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 DependencyReasonCode.SharedImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 DependencyReasonCode.RevisionConflict => null,
-                DependencyReasonCode.RawCacheMetadataMismatch => "Cached source files no longer match the declared revision. Download this model again.",
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
                 DependencyReasonCode.SelectionRequired => "Choose at least one optional ONNX file for this manifest owner before downloading or importing.",
                 DependencyReasonCode.NoSelectedOnnxFiles => "This dependency does not currently select any ONNX file.",
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
-                DependencyReasonCode.RawCacheMetadataMissingAfterImport => null,
                 _ => status.MaintainerMessage
             };
         }

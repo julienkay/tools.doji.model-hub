@@ -63,6 +63,7 @@ Status and sync:
   - sync success and failure orchestration
 - `tools.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and damaged-cache codes
+  - status reads snapshots from disk; a missing or foreign index is ignored
   - case-only repository id differences are not treated as corrupt cache
 - `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage

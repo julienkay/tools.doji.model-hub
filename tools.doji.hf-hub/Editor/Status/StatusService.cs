@@ -154,59 +154,20 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
-            if (!_rawCacheService.TryReadMetadata(rawMetadataPath, out var rawMetadata))
-            {
-                if (TryBuildImportedOnlyStatus(
-                    dependency,
-                    bindingMetadataAbsolutePath,
-                    bindingMetadataAssetPath,
-                    DependencyReasonCode.RawCacheMetadataMissingAfterImport,
-                    "Generated runtime files are present. Raw cache metadata has been removed from this machine.",
-                    out var importedOnlyStatus))
-                {
-                    return importedOnlyStatus;
-                }
-
-                return Failed(
-                    dependency,
-                    DependencyReasonCode.RawCacheMetadataInvalid,
-                    "Raw cache metadata is invalid.",
-                    revisionRefPath,
-                    snapshotRoot,
-                    rawMetadataPath,
-                    runtimePreviewAssetPath,
-                    bindingMetadataAssetPath);
-            }
-
-            if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
-            {
-                return Stale(
-                    dependency,
-                    DependencyReasonCode.RawCacheMetadataMismatch,
-                    "Raw cache metadata differs from manifest or revision ref.",
-                    revisionRefPath,
-                    snapshotRoot,
-                    rawMetadataPath,
-                    rawMetadata,
-                    runtimePreviewAssetPath,
-                    bindingMetadataAssetPath);
-            }
-
+            // The files on disk are the truth; HF Hub's index only adds the repository file list.
+            var rawMetadata = _rawCacheService.ReadSnapshot(dependency.Repository, dependency.Revision, resolvedCommitHash);
             var repositoryFilePaths = (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
                 .Select(file => file.RepoPath)
                 .ToArray();
             var fallbackCachedPaths = (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
                 .Select(file => file.RepoPath)
                 .ToArray();
-            var selectedRepoPaths = dependency.GetSelectedRepoPaths(repositoryFilePaths, fallbackCachedPaths).ToArray();
-            if (selectedRepoPaths.Length == 0)
+            if (dependency.SelectsWholeRepository && repositoryFilePaths.Length == 0)
             {
-                return Failed(
+                return Missing(
                     dependency,
-                    DependencyReasonCode.RawCacheMetadataInvalid,
-                    "Raw cache metadata does not expose repository file inventory for this dependency.",
+                    DependencyReasonCode.RawCacheFilesMissing,
+                    "The repository file list is not known on this machine, so HF Hub cannot tell whether every file is downloaded. Update to check.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -214,6 +175,8 @@ namespace Doji.AI.ModelHub.Editor
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath);
             }
+
+            var selectedRepoPaths = dependency.GetSelectedRepoPaths(repositoryFilePaths, fallbackCachedPaths).ToArray();
 
             var rawFilesByRepoPath = (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>())
                 .Where(file => file != null && !string.IsNullOrWhiteSpace(file.RepoPath))

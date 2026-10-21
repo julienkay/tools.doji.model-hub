@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -138,16 +139,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies DamagedCacheCodes contains exactly the three codes that indicate damaged cache bookkeeping
-        /// and not transient-missing or invalid-repo codes.
+        /// Only damage on disk counts as damaged cache; HF Hub's own index never does.
         /// </summary>
         [Test]
         public void DamagedCacheCodes_ContainsExactlyExpectedCodes()
         {
             var expected = new HashSet<DependencyReasonCode>
             {
-                DependencyReasonCode.RawCacheMetadataInvalid,
-                DependencyReasonCode.RawCacheMetadataMismatch,
                 DependencyReasonCode.RawCacheRevisionRefUnreadable,
             };
 
@@ -167,7 +165,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         /// <summary>
         /// Verifies BuildPendingDependencyKeys returns a damaged-cache dependency when filtered by DamagedCacheCodes.
-        /// Corruption state: rev ref exists, snapshot dir exists, metadata JSON is absent.
+        /// Damage: the revision ref exists but cannot be read, because another handle holds it exclusively.
         /// </summary>
         [Test]
         public void BuildPendingDependencyKeys_IncludesDamagedDependency_WhenFilteredByDamagedCacheCodes()
@@ -186,23 +184,25 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
             Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
             File.WriteAllText(revRefPath, commitHash);
-
-            var snapshotRoot = CachePaths.GetSnapshotRoot(modelId, commitHash);
-            Directory.CreateDirectory(snapshotRoot);
+            Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
 
             var discoveryReport = new DiscoveryReport(
                 new[] { dependency },
                 Array.Empty<ManifestDiscoveryIssue>());
 
-            var pendingKeys = BackgroundSyncManager.BuildPendingDependencyKeys(
-                discoveryReport,
-                dep =>
-                {
-                    var statusReport = new StatusService().BuildStatusReport(
-                        new DiscoveryReport(new[] { dep }, Array.Empty<ManifestDiscoveryIssue>()));
-                    var status = statusReport.DependencyStatuses[0];
-                    return DependencyStatus.DamagedCacheCodes.Contains(status.ReasonCode);
-                });
+            string[] pendingKeys;
+            using (new FileStream(revRefPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                pendingKeys = BackgroundSyncManager.BuildPendingDependencyKeys(
+                    discoveryReport,
+                    dep =>
+                    {
+                        var statusReport = new StatusService().BuildStatusReport(
+                            new DiscoveryReport(new[] { dep }, Array.Empty<ManifestDiscoveryIssue>()));
+                        var status = statusReport.DependencyStatuses[0];
+                        return DependencyStatus.DamagedCacheCodes.Contains(status.ReasonCode);
+                    });
+            }
 
             Assert.That(pendingKeys, Has.Length.EqualTo(1));
             Assert.That(pendingKeys[0], Is.EqualTo($"tools.doji.corrupt:{modelId}"));
@@ -243,126 +243,106 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies that a corrupt dependency's reason code is RawCacheMetadataInvalid when
-        /// the revision ref and snapshot dir exist but the metadata JSON is absent.
+        /// Without HF Hub's index, status reads the snapshot from disk: a selected file that is there counts as
+        /// cached, for example when Python's huggingface_hub downloaded it.
         /// </summary>
         [Test]
-        public void StatusService_ReturnsRawCacheMetadataInvalid_WhenSnapshotDirExistsButMetadataAbsent()
+        public void StatusService_ReadsSnapshotFromDisk_WhenIndexIsMissing()
         {
             var commitHash = "aabbccdd01";
-            var modelId = $"doji/meta-invalid-{Guid.NewGuid():N}";
-            var dependency = new DiscoveredModelDependency(
-                "tools.doji.meta-invalid",
-                "Meta Invalid Package",
-                "1.0.0",
-                "/tmp/tools.doji.meta-invalid",
-                "/tmp/tools.doji.meta-invalid/hf-hub-manifest.json",
-                "manifesthash-metainvalid",
-                new ModelDependencyDefinition(modelId, "main"));
+            var modelId = $"doji/disk-{Guid.NewGuid():N}";
+            var dependency = CreateDependency(modelId, new[] { new ModelDependencyFileDefinition("onnx/model.onnx") });
+            WriteRef(modelId, commitHash);
+            var modelPath = CachePaths.GetSnapshotFilePath(modelId, commitHash, "onnx/model.onnx");
+            Directory.CreateDirectory(Path.GetDirectoryName(modelPath));
+            File.WriteAllText(modelPath, "onnx");
 
-            var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
-            Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
-            File.WriteAllText(revRefPath, commitHash);
+            var status = BuildStatus(dependency);
 
-            var snapshotRoot = CachePaths.GetSnapshotRoot(modelId, commitHash);
-            Directory.CreateDirectory(snapshotRoot);
-
-            var discoveryReport = new DiscoveryReport(
-                new[] { dependency },
-                Array.Empty<ManifestDiscoveryIssue>());
-            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
-
-            Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
-            Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheMetadataInvalid));
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingMissing), status.MaintainerMessage);
+            Assert.That(status.RawMetadata.Files.Single().CachedFilePath, Is.EqualTo(modelPath));
         }
 
         /// <summary>
-        /// Verifies StatusService returns RawCacheMetadataMismatch when metadata repository field
-        /// does not match the declared dependency repository.
+        /// An index entry that describes another repository is ignored. Without a file list, a whole-repository
+        /// dependency needs an update instead of being reported as damaged.
         /// </summary>
         [Test]
-        public void StatusService_ReturnsRawCacheMetadataMismatch_WhenMetadataRepositoryDiffers()
+        public void StatusService_IgnoresIndexForAnotherRepository()
         {
             var commitHash = "aabbccdd02";
             var modelId = $"doji/meta-mismatch-{Guid.NewGuid():N}";
-            var dependency = new DiscoveredModelDependency(
-                "tools.doji.meta-mismatch",
-                "Meta Mismatch Package",
-                "1.0.0",
-                "/tmp/tools.doji.meta-mismatch",
-                "/tmp/tools.doji.meta-mismatch/hf-hub-manifest.json",
-                "manifesthash-metamismatch",
-                new ModelDependencyDefinition(modelId, "main"));
+            var dependency = CreateDependency(modelId, null);
+            WriteRef(modelId, commitHash);
+            Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
+            WriteIndex(modelId, commitHash, "doji/other-model");
 
-            var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
-            Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
-            File.WriteAllText(revRefPath, commitHash);
+            var status = BuildStatus(dependency);
 
-            var snapshotRoot = CachePaths.GetSnapshotRoot(modelId, commitHash);
-            Directory.CreateDirectory(snapshotRoot);
-
-            var metadataPath = CachePaths.GetSnapshotMetadataPath(modelId, commitHash);
-            var mismatchedMetadata = new
-            {
-                Repository = "doji/other-model",
-                RequestedRevision = "main",
-                ResolvedCommitHash = commitHash,
-                RepositoryFiles = Array.Empty<object>(),
-                Files = Array.Empty<object>()
-            };
-            Directory.CreateDirectory(Path.GetDirectoryName(metadataPath));
-            File.WriteAllText(metadataPath, Newtonsoft.Json.JsonConvert.SerializeObject(mismatchedMetadata));
-
-            var discoveryReport = new DiscoveryReport(
-                new[] { dependency },
-                Array.Empty<ManifestDiscoveryIssue>());
-            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
-
-            Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
-            Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheMetadataMismatch));
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
+            Assert.That(status.MaintainerMessage, Does.Contain("file list is not known"));
         }
 
         /// <summary>
-        /// A repository id that differs only in letter case is the same Hugging Face repository, so it is not
-        /// treated as damaged cache, which would ask the user to download it again.
+        /// A repository id that differs only in letter case is the same Hugging Face repository, so the index
+        /// still applies.
         /// </summary>
         [Test]
-        public void StatusService_DoesNotReportMismatch_WhenRepositoryDiffersOnlyByCase()
+        public void StatusService_UsesIndexWhenRepositoryDiffersOnlyByCase()
         {
             var commitHash = "aabbccdd03";
             var modelId = $"doji/case-{Guid.NewGuid():N}";
-            var dependency = new DiscoveredModelDependency(
-                "tools.doji.case",
-                "Case Package",
-                "1.0.0",
-                "/tmp/tools.doji.case",
-                "/tmp/tools.doji.case/hf-hub-manifest.json",
-                "manifesthash-case",
-                new ModelDependencyDefinition(modelId, "main"));
+            var dependency = CreateDependency(modelId, null);
+            WriteRef(modelId, commitHash);
+            Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
+            WriteIndex(modelId, commitHash, modelId.ToUpperInvariant());
 
+            var status = BuildStatus(dependency);
+
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
+            Assert.That(status.MaintainerMessage, Does.Contain("model.onnx"));
+            Assert.That(DependencyStatus.DamagedCacheCodes.Contains(status.ReasonCode), Is.False);
+        }
+
+        private static DiscoveredModelDependency CreateDependency(string modelId, ModelDependencyFileDefinition[] files)
+        {
+            return new DiscoveredModelDependency(
+                "tools.doji.disk",
+                "Disk Package",
+                "1.0.0",
+                "/tmp/tools.doji.disk",
+                "/tmp/tools.doji.disk/hf-hub-manifest.json",
+                "manifesthash-disk",
+                new ModelDependencyDefinition(modelId, "main", files));
+        }
+
+        private static void WriteRef(string modelId, string commitHash)
+        {
             var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
             Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
             File.WriteAllText(revRefPath, commitHash);
-            Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
-            Directory.CreateDirectory(Path.GetDirectoryName(CachePaths.GetSnapshotMetadataPath(modelId, commitHash)));
-            File.WriteAllText(
-                CachePaths.GetSnapshotMetadataPath(modelId, commitHash),
-                Newtonsoft.Json.JsonConvert.SerializeObject(new
-                {
-                    Repository = modelId.ToUpperInvariant(),
-                    RequestedRevision = "main",
-                    ResolvedCommitHash = commitHash,
-                    CachedSnapshotRoot = CachePaths.GetSnapshotRoot(modelId, commitHash),
-                    RepositoryFiles = new[] { new { RepoPath = "model.onnx", SizeInBytes = 1 } },
-                    Files = Array.Empty<object>()
-                }));
+        }
 
-            var statusReport = new StatusService().BuildStatusReport(
-                new DiscoveryReport(new[] { dependency }, Array.Empty<ManifestDiscoveryIssue>()));
+        private static void WriteIndex(string modelId, string commitHash, string indexedRepository)
+        {
+            var indexPath = CachePaths.GetSnapshotMetadataPath(modelId, commitHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(indexPath));
+            File.WriteAllText(indexPath, Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                Repository = indexedRepository,
+                RequestedRevision = "main",
+                ResolvedCommitHash = commitHash,
+                RepositoryFiles = new[] { new { RepoPath = "model.onnx", SizeInBytes = 1 } },
+                Files = Array.Empty<object>()
+            }));
+        }
 
-            Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
-            Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.Not.EqualTo(DependencyReasonCode.RawCacheMetadataMismatch));
-            Assert.That(DependencyStatus.DamagedCacheCodes.Contains(statusReport.DependencyStatuses[0].ReasonCode), Is.False, statusReport.DependencyStatuses[0].ReasonCode.ToString());
+        private static DependencyStatus BuildStatus(DiscoveredModelDependency dependency)
+        {
+            return new StatusService()
+                .BuildStatusReport(new DiscoveryReport(new[] { dependency }, Array.Empty<ManifestDiscoveryIssue>()))
+                .DependencyStatuses
+                .Single();
         }
     }
 }

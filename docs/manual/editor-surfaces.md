@@ -29,8 +29,8 @@ The details pane shows the status and the next action for the selected model.
 |---|---|---|
 | Not downloaded | The selected files are not in the download cache. | **Download & Import** downloads them and imports the model. The button shows the download size when it is known. |
 | Not imported | The files are downloaded, but the model is not imported into this project. | **Import** |
-| Update needed | More files are selected than were downloaded, or the imported files are out of date. | **Update** downloads missing files and imports the model again. |
-| Needs repair | The downloaded files are damaged or incomplete, for example after a crash during a download. | **Repair** downloads the files again and imports the model. The button shows the download size when it is known. |
+| Update needed | More files are selected than were downloaded, the imported files are out of date, or HF Hub needs the repository's file list to check a download made by another tool. | **Update** downloads missing files and imports the model again. |
+| Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again and imports the model. The button shows the download size when it is known. |
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
 | Error | The import failed, or the imported files are broken. The details explain why. | **Retry Import** |
 | Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |

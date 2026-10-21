@@ -123,8 +123,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// <summary>
         /// Damaged cache bookkeeping asks for a repair download instead of fixing itself in the background.
         /// </summary>
-        [TestCase(DependencyReasonCode.RawCacheMetadataInvalid)]
-        [TestCase(DependencyReasonCode.RawCacheMetadataMismatch)]
         [TestCase(DependencyReasonCode.RawCacheRevisionRefUnreadable)]
         public void DamagedCache_OffersRepair(DependencyReasonCode reasonCode)
         {

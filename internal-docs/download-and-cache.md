@@ -60,13 +60,18 @@ HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports ev
 
 `DOJI_HF_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at temporary folders.
 
-The index entry records the repository file inventory for one commit and which files are cached. Treat it as a rebuildable index: the files in the cache are the truth. Python tools can add or delete cache files without updating it.
+The index entry records the repository file list and file etags for one commit. It is a hint, never the truth:
+
+- `RawCacheService.ReadSnapshot` builds every snapshot view from disk: the files in `snapshots/<commit>` count as cached, whoever wrote them (HF Hub or Python), with sizes read through links. Status, the sync, import, and Model Hub all use this view.
+- The index only adds the repository file list and etags, and only when it describes the same repository (ignoring letter case) and commit. A missing, unreadable, or foreign index is ignored.
+- A file-selective dependency needs no index: its selected files are either on disk or not.
+- A whole-repository dependency needs the file list to know what "every file" is. Without it, status reports `RawCacheFilesMissing` ("Update needed"). The update resolves the file list, downloads nothing that is already on disk with the right size, and writes a new index entry.
 
 Project-local remote inventory metadata may also exist before any download. That pre-download inventory supports optional file selection and size estimates; it is not cache identity.
 
 Current implementation notes:
 
-- the index entry still stores the requested revision; ref files are authoritative for revision-to-commit mapping
+- the index entry still stores the requested revision; ref files are authoritative for revision-to-commit mapping, and `ReadSnapshot` ignores the stored revision
 - index entries describe one `repository + resolved commit`, not owner dependency scope
 - the old `raw/` cache under the data folder is not read anymore; phase 6 of the switch migrates it
 
@@ -162,23 +167,23 @@ Each file download can resume independently. Snapshot lock protects repo metadat
 
 ## Damaged Cache
 
-Some cache states mean the downloaded files exist but their bookkeeping is damaged, rather than a download is missing:
+Only damage on disk counts:
 
 | Code | Meaning |
 |---|---|
-| `RawCacheMetadataInvalid` | Snapshot metadata JSON is absent, unparseable, or lists no files |
-| `RawCacheMetadataMismatch` | Metadata repository, revision, or commit does not match the declared dependency and revision ref |
 | `RawCacheRevisionRefUnreadable` | Revision ref file exists but cannot be read |
 
-`DependencyStatus.DamagedCacheCodes` names this set. Model Hub shows these models as `Needs repair` with a **Repair** button and the download size; the setup prompt counts them as downloads. The fix is a normal sync: `GetOrDownloadAsync` resolves the revision again, downloads the selected files it cannot verify, and writes clean metadata.
+`DependencyStatus.DamagedCacheCodes` names this set. Model Hub shows these models as `Needs repair` with a **Repair** button and the download size; the setup prompt counts them as downloads. The fix is a normal sync.
 
-HF Hub never repairs on its own. An earlier auto-heal started download-only syncs at editor startup and on every Model Hub refresh. With damaged metadata it cannot tell which files are still good, so it downloaded every selected file again, for whole-repository dependencies the whole repository, without asking. That broke the product rule to ask the user once before downloading.
+HF Hub's index is never damage, because it is a hint (see Cache Location). The former `RawCacheMetadataInvalid`, `RawCacheMetadataMismatch`, and `RawCacheMetadataMissingAfterImport` codes described index problems and were removed when status started reading the cache from disk.
+
+HF Hub never repairs on its own. An earlier auto-heal started download-only syncs at editor startup and on every Model Hub refresh, and with damaged bookkeeping it downloaded every selected file again, for whole-repository dependencies the whole repository, without asking. That broke the product rule to ask the user once before downloading.
 
 Rules:
 
 - start downloads only from an explicit user action: the setup prompt, a Model Hub button, **Import All**, or the menu
 - `BackgroundSyncManager.ResumeIfNeeded` only resumes a persisted queue the user already started
 
-The metadata repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot. A case-sensitive check reported that shared snapshot as `RawCacheMetadataMismatch`.
+The index repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot.
 
-`RawCacheFilesMissing` is not damage: the selection grew after the first download. It shows as `Update needed`.
+`RawCacheFilesMissing` is not damage: the selection grew after the first download, or the file list of a whole-repository dependency is unknown. It shows as `Update needed`.

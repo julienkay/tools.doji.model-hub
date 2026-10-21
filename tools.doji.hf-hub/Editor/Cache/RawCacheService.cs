@@ -43,7 +43,10 @@ namespace Doji.AI.ModelHub.Editor
 
             using var fileLock = await FileLock.AcquireAsync(lockPath, DefaultLockTimeout, cancellationToken);
 
-            TryReadMetadata(metadataPath, out var existingMetadata);
+            var existingMetadata = ReadSnapshot(
+                resolvedSnapshot.Repository,
+                resolvedSnapshot.RequestedRevision,
+                resolvedSnapshot.ResolvedCommitHash);
             Directory.CreateDirectory(snapshotRoot);
 
             var filesToDownload = resolvedSnapshot.Files
@@ -107,6 +110,63 @@ namespace Doji.AI.ModelHub.Editor
             return length.HasValue && (!expectedSizeInBytes.HasValue || length.Value == expectedSizeInBytes.Value);
         }
 
+        /// <summary>
+        /// Reads one snapshot from disk: the files in <c>snapshots/&lt;commit&gt;</c> are the truth, whoever
+        /// wrote them (HF Hub or <c>huggingface_hub</c>). HF Hub's index only adds the repository file list and
+        /// etags, and only when it describes this repository and commit. A missing, stale, or broken index is
+        /// ignored; the next sync rebuilds it.
+        /// </summary>
+        public RawCacheMetadata ReadSnapshot(string repository, string requestedRevision, string commitHash)
+        {
+            var snapshotRoot = CachePaths.GetSnapshotRoot(repository, commitHash);
+            var hasIndex = TryReadMetadata(CachePaths.GetSnapshotMetadataPath(repository, commitHash), out var index) &&
+                string.Equals(index.Repository, repository, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(index.ResolvedCommitHash, commitHash, StringComparison.Ordinal);
+            var indexedFiles = hasIndex
+                ? (index.Files ?? Array.Empty<RawCacheFileMetadata>())
+                    .Where(file => !string.IsNullOrWhiteSpace(file?.RepoPath))
+                    .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal)
+                : new Dictionary<string, RawCacheFileMetadata>(StringComparer.Ordinal);
+
+            var files = new List<RawCacheFileMetadata>();
+            if (Directory.Exists(snapshotRoot))
+            {
+                var rootPrefix = Path.GetFullPath(snapshotRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                foreach (var filePath in Directory.EnumerateFiles(snapshotRoot, "*", SearchOption.AllDirectories))
+                {
+                    if (string.Equals(Path.GetFileName(filePath), ".DS_Store", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var repoPath = Path.GetFullPath(filePath).Substring(rootPrefix.Length).Replace(Path.DirectorySeparatorChar, '/');
+                    indexedFiles.TryGetValue(repoPath, out var indexed);
+                    files.Add(new RawCacheFileMetadata
+                    {
+                        RepoPath = repoPath,
+                        CachedFilePath = filePath,
+                        EntityTag = indexed?.EntityTag,
+                        SizeInBytes = CacheFiles.GetLength(filePath)
+                    });
+                }
+            }
+
+            return new RawCacheMetadata
+            {
+                Repository = repository,
+                RequestedRevision = requestedRevision,
+                ResolvedCommitHash = commitHash,
+                CachedSnapshotRoot = snapshotRoot,
+                RepositoryFiles = hasIndex ? index.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>() : Array.Empty<RepositoryFileMetadata>(),
+                Files = files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray(),
+                DownloadedAtUtc = hasIndex ? index.DownloadedAtUtc : null
+            };
+        }
+
+        /// <summary>
+        /// Reads HF Hub's index entry for one snapshot. Prefer <see cref="ReadSnapshot"/>, which checks the disk.
+        /// </summary>
         public bool TryReadMetadata(string metadataPath, out RawCacheMetadata metadata)
         {
             metadata = null;
@@ -144,8 +204,8 @@ namespace Doji.AI.ModelHub.Editor
 
             var snapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
             var metadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, resolvedCommitHash);
-            if (!TryReadMetadata(metadataPath, out var metadata) ||
-                !IsLocalCacheSnapshotCurrent(snapshotRoot, dependency, resolvedCommitHash, metadata))
+            var metadata = ReadSnapshot(dependency.Repository, dependency.Revision, resolvedCommitHash);
+            if (!HasSelectedFiles(dependency, metadata))
             {
                 throw new InvalidOperationException(
                     $"Raw cache snapshot is not available for '{dependency.Repository}' at '{dependency.Revision}'. Download it first.");
@@ -154,65 +214,43 @@ namespace Doji.AI.ModelHub.Editor
             return new CachedSnapshot(snapshotRoot, metadataPath, metadata);
         }
 
+        /// <summary>
+        /// Whether a snapshot file is on disk with the expected size. Snapshot paths are tied to one commit, so an
+        /// existing file with the right size is current.
+        /// </summary>
         private static bool HasCurrentCachedFile(
             string snapshotRoot,
             RawCacheMetadata metadata,
             ResolvedRepoFile resolvedFile)
         {
-            if (metadata == null || !Directory.Exists(snapshotRoot))
-            {
-                return false;
-            }
-
-            var cachedFile = (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
+            var cachedFile = (metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
                 .FirstOrDefault(file => string.Equals(file.RepoPath, resolvedFile.RepoPath, StringComparison.Ordinal));
             if (cachedFile == null || !File.Exists(cachedFile.CachedFilePath))
             {
                 return false;
             }
 
-            if (!resolvedFile.SizeInBytes.HasValue)
-            {
-                return true;
-            }
-
-            return CacheFiles.GetLength(cachedFile.CachedFilePath) == resolvedFile.SizeInBytes.Value;
+            return !resolvedFile.SizeInBytes.HasValue ||
+                CacheFiles.GetLength(cachedFile.CachedFilePath) == resolvedFile.SizeInBytes.Value;
         }
 
-        private static bool IsLocalCacheSnapshotCurrent(
-            string snapshotRoot,
-            DiscoveredModelDependency dependency,
-            string resolvedCommitHash,
-            RawCacheMetadata metadata)
+        /// <summary>
+        /// Whether every file the dependency selects is on disk. A whole-repository dependency needs the
+        /// repository file list from the index to know what "every file" is.
+        /// </summary>
+        internal static bool HasSelectedFiles(DiscoveredModelDependency dependency, RawCacheMetadata snapshot)
         {
-            if (metadata == null || !Directory.Exists(snapshotRoot))
+            var repositoryFiles = (snapshot?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath).ToArray();
+            if (dependency.SelectsWholeRepository && repositoryFiles.Length == 0)
             {
                 return false;
             }
 
-            if (!string.Equals(metadata.Repository, dependency.Repository, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !string.Equals(metadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(metadata.CachedSnapshotRoot, snapshotRoot, StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            var selectedRepoPaths = dependency.GetSelectedRepoPaths(
-                (metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
-                (metadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath));
-            if (selectedRepoPaths.Count == 0)
-            {
-                return false;
-            }
-
-            var filesByRepoPath = (metadata.Files ?? Array.Empty<RawCacheFileMetadata>())
-                .Where(file => file != null && !string.IsNullOrWhiteSpace(file.RepoPath))
-                .ToDictionary(file => file.RepoPath, StringComparer.Ordinal);
-            return selectedRepoPaths.All(repoPath =>
-                filesByRepoPath.TryGetValue(repoPath, out var file) &&
-                !string.IsNullOrWhiteSpace(file.CachedFilePath) &&
-                File.Exists(file.CachedFilePath));
+            var cachedPaths = new HashSet<string>(
+                (snapshot?.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath),
+                StringComparer.Ordinal);
+            var selectedRepoPaths = dependency.GetSelectedRepoPaths(repositoryFiles, cachedPaths);
+            return selectedRepoPaths.Count > 0 && selectedRepoPaths.All(cachedPaths.Contains);
         }
 
         private static RawCacheMetadata BuildMergedMetadata(

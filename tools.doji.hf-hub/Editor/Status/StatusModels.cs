@@ -42,11 +42,8 @@ namespace Doji.AI.ModelHub.Editor
         RawCacheRevisionRefMissing,
         RawCacheRevisionRefUnreadable,
         RawSnapshotRootMissing,
-        RawCacheMetadataMissingAfterImport,
         RawCacheFilesMissing,
         RevisionConflict,
-        RawCacheMetadataInvalid,
-        RawCacheMetadataMismatch,
         SelectionRequired,
         NoSelectedOnnxFiles,
         ImportBindingMissing,
@@ -66,13 +63,11 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class DependencyStatus
     {
         /// <summary>
-        /// Reason codes that mean the downloaded files exist but their cache bookkeeping is damaged.
-        /// The fix is to download the selected files again.
+        /// Reason codes that mean the cache on disk is damaged. The fix is to download again.
+        /// HF Hub's own index is never damage: it is a hint that the next sync rebuilds.
         /// </summary>
         internal static readonly HashSet<DependencyReasonCode> DamagedCacheCodes = new()
         {
-            DependencyReasonCode.RawCacheMetadataInvalid,
-            DependencyReasonCode.RawCacheMetadataMismatch,
             DependencyReasonCode.RawCacheRevisionRefUnreadable,
         };
 

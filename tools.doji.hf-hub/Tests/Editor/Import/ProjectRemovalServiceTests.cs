@@ -10,6 +10,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class ProjectRemovalServiceTests
     {
+        private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -20,7 +21,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Doji.ModelHub.ProjectRemovalTests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", Path.Combine(_rootDirectory, "SharedCache"));
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
         }
 
         [TearDown]
@@ -34,7 +35,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             DeleteAssetIfExists("Assets/StreamingAssets/hf-hub");
             DeleteProjectFolderIfExists("Library/Doji/HfHub/imports");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            _cacheScope?.Dispose();
+            _cacheScope = null;
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class IntegrationTests
     {
+        private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -30,13 +31,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Doji.ModelHub.IntegrationTests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", Path.Combine(_rootDirectory, "SharedCache"));
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
         }
 
         [TearDown]
         public void TearDown()
         {
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            _cacheScope?.Dispose();
+            _cacheScope = null;
             if (Directory.Exists(_rootDirectory))
             {
                 Directory.Delete(_rootDirectory, true);

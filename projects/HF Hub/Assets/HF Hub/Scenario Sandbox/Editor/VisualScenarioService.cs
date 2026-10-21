@@ -234,7 +234,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         public static string GetRevisionRefPath(VisualScenarioEntry entry)
         {
-            return Path.Combine(GetCacheRepositoryRoot(entry.Repository), "refs", SanitizeCacheSegment(entry.Revision));
+            return CachePaths.GetRevisionRefPath(entry.Repository, entry.Revision);
         }
 
         private static void ApplyEntry(string manifestHash, VisualScenarioEntry entry)
@@ -674,22 +674,22 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         private static string GetCacheRepositoryRoot(string repository)
         {
-            return Path.Combine(GetCacheRoot(), "raw", repository.Replace("/", "--", StringComparison.Ordinal));
+            return CachePaths.GetRepositoryRoot(repository);
         }
 
         private static string GetSnapshotRoot(string repository, string commitHash)
         {
-            return Path.Combine(GetCacheRepositoryRoot(repository), "snapshots", SanitizeCacheSegment(commitHash));
+            return CachePaths.GetSnapshotRoot(repository, commitHash);
         }
 
-        private static string GetSnapshotMetadataPath(string repository, string commitHash)
+        public static string GetSnapshotMetadataPath(string repository, string commitHash)
         {
-            return Path.Combine(GetSnapshotRoot(repository, commitHash), "snapshot.hfhub.json");
+            return CachePaths.GetSnapshotMetadataPath(repository, commitHash);
         }
 
         private static string GetSnapshotFilePath(string repository, string commitHash, string repoPath)
         {
-            return Path.Combine(GetSnapshotRoot(repository, commitHash), repoPath.Replace('/', Path.DirectorySeparatorChar));
+            return CachePaths.GetSnapshotFilePath(repository, commitHash, repoPath);
         }
 
         private static string GetImportBindingFolder(string packageId, string modelId)
@@ -706,45 +706,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             }
 
             return $"{root}/{SanitizePathSegment(entryResolvedCommitHash)}/{SanitizePathSegment(GetSentisVersion())}/{SanitizePathSegment(recipeSetHash)}";
-        }
-
-        private static string GetCacheRoot()
-        {
-            var overrideRoot = Environment.GetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT");
-            if (!string.IsNullOrWhiteSpace(overrideRoot))
-            {
-                return overrideRoot;
-            }
-
-            if (Application.platform == RuntimePlatform.WindowsEditor)
-            {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Doji",
-                    "HfHub");
-            }
-
-            if (Application.platform == RuntimePlatform.OSXEditor)
-            {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Personal),
-                    "Library",
-                    "Application Support",
-                    "Doji",
-                    "HfHub");
-            }
-
-            var xdgCacheHome = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
-            if (!string.IsNullOrWhiteSpace(xdgCacheHome))
-            {
-                return Path.Combine(xdgCacheHome, "doji", "hf-hub");
-            }
-
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Personal),
-                ".cache",
-                "doji",
-                "hf-hub");
         }
 
         private static string SanitizeCacheSegment(string value)

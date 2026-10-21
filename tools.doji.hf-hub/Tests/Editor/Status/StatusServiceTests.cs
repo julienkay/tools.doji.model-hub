@@ -12,6 +12,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class StatusServiceTests
     {
+        private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -22,7 +23,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Doji.ModelHub.StatusTests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", Path.Combine(_rootDirectory, "SharedCache"));
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
             CleanupProjectArtifacts();
         }
 
@@ -36,7 +37,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Directory.Delete(_rootDirectory, true);
             }
 
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            _cacheScope?.Dispose();
+            _cacheScope = null;
         }
 
         [Test]
@@ -398,6 +400,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
 
             File.WriteAllText(revisionRefPath, commitHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(rawMetadataPath));
             File.WriteAllText(
                 rawMetadataPath,
                 JsonConvert.SerializeObject(new RawCacheMetadata
@@ -516,6 +519,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             File.WriteAllText(tokenizerPath, "tokenizer");
             File.WriteAllText(revisionRefPath, commitHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(rawMetadataPath));
             File.WriteAllText(
                 rawMetadataPath,
                 JsonConvert.SerializeObject(new RawCacheMetadata
@@ -555,6 +559,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             File.WriteAllText(rawModelPath, "onnx");
             File.WriteAllText(revisionRefPath, commitHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(rawMetadataPath));
             File.WriteAllText(
                 rawMetadataPath,
                 JsonConvert.SerializeObject(new RawCacheMetadata

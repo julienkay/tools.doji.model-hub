@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -82,8 +82,15 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     Directory.Delete(snapshotRootPath, true);
                 }
+
+                var indexPath = CachePaths.GetSnapshotMetadataPath(item.Repository, resolvedCommitHash);
+                if (File.Exists(indexPath))
+                {
+                    File.Delete(indexPath);
+                }
             }
 
+            DeleteEmptyParentFolders(revisionRefPath, Path.Combine(CachePaths.GetRepositoryRoot(item.Repository), "refs"));
             CleanupEmptyCacheFolders(item.Repository);
         }
 
@@ -200,6 +207,26 @@ namespace Doji.AI.ModelHub.Editor
             return false;
         }
 
+        /// <summary>
+        /// Deletes empty folders between a removed nested ref, such as <c>refs/pr/1</c>, and the refs root.
+        /// </summary>
+        private static void DeleteEmptyParentFolders(string filePath, string stopAt)
+        {
+            var folder = Path.GetDirectoryName(filePath);
+            var stopFullPath = Path.GetFullPath(stopAt).TrimEnd(Path.DirectorySeparatorChar);
+            while (!string.IsNullOrWhiteSpace(folder) &&
+                   !string.Equals(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar), stopFullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                DeleteDirectoryIfEmpty(folder);
+                if (Directory.Exists(folder))
+                {
+                    return;
+                }
+
+                folder = Path.GetDirectoryName(folder);
+            }
+        }
+
         private static void CleanupEmptyCacheFolders(string repository)
         {
             var repositoryRoot = CachePaths.GetRepositoryRoot(repository);
@@ -210,6 +237,7 @@ namespace Doji.AI.ModelHub.Editor
 
             DeleteDirectoryIfEmpty(Path.Combine(repositoryRoot, "refs"));
             DeleteDirectoryIfEmpty(Path.Combine(repositoryRoot, "snapshots"));
+            DeleteDirectoryIfEmpty(Path.Combine(repositoryRoot, "blobs"));
             DeleteDirectoryIfEmpty(repositoryRoot);
         }
 

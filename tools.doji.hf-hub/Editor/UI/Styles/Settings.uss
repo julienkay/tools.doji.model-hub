@@ -71,7 +71,3 @@
     white-space: normal;
     color: var(--hf-text-faint);
 }
-
-.ps-env-note {
-    margin-top: 10px;
-}

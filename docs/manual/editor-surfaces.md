@@ -123,7 +123,7 @@ ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
 
 The table works like the [manifest Inspector](#manifest-inspector).
 
-**Download cache** sets where downloaded files are stored. **Default folder** uses the platform location. **Custom folder** stores them in a folder you choose. **In use** shows the folder HF Hub uses now. When the `DOJI_HF_HUB_CACHE_ROOT` environment variable is set, it overrides this setting and the page says so.
+**Download cache** sets where downloaded files are stored. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder HF Hub uses now.
 
 The page also shows the installed Sentis version. Imported models are built for that version and imported again when it changes.
 

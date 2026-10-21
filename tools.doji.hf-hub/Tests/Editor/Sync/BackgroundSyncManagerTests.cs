@@ -10,6 +10,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class BackgroundSyncManagerTests
     {
+        private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -20,7 +21,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Doji.ModelHub.BackgroundSyncManagerTests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", Path.Combine(_rootDirectory, "SharedCache"));
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
         }
 
         [TearDown]
@@ -31,7 +32,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Directory.Delete(_rootDirectory, true);
             }
 
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            _cacheScope?.Dispose();
+            _cacheScope = null;
         }
 
 
@@ -308,6 +310,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RepositoryFiles = Array.Empty<object>(),
                 Files = Array.Empty<object>()
             };
+            Directory.CreateDirectory(Path.GetDirectoryName(metadataPath));
             File.WriteAllText(metadataPath, Newtonsoft.Json.JsonConvert.SerializeObject(mismatchedMetadata));
 
             var discoveryReport = new DiscoveryReport(
@@ -341,6 +344,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
             File.WriteAllText(revRefPath, commitHash);
             Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
+            Directory.CreateDirectory(Path.GetDirectoryName(CachePaths.GetSnapshotMetadataPath(modelId, commitHash)));
             File.WriteAllText(
                 CachePaths.GetSnapshotMetadataPath(modelId, commitHash),
                 Newtonsoft.Json.JsonConvert.SerializeObject(new

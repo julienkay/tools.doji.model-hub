@@ -70,32 +70,27 @@ var repo = ModelHub.FromPretrained(
 var model = repo.LoadModel("onnx/model.onnx");
 ```
 
-## Shared Raw Cache
+## Shared Download Cache
 
-Downloaded repository snapshots are stored in shared per-user cache outside the Unity project.
+Downloaded files are stored in the Hugging Face cache, outside the Unity project. It is the same cache the `huggingface_hub` Python library uses, so a model downloaded by Python tools is not downloaded again in Unity, and the other way round.
 
-Current cache roots:
+Cache folder, in this order:
 
-- macOS: `~/Library/Application Support/Doji/HfHub`
-- Windows: `%LocalAppData%/Doji/HfHub`
-- Linux: `$XDG_CACHE_HOME/doji/hf-hub` or `~/.cache/doji/hf-hub`
+1. a custom folder set in `Project Settings > Doji > AI > AI Model Hub`
+2. the `HF_HUB_CACHE` environment variable
+3. the `hub` folder inside the `HF_HOME` environment variable
+4. `~/.cache/huggingface/hub` (on Windows `%USERPROFILE%\.cache\huggingface\hub`)
 
-Current raw cache layout:
+Layout:
 
 ```text
-raw/<serialized-repo>/refs/<revision>
-raw/<serialized-repo>/snapshots/<commit>/<repo-file>
-raw/<serialized-repo>/snapshots/<commit>/snapshot.hfhub.json
+models--<owner>--<name>/refs/<revision>
+models--<owner>--<name>/snapshots/<commit>/<repo-file>
 ```
 
-`snapshot.hfhub.json` tracks two different things:
+HF Hub keeps its own index of cached files outside this cache, in `%LocalAppData%/Doji/HfHub/index` on Windows, `~/Library/Application Support/Doji/HfHub/index` on macOS, and `~/.cache/doji/hf-hub/index` on Linux. Manifest selection stays owner-scoped and is not inferred from cache contents.
 
-- the full file inventory for that resolved repository commit
-- the subset of raw files currently cached on this machine
-
-Manifest selection stays owner-scoped and is not inferred from raw cache contents.
-
-If raw cache is removed but generated project assets still exist, the repository stays usable in that project. HF Hub keeps it in imported state and downloads raw files again only when a later update or re-import needs cache content.
+If downloaded files are removed but generated project assets still exist, the model stays usable in that project. HF Hub keeps it in imported state and downloads files again only when a later update or import needs them.
 
 ## Generated Project Artifacts
 

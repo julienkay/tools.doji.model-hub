@@ -20,7 +20,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
         {
             _cacheRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.VisualSandboxTests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_cacheRoot);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", _cacheRoot);
+            Environment.SetEnvironmentVariable("HF_HUB_CACHE", _cacheRoot);
+            Environment.SetEnvironmentVariable("DOJI_HF_HUB_DATA_ROOT", _cacheRoot + "-hfhub-data");
             _scenarioAssetPath = AssetDatabase.GenerateUniqueAssetPath("Assets/HF Hub/Scenario Sandbox/Scenario Test Asset.asset");
         }
 
@@ -52,7 +53,12 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                 Directory.Delete(_cacheRoot, true);
             }
 
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            Environment.SetEnvironmentVariable("HF_HUB_CACHE", null);
+            Environment.SetEnvironmentVariable("DOJI_HF_HUB_DATA_ROOT", null);
+            if (Directory.Exists(_cacheRoot + "-hfhub-data"))
+            {
+                Directory.Delete(_cacheRoot + "-hfhub-data", true);
+            }
         }
 
         /// <summary>
@@ -77,7 +83,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                 VisualScenarioService.GetImportMetadataProjectRelativePath(scenario.Entries[0]));
 
             Assert.That(File.Exists(VisualScenarioService.GetRevisionRefPath(scenario.Entries[0])), Is.True);
-            Assert.That(File.Exists(Path.Combine(_cacheRoot, "raw", "sandbox--import-needed-test", "snapshots", "sandbox-import-needed-001", "snapshot.hfhub.json")), Is.True);
+            Assert.That(File.Exists(VisualScenarioService.GetSnapshotMetadataPath("sandbox/import-needed-test", "sandbox-import-needed-001")), Is.True);
             Assert.That(File.Exists(importMetadataAbsolutePath), Is.False);
             Assert.That(
                 AssetDatabase.LoadAssetAtPath<ProjectManifestAsset>(VisualScenarioService.GetGeneratedManifestAssetPath(scenario, 0)),
@@ -113,13 +119,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
 
             var manifest = AssetDatabase.LoadAssetAtPath<ProjectManifestAsset>(
                 VisualScenarioService.GetGeneratedManifestAssetPath(scenario, 0));
-            var rawMetadataPath = Path.Combine(
-                _cacheRoot,
-                "raw",
-                "sandbox--single-file-selected",
-                "snapshots",
-                "sandbox-single-file-001",
-                "snapshot.hfhub.json");
+            var rawMetadataPath = VisualScenarioService.GetSnapshotMetadataPath("sandbox/single-file-selected", "sandbox-single-file-001");
             var rawMetadata = JsonUtility.FromJson<RawCacheMetadataDocument>(File.ReadAllText(rawMetadataPath));
 
             Assert.That(manifest, Is.Not.Null);

@@ -86,7 +86,7 @@ namespace Doji.AI.ModelHub.Editor
             var section = UiKit.Section("Download cache");
             var card = UiKit.Element("hf-card");
 
-            var location = new RadioButtonGroup(null, new List<string> { "Default folder", "Custom folder" })
+            var location = new RadioButtonGroup(null, new List<string> { "Hugging Face cache", "Custom folder" })
             {
                 name = "cacheLocation",
                 value = settings.UseDefaultCacheLocation ? 0 : 1
@@ -117,16 +117,12 @@ namespace Doji.AI.ModelHub.Editor
             path.Add(UiKit.LinkButton(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(CachePaths.GetCacheRoot())));
             card.Add(path);
 
-            var envNote = UiKit.Callout(
-                UiTone.Info,
-                null,
-                $"The {CachePaths.CacheRootEnvironmentVariable} environment variable is set, so it overrides this setting.");
-            envNote.name = "envNote";
-            envNote.AddToClassList("ps-env-note");
-            card.Add(envNote);
+            var source = UiKit.Text(string.Empty, "ps-card-hint");
+            source.name = "cacheSource";
+            card.Add(source);
 
             card.Add(UiKit.Text(
-                "All Unity projects on this machine share the cache, so each model downloads only once.",
+                "Unity projects and Python tools that use huggingface_hub share this cache, so each model downloads only once.",
                 "ps-card-hint"));
             section.Add(card);
 
@@ -151,12 +147,18 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var isOverridden = CachePaths.IsCacheRootOverriddenByEnvironment;
-            location.SetEnabled(!isOverridden);
-            var customRow = root.Q("customRow");
-            UiKit.SetVisible(customRow, location.value == 1);
-            customRow?.SetEnabled(!isOverridden);
-            UiKit.SetVisible(root.Q("envNote"), isOverridden);
+            UiKit.SetVisible(root.Q("customRow"), location.value == 1);
+
+            var source = root.Q<Label>("cacheSource");
+            if (source != null)
+            {
+                var variable = CachePaths.GetDefaultCacheRootSource();
+                source.text = location.value == 1
+                    ? "Other tools keep using their own cache folder unless you point them here."
+                    : variable == null
+                        ? "The same folder the huggingface_hub Python library uses by default."
+                        : $"Set by the {variable} environment variable, as in the huggingface_hub Python library.";
+            }
 
             var effectivePath = root.Q<Label>("effectivePath");
             if (effectivePath != null)

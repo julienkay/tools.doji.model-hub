@@ -2,32 +2,53 @@
 
 ## Cache Location
 
-use shared per-user cache outside Unity project so raw HuggingFace repository snapshots can be reused across projects.
+HF Hub uses the Hugging Face cache of the `huggingface_hub` Python library, so Unity projects and Python tools reuse each other's downloads (see `VISION.md`).
 
-Cache root:
+Cache root, resolved like `huggingface_hub` (`CachePaths.GetDefaultCacheRoot`):
 
-- macOS: `~/Library/Application Support/Doji/HfHub`
-- Windows: `%LocalAppData%/Doji/HfHub`
-- Linux: `~/.cache/doji/hf-hub`
+1. `HF_HUB_CACHE`
+2. `HUGGINGFACE_HUB_CACHE` (legacy name)
+3. `HF_HOME/hub`
+4. `$XDG_CACHE_HOME/huggingface/hub`
+5. `~/.cache/huggingface/hub` (also on Windows: `%USERPROFILE%\.cache\huggingface\hub`)
 
-Current raw-cache layout:
+A custom folder in Project Settings replaces the default for that project.
+
+Layout, as in `huggingface_hub`:
 
 ```text
-<cache-root>/raw/<serialized-repo>/refs/<revision>
-<cache-root>/raw/<serialized-repo>/snapshots/<commit>/<repo-file>
-<cache-root>/raw/<serialized-repo>/snapshots/<commit>/snapshot.hfhub.json
+<cache-root>/models--<owner>--<name>/refs/<revision>           (nested for revisions with "/", e.g. refs/pr/1)
+<cache-root>/models--<owner>--<name>/snapshots/<commit>/<repo-file>
+<cache-root>/models--<owner>--<name>/blobs/<etag>              (written from phase 2 of the switch)
+<cache-root>/.locks/models--<owner>--<name>/<etag>.lock       (used from phase 3 of the switch)
 ```
 
-Revision ref maps requested revision to resolved commit. Snapshot metadata records cached file inventory for that commit.
+Today snapshot files are plain files. `huggingface_hub` accepts them: its cache scanner treats a non-symlink snapshot file as its own blob.
 
-Project-local remote inventory metadata may also exist before any raw-cache download. That pre-download inventory is editor UX support for optional file selection and size estimates, not raw-cache identity.
+HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports every unknown folder in the cache root as a corrupted entry. The index lives in HF Hub's data folder (`CachePaths.GetDataRoot`):
 
-Current implementation note:
+- Windows: `%LocalAppData%/Doji/HfHub`
+- macOS: `~/Library/Application Support/Doji/HfHub`
+- Linux: `$XDG_CACHE_HOME/doji/hf-hub` or `~/.cache/doji/hf-hub`
 
-- snapshot metadata currently also stores requested revision even though ref files are authoritative for revision-to-commit mapping; treat that revision field as implementation detail, not stable cache identity
-- raw cache metadata is cache inventory for one `repository + resolved commit`, not owner dependency scope
+```text
+<data-root>/index/models--<owner>--<name>/<commit>.json
+<data-root>/index/models--<owner>--<name>/<commit>.json.lock
+```
 
-Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub may delete the selected revision ref and the snapshot only when no other revision ref still points at that resolved commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
+`DOJI_HF_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at temporary folders.
+
+The index entry records the repository file inventory for one commit and which files are cached. Treat it as a rebuildable index: the files in the cache are the truth. Python tools can add or delete cache files without updating it.
+
+Project-local remote inventory metadata may also exist before any download. That pre-download inventory supports optional file selection and size estimates; it is not cache identity.
+
+Current implementation notes:
+
+- the index entry still stores the requested revision; ref files are authoritative for revision-to-commit mapping
+- index entries describe one `repository + resolved commit`, not owner dependency scope
+- the old `raw/` cache under the data folder is not read anymore; phase 6 of the switch migrates it
+
+Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
 
 ## Selection Boundary
 

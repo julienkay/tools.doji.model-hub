@@ -54,7 +54,7 @@ Project Settings answers only:
 - where the shared cache lives, and which folder is in effect
 - which Sentis version imports target
 
-Keep environment-variable override support for tests and maintainer workflows. Project settings apply only when `DOJI_HF_HUB_CACHE_ROOT` is not set; the page shows a note when it is.
+The default folder is the Hugging Face cache (`HF_HUB_CACHE`, `HF_HOME/hub`, `~/.cache/huggingface/hub`); the page names the environment variable when one decides it. A custom folder overrides it for the project.
 
 `ProjectSettingsProvider.Refresh()` reloads the open page after other surfaces change the project manifest or cache. It never discards unapplied edits.
 

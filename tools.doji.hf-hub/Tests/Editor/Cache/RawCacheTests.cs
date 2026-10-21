@@ -13,6 +13,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// </summary>
     internal sealed class RawCacheTests
     {
+        private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
         [SetUp]
@@ -23,7 +24,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Doji.ModelHub.RawCacheTests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", Path.Combine(_rootDirectory, "SharedCache"));
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
         }
 
         [TearDown]
@@ -34,7 +35,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Directory.Delete(_rootDirectory, true);
             }
 
-            Environment.SetEnvironmentVariable("DOJI_HF_HUB_CACHE_ROOT", null);
+            _cacheScope?.Dispose();
+            _cacheScope = null;
         }
 
         /// <summary>
@@ -53,11 +55,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var lockPath = CachePaths.GetSnapshotLockPath(repository, commitHash);
             var refPath = CachePaths.GetRevisionRefPath(repository, "main");
 
-            StringAssert.Contains(Path.Combine("raw", "doji--test-model", "snapshots", "abc123"), snapshotRoot);
+            StringAssert.Contains(Path.Combine("models--doji--test-model", "snapshots", "abc123"), snapshotRoot);
             StringAssert.EndsWith(Path.Combine("models", "encoder", "model.onnx"), snapshotPath);
-            Assert.That(metadataPath, Is.EqualTo(Path.Combine(snapshotRoot, "snapshot.hfhub.json")));
+            StringAssert.EndsWith(Path.Combine("index", "models--doji--test-model", "abc123.json"), metadataPath);
             Assert.That(lockPath, Is.EqualTo(metadataPath + ".lock"));
-            StringAssert.Contains(Path.Combine("raw", "doji--test-model", "refs", "main"), refPath);
+            StringAssert.Contains(Path.Combine("models--doji--test-model", "refs", "main"), refPath);
         }
 
         /// <summary>

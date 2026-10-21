@@ -33,6 +33,11 @@ Cache and repository inventory:
   - repository tree inventory
   - selected-file resolution against remote inventory
   - blob etags come from the tree listing (`lfs.oid`, else `oid`), not the CDN `ETag`
+  - downloads take the Hub's spelling of the repository id
+- `tools.doji.hf-hub/Tests/Editor/Cache/CachePathsTests.cs`
+  - a manifest id that differs in letter case finds the existing folder by name, also on Windows
+- `tools.doji.downloads` `ResumableDownloaderTests.DownloadFileAsync_ResumesThroughRedirect`
+  - resume state keeps the stable `/resolve`-style URL; Range and If-Range reach the redirect target
 - `tools.doji.hf-hub/Tests/Editor/Cache/RawCacheTests.cs`
   - raw metadata persistence
   - repository inventory persistence
@@ -108,6 +113,8 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs` (partial conversion)
   - a recorded skipped ONNX file keeps the dependency ready
   - a selected ONNX file with neither output nor skip record stays stale
+- `tools.doji.hf-hub/Tests/Editor/UI/CacheTilesTests.cs`
+  - cache tile kinds (used ignoring letter case, unused, partial-only), file tiles, merged small files, which partial downloads the card deletes
 - `tools.doji.hf-hub/Tests/Editor/UI/TreemapLayoutTests.cs`
   - tile areas match weights, stay in bounds, do not overlap, and stay close to square
 - `tools.doji.hf-hub/Tests/Editor/UI/ModelStatusTests.cs`

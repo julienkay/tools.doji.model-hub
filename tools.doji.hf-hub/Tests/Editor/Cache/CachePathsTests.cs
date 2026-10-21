@@ -46,14 +46,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var root = CachePaths.GetRepositoryRoot("julienkay/sentis-midas");
 
-            Assert.That(Directory.Exists(root), Is.True);
-            Assert.That(root, Is.EqualTo(existing).IgnoreCase);
+            Assert.That(root, Is.EqualTo(existing));
             Assert.That(
                 Path.GetFileName(Path.GetDirectoryName(CachePaths.GetBlobLockPath("julienkay/sentis-midas", "abc"))),
-                Is.EqualTo(Path.GetFileName(root)));
+                Is.EqualTo("models--julienkay--sentis-MiDaS"));
             Assert.That(
                 Path.GetFileName(Path.GetDirectoryName(CachePaths.GetSnapshotMetadataPath("julienkay/sentis-midas", "abc123"))),
-                Is.EqualTo(Path.GetFileName(root)));
+                Is.EqualTo("models--julienkay--sentis-MiDaS"));
         }
 
         /// <summary>

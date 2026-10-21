@@ -134,28 +134,35 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Gets the cache folder name of a repository, reusing an existing folder whose name differs only in letter
-        /// case. Hub ids are not case-sensitive, so a manifest that writes <c>julienkay/sentis-midas</c> finds the
-        /// <c>models--julienkay--sentis-MiDaS</c> folder that a download or Python created, also on file systems that
-        /// are case-sensitive.
+        /// Gets the cache folder name of a repository as it is on disk, reusing an existing folder whose name differs
+        /// only in letter case. Hub ids are not case-sensitive, so a manifest that writes
+        /// <c>julienkay/sentis-midas</c> finds the <c>models--julienkay--sentis-MiDaS</c> folder that a download or
+        /// Python created. Names are compared, not probed with <see cref="Directory.Exists"/>, so the result is the
+        /// same on case-sensitive and case-insensitive file systems.
         /// </summary>
         internal static string ResolveRepositoryFolderName(string repository)
         {
             var folderName = GetRepositoryFolderName(repository);
             var cacheRoot = GetCacheRoot();
-            if (Directory.Exists(Path.Combine(cacheRoot, folderName)) || !Directory.Exists(cacheRoot))
+            if (!Directory.Exists(cacheRoot))
             {
                 return folderName;
             }
 
+            string caseInsensitiveMatch = null;
             try
             {
                 foreach (var folder in Directory.EnumerateDirectories(cacheRoot, RepositoryTypePrefix + RepositoryIdSeparator + "*"))
                 {
                     var name = Path.GetFileName(folder);
-                    if (string.Equals(name, folderName, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(name, folderName, StringComparison.Ordinal))
                     {
                         return name;
+                    }
+
+                    if (caseInsensitiveMatch == null && string.Equals(name, folderName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        caseInsensitiveMatch = name;
                     }
                 }
             }
@@ -164,7 +171,7 @@ namespace Doji.AI.ModelHub.Editor
                 // Fall back to the requested spelling.
             }
 
-            return folderName;
+            return caseInsensitiveMatch ?? folderName;
         }
 
         /// <summary>

@@ -15,18 +15,10 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed partial class ModelHubWindow
     {
         private const string CacheKey = "cache";
-        private const int MaxFileTilesPerRepository = 120;
         private const float TileLabelMinWidth = 56f;
         private const float TileLabelMinHeight = 30f;
         private const float TileSizeLabelMinHeight = 44f;
         private const float GroupHeaderHeight = 16f;
-
-        private enum CacheTileKind
-        {
-            Used,
-            Unused,
-            Partial
-        }
 
         [SerializeField] private bool _cacheShowsFiles;
         [SerializeField] private string _selectedCacheFolder;
@@ -60,31 +52,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private HashSet<string> GetProjectRepositories()
         {
-            return new HashSet<string>(
-                (_report?.Items ?? Array.Empty<ModelHubItem>()).Select(item => item.Repository),
-                StringComparer.OrdinalIgnoreCase);
-        }
-
-        private static CacheTileKind GetKind(CacheRepositoryEntry repository, HashSet<string> projectRepositories)
-        {
-            if (repository.SizeInBytes == 0 && repository.HasPartialDownloads)
-            {
-                return CacheTileKind.Partial;
-            }
-
-            return repository.IsModel && projectRepositories.Contains(repository.Repository)
-                ? CacheTileKind.Used
-                : CacheTileKind.Unused;
-        }
-
-        private static string GetKindClass(CacheTileKind kind)
-        {
-            return kind switch
-            {
-                CacheTileKind.Used => "mh-tile--used",
-                CacheTileKind.Partial => "mh-tile--partial",
-                _ => "mh-tile--unused"
-            };
+            return CacheTiles.CreateProjectRepositorySet((_report?.Items ?? Array.Empty<ModelHubItem>()).Select(item => item.Repository));
         }
 
         private static string GetDisplayName(CacheRepositoryEntry repository)
@@ -186,8 +154,8 @@ namespace Doji.AI.ModelHub.Editor
         private static VisualElement BuildCacheLegend(CacheOverview overview, HashSet<string> projectRepositories)
         {
             var legend = UiKit.Element("mh-legend");
-            var used = overview.Repositories.Where(repository => GetKind(repository, projectRepositories) == CacheTileKind.Used).ToArray();
-            var unused = overview.Repositories.Where(repository => GetKind(repository, projectRepositories) == CacheTileKind.Unused).ToArray();
+            var used = overview.Repositories.Where(repository => CacheTiles.Classify(repository, projectRepositories) == CacheTileKind.Used).ToArray();
+            var unused = overview.Repositories.Where(repository => CacheTiles.Classify(repository, projectRepositories) == CacheTileKind.Unused).ToArray();
             if (used.Length > 0)
             {
                 legend.Add(BuildLegendItem("mh-tile--used", "Used by this project", used.Length, used.Sum(repository => repository.SizeInBytes)));
@@ -243,7 +211,7 @@ namespace Doji.AI.ModelHub.Editor
                     continue;
                 }
 
-                var kind = GetKind(repositories[index], projectRepositories);
+                var kind = CacheTiles.Classify(repositories[index], projectRepositories);
                 _cacheTreemap.Add(_cacheShowsFiles
                     ? BuildRepositoryGroup(repositories[index], kind, rects[index])
                     : BuildRepositoryTile(repositories[index], kind, rects[index]));
@@ -252,7 +220,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private VisualElement BuildRepositoryTile(CacheRepositoryEntry repository, CacheTileKind kind, Rect rect)
         {
-            var tile = BuildTile(rect, GetKindClass(kind));
+            var tile = BuildTile(rect, CacheTiles.GetKindClass(kind));
             tile.EnableInClassList("mh-tile--selected",
                 string.Equals(repository.FolderName, _selectedCacheFolder, StringComparison.Ordinal));
             tile.tooltip = BuildRepositoryTooltip(repository, kind);
@@ -263,7 +231,7 @@ namespace Doji.AI.ModelHub.Editor
                 tile.Add(strip);
             }
 
-            AddTileLabels(tile, rect, GetDisplayName(repository), BuildSizeText(repository));
+            AddTileLabels(tile, rect, GetDisplayName(repository), CacheTiles.BuildSizeText(repository));
             tile.RegisterCallback<ClickEvent>(_ => SelectCacheEntry(repository.FolderName, null));
             return tile;
         }
@@ -284,8 +252,7 @@ namespace Doji.AI.ModelHub.Editor
 
             group.RegisterCallback<ClickEvent>(_ => SelectCacheEntry(repository.FolderName, null));
 
-            var files = repository.Files.Take(MaxFileTilesPerRepository).ToList();
-            var restBytes = repository.Files.Skip(MaxFileTilesPerRepository).Sum(file => file.SizeInBytes);
+            var (files, restCount, restBytes) = CacheTiles.SplitFiles(repository);
             var weights = files.Select(file => (double)file.SizeInBytes).ToList();
             if (restBytes > 0)
             {
@@ -303,15 +270,15 @@ namespace Doji.AI.ModelHub.Editor
 
                 if (index >= files.Count)
                 {
-                    var rest = BuildTile(rects[index], GetKindClass(kind));
-                    rest.tooltip = $"{repository.Files.Count - files.Count} more files · {UiKit.FormatBytes(restBytes)}";
-                    AddTileLabels(rest, rects[index], $"{repository.Files.Count - files.Count} more", UiKit.FormatBytes(restBytes));
+                    var rest = BuildTile(rects[index], CacheTiles.GetKindClass(kind));
+                    rest.tooltip = $"{restCount} more files · {UiKit.FormatBytes(restBytes)}";
+                    AddTileLabels(rest, rects[index], $"{restCount} more", UiKit.FormatBytes(restBytes));
                     group.Add(rest);
                     continue;
                 }
 
                 var file = files[index];
-                var tile = BuildTile(rects[index], GetKindClass(file.IsPartial ? CacheTileKind.Partial : kind));
+                var tile = BuildTile(rects[index], CacheTiles.GetKindClass(CacheTiles.ClassifyFile(file, kind)));
                 tile.EnableInClassList("mh-tile--selected", string.Equals(file.Path, _selectedCacheFilePath, StringComparison.Ordinal));
                 tile.tooltip = $"{repository.Repository}\n{file.Name}{(file.IsPartial ? " (partial download)" : string.Empty)}\n{UiKit.FormatBytes(file.SizeInBytes)}";
                 AddTileLabels(tile, rects[index], Path.GetFileName(file.Name), UiKit.FormatBytes(file.SizeInBytes));
@@ -355,23 +322,9 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        private static string BuildSizeText(CacheRepositoryEntry repository)
-        {
-            var size = UiKit.FormatBytes(repository.TotalSizeInBytes);
-            return repository.HasPartialDownloads && repository.SizeInBytes > 0
-                ? $"{size} · {UiKit.FormatBytes(repository.PartialSizeInBytes)} partial"
-                : size;
-        }
-
         private static string BuildRepositoryTooltip(CacheRepositoryEntry repository, CacheTileKind kind)
         {
-            var status = kind switch
-            {
-                CacheTileKind.Used => "Used by this project",
-                CacheTileKind.Partial => "Only partial downloads",
-                _ => "Not used by this project"
-            };
-            return $"{repository.Repository}\n{BuildSizeText(repository)}\n{status}";
+            return $"{repository.Repository}\n{CacheTiles.BuildSizeText(repository)}\n{CacheTiles.GetStatusLabel(kind)}";
         }
 
         private void SelectCacheEntry(string folderName, string filePath)
@@ -399,19 +352,20 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var kind = GetKind(repository, GetProjectRepositories());
+            var kind = CacheTiles.Classify(repository, GetProjectRepositories());
             var file = repository.Files.FirstOrDefault(entry => string.Equals(entry.Path, _selectedCacheFilePath, StringComparison.Ordinal));
 
             var header = UiKit.Element("mh-cache-card__header");
             var title = UiKit.Text(repository.Repository, "hf-heading", "mh-cache-card__title");
             title.tooltip = repository.Repository;
             header.Add(title);
-            header.Add(kind switch
+            var tone = kind switch
             {
-                CacheTileKind.Used => UiKit.Pill(UiTone.Info, "Used by this project"),
-                CacheTileKind.Partial => UiKit.Pill(UiTone.Warning, "Partial download"),
-                _ => UiKit.Pill(UiTone.Neutral, "Not used by this project")
-            });
+                CacheTileKind.Used => UiTone.Info,
+                CacheTileKind.Partial => UiTone.Warning,
+                _ => UiTone.Neutral
+            };
+            header.Add(UiKit.Pill(tone, CacheTiles.GetStatusLabel(kind)));
             _cacheCard.Add(header);
 
             if (file != null)
@@ -460,15 +414,12 @@ namespace Doji.AI.ModelHub.Editor
             actions.Add(UiKit.Spacer());
 
             var isSyncing = BackgroundSyncManager.IsRunning;
-            if (file != null && file.IsPartial)
+            var partials = CacheTiles.GetPartialsToDelete(repository, file);
+            if (partials.Count > 0)
             {
-                var deletePartial = UiKit.Button("Delete Partial Download", () => ConfirmDeletePartials(repository, new[] { file }));
-                deletePartial.SetEnabled(!isSyncing);
-                actions.Add(deletePartial);
-            }
-            else if (file == null && repository.HasPartialDownloads && repository.SizeInBytes > 0)
-            {
-                var deletePartials = UiKit.Button("Delete Partial Downloads", () => ConfirmDeletePartials(repository, repository.Files.Where(entry => entry.IsPartial).ToArray()));
+                var deletePartials = UiKit.Button(
+                    file != null ? "Delete Partial Download" : "Delete Partial Downloads",
+                    () => ConfirmDeletePartials(repository, partials));
                 deletePartials.SetEnabled(!isSyncing);
                 actions.Add(deletePartials);
             }

@@ -56,6 +56,41 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Removing a revision deletes the blobs only it links to, keeps blobs another revision still links to,
+        /// and leaves other files in blobs/ alone, such as another program's partial download.
+        /// </summary>
+        [Test]
+        public void RemoveRawCache_DeletesOnlyBlobsNoOtherSnapshotLinksTo()
+        {
+            Assume.That(CacheFiles.AreSymlinksSupported(_rootDirectory), Is.True, "This machine cannot create symbolic links.");
+            const string repository = "doji/test-model";
+            var sharedBlob = WriteBlob(repository, "shared-etag");
+            var ownBlob = WriteBlob(repository, "own-etag");
+            var partialDownload = WriteBlob(repository, "other-etag.incomplete");
+            CacheFiles.LinkSnapshotFile(sharedBlob, CachePaths.GetSnapshotFilePath(repository, "abc123", "config.json"), false);
+            CacheFiles.LinkSnapshotFile(ownBlob, CachePaths.GetSnapshotFilePath(repository, "abc123", "onnx/model.onnx"), false);
+            CacheFiles.LinkSnapshotFile(sharedBlob, CachePaths.GetSnapshotFilePath(repository, "def456", "config.json"), false);
+            WriteRevisionRef("main", "abc123");
+            WriteRevisionRef("v2", "def456");
+
+            new ProjectRemovalService().RemoveRawCache(CreateItem("main", "abc123"));
+
+            Assert.That(Directory.Exists(CachePaths.GetSnapshotRoot(repository, "abc123")), Is.False);
+            Assert.That(File.Exists(ownBlob), Is.False);
+            Assert.That(File.Exists(sharedBlob), Is.True);
+            Assert.That(File.Exists(partialDownload), Is.True);
+            Assert.That(File.ReadAllText(CachePaths.GetSnapshotFilePath(repository, "def456", "config.json")), Is.EqualTo("shared-etag"));
+        }
+
+        private static string WriteBlob(string repository, string name)
+        {
+            var path = Path.Combine(CachePaths.GetBlobsRoot(repository), name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, name);
+            return path;
+        }
+
+        /// <summary>
         /// Verifies cache removal keeps shared snapshot when another revision still points at that commit.
         /// </summary>
         [Test]

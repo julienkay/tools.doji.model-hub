@@ -45,7 +45,7 @@ More actions:
 - **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
 - The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Remove Imported Files**, and **Remove from Cache**.
   - **Remove Imported Files** deletes the generated files from this project. The downloaded files stay in the cache, so you can import again without downloading.
-  - **Remove from Cache** deletes the downloaded files from this machine. Imported files in this project stay usable.
+  - **Remove from Cache** deletes the downloaded files from the shared Hugging Face cache on this machine. Imported files in this project stay usable. Other Unity projects and Python tools that use this cache must download the model again. Files that another revision of the model still uses are kept.
 - **+ Add Model** in the toolbar adds a Hugging Face model to the project manifest or to the manifest of a local package. See [Add a model](#add-a-model).
 
 ### Overview tab

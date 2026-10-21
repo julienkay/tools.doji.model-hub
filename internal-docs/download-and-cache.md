@@ -45,7 +45,15 @@ The Windows path was checked against a Python process that locks like `filelock`
 
 The per-snapshot index lock (`<data-root>/index/.../<commit>.json.lock`) is HF Hub's own and only guards the index entry.
 
-Remove from Cache deletes the snapshot's links. Until phase 5 adds per-blob cleanup, blobs are deleted only when no snapshot folder of that repository remains, because Python tools may still use them.
+Remove from Cache works like `delete_revisions` in `huggingface_hub` (`ProjectRemovalService.RemoveRawCache`):
+
+1. Delete the requested revision ref. Stop here when another ref still points at the same commit.
+2. Read which blobs the snapshot's links point to (`CacheFiles.TryGetLinkTarget`: `GetFinalPathNameByHandleW` on Windows, `readlink` elsewhere). Plain-file snapshots point to none.
+3. Delete the snapshot folder and its index entry.
+4. Delete those blobs that no remaining snapshot links to, including snapshots that Python tools created.
+5. Delete empty `refs`, `snapshots`, `blobs`, and repository folders.
+
+Other files in `blobs/`, such as another program's partial `.incomplete` download, are never deleted.
 
 HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports every unknown folder in the cache root as a corrupted entry. The index lives in HF Hub's data folder (`CachePaths.GetDataRoot`):
 

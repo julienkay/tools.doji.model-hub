@@ -238,9 +238,12 @@ namespace Doji.AI.ModelHub.Editor
 
         private void ConfirmRemoveCache(ModelHubItem item)
         {
+            var size = UiKit.FormatBytes(item.CacheSizeOnDiskBytes);
             if (!EditorUtility.DisplayDialog(
                     "Remove from Cache",
-                    $"Delete the downloaded files of {item.Repository} from the cache on this machine?\n\nImported files in this project stay usable. Other projects that use this model must download it again.",
+                    $"Delete the downloaded files of {item.Repository}{(size == null ? string.Empty : $" ({size})")} from the shared Hugging Face cache on this machine?\n\n" +
+                    "Imported files in this project stay usable. The cache is shared with other Unity projects and with Python tools that use huggingface_hub; they must download this model again.\n\n" +
+                    "Files that another revision of this model still uses are kept.",
                     "Delete",
                     "Cancel"))
             {

@@ -64,6 +64,8 @@ Status and sync:
 - `tools.doji.hf-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and damaged-cache codes
   - status reads snapshots from disk; a missing or foreign index is ignored
+- `tools.doji.hf-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`
+  - Remove from Cache deletes only blobs no remaining snapshot links to, and leaves partial downloads alone (needs symlink support)
   - case-only repository id differences are not treated as corrupt cache
 - `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage

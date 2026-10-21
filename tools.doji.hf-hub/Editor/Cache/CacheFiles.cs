@@ -101,6 +101,63 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Returns the full path a symlink points to, or null when the path is not a symlink or cannot be read.
+        /// Unity's .NET profile has no link API, so this uses <c>GetFinalPathNameByHandleW</c> on Windows and
+        /// <c>readlink</c> elsewhere.
+        /// </summary>
+        public static string TryGetLinkTarget(string linkPath)
+        {
+            if (!IsSymlink(linkPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Environment.OSVersion.Platform == PlatformID.Win32NT
+                    ? GetFinalPathWindows(linkPath)
+                    : ReadLinkUnix(linkPath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or EntryPointNotFoundException or DllNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        private static string GetFinalPathWindows(string linkPath)
+        {
+            // Opening the link follows it, so the handle belongs to the target file.
+            using var stream = new FileStream(linkPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var buffer = new System.Text.StringBuilder(1024);
+            var length = GetFinalPathNameByHandleW(stream.SafeFileHandle, buffer, (uint)buffer.Capacity, 0);
+            if (length == 0 || length >= buffer.Capacity)
+            {
+                return null;
+            }
+
+            var path = buffer.ToString();
+            if (path.StartsWith(@"\\?\UNC\", StringComparison.Ordinal))
+            {
+                return @"\\" + path.Substring(8);
+            }
+
+            return path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path.Substring(4) : path;
+        }
+
+        private static string ReadLinkUnix(string linkPath)
+        {
+            var buffer = new byte[4096];
+            var length = readlink(linkPath, buffer, buffer.Length);
+            if (length <= 0)
+            {
+                return null;
+            }
+
+            var target = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
+            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(linkPath) ?? string.Empty, target));
+        }
+
+        /// <summary>
         /// Checks once per cache folder whether symlinks can be created there, like <c>are_symlinks_supported</c>.
         /// </summary>
         internal static bool AreSymlinksSupported(string folder)
@@ -208,5 +265,11 @@ namespace Doji.AI.ModelHub.Editor
 
         [DllImport("libc", SetLastError = true)]
         private static extern int symlink(string target, string linkPath);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandleW(Microsoft.Win32.SafeHandles.SafeFileHandle file, System.Text.StringBuilder path, uint length, uint flags);
+
+        [DllImport("libc", SetLastError = true)]
+        private static extern int readlink(string path, byte[] buffer, int size);
     }
 }

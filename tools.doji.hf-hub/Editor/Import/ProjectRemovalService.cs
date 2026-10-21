@@ -78,6 +78,7 @@ namespace Doji.AI.ModelHub.Editor
                 !HasOtherRevisionRefForCommit(item.Repository, resolvedCommitHash))
             {
                 var snapshotRootPath = CachePaths.GetSnapshotRoot(item.Repository, resolvedCommitHash);
+                var linkedBlobs = CollectLinkedBlobs(snapshotRootPath);
                 if (Directory.Exists(snapshotRootPath))
                 {
                     Directory.Delete(snapshotRootPath, true);
@@ -89,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor
                     File.Delete(indexPath);
                 }
 
-                DeleteBlobsWhenNoSnapshotRemains(item.Repository);
+                DeleteUnusedBlobs(item.Repository, linkedBlobs);
             }
 
             DeleteEmptyParentFolders(revisionRefPath, Path.Combine(CachePaths.GetRepositoryRoot(item.Repository), "refs"));
@@ -210,22 +211,61 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Deletes the repository's blobs once no snapshot links to them. Other tools may keep snapshots of the
-        /// same repository in the shared cache, so blobs stay while any snapshot folder remains.
+        /// Returns the blobs that the snapshot's files link to. Plain-file snapshots (no symlinks) link to none.
         /// </summary>
-        private static void DeleteBlobsWhenNoSnapshotRemains(string repository)
+        internal static HashSet<string> CollectLinkedBlobs(string snapshotRootPath)
         {
-            var repositoryRoot = CachePaths.GetRepositoryRoot(repository);
-            var snapshotsRoot = Path.Combine(repositoryRoot, "snapshots");
-            if (Directory.Exists(snapshotsRoot) && Directory.EnumerateDirectories(snapshotsRoot).Any())
+            var blobs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!Directory.Exists(snapshotRootPath))
+            {
+                return blobs;
+            }
+
+            foreach (var filePath in Directory.EnumerateFiles(snapshotRootPath, "*", SearchOption.AllDirectories))
+            {
+                var target = CacheFiles.TryGetLinkTarget(filePath);
+                if (!string.IsNullOrWhiteSpace(target))
+                {
+                    blobs.Add(Path.GetFullPath(target));
+                }
+            }
+
+            return blobs;
+        }
+
+        /// <summary>
+        /// Deletes the removed snapshot's blobs that no remaining snapshot links to, like <c>delete_revisions</c> in
+        /// <c>huggingface_hub</c>. Snapshots from other tools keep their blobs, and other files in <c>blobs/</c>, such
+        /// as another program's partial download, are never touched.
+        /// </summary>
+        private static void DeleteUnusedBlobs(string repository, ICollection<string> removedSnapshotBlobs)
+        {
+            if (removedSnapshotBlobs.Count == 0)
             {
                 return;
             }
 
-            var blobsRoot = CachePaths.GetBlobsRoot(repository);
-            if (Directory.Exists(blobsRoot))
+            var blobsRoot = Path.GetFullPath(CachePaths.GetBlobsRoot(repository)).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var stillLinked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var snapshotsRoot = Path.Combine(CachePaths.GetRepositoryRoot(repository), "snapshots");
+            if (Directory.Exists(snapshotsRoot))
             {
-                Directory.Delete(blobsRoot, true);
+                foreach (var snapshot in Directory.EnumerateDirectories(snapshotsRoot))
+                {
+                    stillLinked.UnionWith(CollectLinkedBlobs(snapshot));
+                }
+            }
+
+            foreach (var blob in removedSnapshotBlobs)
+            {
+                if (stillLinked.Contains(blob) ||
+                    !blob.StartsWith(blobsRoot, StringComparison.OrdinalIgnoreCase) ||
+                    !File.Exists(blob))
+                {
+                    continue;
+                }
+
+                File.Delete(blob);
             }
         }
 

@@ -318,5 +318,47 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
             Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheMetadataMismatch));
         }
+
+        /// <summary>
+        /// A repository id that differs only in letter case is the same Hugging Face repository, so it is not
+        /// treated as corrupt cache. Corrupt cache is healed automatically, which could start a large download.
+        /// </summary>
+        [Test]
+        public void StatusService_DoesNotReportMismatch_WhenRepositoryDiffersOnlyByCase()
+        {
+            var commitHash = "aabbccdd03";
+            var modelId = $"doji/case-{Guid.NewGuid():N}";
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.case",
+                "Case Package",
+                "1.0.0",
+                "/tmp/tools.doji.case",
+                "/tmp/tools.doji.case/hf-hub-manifest.json",
+                "manifesthash-case",
+                new ModelDependencyDefinition(modelId, "main"));
+
+            var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
+            Directory.CreateDirectory(Path.GetDirectoryName(revRefPath));
+            File.WriteAllText(revRefPath, commitHash);
+            Directory.CreateDirectory(CachePaths.GetSnapshotRoot(modelId, commitHash));
+            File.WriteAllText(
+                CachePaths.GetSnapshotMetadataPath(modelId, commitHash),
+                Newtonsoft.Json.JsonConvert.SerializeObject(new
+                {
+                    Repository = modelId.ToUpperInvariant(),
+                    RequestedRevision = "main",
+                    ResolvedCommitHash = commitHash,
+                    CachedSnapshotRoot = CachePaths.GetSnapshotRoot(modelId, commitHash),
+                    RepositoryFiles = new[] { new { RepoPath = "model.onnx", SizeInBytes = 1 } },
+                    Files = Array.Empty<object>()
+                }));
+
+            var statusReport = new StatusService().BuildStatusReport(
+                new DiscoveryReport(new[] { dependency }, Array.Empty<ManifestDiscoveryIssue>()));
+
+            Assert.That(statusReport.DependencyStatuses, Has.Length.EqualTo(1));
+            Assert.That(statusReport.DependencyStatuses[0].ReasonCode, Is.Not.EqualTo(DependencyReasonCode.RawCacheMetadataMismatch));
+            Assert.That(BackgroundSyncManager.CorruptionHealCodes.Contains(statusReport.DependencyStatuses[0].ReasonCode), Is.False, statusReport.DependencyStatuses[0].ReasonCode.ToString());
+        }
     }
 }

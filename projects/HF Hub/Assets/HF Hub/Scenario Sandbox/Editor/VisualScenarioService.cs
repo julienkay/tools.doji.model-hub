@@ -449,6 +449,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         Files = GetSelectedFileEntries(entry)
                     }
                 });
+            EditorUtility.SetDirty(manifestAsset);
+            AssetDatabase.SaveAssetIfDirty(manifestAsset);
             return manifestAsset;
         }
 

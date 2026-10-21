@@ -129,6 +129,8 @@ Some cache states indicate genuine on-disk corruption rather than a missing down
 
 These are treated as auto-healable because `GetOrDownloadAsync` already resolves the correct state from the HuggingFace API and writes clean metadata on every download. No manual intervention by the user is needed.
 
+The metadata repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot. A case-sensitive check reported that shared snapshot as `RawCacheMetadataMismatch`, and auto-heal then downloaded the whole repository for the other spelling.
+
 Two automatic heal triggers fire using `DownloadOnly` mode so no re-import runs unless necessary:
 
 1. **At editor startup** - `BackgroundSyncManager.ResumeIfNeeded` runs `HealCorruptionAtStartup` when no persisted sync queue exists. If any dependency has a corruption code, a scoped download-only sync starts immediately.

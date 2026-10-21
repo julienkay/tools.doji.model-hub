@@ -150,7 +150,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            if (!string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+            if (!string.Equals(metadata.Repository, dependency.Repository, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.CachedSnapshotRoot, snapshotRoot, StringComparison.Ordinal))

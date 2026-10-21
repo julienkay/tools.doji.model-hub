@@ -178,7 +178,7 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
-            if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+            if (!string.Equals(rawMetadata.Repository, dependency.Repository, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(rawMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(rawMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
             {

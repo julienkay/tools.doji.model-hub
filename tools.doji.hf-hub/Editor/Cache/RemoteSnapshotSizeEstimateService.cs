@@ -74,21 +74,22 @@ namespace Doji.AI.ModelHub.Editor
 
         public void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null)
         {
-            if (dependency == null ||
-                string.IsNullOrWhiteSpace(dependency.Repository) ||
-                string.IsNullOrWhiteSpace(dependency.Revision))
+            if (dependency == null || string.IsNullOrWhiteSpace(dependency.Repository))
             {
                 return;
             }
 
+            var revision = ManifestRevision.NormalizeForResolution(dependency.Revision);
             var metadataPath = ProjectPaths.ToProjectAbsolutePath(
-                ProjectPaths.GetCacheSizeEstimateMetadataPath(dependency.Repository, dependency.Revision));
-            if (File.Exists(metadataPath))
+                ProjectPaths.GetCacheSizeEstimateMetadataPath(dependency.Repository, revision));
+            if (File.Exists(metadataPath) &&
+                TryReadMetadata(dependency.Repository, revision, out var existing) &&
+                !NeedsRefresh(existing))
             {
                 return;
             }
 
-            var key = BuildEstimateKey(dependency.Repository, dependency.Revision);
+            var key = BuildEstimateKey(dependency.Repository, revision);
             lock (InFlightLock)
             {
                 if (!InFlightEstimateKeys.Add(key))
@@ -97,11 +98,12 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }
 
-            _ = ResolveAndPersistEstimateAsync(dependency, metadataPath, key, onCompleted);
+            _ = ResolveAndPersistEstimateAsync(dependency.Repository, revision, metadataPath, key, onCompleted);
         }
 
         private async Task ResolveAndPersistEstimateAsync(
-            DiscoveredModelDependency dependency,
+            string repository,
+            string revision,
             string metadataPath,
             string key,
             Action onCompleted)
@@ -109,13 +111,13 @@ namespace Doji.AI.ModelHub.Editor
             try
             {
                 var repositoryInventory = await _httpClient.GetRepositoryInventoryAsync(
-                    dependency.Repository,
-                    dependency.Revision,
+                    repository,
+                    revision,
                     CancellationToken.None);
                 var metadata = new RemoteSnapshotSizeEstimateMetadata
                 {
-                    Repository = dependency.Repository,
-                    RequestedRevision = dependency.Revision,
+                    Repository = repository,
+                    RequestedRevision = revision,
                     ResolvedCommitHash = repositoryInventory.ResolvedCommitHash,
                     RepositoryFiles = repositoryInventory.Files.ToArray(),
                     EstimatedCacheSizeBytes = SumFileSizes(repositoryInventory.Files),
@@ -130,8 +132,8 @@ namespace Doji.AI.ModelHub.Editor
                     metadataPath,
                     new RemoteSnapshotSizeEstimateMetadata
                     {
-                        Repository = dependency.Repository,
-                        RequestedRevision = dependency.Revision,
+                        Repository = repository,
+                        RequestedRevision = revision,
                         AttemptedAtUtc = DateTime.UtcNow.ToString("O")
                     });
             }
@@ -169,10 +171,29 @@ namespace Doji.AI.ModelHub.Editor
             return $"{repository}\n{requestedRevision}";
         }
 
+        /// <summary>
+        /// Refetches estimates without a file list (older format) and failed attempts older than one day.
+        /// </summary>
+        private static bool NeedsRefresh(RemoteSnapshotSizeEstimateMetadata metadata)
+        {
+            if (metadata.RepositoryFiles?.Length > 0)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(metadata.ResolvedCommitHash))
+            {
+                return true;
+            }
+
+            return !DateTime.TryParse(metadata.AttemptedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var attemptedAt) ||
+                DateTime.UtcNow - attemptedAt.ToUniversalTime() > TimeSpan.FromDays(1);
+        }
+
         private static bool TryReadMetadata(string repository, string requestedRevision, out RemoteSnapshotSizeEstimateMetadata metadata)
         {
             var metadataPath = ProjectPaths.ToProjectAbsolutePath(
-                ProjectPaths.GetCacheSizeEstimateMetadataPath(repository, requestedRevision));
+                ProjectPaths.GetCacheSizeEstimateMetadataPath(repository, ManifestRevision.NormalizeForResolution(requestedRevision)));
             metadata = null;
             if (!File.Exists(metadataPath))
             {

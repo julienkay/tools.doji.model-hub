@@ -195,7 +195,8 @@ namespace Doji.AI.ModelHub.Editor
                 throw new InvalidOperationException($"Missing `sha` in model revision response for `{repository}@{revision}`.");
             }
 
-            var repositoryFiles = await ListRepositoryFilesAsync(repository, revision, cancellationToken);
+            // List the resolved commit, not the branch, so file etags always belong to that commit.
+            var repositoryFiles = await ListRepositoryFilesAsync(repository, resolvedCommit, cancellationToken);
             return new ResolvedRepositoryInventory(
                 repository,
                 revision,
@@ -231,30 +232,28 @@ namespace Doji.AI.ModelHub.Editor
             var files = new List<ResolvedRepoFile>();
             foreach (var repoPath in requestedRepoPaths)
             {
+                // Downloads use the resolve URL at the commit, which never expires; the downloader follows the
+                // redirect to the CDN on every attempt, so an interrupted download resumes with a fresh signed URL.
                 var fileUrl = BuildResolveUrl(dependency.Repository, repositoryInventory.ResolvedCommitHash, repoPath);
-                var response = await _transport.HeadAsync(fileUrl, cancellationToken);
                 inventoryByRepoPath.TryGetValue(repoPath, out var listedFile);
-
-                // Prefer the tree listing's etag. HEAD follows the redirect to the CDN, whose ETag (a xet hash for
-                // large files) differs from the X-Linked-Etag that huggingface_hub names blobs by.
-                var entityTag = NormalizeEntityTag(
-                    listedFile?.EntityTag ??
-                    response.GetHeader(LinkedETagHeaderName) ??
-                    response.GetHeader(ETagHeaderName));
-                var contentLengthHeader = response.GetHeader(LinkedSizeHeaderName) ?? response.GetHeader(ContentLengthHeaderName);
-                long? sizeInBytes = null;
-                if (!string.IsNullOrWhiteSpace(contentLengthHeader) &&
-                    long.TryParse(contentLengthHeader, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSize))
+                var entityTag = NormalizeEntityTag(listedFile?.EntityTag);
+                var sizeInBytes = listedFile?.SizeInBytes;
+                if (string.IsNullOrWhiteSpace(entityTag) || !sizeInBytes.HasValue)
                 {
-                    sizeInBytes = parsedSize;
+                    // The tree listing gives the same etag and size huggingface_hub reads from X-Linked-Etag and
+                    // X-Linked-Size, so HEAD is only a fallback. HEAD follows the redirect to the CDN, whose ETag
+                    // (a xet hash for large files) is not the blob name.
+                    var response = await _transport.HeadAsync(fileUrl, cancellationToken);
+                    entityTag ??= NormalizeEntityTag(response.GetHeader(LinkedETagHeaderName) ?? response.GetHeader(ETagHeaderName));
+                    var contentLengthHeader = response.GetHeader(LinkedSizeHeaderName) ?? response.GetHeader(ContentLengthHeaderName);
+                    if (!sizeInBytes.HasValue &&
+                        long.TryParse(contentLengthHeader, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSize))
+                    {
+                        sizeInBytes = parsedSize;
+                    }
                 }
 
-                if (!sizeInBytes.HasValue && listedFile?.SizeInBytes != null)
-                {
-                    sizeInBytes = listedFile.SizeInBytes.Value;
-                }
-
-                files.Add(new ResolvedRepoFile(repoPath, response.RequestUrl, entityTag, sizeInBytes));
+                files.Add(new ResolvedRepoFile(repoPath, fileUrl, entityTag, sizeInBytes));
             }
 
             return new ResolvedSnapshotVersion(

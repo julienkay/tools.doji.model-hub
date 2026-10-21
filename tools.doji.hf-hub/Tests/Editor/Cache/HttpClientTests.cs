@@ -37,7 +37,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies snapshot resolution reads repository inventory from the tree API and resolves only selected files through HEAD.
+        /// Verifies snapshot resolution lists the resolved commit, falls back to HEAD only for files the listing gives no etag, and downloads from the resolve URL.
         /// </summary>
         [Test]
         public async Task ResolveSnapshotVersionAsync_ResolvesInventoryAndSelectedFiles()
@@ -50,9 +50,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         ["sha"] = "abc123"
                     });
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    "https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true",
                     new JArray
                     {
                         new JObject
@@ -81,14 +81,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("abc123"));
             Assert.That(resolved.RepositoryFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
             Assert.That(resolved.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "onnx/model.onnx" }));
-            Assert.That(resolved.Files[0].DownloadUrl, Is.EqualTo("https://cdn.example/model.onnx"));
+            Assert.That(resolved.Files[0].DownloadUrl, Is.EqualTo("https://huggingface.co/doji/test-model/resolve/abc123/onnx/model.onnx"));
             Assert.That(transport.GetJsonCallCount, Is.EqualTo(2));
             Assert.That(transport.HeadCallCount, Is.EqualTo(1));
         }
 
         /// <summary>
         /// Verifies the etag comes from the tree listing, like huggingface_hub's X-Linked-Etag: the LFS sha256 for
-        /// large files and the git blob id otherwise, not the CDN's ETag after HEAD follows the redirect.
+        /// large files and the git blob id otherwise, without a HEAD request.
         /// </summary>
         [Test]
         public async Task ResolveSnapshotVersionAsync_UsesTreeListingEtags()
@@ -98,9 +98,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 CreateJsonResponse(
                     "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
                     new JObject { ["sha"] = "abc123" });
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    "https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true",
                     new JArray
                     {
                         new JObject { ["type"] = "file", ["path"] = "config.json", ["size"] = 10, ["oid"] = "git-sha1" },
@@ -125,6 +125,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(resolved.Files.Single(file => file.RepoPath == "onnx/model.onnx").EntityTag, Is.EqualTo("lfs-sha256"));
             Assert.That(resolved.Files.Single(file => file.RepoPath == "config.json").EntityTag, Is.EqualTo("git-sha1"));
+            Assert.That(transport.HeadCallCount, Is.Zero);
         }
 
         /// <summary>
@@ -141,9 +142,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         ["sha"] = "abc123"
                     });
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true",
+                    "https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true",
                     new JArray
                     {
                         new JObject
@@ -155,11 +156,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     },
                     new Dictionary<string, string>
                     {
-                        ["link"] = "<https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2>; rel=\"next\""
+                        ["link"] = "<https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true&cursor=page-2>; rel=\"next\""
                     });
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true&cursor=page-2"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/tree/main?recursive=true&cursor=page-2",
+                    "https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true&cursor=page-2",
                     new JArray
                     {
                         new JObject

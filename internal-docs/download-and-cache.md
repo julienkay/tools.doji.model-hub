@@ -25,9 +25,10 @@ Layout, as in `huggingface_hub`:
 
 Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`RawCacheService.DownloadIntoSnapshotAsync`, `CacheFiles`):
 
-1. The etag names the blob: the sha256 for LFS files, the git sha1 for small files. `huggingface_hub` reads it from `X-Linked-Etag` on the first HEAD response. HF Hub reads the same values from the tree listing (`lfs.oid`, else `oid`), because `UnityWebRequest` follows the redirect to the CDN, whose `ETag` is a xet hash. HEAD headers are only the fallback.
+1. The etag names the blob: the sha256 for LFS files, the git sha1 for small files. `huggingface_hub` reads it from `X-Linked-Etag` on a HEAD request per file. HF Hub reads the same etag and size from the tree listing of the resolved commit (`lfs.oid`, else `oid`), so it sends no HEAD request. HEAD is only a fallback for entries without them; `UnityWebRequest` follows its redirect to the CDN, whose `ETag` is a xet hash, so only `X-Linked-*` headers are trusted from it.
+   Files download from `/resolve/<commit>/<path>`. The downloader follows the redirect to a signed CDN URL on each attempt, so its resume state keeps a URL that never expires.
 2. A complete blob already in the cache, from another revision or from Python, is reused without a download.
-3. Otherwise the file downloads to `blobs/<etag>` (partial data in `<etag>.downloading`; upstream uses `.incomplete`, so the two do not resume each other's partial files).
+3. Otherwise the file downloads to `blobs/<etag>`, with partial data in `<etag>.downloading` so an interrupted download resumes. Upstream downloads to a process-unique `<etag>.<id>.incomplete` and never resumes, so the two never share partial files.
 4. The snapshot path becomes a relative symlink to the blob. `CacheFiles.AreSymlinksSupported` probes each cache folder once, like `are_symlinks_supported`.
 5. Without symlinks (Windows without Developer Mode), a new blob moves into the snapshot and an existing blob is copied, exactly like upstream. HF Hub logs this once.
 6. Files without an etag download straight into the snapshot.

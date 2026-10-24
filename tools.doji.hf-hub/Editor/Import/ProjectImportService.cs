@@ -34,7 +34,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         internal static string GetEditorConverterId()
         {
-            return $"{OnnxImportMetadataUtility.DefaultConversionPipelineVersion}@{GetSentisVersion()}";
+            return $"{OnnxImportMetadataUtility.DefaultConversionPipelineVersion}@{SentisCompatibility.GetGeneration(GetSentisVersion())}";
         }
 
         /// <summary>
@@ -167,6 +167,7 @@ namespace Doji.AI.ModelHub.Editor
                                 repoPath = snapshotFile.RepoPath,
                                 sourceEtag = sourceEtag,
                                 converterId = converterId,
+                                formatGeneration = SentisCompatibility.GetGeneration(sentisVersion),
                                 recipeHash = recipeHash
                             });
                     }
@@ -317,7 +318,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
-                !string.Equals(metadata.SentisVersion, GetSentisVersion(), StringComparison.Ordinal) ||
+                !SentisCompatibility.AreCompatible(metadata.SentisVersion, GetSentisVersion()) ||
                 !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.SharedImportMetadataPath, sharedMetadataFilePath, StringComparison.Ordinal))
@@ -341,7 +342,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawMetadataPath, cachedSnapshot.MetadataPath, StringComparison.Ordinal) ||
-                !string.Equals(metadata.SentisVersion, sentisVersion, StringComparison.Ordinal) ||
+                !SentisCompatibility.AreCompatible(metadata.SentisVersion, sentisVersion) ||
                 !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal))
             {
                 return false;

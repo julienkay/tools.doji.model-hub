@@ -165,6 +165,11 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public string onnxConverterId;
 
+        /// <summary>
+        /// Inference Engine format generation the build was made with (<see cref="SentisCompatibility"/>).
+        /// </summary>
+        public string formatGeneration;
+
         public RuntimePackageEntry[] packages = Array.Empty<RuntimePackageEntry>();
 
         public static RuntimeRegistry FromJson(string json)

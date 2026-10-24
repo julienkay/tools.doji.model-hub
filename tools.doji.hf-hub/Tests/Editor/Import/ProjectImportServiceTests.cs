@@ -171,6 +171,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies an import recorded with another Inference Engine version of the same format generation stays
+        /// current, so an update does not convert again.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReusesTheImportAfterAnUpdateWithinTheFormatGeneration()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+            var cachedSnapshot = CreateCachedSnapshot();
+            var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            foreach (var path in new[] { first.BindingMetadataFilePath, first.Metadata.SharedImportMetadataPath })
+            {
+                var absolutePath = ProjectPaths.ToProjectAbsolutePath(path);
+                var json = File.ReadAllText(absolutePath);
+                Assert.That(json, Does.Contain(ProjectImportService.GetSentisVersion()));
+                File.WriteAllText(absolutePath, System.Text.RegularExpressions.Regex.Replace(json, @"""SentisVersion"":\s*""[^""]*""", "\"SentisVersion\": \"2.2.0\""));
+            }
+
+            var second = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(converter.CallCount, Is.EqualTo(1));
+            Assert.That(second.Metadata.ImportedAtUtc, Is.EqualTo(first.Metadata.ImportedAtUtc));
+        }
+
+        /// <summary>
         /// Verifies a deleted converted model is converted again instead of being reported as imported.
         /// </summary>
         [Test]

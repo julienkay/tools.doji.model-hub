@@ -37,9 +37,10 @@ on HuggingFace, and HF Hub gets them into the user's project.
   bookkeeping outside that cache, and treat it as a rebuildable index: the
   files in the cache are the truth.
 - **Built for Sentis.** Load `.sentis` files as published, and convert ONNX
-  files to `.sentis` once per machine, shared by every project. Treat
-  converted output as specific to the converter and Sentis version, and
-  convert again when either changes. Builds ship `.sentis` files, never ONNX.
+  files to `.sentis` once per machine, shared by every project. Reuse
+  conversions across Sentis updates that keep the file format; convert again
+  only when the converter or the format changes. Builds ship `.sentis` files,
+  never ONNX. Users decide when to delete old conversions.
 - **The project decides delivery.** A package writes its loading code once.
   The project chooses whether builds bundle each model or download it at
   runtime.

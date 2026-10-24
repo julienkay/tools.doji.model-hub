@@ -410,7 +410,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(bindingMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !SentisCompatibility.AreCompatible(bindingMetadata.SentisVersion, GetCurrentSentisVersion()) ||
                 !string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) ||
                 string.IsNullOrWhiteSpace(bindingMetadata.RecipeSetHash) ||
                 string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
@@ -426,7 +426,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.ResolvedCommitHash, bindingMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !SentisCompatibility.AreCompatible(sharedMetadata.SentisVersion, GetCurrentSentisVersion()) ||
                 !string.Equals(sharedMetadata.RecipeSetHash, bindingMetadata.RecipeSetHash, StringComparison.Ordinal))
             {
                 return false;
@@ -489,7 +489,7 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) &&
+                SentisCompatibility.AreCompatible(bindingMetadata.SentisVersion, GetCurrentSentisVersion()) &&
                 string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath, StringComparison.Ordinal);
@@ -512,7 +512,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.RawMetadataPath, CachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
+                !SentisCompatibility.AreCompatible(sharedMetadata.SentisVersion, GetCurrentSentisVersion()) ||
                 !string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) ||
                 !(sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
                     file != null &&
@@ -589,7 +589,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "repository", bindingMetadata.Repository, dependency.Repository);
             AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
             AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
-            AddMismatch(mismatches, "Sentis version", bindingMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "Sentis format generation", SentisCompatibility.GetGeneration(bindingMetadata.SentisVersion), SentisCompatibility.GetGeneration(GetCurrentSentisVersion()));
             AddMismatch(mismatches, "selection hash", bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash);
             AddMismatch(mismatches, "recipe set hash", bindingMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(mismatches, "shared metadata path", bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath);
@@ -613,7 +613,7 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "resolved commit", sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
             AddMismatch(mismatches, "raw snapshot root", sharedMetadata.RawSnapshotRootPath, snapshotRoot);
             AddMismatch(mismatches, "raw metadata path", sharedMetadata.RawMetadataPath, rawMetadataPath);
-            AddMismatch(mismatches, "Sentis version", sharedMetadata.SentisVersion, GetCurrentSentisVersion());
+            AddMismatch(mismatches, "Sentis format generation", SentisCompatibility.GetGeneration(sharedMetadata.SentisVersion), SentisCompatibility.GetGeneration(GetCurrentSentisVersion()));
             AddMismatch(mismatches, "recipe set hash", sharedMetadata.RecipeSetHash, expectedRecipeSetHash);
             AddMismatch(
                 mismatches,

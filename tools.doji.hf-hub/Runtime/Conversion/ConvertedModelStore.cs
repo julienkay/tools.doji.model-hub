@@ -18,6 +18,7 @@ namespace Doji.AI.ModelHub
         public string repoPath;
         public string sourceEtag;
         public string converterId;
+        public string formatGeneration;
         public string recipeHash;
         public string createdAtUtc;
     }

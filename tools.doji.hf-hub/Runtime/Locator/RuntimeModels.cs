@@ -305,6 +305,7 @@ namespace Doji.AI.ModelHub
                 repoPath = file.repoPath,
                 sourceEtag = CachePaths.NormalizeEtag(file.source.etag),
                 converterId = CurrentConverterId,
+                formatGeneration = TryGetCatalogWithoutWaiting()?.formatGeneration,
                 recipeHash = file.recipeHash
             });
         }
@@ -340,7 +341,16 @@ namespace Doji.AI.ModelHub
 
         private static string GetBundledCopyPath(RuntimeModelFile file)
         {
-            return Path.Combine(CachePaths.GetDataRoot(), "bundled", Application.version ?? "0", file.relativePath.Replace('/', Path.DirectorySeparatorChar));
+            var version = string.IsNullOrWhiteSpace(Application.version) ? "0" : Application.version;
+            return Path.Combine(GetBundledCopiesRoot(), version, file.relativePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
+        /// Folder of the Android copies of bundled models, one subfolder per app version.
+        /// </summary>
+        internal static string GetBundledCopiesRoot()
+        {
+            return Path.Combine(CachePaths.GetDataRoot(), "bundled");
         }
 
         private static async Task<string> ReadStreamingAssetTextAsync(string relativePath)

@@ -31,9 +31,11 @@ path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
 ```
 
 - `etag` is the source blob name: sha256 for LFS files, git sha1 otherwise. `SourceFileIdentity` reads it from the index, else from the snapshot link target, else hashes the content.
-- `converterId` names the converter and everything that changes its output. Editor: `unity-inference-editor-v2@<inference version>`. Player: `doji-onnx-model-loader@<loader version>+inference@<inference version>`. A new Inference Engine version never reuses an old conversion.
+- `converterId` names the converter and everything that changes its output. Editor: `unity-inference-editor-v2@<generation>`. Player: `doji-onnx-model-loader@<loader version>+<generation>`.
+- `<generation>` comes from [SentisCompatibility.cs](../tools.doji.hf-hub/Runtime/Conversion/SentisCompatibility.cs), for example `ie-2.2.0`. Inference Engine updates within one generation reuse conversions: `ModelLoader` upgrades older `.sentis` files on load and loads newer ones with a warning. Add a generation when a release changes `ModelWriter.version` or the importer's output in a way older conversions must not be reused for. `SentisCompatibilityTests.Generations_CoverTheInstalledModelWriterVersion` fails when the installed writer version is newer than the table, so the decision is never skipped.
 - `recipeHash` covers quantization (normalized: `int8` maps to `uint8`) and fixed input shapes.
-- `Save` takes the blob lock, writes `<key>.sentis.incomplete`, and renames. The `.json` record names the source path, etag, converter, and recipe.
+- `Save` takes the blob lock, writes `<key>.sentis.incomplete`, and renames. The `.json` record names the source path, etag, converter, format generation, and recipe.
+- Nothing deletes converted models automatically. `HubStorage.GetConvertedModels` and `DeleteConvertedModels` let projects and applications clean up when they decide to.
 - Converted files never enter the Hugging Face cache, so Python tools never see them.
 
 `OnnxConversionSettings.Apply` uses public APIs only. `ModelQuantizer.QuantizeWeights` replaces the model, so `Apply` returns the model to use.
@@ -42,7 +44,7 @@ path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
 
 Import storage is split in two, under `Library/Doji/HfHub/imports/`:
 
-- `shared/<repo>/<hash>/hf-hub-shared-import.json`: one per repository snapshot. `<hash>` is the first 8 bytes of `sha256(commit | sentisVersion | recipeSetHash)`, short enough for Windows `MAX_PATH`.
+- `shared/<repo>/<hash>/hf-hub-shared-import.json`: one per repository snapshot. `<hash>` is the first 8 bytes of `sha256(commit | formatGeneration | recipeSetHash)`, short enough for Windows `MAX_PATH`.
 - `bindings/<owner-id>/<model-id>/hf-hub-binding.json`: one per owner dependency.
 
 Shared record (`SharedImportMetadata`): repository, resolved commit, snapshot root, repository file list, Sentis and Unity version, recipe set hash, diagnostics, `SkippedRepoPaths`, and `RuntimeFiles`.
@@ -60,9 +62,9 @@ The shared record covers the union of every owner's selection for one repository
 
 ## Stale detection
 
-A binding is stale when the manifest hash, requested revision, selection, enabled optional files, resolved commit, Sentis version, or shared record path changes.
+A binding is stale when the manifest hash, requested revision, selection, enabled optional files, resolved commit, Sentis format generation, or shared record path changes. Records keep the exact Sentis version that imported them, for diagnostics.
 
-A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis version changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Import** again.
+A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis format generation changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Import** again.
 
 ## Removal
 

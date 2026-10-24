@@ -29,14 +29,14 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns the shared import folder of one repository commit, Inference Engine version, and settings set. The
-        /// last folder name is a short hash of all three, so paths stay under the Windows 260-character limit for long
-        /// repository ids.
+        /// Returns the shared import folder of one repository commit, Inference Engine format generation, and settings
+        /// set. The last folder name is a short hash of all three, so paths stay under the Windows 260-character limit
+        /// for long repository ids. An Inference Engine update within one generation keeps the folder.
         /// </summary>
         public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
             using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var identity = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{resolvedCommitHash}|{sentisVersion}|{recipeSetHash}"));
+            var identity = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{resolvedCommitHash}|{SentisCompatibility.GetGeneration(sentisVersion)}|{recipeSetHash}"));
             var key = string.Concat(System.Linq.Enumerable.Take(identity, 8).Select(value => value.ToString("x2")));
             return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}/{key}";
         }

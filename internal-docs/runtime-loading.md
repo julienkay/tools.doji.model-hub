@@ -55,7 +55,7 @@ A package entry lists only its own owner's selection. The shared import may hold
 - A runtime model shared by two packages is bundled once.
 - A pulled copy under `Assets/StreamingAssets/hf-hub/models/` is already in the build, so it is not added again.
 - The registry is written to `Library/Doji/HfHub/build/hf-hub-runtime.json` and added as `hf-hub/hf-hub-runtime.json`.
-- `onnxConverterId` is `doji-onnx-model-loader@<version>+inference@<version>` when the loader package is installed, else null.
+- `onnxConverterId` is `doji-onnx-model-loader@<version>+<format generation>` when the loader package is installed, else null. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
 
 Builds never ship `.onnx` files.
 
@@ -74,7 +74,7 @@ Platform access to bundled files:
 | Platform | How |
 |---|---|
 | Windows, macOS, Linux, iOS | `ModelLoader.Load(path)` from StreamingAssets |
-| Android | Copy once with `UnityWebRequest` and `DownloadHandlerFile` to `<data-root>/bundled/<Application.version>/<relativePath>`, then load the copy. Loading from memory would hold the model twice at peak. |
+| Android | Copy once with `UnityWebRequest` and `DownloadHandlerFile` to `<data-root>/bundled/<Application.version>/<relativePath>`, then load the copy. Loading from memory would hold the model twice at peak. Old versions' copies stay until the app calls `HubStorage.DeleteBundledCopiesOfOtherVersions()`. |
 | Web | `UnityWebRequest` into memory, `ModelLoader.Load(Stream)` |
 
 The synchronous `Hub.LoadModel` and `Hub.FromPretrained` work only when a local file exists without waiting (`TryGetLocalPathWithoutWaiting`). Otherwise they throw and point to the async method.

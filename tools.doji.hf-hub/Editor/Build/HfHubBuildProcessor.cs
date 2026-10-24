@@ -61,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor
                 .FirstOrDefault(package => package.name == "tools.doji.onnx-model-loader");
             return loader == null
                 ? null
-                : $"{RuntimeRegistryBuilder.PlayerOnnxPipelineName}@{loader.version}+inference@{ProjectImportService.GetSentisVersion()}";
+                : $"{RuntimeRegistryBuilder.PlayerOnnxPipelineName}@{loader.version}+{SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion())}";
         }
 
         private static string WriteRegistry(RuntimeRegistry registry)

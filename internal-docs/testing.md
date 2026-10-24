@@ -75,6 +75,12 @@ Import and generated assets:
   - a deleted converted model converts again
   - companion files are recorded with etags
   - selection subset, mixed-format and no-model-file failures, partial conversion warnings
+- `tools.doji.hf-hub/Tests/Editor/Import/SentisCompatibilityTests.cs`
+  - versions map to format generations; updates within one are compatible
+  - tripwire: the installed `ModelWriter.version` is covered by the table
+- `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/HubStorageTests.cs`
+  - converted models listed with records, deleted by predicate, skipped while being written
+  - Android copies of other app versions deleted, the running version kept
 - `tools.doji.hf-hub/Tests/Editor/Import/OnnxConversionSettingsTests.cs`
   - quantization modes (`int8` maps to `uint8`), fixed input shapes with mismatch warnings
   - quantized weights change data type

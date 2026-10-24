@@ -152,7 +152,7 @@ The table works like the [manifest Inspector](#manifest-inspector).
 
 **Download cache** sets where the Editor stores downloaded files. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder HF Hub uses now.
 
-The page also shows the installed Sentis version. Converted models are built for that version; HF Hub converts them again when it changes.
+The page also shows the installed Sentis version and its format generation. Sentis updates reuse converted models; HF Hub converts them again only when an update starts a new format generation.
 
 ## Manifest Inspector
 

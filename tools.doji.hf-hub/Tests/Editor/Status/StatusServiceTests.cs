@@ -203,6 +203,38 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies an Inference Engine update that keeps the format generation keeps the import ready, so converted
+        /// models are reused instead of converted again.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_StaysReadyAfterAnUpdateWithinTheFormatGeneration()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency, sentisVersion: "2.2.0");
+
+            var report = BuildStatusReport(dependency);
+
+            Assert.That(report.DependencyStatuses[0].State, Is.EqualTo(DependencyState.Ready));
+        }
+
+        /// <summary>
+        /// Verifies an import made with a version of an older format generation needs importing again, and says why.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_IsStaleAfterAnUpdateAcrossFormatGenerations()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency, sentisVersion: "2.1.0");
+
+            var status = BuildStatusReport(dependency).DependencyStatuses[0];
+
+            Assert.That(status.State, Is.EqualTo(DependencyState.Stale));
+            Assert.That(status.MaintainerMessage, Does.Contain("Sentis format generation"));
+        }
+
+        /// <summary>
         /// Verifies adding a broader same-repository dependency later leaves existing owner ready but marks the new owner as cache-update-needed.
         /// </summary>
         [Test]
@@ -547,10 +579,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             DiscoveredModelDependency dependency,
             string commitHash = "abc123",
             string bindingManifestHash = null,
-            string bindingRecipeSetHash = null)
+            string bindingRecipeSetHash = null,
+            string sentisVersion = null)
         {
             var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
-            var sentisVersion = StatusService.GetCurrentSentisVersion();
+            sentisVersion ??= StatusService.GetCurrentSentisVersion();
             var recipeSetHash = bindingRecipeSetHash ?? OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" });
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);

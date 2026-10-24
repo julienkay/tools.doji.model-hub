@@ -76,9 +76,24 @@ It holds:
 - `index/`: each cached repository's file list per commit
 - `converted/models--<owner>--<name>/<key>.sentis`: converted Sentis models, each with a `.json` file that names the source file, its etag, the converter, and the conversion settings
 
-A converted model is found by what produced it: the source file's etag, the converter and its version, and the conversion settings. Projects with the same model and settings share one conversion. An Inference Engine upgrade never reuses an older conversion.
+A converted model is found by what produced it: the source file's etag, the converter, the Inference Engine **format generation**, and the conversion settings. Projects with the same model and settings share one conversion.
+
+Most Inference Engine updates keep the `.sentis` format: older files are upgraded when they load. So an update reuses existing conversions. HF Hub converts again only when the update starts a new format generation, which HF Hub's own compatibility table decides. Project Settings shows the installed version and its generation.
 
 **Remove from Project** deletes this project's import records. Downloaded files and converted models stay, so a later import is fast.
+
+### Clean up converted models
+
+HF Hub never deletes converted models on its own, because other projects on the machine may use them. Delete them from your own code with `HubStorage`, for example after moving every project to a new format generation:
+
+```csharp
+using Doji.AI.ModelHub;
+
+string current = HubStorage.FormatGeneration;
+int deleted = HubStorage.DeleteConvertedModels(model => model.FormatGeneration != current);
+```
+
+`HubStorage.GetConvertedModels()` lists each converted model with its repository, source path, converter, format generation, size, and date. A deleted model is converted again the next time it is needed. Models that are being written are skipped. The same methods work in players, on the device's converted folder.
 
 Earlier versions of HF Hub kept downloads in a private `raw` folder in the data folder. On the first Editor start after an update, HF Hub moves those files into the Hugging Face cache without downloading them again, then deletes `raw`.
 
@@ -134,7 +149,7 @@ How players read bundled models:
 | Platform | How |
 |---|---|
 | Windows, macOS, Linux, iOS | Load from the file in StreamingAssets. |
-| Android | StreamingAssets is inside the APK. The first load copies the model once to `persistentDataPath/hf-hub/bundled/<app-version>/`, then loads the copy. |
+| Android | StreamingAssets is inside the APK. The first load copies the model once to `persistentDataPath/hf-hub/bundled/<app-version>/`, then loads the copy. Copies of earlier app versions stay until you call `HubStorage.DeleteBundledCopiesOfOtherVersions()`, for example once after an app update. |
 | Web | Download the model from StreamingAssets into memory, then load it. |
 
 Bundled models make the app larger. Google Play limits the base APK to 150 MB, and Web players download everything before they start. Set large models to **Download at runtime**.

@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Runtime API: `Hub.LoadModelAsync`, `Hub.LoadModel`, `Hub.EnsureAvailableAsync`, `Hub.FromPretrained`, `Hub.FromPretrainedAsync`, and `Hub.RegisterOnnxConverter`. Android and Web players read StreamingAssets with `UnityWebRequest`.
 - **Pull into Project** copies a model's Sentis files into `Assets/StreamingAssets/hf-hub/models`.
 - Model Hub and Add Model show the model format.
+- Converted models are reused across Inference Engine updates of the same format generation (`SentisCompatibility`).
+- `HubStorage` lists and deletes converted models and old Android copies of bundled models. HF Hub never deletes them on its own.
 
 ### Changed
 

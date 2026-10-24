@@ -51,6 +51,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             var plan = new Plan();
             plan.Registry.onnxConverterId = playerOnnxConverterId;
+            plan.Registry.formatGeneration = SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion());
             var bundledPaths = new HashSet<string>(StringComparer.Ordinal);
             var packages = new List<RuntimePackageEntry>();
 

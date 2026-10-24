@@ -67,8 +67,9 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
 
 ## Conventions
 
-- `.sentis` output depends on the installed Sentis version. Import metadata
-  records it; a version change marks the import stale.
+- Converted `.sentis` output is keyed by Sentis **format generation**, not
+  by exact version (`SentisCompatibility`). Updates within a generation
+  reuse conversions; HF Hub never deletes old ones on its own (`HubStorage`).
 - Never load full ONNX models to show files, recipes, or import settings.
   Read signatures through `tools.doji.formats.onnx`.
 - Avoid long-lived references to ONNX `ModelAsset` objects; they force

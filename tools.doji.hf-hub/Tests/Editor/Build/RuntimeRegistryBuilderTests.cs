@@ -180,6 +180,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(plan.BundledFiles, Has.Count.EqualTo(1));
         }
 
+        /// <summary>
+        /// Verifies the registry records the repository id as the cache spells it, so a player downloads into the
+        /// folder Python uses even when a manifest spells the id differently.
+        /// </summary>
+        [Test]
+        public void Build_RecordsTheCacheSpellingOfTheRepositoryId()
+        {
+            using var cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "Cache"));
+            Directory.CreateDirectory(Path.Combine(cacheScope.CacheRoot, "models--doji--Test-Model"));
+
+            var model = Plan(ModelDelivery.Download, Ready("tools.doji.a", SentisFile("sentis/model.sentis"))).Registry.packages.Single().models.Single();
+
+            Assert.That(model.repoId, Is.EqualTo("doji/test-model"));
+            Assert.That(model.cacheRepoId, Is.EqualTo("doji/Test-Model"));
+        }
+
         private RuntimeRegistryBuilder.Plan Plan(ModelDelivery delivery, params DependencyStatus[] statuses)
         {
             return Run(delivery, statuses, false, null, null);

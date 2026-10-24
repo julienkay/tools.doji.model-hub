@@ -134,6 +134,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies downloads go into the folder of the cache spelling of the id, while lookups use the package's id.
+        /// </summary>
+        [Test]
+        public async Task LoadModelAsync_DownloadsIntoTheCacheSpellingOfTheId()
+        {
+            var entry = Model("download", new RuntimeModelFile
+            {
+                repoPath = "sentis/model.sentis",
+                format = "sentis",
+                source = new RuntimeSourceFile { repoPath = "sentis/model.sentis", etag = "etag-sentis" }
+            });
+            entry.cacheRepoId = "doji/Runtime-Test";
+            UseRegistry(entry);
+
+            await Hub.LoadModelAsync(Repo, "sentis/model.sentis");
+
+            Assert.That(
+                Directory.GetDirectories(_cacheScope.CacheRoot).Select(Path.GetFileName),
+                Does.Contain("models--doji--Runtime-Test"));
+            Assert.That(_downloadedUrls.Single(), Does.Contain("/doji/Runtime-Test/resolve/"));
+        }
+
+        /// <summary>
         /// Verifies a downloaded ONNX model brings its companion files, is converted once with the build's settings,
         /// and is found by its conversion key later.
         /// </summary>

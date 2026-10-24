@@ -115,7 +115,16 @@ namespace Doji.AI.ModelHub
         public string commit;
 
         public string delivery;
+
+        /// <summary>
+        /// The repository id as the Hugging Face cache spells it, for example <c>julienkay/sentis-MiDaS</c> when a
+        /// manifest wrote <c>julienkay/sentis-midas</c>. Downloads use it, so players share the folder Python uses.
+        /// </summary>
+        public string cacheRepoId;
+
         public RuntimeModelFile[] files = Array.Empty<RuntimeModelFile>();
+
+        public string CacheRepoId => string.IsNullOrWhiteSpace(cacheRepoId) ? repoId : cacheRepoId;
 
         public ModelDelivery Delivery => string.Equals(delivery, "download", StringComparison.Ordinal)
             ? ModelDelivery.Download

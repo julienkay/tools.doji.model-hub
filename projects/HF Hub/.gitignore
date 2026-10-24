@@ -114,3 +114,5 @@ InitTestScene*.unity*
 /[Pp]ackages/[Cc]om.unity.asset-store-tools*
 /[Aa]ssets/[Ss]treamingAssets
 /[Aa]ssets/[Ss]treamingAssets.meta
+/Assets/HF Hub/Build Smoke Test/Generated/
+/Assets/HF Hub/Build Smoke Test/Generated.meta

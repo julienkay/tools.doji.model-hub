@@ -248,7 +248,7 @@ namespace Doji.AI.ModelHub
         {
             if (!file.IsOnnx)
             {
-                return CachePaths.GetSnapshotFilePath(model.repoId, model.commit, file.repoPath);
+                return CachePaths.GetSnapshotFilePath(model.CacheRepoId, model.commit, file.repoPath);
             }
 
             return CurrentConverterId == null || string.IsNullOrWhiteSpace(file.source?.etag)
@@ -275,10 +275,10 @@ namespace Doji.AI.ModelHub
 
             foreach (var companion in file.companions ?? Array.Empty<RuntimeSourceFile>())
             {
-                await RuntimeDownloader.EnsureFileAsync(model.repoId, model.revision, model.commit, companion, progress, cancellationToken);
+                await RuntimeDownloader.EnsureFileAsync(model.CacheRepoId, model.revision, model.commit, companion, progress, cancellationToken);
             }
 
-            var sourcePath = await RuntimeDownloader.EnsureFileAsync(model.repoId, model.revision, model.commit, file.source, progress, cancellationToken);
+            var sourcePath = await RuntimeDownloader.EnsureFileAsync(model.CacheRepoId, model.revision, model.commit, file.source, progress, cancellationToken);
             if (!file.IsOnnx)
             {
                 return sourcePath;

@@ -14,3 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Doji.ModelHub.Editor::Doji.AI.ModelHub.Editor.HfHubProjectSettings
   _useDefaultCacheLocation: 1
   _customCacheLocation: 
+  _defaultDelivery: 0
+  _deliveryOverrides:
+  - repository: julienkay/sentis-midas
+    delivery: 1

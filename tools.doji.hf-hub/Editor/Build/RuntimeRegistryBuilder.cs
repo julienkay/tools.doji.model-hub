@@ -81,6 +81,7 @@ namespace Doji.AI.ModelHub.Editor
                         revision = dependency.Revision,
                         commit = status.ImportedMetadata.ResolvedCommitHash,
                         delivery = delivery == ModelDelivery.Download ? "download" : "bundle",
+                        cacheRepoId = GetCacheRepoId(dependency.Repository),
                         files = runtimeFiles
                             .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
                             .Select(file => CreateFile(dependency, file, delivery, getRecipe, forEditor, projectRoot, plan, bundledPaths, label))
@@ -101,6 +102,17 @@ namespace Doji.AI.ModelHub.Editor
 
             plan.Registry.packages = packages.ToArray();
             return plan;
+        }
+
+        /// <summary>
+        /// The repository id as the cache folder on this machine spells it, which is the Hub's spelling when HF Hub
+        /// or Python downloaded it.
+        /// </summary>
+        private static string GetCacheRepoId(string repository)
+        {
+            return CacheOverviewService.TryParseFolderName(CachePaths.ResolveRepositoryFolderName(repository), out _, out var cached)
+                ? cached
+                : repository;
         }
 
         private static RuntimeModelFile CreateFile(

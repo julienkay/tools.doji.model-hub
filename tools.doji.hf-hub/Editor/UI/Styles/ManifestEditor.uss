@@ -169,6 +169,12 @@
     flex-shrink: 1;
 }
 
+.am-problem {
+    margin-top: 2px;
+    color: var(--hf-warning);
+    white-space: normal;
+}
+
 .am-files {
     flex-direction: row;
     align-items: center;

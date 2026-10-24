@@ -207,13 +207,30 @@ namespace Doji.AI.ModelHub.Editor
             menu.AddSeparator(string.Empty);
 
             var canRemove = !item.HasRevisionConflict && !BackgroundSyncManager.IsRunning;
-            if (canRemove && item.HasImportedArtifacts)
+            if (PulledModels.HasCopies(item.Repository, item.RuntimeFiles))
             {
-                menu.AddItem(new GUIContent("Remove Imported Files"), false, () => ConfirmRemoveImported(item));
+                menu.AddItem(new GUIContent("Remove Pulled Copies"), false, () =>
+                {
+                    PulledModels.Remove(item.Repository);
+                    Refresh();
+                });
+            }
+            else if (item.HasImportedArtifacts && item.State == ModelHubItemState.Ready)
+            {
+                menu.AddItem(new GUIContent("Pull into Project"), false, () => PullIntoProject(item));
             }
             else
             {
-                menu.AddDisabledItem(new GUIContent("Remove Imported Files"));
+                menu.AddDisabledItem(new GUIContent("Pull into Project"));
+            }
+
+            if (canRemove && item.HasImportedArtifacts)
+            {
+                menu.AddItem(new GUIContent("Remove from Project"), false, () => ConfirmRemoveImported(item));
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent("Remove from Project"));
             }
 
             if (canRemove && HasCache(item))
@@ -228,11 +245,26 @@ namespace Doji.AI.ModelHub.Editor
             menu.DropDown(buttonRect);
         }
 
+        private void PullIntoProject(ModelHubItem item)
+        {
+            try
+            {
+                var written = PulledModels.Pull(item.Repository, item.RuntimeFiles);
+                Debug.Log($"HF Hub copied {written.Count} runtime models of {item.Repository} into {PulledModels.GetFolderAssetPath(item.Repository)}. Builds ship these copies.");
+            }
+            catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException)
+            {
+                EditorUtility.DisplayDialog("Pull into Project", exception.Message, "OK");
+            }
+
+            Refresh();
+        }
+
         private void ConfirmRemoveImported(ModelHubItem item)
         {
             if (!EditorUtility.DisplayDialog(
-                    "Remove Imported Files",
-                    $"Remove the imported files of {item.Repository} from this project?\n\nThe downloaded files stay in the cache, so you can import the model again without downloading it.",
+                    "Remove from Project",
+                    $"Remove {item.Repository} from this project's imports?\n\nCopies pulled into the project are deleted. Downloaded and converted files stay in the shared caches, so importing again is fast.",
                     "Remove",
                     "Cancel"))
             {
@@ -447,15 +479,73 @@ namespace Doji.AI.ModelHub.Editor
                 card.Add(UiKit.KeyValue("Download size", downloadSize, "Size of the selected files on Hugging Face."));
             }
 
+            var selectedModelFiles = item.Files.Where(file => file.IsDependencySelected).Select(file => file.RepoPath).ToArray();
+            if (selectedModelFiles.Any(ModelFiles.IsModelFile))
+            {
+                var format = ModelFiles.Describe(selectedModelFiles);
+                card.Add(UiKit.KeyValue(
+                    "Format",
+                    format switch
+                    {
+                        RepositoryModelFormat.Sentis => "Sentis, used as downloaded",
+                        RepositoryModelFormat.Onnx => "ONNX, converted to Sentis",
+                        RepositoryModelFormat.Mixed => "ONNX and Sentis files",
+                        _ => ModelFiles.GetLabel(format)
+                    }));
+            }
+
             card.Add(UiKit.KeyValue(
                 "Imported",
                 item.ImportedFileCount == 0
                     ? "Nothing yet"
                     : item.ImportedFileCount == 1 ? "1 Sentis model" : $"{item.ImportedFileCount} Sentis models"));
+            card.Add(UiKit.KeyValue("In builds", BuildDeliveryField(item)));
             about.Add(card);
             content.Add(about);
 
             content.Add(BuildUsedBySection(item));
+        }
+
+        /// <summary>
+        /// How builds deliver this model: the project default, bundled, or downloaded at runtime.
+        /// </summary>
+        private VisualElement BuildDeliveryField(ModelHubItem item)
+        {
+            var settings = ProjectSettings.instance;
+            var choices = new List<string>
+            {
+                $"Project default ({DeliveryLabel(settings.DefaultDelivery)})",
+                DeliveryLabel(ModelDelivery.Bundle),
+                DeliveryLabel(ModelDelivery.Download)
+            };
+            var current = settings.GetDeliveryOverride(item.Repository);
+            var field = new DropdownField(choices, current == null ? 0 : current == ModelDelivery.Bundle ? 1 : 2);
+            field.tooltip = "Bundled models ship in StreamingAssets. Downloaded models are fetched from Hugging Face on first use, at the commit tested here.";
+            field.RegisterValueChangedCallback(evt =>
+            {
+                var index = choices.IndexOf(evt.newValue);
+                settings.SetDeliveryOverride(item.Repository, index == 0 ? null : index == 1 ? ModelDelivery.Bundle : ModelDelivery.Download);
+                EditorRuntimeCatalog.Invalidate();
+            });
+
+            var hasOnnx = item.Files.Any(file => file.IsDependencySelected && ModelFiles.GetFormat(file.RepoPath) == ModelFileFormat.Onnx);
+            if (!hasOnnx || HfHubBuildProcessor.GetPlayerOnnxConverterId() != null)
+            {
+                return field;
+            }
+
+            var row = UiKit.Element("mh-delivery");
+            row.Add(field);
+            var hint = UiKit.Text("Download needs tools.doji.onnx-model-loader for ONNX files.", "hf-small", "hf-muted");
+            UiKit.SetVisible(hint, settings.GetEffectiveDelivery(item.Repository) == ModelDelivery.Download);
+            field.RegisterValueChangedCallback(_ => UiKit.SetVisible(hint, settings.GetEffectiveDelivery(item.Repository) == ModelDelivery.Download));
+            row.Add(hint);
+            return row;
+        }
+
+        internal static string DeliveryLabel(ModelDelivery delivery)
+        {
+            return delivery == ModelDelivery.Download ? "Download at runtime" : "Bundle in the build";
         }
 
         private void EnsureSizeEstimate(ModelHubItem item)

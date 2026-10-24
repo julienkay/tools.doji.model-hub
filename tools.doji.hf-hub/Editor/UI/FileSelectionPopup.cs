@@ -18,7 +18,7 @@ namespace Doji.AI.ModelHub.Editor
         private enum Filter
         {
             All,
-            Onnx,
+            Models,
             Selected
         }
 
@@ -79,7 +79,7 @@ namespace Doji.AI.ModelHub.Editor
                 RebuildList();
             }));
             var filter = UiKit.Element("fp-filter");
-            foreach (var mode in new[] { Filter.All, Filter.Onnx, Filter.Selected })
+            foreach (var mode in new[] { Filter.All, Filter.Models, Filter.Selected })
             {
                 var button = new Button(() =>
                 {
@@ -87,7 +87,7 @@ namespace Doji.AI.ModelHub.Editor
                     RebuildList();
                 })
                 {
-                    text = mode == Filter.Onnx ? "ONNX" : mode.ToString(),
+                    text = mode == Filter.Models ? "Models" : mode.ToString(),
                     userData = mode
                 };
                 _filterButtons.Add(button);
@@ -201,7 +201,7 @@ namespace Doji.AI.ModelHub.Editor
 
             return _filter switch
             {
-                Filter.Onnx => ModelDependencyDefinition.IsOnnxFile(file.RepoPath),
+                Filter.Models => ModelFiles.IsModelFile(file.RepoPath),
                 Filter.Selected => _selection.ContainsKey(file.RepoPath),
                 _ => true
             };

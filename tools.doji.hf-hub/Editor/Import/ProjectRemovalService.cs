@@ -57,7 +57,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             // Pulled copies belong to the repository, not to one owner: keep them while another owner still imports it.
-            var pulledFolder = $"Assets/StreamingAssets/{Hub.RuntimeStreamingRelativeRoot}/models/{Hub.SanitizeRelativePath(item.Repository)}";
+            var pulledFolder = PulledModels.GetFolderAssetPath(item.Repository);
             if (!HasAnyBindingForRepository(item.Repository) && AssetDatabase.IsValidFolder(pulledFolder))
             {
                 AssetDatabase.DeleteAsset(pulledFolder);

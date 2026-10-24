@@ -99,15 +99,39 @@ namespace Doji.AI.ModelHub.Editor
         private string CurrentModelId =>
             ManifestModelEntry.TryParseModelId(_idField?.value, out var owner, out var name) ? $"{owner}/{name}" : null;
 
-        private bool CanAdd =>
+        private RepositoryModelFormat? _format;
+
+        private bool IsFound =>
             _status == ManifestModelValidationStatus.Valid &&
             string.Equals(_validatedModelId, CurrentModelId, StringComparison.Ordinal);
+
+        private bool CanAdd => IsFound && GetFormatProblem(_format, _selectedFiles.Length) == null;
+
+        /// <summary>
+        /// Why the model cannot be added with the current file choice, or null. A repository with both ONNX and Sentis
+        /// files needs a file list; one without model files cannot load. Unknown formats do not block adding.
+        /// </summary>
+        internal static string GetFormatProblem(RepositoryModelFormat? format, int selectedFileCount)
+        {
+            if (selectedFileCount > 0 || format == null)
+            {
+                return null;
+            }
+
+            return format switch
+            {
+                RepositoryModelFormat.Mixed => "This repository has ONNX and Sentis files. Choose the files you use.",
+                RepositoryModelFormat.None => "This repository has no .onnx or .sentis files.",
+                _ => null
+            };
+        }
 
         private void ScheduleValidation()
         {
             _validationVersion++;
             _status = ManifestModelValidationStatus.Unknown;
             _statusMessage = null;
+            _format = null;
             _selectedFiles = Array.Empty<string>();
             _pendingValidation?.Pause();
             if (CurrentModelId != null)
@@ -151,6 +175,25 @@ namespace Doji.AI.ModelHub.Editor
                 : ManifestModelValidationStatus.Invalid;
             _statusMessage = result.Message;
             UpdateState();
+
+            if (_status != ManifestModelValidationStatus.Valid)
+            {
+                return;
+            }
+
+            try
+            {
+                var inventory = await new HttpClient().GetRepositoryInventoryAsync(modelId, "main", System.Threading.CancellationToken.None);
+                if (version == _validationVersion && _idField?.panel != null)
+                {
+                    _format = ModelFiles.Describe(inventory.Files.Select(file => file.RepoPath));
+                    UpdateState();
+                }
+            }
+            catch (Exception)
+            {
+                // The format is a hint; adding still works without it.
+            }
         }
 
         private void UpdateState()
@@ -169,7 +212,9 @@ namespace Doji.AI.ModelHub.Editor
                 _check.Add(UiKit.Text(_status switch
                 {
                     ManifestModelValidationStatus.Checking => "Checking Hugging Face…",
-                    ManifestModelValidationStatus.Valid => "Found on Hugging Face.",
+                    ManifestModelValidationStatus.Valid => _format == null
+                        ? "Found on Hugging Face."
+                        : $"Found on Hugging Face · {ModelFiles.GetLabel(_format.Value)}",
                     _ => _statusMessage ?? "Not found on Hugging Face. Check the spelling, or sign in for gated models."
                 }));
             }
@@ -178,7 +223,13 @@ namespace Doji.AI.ModelHub.Editor
                 _check.Add(UiKit.Text("Use the form owner/name, for example julienkay/sentis-MiDaS.", "hf-muted"));
             }
 
-            _filesButton?.SetEnabled(CanAdd);
+            var formatProblem = IsFound ? GetFormatProblem(_format, _selectedFiles.Length) : null;
+            if (formatProblem != null)
+            {
+                _check.Add(UiKit.Text(formatProblem, "hf-small", "am-problem"));
+            }
+
+            _filesButton?.SetEnabled(IsFound);
             if (_filesSummary != null)
             {
                 _filesSummary.text = _selectedFiles.Length == 0

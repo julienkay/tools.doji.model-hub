@@ -72,12 +72,30 @@ namespace Doji.AI.ModelHub.Editor
                 }));
             root.Add(models);
 
+            root.Add(BuildDeliverySection());
             root.Add(BuildCacheSection());
 
             root.Add(UiKit.Text(
                 $"Sentis {StatusService.GetCurrentSentisVersion()}. Imported models are built for this version and re-imported when it changes.",
                 "ps-footer"));
             UpdateCacheSection(root);
+        }
+
+        private static VisualElement BuildDeliverySection()
+        {
+            var settings = ProjectSettings.instance;
+            var section = UiKit.Section("In builds");
+            var card = UiKit.Element("hf-card");
+            var choices = new List<string> { ModelHubWindow.DeliveryLabel(ModelDelivery.Bundle), ModelHubWindow.DeliveryLabel(ModelDelivery.Download) };
+            var field = new DropdownField("Models", choices, settings.DefaultDelivery == ModelDelivery.Download ? 1 : 0);
+            field.RegisterValueChangedCallback(evt =>
+                settings.SetDefaultDelivery(choices.IndexOf(evt.newValue) == 1 ? ModelDelivery.Download : ModelDelivery.Bundle));
+            card.Add(field);
+            card.Add(UiKit.Text(
+                "Bundled models ship in StreamingAssets. Downloaded models are fetched from Hugging Face the first time a player loads them, at the commit tested in this project, into the device's cache. Desktop players use the user's Hugging Face cache, so models Python or other apps downloaded are reused. Override this per model in the Model Hub.",
+                "ps-card-hint"));
+            section.Add(card);
+            return section;
         }
 
         private static VisualElement BuildCacheSection()

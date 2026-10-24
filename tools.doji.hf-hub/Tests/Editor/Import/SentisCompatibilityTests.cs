@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(
                 installed,
                 Is.LessThanOrEqualTo(SentisCompatibility.Generations.Last().CheckedUpToWriterVersion),
-                $"Inference Engine {ProjectImportService.GetSentisVersion()} writes .sentis format {installed}. Review SentisCompatibility.Generations.");
+                $"Inference Engine {ProjectImportService.GetSentisVersion()} writes .sentis format {installed}. Check it as internal-docs/import-and-generated-assets.md (On each new Inference Engine version) describes, then update SentisCompatibility.Generations.");
         }
     }
 }

@@ -40,6 +40,17 @@ path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
 
 `OnnxConversionSettings.Apply` uses public APIs only. `ModelQuantizer.QuantizeWeights` replaces the model, so `Apply` returns the model to use.
 
+## On each new Inference Engine version
+
+`SentisCompatibilityTests.Generations_CoverTheInstalledModelWriterVersion` fails when the installed `ModelWriter.version` is newer than the last generation's `checkedUpToWriterVersion`. Before raising `checkedUpToWriterVersion`, check in the new package (`Library/PackageCache/com.unity.ai.inference@*/Runtime/Core/Serialization/`):
+
+1. **Older files still load.** `ModelLoader` upgrades every writer version of the current generation to the new one (the `originalProgramVersion < ModelWriter.version` path), and the upgraded model runs the same as before. Load a converted model from the previous version and compare outputs on one input.
+2. **Newer files still load in older versions.** `ModelLoader` of the previous version only warns on the newer version (`originalProgramVersion > ModelWriter.version`) and runs the file correctly. This matters because projects and desktop players on different versions share one converted store.
+
+Both hold: raise `checkedUpToWriterVersion` of the last entry. The id stays, so existing conversions are reused.
+
+Either fails: add `new Generation("<new version>", <new writer version>)`. The id becomes `sentis-f<N>`, and every ONNX file converts again.
+
 ## Import records
 
 Import storage is split in two, under `Library/Doji/HfHub/imports/`:

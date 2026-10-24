@@ -1,32 +1,26 @@
 # tools.doji.hf-hub
 
-Reference and download AI models from HuggingFace for Unity packages.
+Reference AI models on Hugging Face from Unity packages, and load them as Inference Engine models in the Editor and in players.
 
-Shared Hub logic should live in `Runtime` whenever possible so same package can later support downloading files from HuggingFace at runtime. Keep only UnityEditor-specific integration, Package Manager scanning, prompts, and asset import workflows in `Editor`.
+Hub logic that does not need `UnityEditor` lives in `Runtime`, so players use the same cache, download, and registry code as the Editor. `Editor` holds Package Manager scanning, prompts, import, the build step, and the UI.
 
-Current runtime contract:
+How it works:
 
-- editor sync generates runtime-loadable `.sentis` payloads directly under repo-scoped snapshot paths in `Assets/StreamingAssets/hf-hub/`
-- editor sync downloads only files required by each dependency scope into shared cache and converts selected ONNX files to `.sentis` for runtime
-- generated runtime assets use human-readable `Assets/StreamingAssets/hf-hub/<owner>/<model>/...` paths
-- sync writes per-package runtime locator registries under `Assets/StreamingAssets/hf-hub/registries/`
-- sync stores editor-only shared import and owner binding metadata under `Library/Doji/HfHub/imports/`
-- projects can declare dependencies either with `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json` or with `ProjectManifestAsset` ScriptableObject assets, while packages stay on plain `hf-hub-manifest.json`
-- editor conversion uses Unity Inference ONNX conversion directly, without temporary ONNX asset imports
-- ONNX conversion now hangs off shared `IOnnxModelConverter`; runtime placeholder exists for future custom runtime converter package
-- runtime code resolves models by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`
-- owner-specific runtime lookup also uses canonical `repo_id` through `Hub.TryResolveRuntimeModel("package-or-project-owner", "owner/model")`
-- runtime code resolves repo snapshots by HuggingFace `repo_id` through `Hub.TryResolveRuntimeModel("owner/model")`
-- runtime code can wrap one synchronized repo snapshot in `from_pretrained(...)` style API through `Hub.FromPretrained("owner/model")`
-- runtime code loads one generated Sentis payload by repo-relative file path through `Hub.LoadRuntimeModel("owner/model", "onnx/model.onnx")`
-- default runtime workflow is offline-first: editor sync prepares payloads, runtime resolves local files, runtime download comes later
+- packages and projects list models in `hf-hub-manifest.json`, the Project Settings manifest, or `ProjectManifestAsset` assets
+- the Editor downloads the selected files into the shared Hugging Face cache, the same one the `huggingface_hub` Python library uses
+- `.onnx` files are converted to Sentis models in a shared folder outside the project; `.sentis` files are used as downloaded
+- nothing is written into `Assets`; import records live in `Library/Doji/HfHub/imports/`
+- builds bundle each model's Sentis file, or let the player download it at runtime, as Project Settings and per-model overrides say
+- runtime code loads models by repository id and file path: `await Hub.LoadModelAsync("owner/model", "onnx/model.onnx")`
+- players that download ONNX files convert them with the optional `tools.doji.onnx-model-loader` package
 
 Manifest sources:
 
 - Project Settings manifest: `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`, edited from `Project Settings > Doji > AI > AI Model Hub`
-- package manifest: `hf-hub-manifest.json` at local package root, edited from the custom manifest Inspector when package source is writable
-- ScriptableObject project manifest asset: create from `Assets > Create > Doji > AI > HF Hub Project Manifest` for project-owned content that should live as a Unity asset
+- package manifest: `hf-hub-manifest.json` at the package root, edited from the manifest Inspector when the package source is writable
+- ScriptableObject project manifest asset: `Assets > Create > Doji > AI > HF Hub Project Manifest`
 
-Companion project sample:
+Companion project samples:
 
-- `projects/HF Hub/Assets/HF Hub/RuntimeLocatorSample.cs` shows project-manifest lookup by canonical `repo_id`, then loads chosen generated `.sentis` by repo-relative ONNX path
+- `projects/HF Hub/Assets/HF Hub/RuntimeLocatorSample.cs` loads a model by repository id and file path
+- `projects/HF Hub/Assets/HF Hub/Build Smoke Test/` builds a Windows player and checks bundled and downloaded models

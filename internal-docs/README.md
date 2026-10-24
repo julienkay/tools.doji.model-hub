@@ -9,10 +9,10 @@ exception is the roadmap, which lists features the package does not have yet.
 | [VISION.md](../VISION.md) | The package purpose, product direction, and decision rules |
 | [architecture.md](architecture.md) | Assemblies, package boundaries, end-to-end flow, known limits |
 | [manifest-schema.md](manifest-schema.md) | Manifest sources, schema, file selection, optional files, validation |
-| [download-and-cache.md](download-and-cache.md) | HuggingFace resolution, shared raw cache layout, sync and resume |
-| [import-and-generated-assets.md](import-and-generated-assets.md) | ONNX to `.sentis` conversion, generated paths, import metadata, stale detection |
+| [download-and-cache.md](download-and-cache.md) | Hugging Face resolution, shared cache layout, sync and resume |
+| [import-and-generated-assets.md](import-and-generated-assets.md) | Model formats, the converted store, import records, stale detection, pulled copies |
 | [per-file-conversion-recipes.md](per-file-conversion-recipes.md) | Per-file input shapes and conversion settings, project overrides |
-| [runtime-locator.md](runtime-locator.md) | Runtime registries and lookup by `repo_id` |
+| [runtime-loading.md](runtime-loading.md) | Registry, build step, delivery modes, platform loading, runtime downloads and ONNX conversion |
 | [editor-model-hub-ui.md](editor-model-hub-ui.md) | Model Hub window, Project Settings, Inspectors, states and actions |
 | [visual-scenario-sandbox.md](visual-scenario-sandbox.md) | Scenario fixtures for checking Model Hub UI states |
 | [testing.md](testing.md) | Map from behavior contracts to test fixtures |

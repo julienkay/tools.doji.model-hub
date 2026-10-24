@@ -8,7 +8,7 @@ Primary location:
 
 - `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`
 
-Use it to materialize fake project manifests, raw cache artifacts, import metadata, and runtime files for visual review.
+Use it to materialize fake project manifests, download cache files, import metadata, and runtime files for visual review.
 
 ## Scope
 
@@ -42,7 +42,7 @@ The sandbox can model both whole-repo and explicit selected-file dependencies.
 
 Rules:
 
-- for selected-file scenarios, fake manifest `files`, raw cache `Files`, and import metadata hashes must agree with the selected ONNX subset while raw/shared metadata still carries full repository inventory
+- for selected-file scenarios, fake manifest `files`, cache index `Files`, and import metadata hashes must agree with the selected ONNX subset while raw/shared metadata still carries full repository inventory
 - never serialize empty `files: []` for whole-repo cases; omit `files` entirely. Empty `files` is invalid by schema and produces `must select at least one file when 'files' is present`
 - use repeated same-repo entries to test both multi-manifest shared dependencies and blocked revision-conflict errors before reaching for fake embedded packages
 

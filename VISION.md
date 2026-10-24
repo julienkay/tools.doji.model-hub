@@ -36,15 +36,19 @@ on HuggingFace, and HF Hub gets them into the user's project.
   tools is reused in Unity, and the other way round. Keep HF Hub's own
   bookkeeping outside that cache, and treat it as a rebuildable index: the
   files in the cache are the truth.
-- **Built for Sentis.** Convert ONNX files to project-owned `.sentis` assets.
-  They load fast and do not need repeated ONNX import. Treat `.sentis` output
-  as specific to the installed Sentis version, and regenerate it when that
-  version changes.
+- **Built for Sentis.** Load `.sentis` files as published, and convert ONNX
+  files to `.sentis` once per machine, shared by every project. Treat
+  converted output as specific to the converter and Sentis version, and
+  convert again when either changes. Builds ship `.sentis` files, never ONNX.
+- **The project decides delivery.** A package writes its loading code once.
+  The project chooses whether builds bundle each model or download it at
+  runtime.
 - **Keep the Editor fast.** Do not hold long-lived references to large ONNX
   assets. Do not load full models only to show their files or settings.
 - **Runtime-safe core.** Keep Hub logic out of `Editor` when it does not need
-  `UnityEditor`, so runtime downloads can reuse it later. Only editor UX and
-  Package Manager integration belong in `Editor`.
+  `UnityEditor`, so players download and cache with the same code. Only
+  editor UX, import, the build step, and Package Manager integration belong
+  in `Editor`.
 - **Follow `huggingface_hub`.** Use the official Python library as the
   reference for Hub API, download, cache, and manifest behavior.
 

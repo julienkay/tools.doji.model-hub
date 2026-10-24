@@ -34,49 +34,36 @@ HF Hub stores project-owned optional-file choices in:
 Assets/Doji/HfHub/HF Hub Optional File Selections.asset
 ```
 
-Unenabled optional files do not count as selected files for status, download, import, runtime registry output, or startup prompts. Enabled optional files do count. If an enabled optional ONNX file is missing from cache or generated runtime output, HF Hub surfaces it like other unresolved import work.
+Optional files that are off do not count for status, download, import, builds, or startup prompts. Optional files that are on count like any other selected file.
 
 ## Download And Import
 
 Use the setup prompt, the action button of a model in Model Hub, **Import All** in the Model Hub toolbar, or `Tools/Doji/HF Hub/Import All`.
 
-- `Download & Import`: download the selected files into the shared cache, then generate runtime files.
-- `Import`: the files are already downloaded; generate the project files.
+- `Download & Import`: download the selected files into the shared cache, then convert the ONNX files.
+- `Import`: the files are already downloaded; convert the ONNX files.
 - `Update`: download newly selected files and import again.
 - `Choose Files`: turn on at least one optional file first.
 
-The `⋮` menu of a model can remove the imported files from the project or the downloaded files from the cache. See [Editor Surfaces](editor-surfaces.md#status-and-actions).
+The `⋮` menu of a model can pull its Sentis files into the project, remove the model from the project, or remove the downloaded files from the cache. See [Editor Surfaces](editor-surfaces.md#status-and-actions).
 
-Generated `.sentis` files are project-owned and live under:
+Downloaded files and converted models live in shared folders outside the project. Nothing is written into `Assets`.
 
-```text
-Assets/StreamingAssets/hf-hub/<repo-owner>/<repo-name>/
-```
+## Choose How Builds Deliver Models
 
-Runtime registry files live under:
+Builds add every imported model in one of two ways:
 
-```text
-Assets/StreamingAssets/hf-hub/registries/<owner-id>/hf-hub-runtime.json
-```
+- **Bundle in the build** (default): the build contains the Sentis model.
+- **Download at runtime**: the player downloads the model from Hugging Face the first time it loads, at the commit tested in this project.
 
-## Runtime Lookup
+Set the default in `Project Settings > Doji > AI > AI Model Hub > In builds`, and override it per model in Model Hub. A build fails with a list when a model is not imported. See [Builds](import-cache-runtime.md#builds).
 
-After import, runtime code resolves generated project assets by model id and repo-relative file path.
+## Load Models
 
-```csharp
-if (ModelHub.TryResolveRuntimeModel("onnx-community/tiny-clip-test-ONNX", out var repo))
-{
-    var hasModel = repo.TryGetSentisPath("onnx/model.onnx", out var sentisPath);
-}
-```
-
-If the same `repo_id` appears in more than one manifest owner, single-string lookup is ambiguous. Use owner-specific overloads.
+Runtime code loads a model by repository id and file path. The same call works in Play mode and in players, for bundled and downloaded models:
 
 ```csharp
-var repo = ModelHub.FromPretrained(
-    "com.example.owner",
-    "onnx-community/tiny-clip-test-ONNX");
-var model = repo.LoadModel("onnx/model.onnx");
+Model model = await Hub.LoadModelAsync("onnx-community/tiny-clip-test-ONNX", "onnx/model.onnx");
 ```
 
-Use [Editor Surfaces](editor-surfaces.md) for Model Hub details and [Import, Cache, and Runtime Output](import-cache-runtime.md) for generated paths and cache behavior.
+Use [Editor Surfaces](editor-surfaces.md) for Model Hub details and [Import, Cache, and Runtime Loading](import-cache-runtime.md) for paths, builds, and the runtime API.

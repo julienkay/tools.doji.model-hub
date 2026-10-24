@@ -4,8 +4,8 @@
 
 | Assembly | Namespace | Contents |
 |---|---|---|
-| `Doji.ModelHub` | `Doji.AI.ModelHub` | `Runtime/Manifest`, `Runtime/Core`, `Runtime/Locator`, `Runtime/Conversion` |
-| `Doji.ModelHub.Editor` | `Doji.AI.ModelHub.Editor` | `Editor/Discovery`, `Cache`, `Sync`, `Import`, `Status`, `InferenceBridge`, `UI` |
+| `Doji.ModelHub` | `Doji.AI.ModelHub` | `Runtime/Manifest`, `Core`, `Cache`, `Locator`, `Conversion` |
+| `Doji.ModelHub.Editor` | `Doji.AI.ModelHub.Editor` | `Editor/Discovery`, `Cache`, `Sync`, `Import`, `Build`, `Status`, `InferenceBridge`, `UI` |
 | `Doji.ModelHub.Editor.Tests` | `Doji.AI.ModelHub.Editor.Tests` | EditMode tests in `Tests/Editor` |
 
 The companion project references the package and its dependencies with
@@ -17,7 +17,8 @@ The companion project references the package and its dependencies with
 |---|---|
 | `tools.doji.downloads` | Resumable transfer, persisted queue state, file locks, Editor `Progress` operations |
 | `tools.doji.formats.onnx` | `OnnxModelSignatureReader`: ONNX input shapes for the import UI, without loading weights |
-| `com.unity.ai.inference` | ONNX to `.sentis` conversion and runtime `Model` loading |
+| `com.unity.ai.inference` | ONNX to `.sentis` conversion in the Editor and runtime `Model` loading |
+| `tools.doji.onnx-model-loader` (optional) | ONNX conversion in players, behind the `HF_HUB_ONNX_MODEL_LOADER` version define |
 | `com.unity.nuget.newtonsoft-json` | Manifest, metadata and registry JSON |
 
 Generic download behavior belongs in `tools.doji.downloads`, not here.
@@ -36,14 +37,21 @@ regressions there as HF Hub bugs.
    HuggingFace-style `refs/` and `snapshots/` folders. Sync runs in the
    background and resumes after a domain reload. See
    [download-and-cache.md](download-and-cache.md).
-3. **Import.** Selected ONNX files are converted to `.sentis` under
-   `Assets/StreamingAssets/hf-hub/<owner>/<model>/`, with import metadata
-   for stale detection. See
+3. **Import.** The extension decides each file's format. Selected `.onnx`
+   files are converted into the shared converted store in the data root,
+   keyed by source etag, converter, and recipe. `.sentis` files are used as
+   downloaded. Import records go to `Library/Doji/HfHub/imports/`; nothing
+   goes into `Assets`. See
    [import-and-generated-assets.md](import-and-generated-assets.md) and
    [per-file-conversion-recipes.md](per-file-conversion-recipes.md).
-4. **Load.** Sync writes per-owner registries under
-   `Assets/StreamingAssets/hf-hub/registries/`. Runtime code resolves models
-   by `repo_id` through `Hub`. See [runtime-locator.md](runtime-locator.md).
+4. **Build.** A `BuildPlayerProcessor` writes the runtime registry and adds
+   bundled runtime models to the build's StreamingAssets from the shared
+   folders. Each model is bundled or downloaded at runtime, as Project
+   Settings and per-model overrides say.
+5. **Load.** `Hub.LoadModelAsync(repoId, repoPath)` finds the file in the
+   registry (in the Editor, one built from import records), then loads it
+   from StreamingAssets or downloads, converts, and caches it on the
+   device. See [runtime-loading.md](runtime-loading.md).
 
 Status (`Ready`, `Missing`, `Stale`, `Failed`, conflict states) is computed
 locally, without network access. One project must request one revision per
@@ -70,13 +78,9 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
 
 ## Known limits
 
-- Runtime lookup reads registries and models with `File` and `Directory`
-  under `Application.streamingAssetsPath`
-  ([RuntimeLocatorService.cs](../tools.doji.hf-hub/Runtime/Locator/RuntimeLocatorService.cs)).
-  This works in the Editor and on desktop, not on Android or Web, where
-  StreamingAssets needs `UnityWebRequest`.
+- Only Windows players are tested, by the companion project's build smoke
+  test. Android, iOS, Web, macOS, and Linux players are untested on
+  devices. See [runtime-loading.md](runtime-loading.md#known-limits).
 - Repository ids map to cache folders by replacing `/` with `--`
-  ([CachePaths.cs](../tools.doji.hf-hub/Editor/Cache/CachePaths.cs)). The
+  ([CachePaths.cs](../tools.doji.hf-hub/Runtime/Cache/CachePaths.cs)). The
   mapping is not reversible, so two distinct ids can collide.
-- Runtime ONNX conversion is not supported. `RuntimeOnnxModelConverter` is a
-  placeholder; see [roadmap.md](roadmap.md).

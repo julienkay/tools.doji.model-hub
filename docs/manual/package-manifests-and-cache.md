@@ -3,7 +3,7 @@
 HF Hub has two main workflows.
 
 - Package maintainers declare HuggingFace model dependencies in package manifests without committing model files into the package.
-- Unity project users resolve those declarations in the Editor, download source files into a shared cache, and generate project-owned `.sentis` runtime files.
+- Unity project users resolve those declarations in the Editor, download the files into the shared Hugging Face cache, and choose whether builds bundle each model or download it at runtime.
 
 Start with the workflow that matches your role:
 
@@ -15,4 +15,4 @@ Reference pages:
 
 - [Manifest Schema](manifest-reference.md)
 - [Editor Surfaces](editor-surfaces.md)
-- [Import, Cache, and Runtime Output](import-cache-runtime.md)
+- [Import, Cache, and Runtime Loading](import-cache-runtime.md)

@@ -10,16 +10,29 @@ Use it as navigation aid, not as replacement for reading test code.
 
 Tests run inside the companion project, where a maintainer may have real models imported, and on a machine with a real Hugging Face cache. Fixtures must never wipe either.
 
-- `TestCacheScope` points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at a temporary folder, so tests never read or write the real cache or HF Hub's own metadata.
-- `TestProjectStateScope` records the files under `Assets/StreamingAssets/hf-hub` and `Library/Doji/HfHub/imports` (or other roots you pass) at `SetUp`, and at `TearDown` deletes only the files and folders the test added. Use fake repository ids such as `doji/test-model`, so test output never overwrites a real import.
+- `TestCacheScope` points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at a temporary folder, so tests never read or write the real cache, the index, or the converted store.
+- `TestProjectStateScope` records the files under `Assets/StreamingAssets/hf-hub` (pulled copies) and `Library/Doji/HfHub/imports` (or other roots you pass) at `SetUp`, and at `TearDown` deletes only the files and folders the test added. Use fake repository ids such as `doji/test-model`, so test output never overwrites a real import.
 - Pass project files that would change a test's result, such as the conversion overrides and optional-file selections assets, as isolated files. The scope moves them aside for the test and restores them, `.meta` and GUID included, afterwards.
 
 Create both in `SetUp` and dispose them in `TearDown`. Do not delete those folders wholesale. The companion project's sandbox tests reference `Doji.ModelHub.Editor.Tests` to reuse the same scope.
+
+Runtime tests never touch the network or StreamingAssets of the project:
+
+- `RuntimeModels.RegistryOverride` replaces the catalog.
+- `RuntimeDownloader.DownloadOverride` replaces the network: it gets the URL and writes the target file.
+- `Hub.RegisterOnnxConverter` installs a fake converter. Reset it in `TearDown`.
+- Test models are tiny `FunctionalGraph` models written with `ModelWriter`, so conversion and quantization run in milliseconds.
+
+The build is covered end to end by the companion project's smoke test, `Assets/HF Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. It downloads from Hugging Face, so it is not part of the test run. Use small models only.
 
 ## Coverage Map
 
 Manifest and discovery:
 
+- `tools.doji.hf-hub/Tests/Editor/Discovery/ModelFilesTests.cs`
+  - format by extension, repository format labels
+  - external weight files found next to an `.onnx` file and added to the selection
+  - mixed whole-repository dependencies and selections without model files are rejected
 - `tools.doji.hf-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
   - manifest parse and normalization
   - duplicate id validation
@@ -56,30 +69,36 @@ Cache and repository inventory:
 Import and generated assets:
 
 - `tools.doji.hf-hub/Tests/Editor/Import/ProjectImportServiceTests.cs`
-  - whole-repo import from repository inventory
-  - selected-file import subset
-  - optional-file selection asset persistence
-  - generated `.sentis` prune on selection shrink
-  - shared import reuse across owners
-  - partial conversion warnings
-  - no-ONNX selection failure
+  - ONNX converts into the shared converted store; nothing is written into `Assets`
+  - `.sentis` files are used as downloaded
+  - conversion settings are applied; converted models are reused across owners and after a broken record
+  - a deleted converted model converts again
+  - companion files are recorded with etags
+  - selection subset, mixed-format and no-model-file failures, partial conversion warnings
+- `tools.doji.hf-hub/Tests/Editor/Import/OnnxConversionSettingsTests.cs`
+  - quantization modes (`int8` maps to `uint8`), fixed input shapes with mismatch warnings
+  - quantized weights change data type
+  - the conversion key depends on source, converter, and settings
 - `tools.doji.hf-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`
-  - raw cache removal
+  - cache removal
   - shared import cleanup
   - revision-conflict removal blocking
-- `tools.doji.hf-hub/Tests/Editor/Import/OnnxModelConverterArchitectureTests.cs`
-  - conversion pipeline assumptions
+- `tools.doji.hf-hub/Tests/Editor/Import/PulledModelsTests.cs`
+  - pull copies to the build path; remove deletes them; a missing runtime model is explained
+- `tools.doji.hf-hub/Tests/Editor/Import/LegacyProjectOutputCleanupTests.cs`
+  - old generated folders and registries are deleted; everything else stays
 
 Status and sync:
 
 - `tools.doji.hf-hub/Tests/Editor/Status/StatusServiceTests.cs`
-  - raw cache missing and invalid cases
+  - cache missing and invalid cases
+  - `.sentis` dependencies are ready without conversion; mixed whole-repository dependencies fail
   - selected-file missing file detection
   - `SelectionRequired` state for optional-only ONNX dependencies
   - whole-repo no-ONNX failure
   - same-repo later-added broader selection marks only new owner as cache-update-needed
   - binding/shared stale detection
-  - imported-only ready fallback after raw cache removal
+  - converted models stay ready after cache removal
 - `tools.doji.hf-hub/Tests/Editor/Status/ModelHubServiceTests.cs`
   - status aggregation into Model Hub rows
   - selection-required diagnostics
@@ -95,18 +114,28 @@ Status and sync:
 - `tools.doji.hf-hub/Tests/Editor/Sync/IntegrationTests.cs`
   - live-network maintainer coverage
 
-Runtime locator:
+Runtime loading and builds:
 
-- `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorServiceTests.cs`
-  - registry writes
-  - owner-specific and global lookup
-  - `FromPretrained(...)` and `LoadRuntimeModel(...)`
-  - selected-file and optional-file runtime subset exposure
+- `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeModelsTests.cs`
+  - bundled models load from StreamingAssets; the Editor catalog uses local paths
+  - download mode fetches a `.sentis` file once, into the cache spelling of the repository id
+  - download mode fetches and converts an ONNX file once, keyed by the converter id
+  - missing converter and synchronous-before-download errors point to the fix
+  - `EnsureAvailableAsync` downloads every file
+  - unknown models and package-scoped lookup
+  - registry round trip drops Editor paths and refuses newer versions
 - `tools.doji.hf-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
-  - runtime path mapping and layout assumptions
+  - runtime path mapping matches the build layout
+- `tools.doji.hf-hub/Tests/Editor/Build/RuntimeRegistryBuilderTests.cs`
+  - bundled models at their lookup path, shared models bundled once, pulled copies skipped
+  - download entries carry commit, etags, companions, and recipe
+  - models a build cannot deliver are reported
+  - delivery per repository, cache spelling of the repository id
 
 Editor UI and manifest editing:
 
+- `tools.doji.hf-hub/Tests/Editor/UI/AddModelPopupTests.cs`
+  - mixed and model-less repositories need a file selection; an unknown format does not block adding
 - `tools.doji.hf-hub/Tests/Editor/UI/ManifestModelEntryTests.cs`
   - file-selection button gating and incomplete-row detection
   - model id parsing from `owner/name` and Hugging Face URLs
@@ -148,18 +177,18 @@ Current minimum regression set for dependency-scope behavior:
 
 - discovery preserves explicit `files`
 - manifest serialization omits `files` for whole-repo entries
-- import converts all ONNX files for whole-repo entries when repository inventory is populated
+- import converts all ONNX files of a single-format whole-repo entry when repository inventory is populated
 - import converts only selected ONNX files for selected-file entries
-- import fails clearly when dependency scope contains no ONNX file
+- import fails clearly when dependency scope contains no model file, or a whole-repo entry has both formats
 - status detects missing selected files
-- status fails clearly when whole-repo inventory contains no ONNX file
+- status fails clearly when whole-repo inventory contains no model file
 - when later owner broadens same-repo selection, existing owner can stay ready while new owner reports cache update needed
 - Model Hub aggregates that state into one repo row with unioned selected files and imported subset still visible
-- runtime locator exposes only imported ONNX subset for selected-file entries
+- the runtime registry exposes only the owner's selected files
 
 ## Current Sharp Edge
 
-Whole-repo import and status logic derive ONNX scope from repository inventory first, not from raw cached file blobs alone.
+Whole-repo import and status logic derive model file scope from repository inventory first, not from cached file blobs alone.
 
 Relevant code paths:
 

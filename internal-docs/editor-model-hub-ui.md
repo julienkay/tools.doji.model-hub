@@ -69,7 +69,8 @@ List sections, in order: `Manifest errors` (discovery issues), `Needs action` (e
 Details pane:
 
 - header: model name, repository link, revision tag (resolved commit in tooltip), status pill
-- actions: primary action from `ModelStatus`, `Show Manifest`, and a `⋮` menu (open on Hugging Face, copy id, remove imported files, remove from cache)
+- actions: primary action from `ModelStatus`, `Show Manifest`, and a `⋮` menu (open on Hugging Face, copy id, Pull into Project or Remove Pulled Copies, Remove from Project, Remove from Cache)
+- Details card: `Format` from `ModelFiles.Describe` of the selected model files, and `In builds` (`BuildDeliveryField`): project default, bundle, or download, stored in `ProjectSettings` as a per-repository override. It invalidates `EditorRuntimeCatalog`. A hint appears when download is chosen for ONNX files without `tools.doji.onnx-model-loader`
 - status callout: the status description; error diagnostics are added only for error states, because download/import/update diagnostics repeat the status
 - tabs: `Overview` (optional files, details, used by), `Files` (only when inventory is known), `Storage` (only when something is on disk); the strip is hidden when only Overview exists
 
@@ -105,14 +106,15 @@ Overview requests the remote inventory (`RemoteSnapshotSizeEstimateService.Ensur
 
 All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync. Nothing starts a download without a user action; see "Damaged Cache" in `download-and-cache.md`.
 
-- `Remove Imported Files` deletes owner binding metadata for this project and garbage-collects shared runtime assets only when no bindings still reference them.
-- `Remove from Cache` deletes this machine's raw cache entry while leaving generated project assets intact.
+- `Remove from Project` deletes owner binding metadata and shared import records for this project. Converted models stay in the shared store. Pulled copies go only when no binding for the repository remains
+- `Pull into Project` copies runtime models into `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/` (`PulledModels`); builds then skip bundling them.
+- `Remove from Cache` deletes this machine's download cache entry while leaving converted models intact.
 
 That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
 
 ### Setup Prompt
 
-`AutoPrompt` opens `AutoPromptWindow` once per session when `StatusReport.NeedsStartupPrompt` is true. `BuildViewModel` groups attention statuses by repository. A repository needs a download when any dependent has no raw cache or reports `RawCacheFilesMissing`. The primary label includes the total download size only when every pending size is known. The primary action starts a full sync and opens Model Hub, which shows progress.
+`AutoPrompt` opens `AutoPromptWindow` once per session when `StatusReport.NeedsStartupPrompt` is true. `BuildViewModel` groups attention statuses by repository. A repository needs a download when any dependent has no the download cache or reports `RawCacheFilesMissing`. The primary label includes the total download size only when every pending size is known. The primary action starts a full sync and opens Model Hub, which shows progress.
 
 ## Repo Metadata File Filtering
 
@@ -130,7 +132,7 @@ The predicate is `ModelDependencyDefinition.IsRepoMetadataFile(string repoPath)`
 | `ModelHubService.BuildFileItems` path union | Strips from Files tab and Storage rows |
 | `FileSelectionPopup.LoadAsync` | Strips from the file picker |
 
-Raw cache on disk is **not** affected — the shared cache stays a faithful mirror of the Hub repository. The filter is presentation-only.
+The download cache on disk is **not** affected — the shared cache stays a faithful mirror of the Hub repository. The filter is presentation-only.
 
 ## Aggregation Model
 
@@ -160,7 +162,7 @@ This keeps lower-level validation unchanged while giving the UI a Package-Manage
 
 ## Revision Conflict Policy
 
-HF Hub keeps runtime output repo-scoped and human-readable instead of adding commit-key folders under `StreamingAssets`.
+Import records, the runtime registry, and bundled paths are repo-scoped and do not encode the commit.
 
 That means one project-level rule is explicit:
 
@@ -195,9 +197,9 @@ Current dependency-level status is still backend-oriented:
 
 That works for validation, but `Missing` currently covers several user-visible situations:
 
-- raw cache was never downloaded
-- raw cache exists, but import metadata is missing
-- import metadata exists, but generated runtime files are missing
+- the files were never downloaded
+- the files are downloaded, but import metadata is missing
+- import metadata exists, but converted models are missing
 
 If the UI keeps needing direct lifecycle copy, a better future split would be:
 
@@ -215,7 +217,7 @@ That would let prompts and badges choose wording directly from status instead of
 
 Import, cache, and runtime output are already repo-level:
 
-- raw cache stores repository snapshots
+- the download cache stores repository snapshots
 - import converts all ONNX files in a snapshot
 - runtime output path is shared by repository, not by manifest owner
 

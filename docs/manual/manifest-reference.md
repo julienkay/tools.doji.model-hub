@@ -1,6 +1,6 @@
 # Manifest Schema
 
-HF Hub manifest entries describe HuggingFace repositories and the file scope to import from each resolved repository snapshot.
+HF Hub manifest entries describe Hugging Face repositories and the files a package or project uses from each resolved repository snapshot.
 
 ## Manifest Types
 
@@ -64,7 +64,7 @@ Omit `files` to require the whole repository file inventory for the resolved rev
 }
 ```
 
-Whole-repository dependencies cache every repository file for that revision. HF Hub imports only repo paths whose extension is `.onnx`.
+Whole-repository dependencies download every repository file for that revision. The repository's model files must all have one format; see [Model files](#model-files).
 
 ## Explicit File Scope
 
@@ -93,9 +93,42 @@ HF Hub normalizes selected paths before storing them:
 - removes duplicates
 - sorts paths with ordinal comparison
 
-Selected non-ONNX files still matter. HF Hub downloads and tracks them in raw cache when they are part of dependency scope, but it does not expose import settings for them and does not generate runtime `.sentis` output from them.
+Selected files that are not model files, such as `config.json` or tokenizer files, are downloaded into the cache with the model files.
 
-If dependency scope contains no `.onnx` file at all, HF Hub treats that dependency as not importable and surfaces a `This dependency does not currently select any ONNX file.` diagnostic in Model Hub.
+## Model files
+
+The extension of a selected file decides how HF Hub uses it:
+
+- `.onnx`: converted to a Sentis model on import. Conversion settings apply.
+- `.sentis`: loaded as downloaded. There is no import step and no conversion setting.
+- any other extension: downloaded, not loaded as a model.
+
+Selecting an `.onnx` file also selects its external weight files when the repository has them: `<file>.onnx_data`, `<file>.onnx.data`, and numbered parts such as `<file>.onnx_data_1`. Do not list them yourself.
+
+A repository can contain both formats. `julienkay/sentis-MiDaS`, for example, has ONNX files under `onnx/` and Sentis files under `sentis/`. List the files you use, and each one loads by its own format:
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "julienkay/sentis-MiDaS",
+      "files": [
+        { "path": "sentis/midas_v21_small_256.sentis" }
+      ]
+    }
+  ]
+}
+```
+
+Validation fails in two cases. Model Hub shows the dependency as **Error** with the message:
+
+| Case | Message |
+|---|---|
+| A whole-repository dependency on a repository with both `.onnx` and `.sentis` files | ``Repository `<id>` has both ONNX and Sentis files. List the files you use in the manifest.`` |
+| The selection has no `.onnx` or `.sentis` file | ``Dependency `<id>` does not select any model file. Select at least one `.onnx` or `.sentis` file.`` |
+
+HF Hub never picks a format for you. Package code loads a file by the path the manifest lists, for example `Hub.LoadModelAsync("julienkay/sentis-MiDaS", "sentis/midas_v21_small_256.sentis")`.
 
 ## Optional File Scope
 
@@ -127,6 +160,6 @@ Set `files[].optional` when package authors want project-owned pre-download choi
 
 Required and optional are both part of the manifest's explicit file scope. The `optional` flag means "show this selected repo file as project-selectable."
 
-Until the project enables an optional file, HF Hub ignores that file for status, download, import, generated runtime registries, and startup prompts. After the project enables it, the file behaves like any other selected dependency file and missing cache or generated output requires action.
+Until the project enables an optional file, HF Hub ignores that file for status, download, import, builds, and startup prompts. After the project enables it, the file behaves like any other selected file, and a missing download or conversion requires action.
 
-If a dependency declares only optional ONNX files and none are enabled yet, HF Hub shows `Choose files` in Model Hub instead of downloading the whole repository. That state does not open the startup auto prompt by itself.
+If a dependency declares only optional model files and none are enabled yet, HF Hub shows `Choose files` in Model Hub instead of downloading the whole repository. That state does not open the startup auto prompt by itself.

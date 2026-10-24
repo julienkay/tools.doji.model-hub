@@ -1,6 +1,6 @@
 # AI Model Hub
 
-Reference and download AI models from HuggingFace for Unity packages.
+Reference AI models on Hugging Face from Unity packages, and load them as Inference Engine models in the Editor and in players.
 
 ## Manual
 
@@ -9,7 +9,7 @@ Reference and download AI models from HuggingFace for Unity packages.
 - [For Unity Project Users](manual/getting-started-project-users.md)
 - [Manifest Schema](manual/manifest-reference.md)
 - [Editor Surfaces](manual/editor-surfaces.md)
-- [Import, Cache, and Runtime Output](manual/import-cache-runtime.md)
+- [Import, Cache, and Runtime Loading](manual/import-cache-runtime.md)
 
 ## API Reference
 

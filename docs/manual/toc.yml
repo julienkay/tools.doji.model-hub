@@ -14,5 +14,5 @@
     href: manifest-reference.md
   - name: Editor Surfaces
     href: editor-surfaces.md
-  - name: Import, Cache, and Runtime Output
+  - name: Import, Cache, and Runtime Loading
     href: import-cache-runtime.md

@@ -76,7 +76,7 @@ namespace Doji.AI.ModelHub.Editor
             root.Add(BuildCacheSection());
 
             root.Add(UiKit.Text(
-                $"Sentis {StatusService.GetCurrentSentisVersion()}. Imported models are built for this version and re-imported when it changes.",
+                $"Sentis {StatusService.GetCurrentSentisVersion()}. Converted models are built for this version and converted again when it changes.",
                 "ps-footer"));
             UpdateCacheSection(root);
         }

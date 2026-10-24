@@ -5,13 +5,26 @@ entry when it ships or is rejected.
 
 ## Features
 
-- **Runtime ONNX loading.** Add `tools.doji.onnx-model-loader` as a
-  dependency behind `IOnnxModelConverter`. It was left out of 1.0.0 because
-  editor-only signature reading needs only `tools.doji.formats.onnx`. Before
-  adding it, remove the loader's own copies of `Onnx.cs`, `ProtoReader.cs`,
-  and `OnnxModelSignatureReader` so it depends on `tools.doji.formats.onnx`.
-- **Runtime downloads.** Reuse the `Runtime` Hub logic and
-  `tools.doji.downloads` to fetch models in players.
+- **Device testing.** Run the build smoke test on Android, iOS, Web, macOS,
+  and Linux players.
+- **`persistentDataPath` cache for desktop players.** An opt-in for
+  applications that must not write to the user's Hugging Face cache.
+- **Large-model stress tests.** Downloads, conversion, and builds with models
+  over 2 GB and external weights.
+- **One blob downloader.** The Editor `RawCacheService` and the runtime
+  `RuntimeDownloader` both download and link blobs. Move the Editor onto the
+  runtime code.
+- **Download verification in players.** Check the content hash against the
+  etag, not only the size.
+- **`.sentis` format version.** Read `ModelWriter.version` from the file
+  header and warn when a downloaded `.sentis` file targets a newer Inference
+  Engine.
+- **Shared signature reader.** Remove the onnx-model-loader's own copies of
+  `Onnx.cs`, `ProtoReader.cs`, and `OnnxModelSignatureReader` so it depends
+  on `tools.doji.formats.onnx`.
+- **Editor converter.** Convert in the Editor with
+  `tools.doji.onnx-model-loader` too, once tests show it matches the Unity
+  importer.
 - **Authentication and gated models.** Optional HuggingFace token support.
 - **Project revision override.** An opt-in, clearly visible override when
   packages request conflicting revisions. Never pick a winner silently.

@@ -51,7 +51,7 @@ namespace Doji.AI.ModelHub.Editor
             var head = UiKit.Element("mh-storage-head");
             head.Add(UiKit.Text("FILE", "mh-storage-row__name"));
             head.Add(UiKit.Text("CACHE", "mh-storage-row__bar"));
-            head.Add(UiKit.Text("PROJECT", "mh-storage-row__bar"));
+            head.Add(UiKit.Text("SENTIS MODEL", "mh-storage-row__bar"));
             section.Add(head);
             foreach (var file in files)
             {

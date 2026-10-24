@@ -1,164 +1,85 @@
-# Import And Generated Assets
+# Import and Converted Models
 
-## Conversion Trigger
+Import turns the selected model files of one dependency into **runtime models**: the `.sentis` files that `ModelLoader` reads. It writes nothing into `Assets`.
 
-Conversion is editor-driven and package-discovery-based.
+| Term | Meaning |
+|---|---|
+| Model file | A source file HF Hub can load: `.onnx` (converted) or `.sentis` (used as downloaded). `ModelFiles.GetFormat` decides by extension. |
+| Companion file | A file a model file needs, such as ONNX external weights. `ModelFiles.GetCompanionFiles` finds `<x>.onnx_data`, `<x>.onnx.data`, and `<x>.onnx_data_<n>` next to `<x>.onnx`. `GetSelectedRepoPaths` adds them to the selection. |
+| Runtime model | A downloaded `.sentis` blob, or the converted output of an `.onnx` file. |
+| Converted store | `<data-root>/converted/`, shared by every project on the machine. |
 
-Primary trigger:
+## Flow
 
-- package manifests are discovered when Editor detects package changes or opens a project
+[ProjectImportService.cs](../tools.doji.hf-hub/Editor/Import/ProjectImportService.cs):
 
-Behavior:
+1. Resolve the selection (`GetSelectedModelRepoPaths`). `GetSelectionProblem` rejects a whole-repository dependency on a mixed repository and a selection without model files.
+2. For each `.sentis` file: record the cached snapshot path as the runtime model. No conversion.
+3. For each `.onnx` file: compute the conversion key, reuse `ConvertedModelStore.TryGet` when it hits, otherwise convert with the Editor importer, apply the recipe with `OnnxConversionSettings.Apply`, and `ConvertedModelStore.Save`.
+4. Write the shared import record and one binding per owner.
 
-1. Scan installed packages for `hf-hub-manifest.json`.
-2. Collect unresolved or stale repository dependencies.
-3. Show user prompt listing repository dependencies that need attention.
-4. Let project choose any package-authored optional files before sync when dependency scope is not fully determined yet.
-5. If user approves, resolve each dependency to one concrete HuggingFace repository snapshot.
-6. Download dependency-required snapshot files into shared raw cache.
-7. Convert selected cached `.onnx` files in that dependency scope.
-8. Write generated `.sentis` runtime files into shared `StreamingAssets` root.
-9. Write shared import metadata under `Library/Doji/HfHub/imports/shared/...`.
-10. Write owner binding metadata under `Library/Doji/HfHub/imports/bindings/...`.
+A conversion failure skips that file when another ONNX file converts. The model stays **Ready** with a warning, and `SkippedRepoPaths` keeps status from retrying it every time. Import fails only when no ONNX file converts.
 
-## Generated Layout
+## Conversion key
 
-Generated runtime payloads live under:
+[ConvertedModelStore.cs](../tools.doji.hf-hub/Runtime/Conversion/ConvertedModelStore.cs) is in `Runtime`, so players use the same store.
 
 ```text
-Assets/StreamingAssets/hf-hub/<repo-owner>/<repo-name>/
+key  = hex(sha256(etag | converterId | recipeHash)[0..16])
+path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
+       <data-root>/converted/<models--owner--name, lowercase>/<key>.json
 ```
 
-Current generated output includes:
+- `etag` is the source blob name: sha256 for LFS files, git sha1 otherwise. `SourceFileIdentity` reads it from the index, else from the snapshot link target, else hashes the content.
+- `converterId` names the converter and everything that changes its output. Editor: `unity-inference-editor-v2@<inference version>`. Player: `doji-onnx-model-loader@<loader version>+inference@<inference version>`. A new Inference Engine version never reuses an old conversion.
+- `recipeHash` covers quantization (normalized: `int8` maps to `uint8`) and fixed input shapes.
+- `Save` takes the blob lock, writes `<key>.sentis.incomplete`, and renames. The `.json` record names the source path, etag, converter, and recipe.
+- Converted files never enter the Hugging Face cache, so Python tools never see them.
 
-- `<onnx-file>.sentis`
-- `Assets/StreamingAssets/hf-hub/registries/<package-id>/hf-hub-runtime.json`
-- `Library/Doji/HfHub/imports/shared/<repo>/<commit>/<sentis-version>/hf-hub-shared-import.json`
-- `Library/Doji/HfHub/imports/bindings/<package-id>/<model-id>/hf-hub-binding.json`
+`OnnxConversionSettings.Apply` uses public APIs only. `ModelQuantizer.QuantizeWeights` replaces the model, so `Apply` returns the model to use.
 
-Raw repository files stay in shared cache. Runtime output preserves upstream relative file layout for selected ONNX inputs, replacing ONNX extensions with `.sentis`.
+## Import records
 
-Runtime import paths are intentionally human-readable and do not encode resolved commit or revision.
+Import storage is split in two, under `Library/Doji/HfHub/imports/`:
 
-Current policy:
+- `shared/<repo>/<hash>/hf-hub-shared-import.json`: one per repository snapshot. `<hash>` is the first 8 bytes of `sha256(commit | sentisVersion | recipeSetHash)`, short enough for Windows `MAX_PATH`.
+- `bindings/<owner-id>/<model-id>/hf-hub-binding.json`: one per owner dependency.
 
-- repo-scoped runtime layout stays stable and human-readable
-- HF Hub does not support multiple requested revisions of same repository in one Unity project
-- HF Hub also does not support duplicate manifest rows with same canonical repo id inside one owner manifest
-- if discovery finds same repository at different requested revisions, project must resolve that conflict before HF Hub writes or rewrites generated runtime payload for that repo
+Shared record (`SharedImportMetadata`): repository, resolved commit, snapshot root, repository file list, Sentis and Unity version, recipe set hash, diagnostics, `SkippedRepoPaths`, and `RuntimeFiles`.
 
-Conflict behavior:
+Each `ImportedRuntimeFileMetadata` holds:
 
-- conflicting repo must not report `Ready`
-- conflicting repo must not import, re-import, or remove shared runtime payload through normal Model Hub actions until conflict is resolved
-- existing generated runtime files may remain on disk for inspection, but they are not treated as authoritative while conflict exists
+- `RepoPath` and `Format` (`onnx` or `sentis`)
+- `FilePath`: absolute path of the runtime model (converted store or cache snapshot)
+- `SourceEtag`, `SourceSizeInBytes`, `Companions` (repo path, etag, size): what a player needs to download the same files
+- `ConversionKey` and `RecipeHash` for ONNX files
 
-## Import Metadata
+Binding record (`ImportBindingMetadata`): owner id and version, model id, manifest hash, requested revision, resolved commit, Sentis version, recipe set hash, selection hash, and the shared record path.
 
-Import storage is split in two:
+The shared record covers the union of every owner's selection for one repository and commit. A binding exposes only its own owner's selection. The runtime registry takes files per owner.
 
-- shared import metadata is repo-snapshot-level
-- owner binding metadata is owner-dependency-level
+## Stale detection
 
-Shared import metadata records:
+A binding is stale when the manifest hash, requested revision, selection, enabled optional files, resolved commit, Sentis version, or shared record path changes.
 
-- repository and resolved commit
-- raw snapshot root and raw metadata path
-- persisted import warnings when conversion is partial but still usable
-- `SharedImportMetadata.SkippedRepoPaths`: selected ONNX files that failed conversion. Status compares the selected ONNX set with converted plus skipped files (`GetImportedOrSkippedOnnxRepoPaths`), so a partial conversion stays current instead of looking stale after every import. Metadata written before this field existed has no skip record, so such a model needs one more import
-- generated runtime snapshot path
-- generated runtime file list
-- Sentis version
-- Unity version
+A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis version changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Import** again.
 
-Owner binding metadata records:
+## Removal
 
-- manifest owner id and version
-- dependency id
-- manifest hash
-- repository and requested revision
-- resolved commit
-- generated runtime registry path
-- pointer to shared import metadata
-- selected dependency file set and selection fingerprint
-- enabled optional file paths from project-owned owner selection state
+[ProjectRemovalService.cs](../tools.doji.hf-hub/Editor/Import/ProjectRemovalService.cs) deletes this project's bindings and shared records. Converted models stay in the store, because other projects may use them. Pulled copies (`PulledModels`) are deleted only when no binding for the repository remains.
 
-Owner-scoped file selection belongs with owner binding state and stale checks, not with raw cache metadata. Raw cache describes available source files for one repo snapshot; owner binding describes what this owner expects to use from that snapshot.
+## Pulled copies
 
-## Stale Detection
+[PulledModels.cs](../tools.doji.hf-hub/Editor/Import/PulledModels.cs) copies runtime models to `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/<repoPath with .sentis>`, the same relative path a build uses. `RuntimeRegistryBuilder` checks that path: a pulled file is not bundled again, and the Editor catalog points at it.
 
-Owner binding is stale when any of these change:
+## Old project output
 
-- manifest content hash
-- requested revision
-- selected dependency file set
-- enabled optional file set
-- resolved repo commit for requested revision
-- installed Sentis version
-- shared import metadata pointer
+[LegacyProjectOutputCleanup.cs](../tools.doji.hf-hub/Editor/Import/LegacyProjectOutputCleanup.cs) runs once per Editor session (not in batch mode). It deletes `Assets/StreamingAssets/hf-hub/registries/` and old `Assets/StreamingAssets/hf-hub/<owner>/<name>/` folders that hold only `.sentis` files. It never touches `hf-hub/models/`.
 
-Shared import is stale when any of these change:
+## Revision conflicts
 
-- resolved repo commit for requested revision
-- raw snapshot metadata path or root
-- repo-wide materialized ONNX union changes because any owner added or removed an enabled optional file
-- generated runtime files missing
-- installed Sentis version
+One project may request one revision per repository. With conflicting revisions, the repository is not imported, reimported, or removed, and status shows **Conflict** for each row.
 
-Because shared import metadata stores generated runtime file list for one repo snapshot materialization, validation stays snapshot-aware instead of one-file-at-a-time while owner binding still preserves dependency scope.
+## Selection gating
 
-## Shared Import Split
-
-Why split:
-
-- generated `.sentis` artifacts are repo-scoped and should convert once per repo snapshot
-- stale checks and runtime registry ownership are package-scoped and must remain owner-specific
-
-Current rule:
-
-- shared import key = `repository + resolvedCommitHash + SentisVersion + materialization fingerprint`
-- owner binding key = `packageId + modelId`
-
-That lets multiple owners reuse one generated repo artifact while keeping per-owner manifest-hash validation and per-owner runtime locator registries.
-- project manifest assets use stable per-asset owner ids, so repeated project manifests can share repo artifacts without collapsing binding identity
-
-Materialization fingerprint should cover:
-
-- repo ONNX file union currently materialized for that `repository + resolvedCommitHash`
-- effective conversion recipe set for those files
-
-## Selection Gating
-
-Optional package-authored variants introduce one state that is neither broken nor ready:
-
-- dependency has package-authored optional ONNX files
-- current project has not enabled any optional ONNX file
-- no always-required ONNX file exists for that owner
-
-HF Hub should treat that as explicit user choice still needed, not as download failure.
-
-Implications:
-
-- editor UI should surface a `Selection Required` style state
-- `Import All` should skip that dependency instead of downloading whole repo
-- status should remain owner-scoped because one project owner may require selection while another owner of same repo already selected variants
-
-## Repo Materialization Union
-
-Generated runtime payload is repo-scoped, not owner-scoped.
-
-When many owners reference same `repository + revision`, HF Hub should materialize the union of all effective ONNX selections across those owners.
-
-Why:
-
-- runtime output path is repo-scoped
-- cache and import UI are repo-centric
-- many owners can require different optional ONNX subsets from one repo
-
-Rules:
-
-- owner selection stays owner-scoped
-- shared runtime payload is repo-union-scoped
-- owner runtime registries expose only files selected by that owner
-- reimport after deselection must prune generated `.sentis` files no longer needed by any owner
-- raw cache does not need equivalent pruning because extra raw files are harmless and cache identity is repo-scoped
+A dependency whose model files are all optional and none enabled is **Choose files**, not an error. `Import All` skips it and the startup prompt ignores it.

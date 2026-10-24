@@ -97,13 +97,15 @@ Before the switch, HF Hub kept downloads in `<data-root>/raw/<owner>--<name>/sna
 
 A repository that fails, for example because another program holds a blob lock, stays in `raw/` and is retried in the next editor session. A custom cache folder from the old Project Settings is not migrated.
 
-Raw cache is not the same lifecycle as imported project assets. If a user removes cache from Model Hub, HF Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Generated project assets can remain valid after cache removal and should not be treated as automatically missing.
+The download cache and the converted store have separate lifecycles. If a user removes cache from Model Hub, HF Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Converted models stay valid after cache removal. A `.sentis` dependency uses the cached file itself, so removing the cache makes it need a download again.
+
+Players download with the same layout, blob names, and locks; see [runtime-loading.md](runtime-loading.md#downloads).
 
 ## Selection Boundary
 
 HF Hub keeps two different truths separate:
 
-- raw cache metadata answers: which repo files are currently cached on this machine for this resolved commit
+- the cache index answers: which repo files are currently cached on this machine for this resolved commit
 - dependency selection answers: which repo files one manifest owner requires
 
 Those are not interchangeable.
@@ -111,15 +113,15 @@ Those are not interchangeable.
 Why:
 
 - many owners can depend on same repo and same resolved commit while selecting different subsets
-- raw cache may accumulate union of files requested across owners, reimports, or earlier sessions
+- the download cache may accumulate union of files requested across owners, reimports, or earlier sessions
 - cached extra files do not mean current owner selected them
 - uncached files do not mean current owner would never select them later
 
 Design rule:
 
-- raw cache identity stays `repository + resolved commit`
-- raw cache metadata records cached file inventory for that snapshot
-- owner selection must live in manifest/discovery and later owner-binding or import metadata, not in raw cache metadata
+- cache identity stays `repository + resolved commit`
+- the cache index records cached file inventory for that snapshot
+- owner selection must live in manifest/discovery and later owner-binding or import metadata, not in the cache index
 - stale detection and UI must never infer owner dependency scope by reading only snapshot cache metadata
 
 ## Download Model
@@ -165,16 +167,16 @@ Optional-file selection rules:
 - package authors declare available optional files in manifest
 - project stores enabled optional file paths per owner dependency
 - download only respects effective selection after project overrides are applied
-- if no optional ONNX file is enabled and no required ONNX exists, HF Hub should not download whole repo by default
+- if no optional model file is enabled and no required model file exists, HF Hub does not download the whole repository
 
 Selection rule:
 
 - if one owner depends on specific repo files, HF Hub ensures only those files are needed for that request
 - cache still remains repo-snapshot-scoped, not owner-selection-scoped
-- raw cache metadata answers "what files are cached for this repo commit"
+- the cache index answers "what files are cached for this repo commit"
 - owner metadata answers "what files this dependency selected"
 
-Pre-download selection UX should use remote repo inventory metadata rather than waiting for raw cache to exist. Selection belongs before download.
+Pre-download selection UX should use remote repo inventory metadata rather than waiting for the download cache to exist. Selection belongs before download.
 
 ## Reliability
 

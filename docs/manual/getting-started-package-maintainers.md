@@ -1,6 +1,6 @@
 # For Package Maintainers
 
-Package maintainers declare model dependencies without shipping large model files in the Unity package.
+Package maintainers declare model dependencies without shipping large model files in the Unity package. Package code then loads the models by repository id and file path; the project that uses the package decides whether builds bundle them or download them at runtime.
 
 Create `hf-hub-manifest.json` at the package root. HF Hub discovers that file when the package is installed in a Unity project.
 
@@ -23,7 +23,7 @@ This manifest requires the full repository inventory for `hf-internal-testing/ti
 }
 ```
 
-Omitting `files` means whole-repository scope. HF Hub caches every repo file for the resolved revision, then imports only `.onnx` files into `.sentis` runtime output.
+Omitting `files` means whole-repository scope. HF Hub downloads every repository file for the resolved revision. `.onnx` files are converted to Sentis models, and `.sentis` files are used as downloaded. A repository with both formats needs a `files` list.
 
 ## Selected Files
 
@@ -49,7 +49,9 @@ Use `files` when the package needs only a known subset of repository files.
 }
 ```
 
-Selected non-ONNX files are downloaded and tracked in raw cache when they are part of dependency scope. They are not converted to `.sentis`.
+Selected files that are not models, such as `preprocessor_config.json`, are downloaded with the model.
+
+If you convert a model yourself and publish the `.sentis` file on Hugging Face, list that file. Projects then use it as downloaded, without converting it.
 
 ## Optional Variants
 
@@ -81,7 +83,7 @@ Mark a selected file as optional when the package can work with more than one mo
 
 The `optional` flag does not mean "download if present." It means "show this selected repo file as project-selectable." Until the project enables an optional file, HF Hub ignores that file for status, download, import, runtime registry output, and startup prompts.
 
-If every ONNX file in a dependency is optional, Model Hub shows `Choose files` until the project turns on at least one optional ONNX file.
+If every model file in a dependency is optional, Model Hub shows `Choose files` until the project turns on at least one.
 
 ## Authoring In Unity
 
@@ -93,5 +95,18 @@ The file picker uses one repository file list:
 - unchecked rows stay visible but greyed out
 - `Optional` is available only on selected rows
 - leaving every row unchecked keeps whole-repository scope
+
+## Load Models In Package Code
+
+Load a model by the repository id and the path the manifest lists:
+
+```csharp
+using Doji.AI.ModelHub;
+using Unity.InferenceEngine;
+
+Model model = await Hub.LoadModelAsync("onnx-community/tiny-clip-test-ONNX", "onnx/model.onnx");
+```
+
+Use `LoadModelAsync`: it works on every platform and for both delivery modes. If another package uses the same repository, pass your package id as the first argument. See [Load models at runtime](import-cache-runtime.md#load-models-at-runtime).
 
 Use [Manifest Schema](manifest-reference.md) for field-level rules and validation details.

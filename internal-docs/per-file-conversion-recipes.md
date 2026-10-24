@@ -7,14 +7,14 @@ Clean mental model:
 - repo cache answers what bits
 - conversion recipe answers how this project bakes those bits
 
-HF Hub should keep those identities separate. Raw cache stays keyed by upstream repo snapshot. Generated `.sentis` output becomes keyed by repo file plus effective recipe. That lets Model Hub expose per-file conversion control without breaking package-management guarantees, raw-cache reuse, or runtime lookup simplicity.
+HF Hub should keep those identities separate. The download cache stays keyed by upstream repo snapshot. Generated `.sentis` output becomes keyed by repo file plus effective recipe. That lets Model Hub expose per-file conversion control without breaking package-management guarantees, raw-cache reuse, or runtime lookup simplicity.
 
 ## Intent
 
 HF Hub currently treats repository download and `.onnx` to `.sentis` conversion as one coarse repo-level step:
 
 - one manifest entry declares one `repo_id`
-- one raw cache snapshot stores source files for one resolved commit
+- one cache snapshot stores source files for one resolved commit
 - one import pass converts every `.onnx` file in that snapshot with fixed converter behavior
 
 That is enough for first import, but not enough for real model-package workflows.
@@ -69,18 +69,18 @@ Split two concerns cleanly:
 - source dependency answers `what repo snapshot this project consumes`
 - conversion recipe answers `how one ONNX file in that snapshot becomes project runtime artifact`
 
-HF Hub should keep raw cache identity separate from conversion identity.
+HF Hub should keep the download cache identity separate from conversion identity.
 
 ## Identity Layers
 
-### Raw Cache Identity
+### Download Cache Identity
 
-Raw cache remains keyed by upstream snapshot identity only:
+The download cache remains keyed by upstream snapshot identity only:
 
 - `repository`
 - `resolvedCommitHash`
 
-Recipe changes must not invalidate or duplicate raw cache entries.
+Recipe changes must not invalidate or duplicate download cache entries.
 
 ### File Conversion Identity
 
@@ -136,7 +136,7 @@ Runtime API currently resolves files by:
 
 See:
 
-- [ModelHub](../tools.doji.hf-hub/Runtime/Core/ModelHub.cs)
+- [Hub](../tools.doji.hf-hub/Runtime/Core/Hub.cs)
 - [PretrainedRepository](../tools.doji.hf-hub/Runtime/Core/PretrainedRepository.cs)
 - [ResolvedRuntimeModel](../tools.doji.hf-hub/Runtime/Locator/ResolvedRuntimeModel.cs)
 
@@ -180,9 +180,9 @@ HF Hub should surface recipe source in UI so users can see whether current setti
 
 ## Storage Model
 
-### Raw Cache Metadata
+### Cache Index
 
-Raw cache metadata should stay recipe-agnostic.
+The cache index should stay recipe-agnostic.
 
 It should continue to describe:
 
@@ -191,7 +191,7 @@ It should continue to describe:
 - cached files
 - download provenance
 
-Raw cache metadata must not absorb project conversion state.
+The cache index must not absorb project conversion state.
 
 ### Shared Import Metadata
 
@@ -296,9 +296,9 @@ Inspection data supports:
 - recipe hash normalization
 - stale detection when source model signature changes across repo updates
 
-Inspection should be derived from raw cache file, not from imported Unity asset.
+Inspection should be derived from the download cache file, not from imported Unity asset.
 
-If inspection fails or raw cache is missing, Model Hub should still show existing recipe state and fall back to raw override bindings where possible. Failure to inspect should degrade import-settings UI; it should not force a full ONNX import or block unrelated repo status display.
+If inspection fails or the download cache is missing, Model Hub should still show existing recipe state and fall back to raw override bindings where possible. Failure to inspect should degrade import-settings UI; it should not force a full ONNX import or block unrelated repo status display.
 
 Maintainer rule:
 
@@ -313,7 +313,7 @@ Model Hub `Files` tab should become source-plus-output inventory, not output-onl
 For each ONNX file row, UI should show:
 
 - repo path
-- source file presence in raw cache
+- source file presence in the download cache
 - discovered input signature summary
 - effective recipe
 - recipe source
@@ -333,7 +333,7 @@ Import settings currently use the inspected ONNX signature this way:
 
 Non-ONNX files can remain visible later if manifest v2 adds artifact grouping, but first slice only needs actionable ONNX rows.
 
-Selection should not depend on this tab being visible. Repos with optional variants must stay configurable before raw cache exists.
+Selection should not depend on this tab being visible. Repos with optional variants must stay configurable before the download cache exists.
 
 ## Download Versus Materialize
 
@@ -355,7 +355,7 @@ Benefits:
 
 - File tab can inspect raw ONNX before project commits to recipe
 - recipe edits can trigger re-materialization without redownloading
-- offline reconfiguration becomes possible when raw cache already exists
+- offline reconfiguration becomes possible when the download cache already exists
 
 HF Hub can still offer one-click `Import` for convenience, but backend should treat download and materialize as separate operations.
 
@@ -369,7 +369,7 @@ HF Hub should validate recipe data before conversion:
 - no conflicting overrides for same input axis
 - quantization mode supported by current converter pipeline
 
-Invalid recipe should produce file-level failure without corrupting raw cache state.
+Invalid recipe should produce file-level failure without corrupting the download cache state.
 
 ### Freshness Validation
 
@@ -416,9 +416,9 @@ Runtime locator metadata may later expose recipe fingerprints for diagnostics, b
 
 ## Cache Direction
 
-### Raw Cache
+### Download Cache
 
-Raw cache remains shared across projects and recipe-agnostic.
+The download cache remains shared across projects and recipe-agnostic.
 
 ### Converted Cache
 

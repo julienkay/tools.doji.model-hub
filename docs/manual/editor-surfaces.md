@@ -4,22 +4,22 @@ HF Hub has four places in the Editor:
 
 | Surface | Open with | Use it to |
 |---|---|---|
-| Model Hub | `Window > AI Model Hub` | See every model the project needs, download and import them, choose optional files, and change import settings. |
+| Model Hub | `Window > AI Model Hub` | See every model the project needs, download and import them, choose optional files, change conversion settings, and choose how builds deliver each model. |
 | Setup prompt | Opens by itself | Get the models that installed packages need, in one click. |
-| Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, and choose the download cache folder. |
+| Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and choose the download cache folder. |
 | Manifest Inspector | Select an `hf-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
 ## Model Hub
 
-![Model Hub with the MiDaS model selected. The list on the left groups models into Needs action and Ready. The details on the right show the status, optional files with sizes, details, and the manifests that use the model.](../images/manual/model-hub-overview.png)
+![Model Hub with the MiDaS model selected. The details on the right show the status, the format ONNX and Sentis files, the In builds field set to Download at runtime, and the two manifests that use the model.](../images/manual/model-hub-overview.png)
 
 The list on the left shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
 
 - **Manifest errors**: manifests that HF Hub could not read. Their models are skipped until the manifest is fixed.
 - **Needs action**: models to download, import, update, or fix. Errors are listed first.
-- **Ready**: models that are imported into this project.
+- **Ready**: models this project can load.
 
-Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not imported yet, and the size in the project for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
+Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not imported yet, and the size of the Sentis models for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
 
 ### Status and actions
 
@@ -28,13 +28,13 @@ The details pane shows the status and the next action for the selected model.
 | Status | Meaning | Action |
 |---|---|---|
 | Not downloaded | The selected files are not in the download cache. | **Download & Import** downloads them and imports the model. The button shows the download size when it is known. |
-| Not imported | The files are downloaded, but the model is not imported into this project. | **Import** |
+| Not imported | The files are downloaded, but the ONNX files are not converted for this project yet. | **Import** |
 | Update needed | More files are selected than were downloaded, the imported files are out of date, or HF Hub needs the repository's file list to check a download made by another tool. | **Update** downloads missing files and imports the model again. |
 | Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again and imports the model. The button shows the download size when it is known. |
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
-| Error | The import failed, or the imported files are broken. The details explain why. | **Retry Import** |
+| Error | The import failed, the converted models are missing, or the file selection is invalid, for example a whole-repository dependency on a repository with both ONNX and Sentis files. The details explain why. | **Retry Import** |
 | Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
-| Ready | The model is imported. If some ONNX files could not be converted to Sentis, a warning lists them; the other files are imported. | None |
+| Ready | The model can load. A dependency on `.sentis` files is ready as soon as it is downloaded. If some ONNX files could not be converted, a warning lists them; the other files are converted. | None |
 
 **Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending. HF Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
 
@@ -43,9 +43,10 @@ While a download or import runs, a bar under the toolbar shows the current file 
 More actions:
 
 - **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
-- The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Remove Imported Files**, and **Remove from Cache**.
-  - **Remove Imported Files** deletes the generated files from this project. The downloaded files stay in the cache, so you can import again without downloading.
-  - **Remove from Cache** deletes the downloaded files from the shared Hugging Face cache on this machine. Imported files in this project stay usable. Other Unity projects and Python tools that use this cache must download the model again. Files that another revision of the model still uses are kept.
+- The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Pull into Project**, **Remove from Project**, and **Remove from Cache**.
+  - **Pull into Project** copies the model's Sentis files into `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/`. Builds and Play mode then use the copies. When copies exist, the item is **Remove Pulled Copies**. See [Pull into project](import-cache-runtime.md#pull-into-project).
+  - **Remove from Project** deletes this project's import records and pulled copies. Downloaded files and converted models stay in the shared folders, so importing again is fast.
+  - **Remove from Cache** deletes the downloaded files from the shared Hugging Face cache on this machine. Other Unity projects and Python tools that use this cache must download the model again. Files that another revision of the model still uses are kept.
 - **+ Add Model** in the toolbar adds a Hugging Face model to the project manifest or to the manifest of a local package. See [Add a model](#add-a-model).
 
 ### Overview tab
@@ -58,7 +59,11 @@ Assets/Doji/HfHub/HF Hub Optional File Selections.asset
 
 The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, imported, or counted in status.
 
-**Details** shows the repository, the revision and resolved commit, how many repository files are selected, the download size, and how many Sentis models are imported.
+**Details** shows the repository, the revision and resolved commit, how many repository files are selected, the download size, and:
+
+- **Format**: **Sentis, used as downloaded**, **ONNX, converted to Sentis**, or **ONNX and Sentis files**, from the selected model files.
+- **Imported**: how many Sentis models the project can load.
+- **In builds**: how builds deliver this model. **Project default** follows Project Settings. **Bundle in the build** adds the Sentis model to the build. **Download at runtime** makes players download it on first use, at the commit tested in this project. For ONNX files, download at runtime needs the `tools.doji.onnx-model-loader` package; the field says so when it is missing. See [Builds](import-cache-runtime.md#builds).
 
 **Used by** lists every manifest that declares the model, with its scope (all files, or the number of required and optional files) and its revision. **Manifest** selects that manifest. When the model has a revision conflict, each row also says how to fix it for that kind of manifest.
 
@@ -68,25 +73,25 @@ The choice is stored per manifest and model, so different packages can turn on d
 
 The **Files** tab lists the files the project uses from the repository. **Show unused** also lists files that no manifest selects.
 
-Expand an ONNX file to change how HF Hub imports it:
+Expand an ONNX file to change how HF Hub converts it. `.sentis` files have no conversion settings.
 
-- **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the imported model smaller and can reduce accuracy.
+- **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the converted model smaller and can reduce accuracy.
 - **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at import, or `-1` to keep it dynamic. Dimensions with the same name share one value.
 - **Settings from**: whether the settings come from the package or from a project override.
-- **Location**: the downloaded file and the imported `.sentis` asset.
+- **Location**: the downloaded file and the converted Sentis model.
 
-After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and imports the model again. If you switch to another model or tab with unapplied changes, HF Hub asks whether to apply or discard them.
+After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, HF Hub asks whether to apply or discard them.
 
 ### Storage tab
 
-![Storage tab showing 63.3 MB in the download cache and 63.2 MB in this project, with one bar per file.](../images/manual/model-hub-storage.png)
+![Storage tab showing 126.6 MB in the download cache and 63.2 MB of converted models, with one bar per file.](../images/manual/model-hub-storage.png)
 
 The **Storage** tab shows disk usage in two places:
 
 - **Download cache**: the downloaded files on this machine. All projects share this cache. **Show in Explorer** (or Finder) opens the folder.
-- **This project**: the imported Sentis models and metadata. **Show in Project** selects the folder.
+- **Converted**: the Sentis models converted from this model's ONNX files. All projects share them. `.sentis` files are not converted: they are used as downloaded.
 
-**By file** compares the size of each file in the cache and in the project.
+**By file** compares the size of each downloaded file with the size of its Sentis model.
 
 ### Download cache
 
@@ -104,7 +109,7 @@ Select a tile to see its size, partial downloads, and revisions. Actions:
 
 - **Show in Model Hub** selects the model in the list, for models this project uses.
 - **Delete Partial Downloads** deletes the partial files only.
-- **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Imported files in this project stay usable.
+- **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 
 Removing is not possible while HF Hub imports models, or while another program downloads a file of that repository.
 
@@ -115,9 +120,9 @@ Removing is not possible while HF Hub imports models, or while another program d
 **+ Add Model** opens a small form:
 
 1. Enter a model id such as `julienkay/sentis-MiDaS`, or paste the model's Hugging Face URL.
-2. HF Hub checks that the model exists on Hugging Face. **Add** stays disabled until the check passes.
+2. HF Hub checks that the model exists on Hugging Face and shows its format: **ONNX**, **Sentis**, **ONNX + Sentis**, or **No model files**. **Add** stays disabled until the check passes.
 3. In **Add to**, choose **This project** or a package in the project's `Packages` folder.
-4. Optionally use **Choose…** to select files. The default is all files.
+4. Optionally use **Choose…** to select files. The default is all files. A repository with both ONNX and Sentis files needs a file selection. A repository without model files cannot be added with all files.
 
 ## Setup prompt
 
@@ -133,7 +138,7 @@ Models that only have optional files and none turned on do not open the prompt. 
 
 ## Project Settings
 
-![Project Settings page with the project models table and the download cache settings.](../images/manual/project-settings.png)
+![Project Settings page with the project models table, the In builds setting, and the download cache settings.](../images/manual/project-settings.png)
 
 **Project models** lists the models this project declares itself, in addition to the ones packages bring. It is stored in:
 
@@ -143,9 +148,11 @@ ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
 
 The table works like the [manifest Inspector](#manifest-inspector).
 
-**Download cache** sets where downloaded files are stored. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder HF Hub uses now.
+**In builds** sets how builds deliver models by default: **Bundle in the build** or **Download at runtime**. Model Hub can override it per model. See [Builds](import-cache-runtime.md#builds).
 
-The page also shows the installed Sentis version. Imported models are built for that version and imported again when it changes.
+**Download cache** sets where the Editor stores downloaded files. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder HF Hub uses now.
+
+The page also shows the installed Sentis version. Converted models are built for that version; HF Hub converts them again when it changes.
 
 ## Manifest Inspector
 
@@ -171,6 +178,6 @@ The file picker lists the repository's files at the selected revision, with thei
 
 - Check the files the manifest needs. With nothing checked, the manifest uses the whole repository.
 - **Optional** appears on checked files. Optional files are off until a project turns them on in Model Hub.
-- Filter with the search field, or show **All**, **ONNX**, or **Selected** files.
+- Filter with the search field, or show **All**, **Models** (`.onnx` and `.sentis` files), or **Selected** files.
 - The footer shows the number of files, how many are optional, and their total size. **Use All Files** clears the selection.
 - If a selected file does not exist at the revision, the picker warns about it.

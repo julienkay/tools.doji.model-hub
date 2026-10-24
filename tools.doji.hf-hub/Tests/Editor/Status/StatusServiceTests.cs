@@ -109,8 +109,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = BuildStatusReport(dependency);
 
             Assert.That(report.FailedCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.NoSelectedOnnxFiles));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Dependency selection does not include any ONNX file."));
+            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.InvalidSelection));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("does not select any model file"));
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SelectionRequired));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("This dependency has optional ONNX files, but none are currently enabled for this project owner."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("This dependency has optional model files, but none are currently enabled for this project owner."));
         }
 
         /// <summary>
@@ -322,7 +322,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(
                 report.DependencyStatuses[0].MaintainerMessage,
-                Is.EqualTo("Generated runtime file is missing: hf-hub/doji/test-model/models/model.sentis."));
+                Does.StartWith("Runtime model is missing: models/model.onnx"));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RuntimeFileMissing));
         }
 
@@ -380,6 +380,74 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.StaleCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingStale));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("selection hash"));
+        }
+
+        /// <summary>
+        /// Verifies a dependency on a Sentis file is ready after download and import, without any conversion, and stops
+        /// being ready when the downloaded file is gone.
+        /// </summary>
+        [Test]
+        public async System.Threading.Tasks.Task BuildStatusReport_IsReadyForSentisFilesWithoutConversion()
+        {
+            var dependency = CreateDependency(selectedFiles: new[] { "sentis/model.sentis" });
+            WriteMixedFormatCache(dependency);
+            var cached = new RawCacheService().GetCachedOrThrow(dependency);
+
+            var artifact = await new ProjectImportService().ImportAsync(dependency, cached, System.Threading.CancellationToken.None);
+            var ready = BuildStatusReport(dependency).DependencyStatuses.Single();
+            File.Delete(CachePaths.GetSnapshotFilePath(dependency.Repository, "abc123", "sentis/model.sentis"));
+            var missing = BuildStatusReport(dependency).DependencyStatuses.Single();
+
+            Assert.That(artifact.RuntimeFiles.Single().Format, Is.EqualTo("sentis"));
+            Assert.That(ready.State, Is.EqualTo(DependencyState.Ready), ready.MaintainerMessage);
+            Assert.That(missing.State, Is.Not.EqualTo(DependencyState.Ready));
+        }
+
+        /// <summary>
+        /// Verifies a whole-repository dependency on a repository with both formats fails instead of picking one.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_FailsWholeRepositoryOfMixedFormats()
+        {
+            var dependency = CreateDependency();
+            WriteMixedFormatCache(dependency);
+
+            var status = BuildStatusReport(dependency).DependencyStatuses.Single();
+
+            Assert.That(status.State, Is.EqualTo(DependencyState.Failed));
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.InvalidSelection));
+            Assert.That(status.MaintainerMessage, Does.Contain("both ONNX and Sentis files"));
+        }
+
+        private static void WriteMixedFormatCache(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var files = new[] { ("onnx/model.onnx", "etag-onnx"), ("sentis/model.sentis", "etag-sentis") };
+            foreach (var (repoPath, _) in files)
+            {
+                var path = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, repoPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? throw new InvalidOperationException());
+                File.WriteAllText(path, "model");
+            }
+
+            var refPath = CachePaths.GetRevisionRefPath(dependency.Repository, dependency.Revision);
+            Directory.CreateDirectory(Path.GetDirectoryName(refPath) ?? throw new InvalidOperationException());
+            File.WriteAllText(refPath, commitHash);
+            var metadataPath = CachePaths.GetSnapshotMetadataPath(dependency.Repository, commitHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(metadataPath) ?? throw new InvalidOperationException());
+            File.WriteAllText(metadataPath, JsonConvert.SerializeObject(new RawCacheMetadata
+            {
+                Repository = dependency.Repository,
+                RequestedRevision = dependency.Revision,
+                ResolvedCommitHash = commitHash,
+                RepositoryFiles = files.Select(file => new RepositoryFileMetadata { RepoPath = file.Item1, SizeInBytes = 5 }).ToArray(),
+                Files = files.Select(file => new RawCacheFileMetadata
+                {
+                    RepoPath = file.Item1,
+                    EntityTag = file.Item2,
+                    CachedFilePath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, file.Item1),
+                    SizeInBytes = 5
+                }).ToArray()
+            }));
         }
 
         private static StatusReport BuildStatusReport(params DiscoveredModelDependency[] dependencies)
@@ -518,7 +586,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     SentisVersion = sentisVersion,
                     UnityVersion = UnityEngine.Application.unityVersion,
                     RecipeSetHash = recipeSetHash,
-                    RuntimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, commitHash),
                     RuntimeFiles = runtimeFiles,
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
@@ -538,8 +605,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RecipeSetHash = recipeSetHash,
                     DependencySelectionHash = dependency.DependencySelectionHash,
                     SharedImportMetadataPath = sharedMetadataPath,
-                    RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId),
-                    RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId)),
                     BoundAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
         }
@@ -688,7 +753,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     SentisVersion = sentisVersion,
                     UnityVersion = UnityEngine.Application.unityVersion,
                     RecipeSetHash = recipeSetHash,
-                    RuntimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, commitHash),
                     RuntimeFiles = runtimeFiles,
                     SkippedRepoPaths = skippedRepoPaths ?? Array.Empty<string>(),
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
@@ -709,16 +773,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     RecipeSetHash = recipeSetHash,
                     DependencySelectionHash = dependency.DependencySelectionHash,
                     SharedImportMetadataPath = sharedMetadataPath,
-                    RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId),
-                    RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId)),
                     BoundAtUtc = DateTime.UtcNow.ToString("O")
                 }, Formatting.Indented));
         }
 
+        private static string GetConvertedModelPath(DiscoveredModelDependency dependency)
+        {
+            return ConvertedModelStore.GetModelPath(dependency.Repository, "status-test-key");
+        }
+
         private static ImportedRuntimeFileMetadata[] WriteRuntimeFiles(DiscoveredModelDependency dependency, string commitHash = "abc123")
         {
-            var sentisAssetPath = ProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, commitHash, "models/model.onnx");
-            var sentisAbsolutePath = ProjectPaths.ToAbsolutePath(sentisAssetPath);
+            var sentisAbsolutePath = GetConvertedModelPath(dependency);
 
             Directory.CreateDirectory(Path.GetDirectoryName(sentisAbsolutePath) ?? throw new InvalidOperationException());
             File.WriteAllText(sentisAbsolutePath, "sentis");
@@ -729,8 +795,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     RepoPath = "models/model.onnx",
                     Kind = "sentis",
-                    AssetPath = sentisAssetPath,
-                    RelativePath = ProjectPaths.ToStreamingAssetsRelativePath(sentisAssetPath),
+                    Format = "onnx",
+                    FilePath = sentisAbsolutePath,
                     SizeInBytes = 6,
                     RecipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe()),
                     ConversionPipelineVersion = OnnxImportMetadataUtility.DefaultConversionPipelineVersion
@@ -774,8 +840,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static void DeleteGeneratedRuntimeFiles(DiscoveredModelDependency dependency)
         {
-            var sentisAssetPath = ProjectPaths.GetRuntimeSentisAssetPath(dependency.Repository, "abc123", "models/model.onnx");
-            var sentisAbsolutePath = ProjectPaths.ToAbsolutePath(sentisAssetPath);
+            var sentisAbsolutePath = GetConvertedModelPath(dependency);
             if (File.Exists(sentisAbsolutePath))
             {
                 File.Delete(sentisAbsolutePath);

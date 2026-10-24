@@ -95,7 +95,7 @@ namespace Doji.AI.ModelHub.Editor
             string requestedRevision,
             string resolvedCommitHash,
             string rawSnapshotRootPath,
-            string runtimeSnapshotAssetPath,
+            string runtimeModelFolder,
             long? cacheSizeOnDiskBytes,
             long? estimatedCacheSizeBytes,
             long? repositorySizeBytes,
@@ -110,7 +110,7 @@ namespace Doji.AI.ModelHub.Editor
             RequestedRevision = requestedRevision;
             ResolvedCommitHash = resolvedCommitHash;
             RawSnapshotRootPath = rawSnapshotRootPath;
-            RuntimeSnapshotAssetPath = runtimeSnapshotAssetPath;
+            RuntimeModelFolder = runtimeModelFolder;
             CacheSizeOnDiskBytes = cacheSizeOnDiskBytes;
             EstimatedCacheSizeBytes = estimatedCacheSizeBytes;
             RepositorySizeBytes = repositorySizeBytes;
@@ -126,7 +126,7 @@ namespace Doji.AI.ModelHub.Editor
         public string RequestedRevision { get; }
         public string ResolvedCommitHash { get; }
         public string RawSnapshotRootPath { get; }
-        public string RuntimeSnapshotAssetPath { get; }
+        public string RuntimeModelFolder { get; }
         public long? CacheSizeOnDiskBytes { get; }
         public long? EstimatedCacheSizeBytes { get; }
         public long? RepositorySizeBytes { get; }

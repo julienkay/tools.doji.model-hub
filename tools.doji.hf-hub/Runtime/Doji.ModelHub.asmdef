@@ -2,7 +2,8 @@
     "name": "Doji.ModelHub",
     "rootNamespace": "Doji.AI.ModelHub",
     "references": [
-        "Unity.InferenceEngine"
+        "Unity.InferenceEngine",
+        "GUID:33634f0321224cbab008d083a50cd823"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -11,6 +12,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "tools.doji.onnx-model-loader",
+            "expression": "",
+            "define": "HF_HUB_ONNX_MODEL_LOADER"
+        }
+    ],
     "noEngineReferences": false
 }

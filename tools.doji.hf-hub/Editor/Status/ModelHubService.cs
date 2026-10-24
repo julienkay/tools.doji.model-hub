@@ -47,9 +47,9 @@ namespace Doji.AI.ModelHub.Editor
             var primary = dependents[0];
             var runtimeFiles = dependents
                 .SelectMany(item => item.ImportedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
-                .GroupBy(file => file.AssetPath, StringComparer.Ordinal)
+                .GroupBy(file => file.FilePath, StringComparer.Ordinal)
                 .Select(files => files.First())
-                .OrderBy(file => file.AssetPath, StringComparer.Ordinal)
+                .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
                 .ToArray();
             var diagnostics = dependents
                 .Where(item => item.NeedsAttention && !string.IsNullOrWhiteSpace(GetUserFacingDependencyMessage(item)))
@@ -69,9 +69,10 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(grouped => grouped.First())
                 .ToArray();
 
-            var runtimeSnapshotAssetPath = primary.ImportedMetadata != null
-                ? ProjectPaths.GetRuntimeSnapshotFolder(primary.Dependency.Repository, primary.ImportedMetadata.ResolvedCommitHash)
-                : null;
+            var runtimeModelFolder = runtimeFiles
+                .Where(file => string.Equals(file.Format, "onnx", StringComparison.Ordinal))
+                .Select(file => Path.GetDirectoryName(file.FilePath))
+                .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
             var rawSnapshotRootPath = dependents
                 .Select(item => item.RawFilePath)
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
@@ -105,7 +106,7 @@ namespace Doji.AI.ModelHub.Editor
                 primary.Dependency.Revision,
                 resolvedCommitHash,
                 rawSnapshotRootPath,
-                runtimeSnapshotAssetPath,
+                runtimeModelFolder,
                 cacheSizeOnDiskBytes,
                 estimatedCacheSizeBytes,
                 repositorySizeBytes,
@@ -203,8 +204,8 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.SharedImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
                 DependencyReasonCode.RevisionConflict => null,
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
-                DependencyReasonCode.SelectionRequired => "Choose at least one optional ONNX file for this manifest owner before downloading or importing.",
-                DependencyReasonCode.NoSelectedOnnxFiles => "This dependency does not currently select any ONNX file.",
+                DependencyReasonCode.SelectionRequired => "Choose at least one optional model file for this manifest owner before downloading or importing.",
+                DependencyReasonCode.InvalidSelection => status.MaintainerMessage,
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
                 _ => status.MaintainerMessage
             };
@@ -395,21 +396,16 @@ namespace Doji.AI.ModelHub.Editor
 
             long totalBytes = 0;
             var foundAny = false;
-            foreach (var runtimeFile in runtimeFiles)
+            // Only converted models take space of their own: a Sentis runtime model is the downloaded file.
+            foreach (var runtimeFile in runtimeFiles.Where(file => string.Equals(file.Format, "onnx", StringComparison.Ordinal)))
             {
-                var assetPath = runtimeFile.AssetPath;
-                if (string.IsNullOrWhiteSpace(assetPath))
+                var size = GetFileSizeOnDisk(runtimeFile.FilePath);
+                if (!size.HasValue)
                 {
                     continue;
                 }
 
-                var absolutePath = ProjectPaths.ToAbsolutePath(assetPath);
-                if (!File.Exists(absolutePath))
-                {
-                    continue;
-                }
-
-                totalBytes += new FileInfo(absolutePath).Length;
+                totalBytes += size.Value;
                 foundAny = true;
             }
 
@@ -428,12 +424,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private static long? GetRuntimeFileSizeOnDisk(ImportedRuntimeFileMetadata runtimeFile)
         {
-            if (runtimeFile == null || string.IsNullOrWhiteSpace(runtimeFile.AssetPath))
-            {
-                return null;
-            }
-
-            return GetFileSizeOnDisk(ProjectPaths.ToAbsolutePath(runtimeFile.AssetPath));
+            return runtimeFile == null ? null : GetFileSizeOnDisk(runtimeFile.FilePath);
         }
 
         private static ModelHubItemState GetAggregateState(IReadOnlyList<DependencyStatus> dependents)

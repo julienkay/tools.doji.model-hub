@@ -10,16 +10,22 @@ using UnityEditor;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers repo-snapshot import behavior using a local ONNX sample.
+    /// Covers preparing runtime models: Sentis files used as downloaded, ONNX files converted once into the shared
+    /// converted folder with this project's settings, and nothing written into Assets.
     /// </summary>
     internal sealed class ProjectImportServiceTests
     {
         private ProjectImportService _service;
         private TestProjectStateScope _projectScope;
+        private TestCacheScope _cacheScope;
+        private string _rootDirectory;
 
         [SetUp]
         public void SetUp()
         {
+            _rootDirectory = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.ImportTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_rootDirectory);
+            _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
             _service = new ProjectImportService();
             _projectScope = new TestProjectStateScope(
                 TestProjectStateScope.DefaultRoots.Append("Assets/Doji").ToArray(),
@@ -31,266 +37,229 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             _projectScope?.Dispose();
             _projectScope = null;
+            _cacheScope?.Dispose();
+            _cacheScope = null;
+            if (Directory.Exists(_rootDirectory))
+            {
+                Directory.Delete(_rootDirectory, true);
+            }
         }
 
         /// <summary>
-        /// Verifies import converts ONNX files into runtime `.sentis` assets and writes repo-level metadata.
+        /// Verifies an ONNX file is converted into the shared converted folder, keyed by etag, converter, and
+        /// settings, and that the project gets only its import records.
         /// </summary>
         [Test]
-        public async Task ImportAsync_CreatesGeneratedRuntimeSnapshotAndMetadata()
+        public async Task ImportAsync_ConvertsOnnxIntoTheSharedConvertedFolder()
         {
             var dependency = CreateDependency();
             var cachedSnapshot = CreateCachedSnapshot();
 
             var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
 
-            Assert.That(artifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(artifact.BindingMetadataFilePath)), Is.True);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(artifact.SharedMetadataFilePath)), Is.True);
-            Assert.That(artifact.Metadata.PackageId, Is.EqualTo("tools.doji.test"));
-            Assert.That(artifact.Metadata.ModelId, Is.EqualTo("doji/test-model"));
             Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
-            Assert.That(artifact.Metadata.BindingMetadataPath, Is.EqualTo(ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.test", "doji/test-model")));
-            var expectedRecipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(cachedSnapshot.Metadata.Files);
-            Assert.That(artifact.Metadata.SharedImportMetadataPath, Is.EqualTo(ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "commit123", StatusService.GetCurrentSentisVersion(), expectedRecipeSetHash)));
-            Assert.That(artifact.RuntimeRegistryAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/tools.doji.test/hf-hub-runtime.json"));
-            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
-            Assert.That(artifact.Metadata.RecipeSetHash, Is.EqualTo(expectedRecipeSetHash));
-
-            var sentisFile = artifact.RuntimeFiles.Single(file => file.Kind == "sentis");
-            Assert.That(sentisFile.AssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model/SingleInputSingleOuput.sentis"));
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.True);
-            Assert.That(sentisFile.SizeInBytes, Is.GreaterThan(0));
-            Assert.That(sentisFile.RecipeHash, Is.EqualTo(OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe())));
-            Assert.That(sentisFile.ConversionPipelineVersion, Is.EqualTo(OnnxImportMetadataUtility.DefaultConversionPipelineVersion));
-            Assert.That(ModelLoader.Load(ProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.Not.Null);
+            var runtimeFile = artifact.RuntimeFiles.Single();
+            var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe());
+            var expectedKey = ConvertedModelStore.ComputeKey("etag-single", ProjectImportService.GetEditorConverterId(), recipeHash);
+            Assert.That(runtimeFile.Format, Is.EqualTo("onnx"));
+            Assert.That(runtimeFile.SourceEtag, Is.EqualTo("etag-single"));
+            Assert.That(runtimeFile.ConversionKey, Is.EqualTo(expectedKey));
+            Assert.That(runtimeFile.FilePath, Is.EqualTo(ConvertedModelStore.GetModelPath("doji/test-model", expectedKey)));
+            Assert.That(runtimeFile.FilePath, Does.StartWith(_cacheScope.DataRoot));
+            Assert.That(runtimeFile.RecipeHash, Is.EqualTo(recipeHash));
+            Assert.That(ModelLoader.Load(runtimeFile.FilePath), Is.Not.Null);
+            Assert.That(File.Exists(ConvertedModelStore.GetRecordPath("doji/test-model", expectedKey)), Is.True);
+            Assert.That(Directory.Exists(ProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/doji")), Is.False);
         }
 
         /// <summary>
-        /// Verifies import short-circuits when repo metadata and generated files already match.
+        /// Verifies a Sentis file is used as downloaded: no conversion, and the runtime model is the cached file.
         /// </summary>
         [Test]
-        public async Task ImportAsync_ReusesExistingGeneratedArtifactWhenMetadataMatches()
-        {
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshot();
-
-            var firstArtifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-            var firstTimestamp = firstArtifact.Metadata.ImportedAtUtc;
-
-            var secondArtifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(secondArtifact.SnapshotRootAssetPath, Is.EqualTo(firstArtifact.SnapshotRootAssetPath));
-            Assert.That(secondArtifact.BindingMetadataFilePath, Is.EqualTo(firstArtifact.BindingMetadataFilePath));
-            Assert.That(secondArtifact.SharedMetadataFilePath, Is.EqualTo(firstArtifact.SharedMetadataFilePath));
-            Assert.That(secondArtifact.Metadata.ImportedAtUtc, Is.EqualTo(firstTimestamp));
-        }
-
-        /// <summary>
-        /// Verifies second owner reuses shared import metadata and runtime files instead of reconverting same repo snapshot.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_ReusesSharedImportAcrossOwnersWithoutReconverting()
+        public async Task ImportAsync_UsesSentisFilesAsDownloaded()
         {
             var converter = new CountingOnnxConverter();
             var service = new ProjectImportService(converter);
-            var firstDependency = CreateDependency();
-            var secondDependency = CreateDependency(packageId: "tools.doji.other", manifestHash: "other-manifest-hash");
-            var cachedSnapshot = CreateCachedSnapshot();
-
-            var firstArtifact = await service.ImportAsync(firstDependency, cachedSnapshot, CancellationToken.None);
-            var secondArtifact = await service.ImportAsync(secondDependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(converter.CallCount, Is.EqualTo(1));
-            Assert.That(firstArtifact.SharedMetadataFilePath, Is.EqualTo(secondArtifact.SharedMetadataFilePath));
-            Assert.That(firstArtifact.BindingMetadataFilePath, Is.Not.EqualTo(secondArtifact.BindingMetadataFilePath));
-            Assert.That(secondArtifact.Metadata.PackageId, Is.EqualTo("tools.doji.other"));
-            Assert.That(secondArtifact.Metadata.ManifestHash, Is.EqualTo("other-manifest-hash"));
-            Assert.That(secondArtifact.Metadata.SharedImportMetadataPath, Is.EqualTo(firstArtifact.Metadata.SharedImportMetadataPath));
-        }
-
-        /// <summary>
-        /// Verifies invalid shared import metadata triggers fresh conversion on next import.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_ReconvertsWhenSharedMetadataJsonIsInvalid()
-        {
-            var converter = new CountingOnnxConverter();
-            var service = new ProjectImportService(converter);
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshot();
-
-            var firstArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-            File.WriteAllText(ProjectPaths.ToProjectAbsolutePath(firstArtifact.SharedMetadataFilePath), "{ invalid json");
-
-            var secondArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(converter.CallCount, Is.EqualTo(2));
-            Assert.That(secondArtifact.SharedMetadataFilePath, Is.EqualTo(firstArtifact.SharedMetadataFilePath));
-            Assert.That(secondArtifact.Metadata.BindingMetadataPath, Is.EqualTo(firstArtifact.Metadata.BindingMetadataPath));
-        }
-
-        /// <summary>
-        /// Verifies whole-repo dependency (no explicit file selection) imports all ONNX files from RepositoryFiles.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_ImportsAllOnnxFiles_WhenNoExplicitFileSelectionAndRepositoryFilesPopulated()
-        {
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
-
-            var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(2));
-            Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out var firstSentis), Is.True);
-            Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out var secondSentis), Is.True);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(firstSentis.AssetPath)), Is.True);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(secondSentis.AssetPath)), Is.True);
-        }
-
-        /// <summary>
-        /// Verifies explicit file selection imports only the declared subset of ONNX files.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_ImportsOnlySelectedFiles_WhenExplicitFileSelectionProvided()
-        {
-            var dependency = new DiscoveredModelDependency(
-                "tools.doji.test",
-                "Test Package",
-                "1.0.0",
-                "/tmp/tools.doji.test",
-                "/tmp/tools.doji.test/hf-hub-manifest.json",
-                "manifesthash",
-                new ModelDependencyDefinition(
-                    "doji/test-model",
-                    "main",
-                    new[] { new ModelDependencyFileDefinition("model.onnx") }));
-            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
-
-            var artifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
-            Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out _), Is.True);
-            Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
-        }
-
-        /// <summary>
-        /// Verifies optional-file selection shrinks remove no-longer-selected generated Sentis outputs.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_PrunesDeselectedRuntimeFiles_WhenOptionalSelectionShrinks()
-        {
-            var initialDependency = new DiscoveredModelDependency(
-                "tools.doji.test",
-                "Test Package",
-                "1.0.0",
-                "/tmp/tools.doji.test",
-                "/tmp/tools.doji.test/hf-hub-manifest.json",
-                "manifesthash",
-                new ModelDependencyDefinition(
-                    "doji/test-model",
-                    "main",
-                    new[]
-                    {
-                        new ModelDependencyFileDefinition("model.onnx", true),
-                        new ModelDependencyFileDefinition("model_bnb4.onnx", true)
-                    }),
-                enabledOptionalFiles: new[] { "model.onnx", "model_bnb4.onnx" });
-            var shrunkDependency = new DiscoveredModelDependency(
-                "tools.doji.test",
-                "Test Package",
-                "1.0.0",
-                "/tmp/tools.doji.test",
-                "/tmp/tools.doji.test/hf-hub-manifest.json",
-                "manifesthash",
-                new ModelDependencyDefinition(
-                    "doji/test-model",
-                    "main",
-                    new[]
-                    {
-                        new ModelDependencyFileDefinition("model.onnx", true),
-                        new ModelDependencyFileDefinition("model_bnb4.onnx", true)
-                    }),
-                enabledOptionalFiles: new[] { "model.onnx" });
-            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
-
-            var firstArtifact = await _service.ImportAsync(initialDependency, cachedSnapshot, CancellationToken.None);
-            var secondArtifact = await _service.ImportAsync(shrunkDependency, cachedSnapshot, CancellationToken.None);
-
-            Assert.That(firstArtifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out var firstVariantRuntimeFile), Is.True);
-            Assert.That(secondArtifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(firstVariantRuntimeFile.AssetPath)), Is.False);
-        }
-
-        /// <summary>
-        /// Verifies whole-repo dependencies fail with a clear message when repository inventory contains no ONNX file.
-        /// </summary>
-        [Test]
-        public void ImportAsync_ThrowsWhenWholeRepositorySelectionContainsNoOnnxFiles()
-        {
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshotWithoutOnnxFiles();
-
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None));
-
-            Assert.That(exception?.Message, Is.EqualTo("Dependency 'doji/test-model' does not select any ONNX file. Select the whole repository or at least one `.onnx` file."));
-        }
-
-        /// <summary>
-        /// Verifies import keeps successful ONNX conversions when one variant in the repo is unsupported.
-        /// </summary>
-        [Test]
-        public async Task ImportAsync_SkipsUnsupportedOnnxVariantsWhenAnotherOnnxConverts()
-        {
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
-            var service = new ProjectImportService(new PartiallyThrowingOnnxConverter("model_bnb4.onnx"));
+            var cachedSnapshot = CreateCachedSnapshotWithFormats();
+            var dependency = CreateDependency(files: new[] { "sentis/model.sentis" });
 
             var artifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
 
-            Assert.That(artifact.RuntimeFiles.Count, Is.EqualTo(1));
-            Assert.That(artifact.RuntimeFiles.Count(file => file.Kind == "sentis"), Is.EqualTo(1));
-            Assert.That(artifact.TryGetRuntimeFile("model.onnx", "sentis", out var sentisFile), Is.True);
-            Assert.That(artifact.TryGetRuntimeFile("model_bnb4.onnx", "sentis", out _), Is.False);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath(sentisFile.AssetPath)), Is.True);
-            Assert.That(artifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
-            Assert.That(artifact.Metadata.Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(artifact.Metadata.Diagnostics[0].Message, Does.Contain("model_bnb4.onnx"));
-            Assert.That(artifact.Metadata.Diagnostics[0].Message, Does.Contain("unsupported operators or data types"));
+            var runtimeFile = artifact.RuntimeFiles.Single();
+            Assert.That(converter.CallCount, Is.Zero);
+            Assert.That(runtimeFile.Format, Is.EqualTo("sentis"));
+            Assert.That(runtimeFile.FilePath, Is.EqualTo(cachedSnapshot.Metadata.Files.Single(file => file.RepoPath == "sentis/model.sentis").CachedFilePath));
+            Assert.That(runtimeFile.SourceEtag, Is.EqualTo("etag-sentis"));
+            Assert.That(runtimeFile.ConversionKey, Is.Null);
+            Assert.That(ModelLoader.Load(runtimeFile.FilePath), Is.Not.Null);
         }
 
         /// <summary>
-        /// Verifies partial ONNX conversion warnings survive metadata reuse on later imports.
+        /// Verifies HF Hub never picks a format for a whole-repository dependency on a repository with both formats.
         /// </summary>
         [Test]
-        public async Task ImportAsync_ReusesPersistedPartialConversionWarningsWhenMetadataMatches()
+        public void ImportAsync_RejectsWholeRepositoryOfMixedFormats()
         {
-            var dependency = CreateDependency();
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await _service.ImportAsync(CreateDependency(), CreateCachedSnapshotWithFormats(), CancellationToken.None));
+
+            Assert.That(exception?.Message, Does.Contain("both ONNX and Sentis files"));
+        }
+
+        /// <summary>
+        /// Verifies the project's conversion settings change the converted model and its key.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_AppliesConversionSettings()
+        {
+            var cachedSnapshot = CreateCachedSnapshot();
+            var sampleInput = ModelLoader.Load(await ConvertSampleAsync()).inputs[0];
+            var fixedDimensions = Enumerable.Repeat(7, sampleInput.shape.rank).ToArray();
+            var recipe = new OnnxConversionRecipe
+            {
+                QuantizationMode = "float16",
+                StaticInputShapeOverrides = new[] { new OnnxStaticInputShapeOverride { InputName = sampleInput.name, Dimensions = fixedDimensions } }
+            };
+            var service = new ProjectImportService(recipeSource: new FixedRecipeSource(recipe));
+
+            var artifact = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            var runtimeFile = artifact.RuntimeFiles.Single();
+            Assert.That(runtimeFile.RecipeHash, Is.EqualTo(OnnxImportMetadataUtility.ComputeRecipeHash(recipe)));
+            var model = ModelLoader.Load(runtimeFile.FilePath);
+            var shape = model.inputs[0].shape;
+            Assert.That(shape.IsStatic(), Is.True, "Every input dimension is fixed by the setting.");
+            Assert.That(shape.ToTensorShape().ToArray(), Is.EqualTo(fixedDimensions));
+        }
+
+        /// <summary>
+        /// Verifies a second owner, and a project whose import records broke, reuse the converted model without
+        /// converting again.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReusesConvertedModelsAcrossOwnersAndBrokenRecords()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+            var cachedSnapshot = CreateCachedSnapshot();
+
+            var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var second = await service.ImportAsync(CreateDependency(packageId: "tools.doji.other", manifestHash: "other"), cachedSnapshot, CancellationToken.None);
+            File.WriteAllText(ProjectPaths.ToProjectAbsolutePath(first.SharedMetadataFilePath), "{ invalid json");
+            var third = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(converter.CallCount, Is.EqualTo(1));
+            Assert.That(second.RuntimeFiles.Single().FilePath, Is.EqualTo(first.RuntimeFiles.Single().FilePath));
+            Assert.That(third.RuntimeFiles.Single().FilePath, Is.EqualTo(first.RuntimeFiles.Single().FilePath));
+            Assert.That(second.BindingMetadataFilePath, Is.Not.EqualTo(first.BindingMetadataFilePath));
+        }
+
+        /// <summary>
+        /// Verifies a current import record short-circuits the import.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ReusesCurrentImportRecord()
+        {
+            var cachedSnapshot = CreateCachedSnapshot();
+
+            var first = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var second = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(second.Metadata.ImportedAtUtc, Is.EqualTo(first.Metadata.ImportedAtUtc));
+        }
+
+        /// <summary>
+        /// Verifies a deleted converted model is converted again instead of being reported as imported.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_ConvertsAgainWhenTheConvertedModelWasDeleted()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+            var cachedSnapshot = CreateCachedSnapshot();
+            var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            File.Delete(first.RuntimeFiles.Single().FilePath);
+
+            var second = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(converter.CallCount, Is.EqualTo(2));
+            Assert.That(File.Exists(second.RuntimeFiles.Single().FilePath), Is.True);
+        }
+
+        /// <summary>
+        /// Verifies an ONNX file's external weights are recorded, so a player can download them with the model.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_RecordsCompanionFiles()
+        {
+            var cachedSnapshot = CreateCachedSnapshot(companion: true);
+
+            var artifact = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            var companion = artifact.RuntimeFiles.Single().Companions.Single();
+            Assert.That(companion.RepoPath, Is.EqualTo("SingleInputSingleOuput.onnx_data"));
+            Assert.That(companion.Etag, Is.EqualTo("etag-data"));
+            Assert.That(companion.SizeInBytes, Is.EqualTo(4));
+        }
+
+        /// <summary>
+        /// Verifies a whole-repository dependency imports every ONNX file, and a listed file only itself.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_FollowsTheSelection()
+        {
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+
+            var whole = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var listed = await _service.ImportAsync(CreateDependency(packageId: "tools.doji.listed", files: new[] { "model.onnx" }), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(whole.RuntimeFiles.Select(file => file.RepoPath), Is.EquivalentTo(new[] { "model.onnx", "model_bnb4.onnx" }));
+            Assert.That(listed.RuntimeFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "model.onnx" }));
+        }
+
+        /// <summary>
+        /// Verifies selections without model files fail with a clear message.
+        /// </summary>
+        [Test]
+        public void ImportAsync_ThrowsWhenSelectionHasNoModelFiles()
+        {
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await _service.ImportAsync(CreateDependency(), CreateCachedSnapshotWithoutOnnxFiles(), CancellationToken.None));
+
+            Assert.That(exception?.Message, Does.Contain("does not select any model file"));
+        }
+
+        /// <summary>
+        /// Verifies import keeps successful conversions when one ONNX file is unsupported, and the warning survives
+        /// a later import.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_SkipsUnsupportedOnnxFilesWhenAnotherConverts()
+        {
             var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
             var service = new ProjectImportService(new PartiallyThrowingOnnxConverter("model_bnb4.onnx"));
 
-            var firstArtifact = await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
-            var secondArtifact = await _service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None);
+            var artifact = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var again = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
-            Assert.That(firstArtifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
-            Assert.That(secondArtifact.Metadata.Diagnostics, Has.Length.EqualTo(1));
-            Assert.That(secondArtifact.Metadata.Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(secondArtifact.Metadata.Diagnostics[0].Message, Is.EqualTo(firstArtifact.Metadata.Diagnostics[0].Message));
+            Assert.That(artifact.RuntimeFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "model.onnx" }));
+            Assert.That(artifact.Metadata.SkippedRepoPaths, Is.EqualTo(new[] { "model_bnb4.onnx" }));
+            Assert.That(artifact.Metadata.Diagnostics.Single().Message, Does.Contain("model_bnb4.onnx"));
+            Assert.That(again.Metadata.Diagnostics.Single().Message, Is.EqualTo(artifact.Metadata.Diagnostics.Single().Message));
         }
 
         /// <summary>
-        /// Verifies ONNX conversion failures include repo file path and canonical model id for easier diagnostics.
+        /// Verifies a conversion failure names the file and the repository.
         /// </summary>
         [Test]
         public void ImportAsync_WrapsOnnxConversionFailuresWithRepoFileContext()
         {
-            var dependency = CreateDependency();
-            var cachedSnapshot = CreateCachedSnapshot();
             var service = new ProjectImportService(new ThrowingOnnxConverter("Model contains unsupported operators or data types."));
 
             var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await service.ImportAsync(dependency, cachedSnapshot, CancellationToken.None));
+                await service.ImportAsync(CreateDependency(), CreateCachedSnapshot(), CancellationToken.None));
 
             Assert.That(exception?.Message, Does.Contain("SingleInputSingleOuput.onnx"));
             Assert.That(exception?.Message, Does.Contain("doji/test-model"));
@@ -427,7 +396,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "tools.doji.test",
-            string manifestHash = "manifesthash")
+            string manifestHash = "manifesthash",
+            string[] files = null)
         {
             return new DiscoveredModelDependency(
                 packageId,
@@ -438,16 +408,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 manifestHash,
                 new ModelDependencyDefinition(
                     "doji/test-model",
-                    "main"));
+                    "main",
+                    (files ?? Array.Empty<string>()).Select(file => new ModelDependencyFileDefinition(file)).ToArray()));
         }
 
-        private static CachedSnapshot CreateCachedSnapshot()
+        private CachedSnapshot CreateSnapshot(params (string RepoPath, string Etag, Func<string, byte[]> Content)[] files)
         {
-            var sampleOnnxPath = GetInferenceSampleOnnxPath();
-            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.ImportSnapshot", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(snapshotRoot);
-            var cachedModelPath = Path.Combine(snapshotRoot, "SingleInputSingleOuput.onnx");
-            File.Copy(sampleOnnxPath, cachedModelPath, true);
+            var snapshotRoot = Path.Combine(_rootDirectory, "Snapshot", Guid.NewGuid().ToString("N"));
+            var entries = files.Select(file =>
+            {
+                var path = Path.Combine(snapshotRoot, file.RepoPath.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllBytes(path, file.Content(path));
+                return new RawCacheFileMetadata { RepoPath = file.RepoPath, CachedFilePath = path, EntityTag = file.Etag, SizeInBytes = new FileInfo(path).Length };
+            }).ToArray();
 
             var metadata = new RawCacheMetadata
             {
@@ -455,95 +429,57 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RequestedRevision = "main",
                 ResolvedCommitHash = "commit123",
                 CachedSnapshotRoot = snapshotRoot,
-                RepositoryFiles = new[]
-                {
-                    new RepositoryFileMetadata { RepoPath = "SingleInputSingleOuput.onnx" }
-                },
-                Files = new[]
-                {
-                    new RawCacheFileMetadata
-                    {
-                        RepoPath = "SingleInputSingleOuput.onnx",
-                        CachedFilePath = cachedModelPath
-                    }
-                },
+                RepositoryFiles = entries.Select(entry => new RepositoryFileMetadata { RepoPath = entry.RepoPath, SizeInBytes = entry.SizeInBytes }).ToArray(),
+                Files = entries,
                 DownloadedAtUtc = DateTime.UtcNow.ToString("O")
             };
 
             return new CachedSnapshot(snapshotRoot, Path.Combine(snapshotRoot, "snapshot.hfhub.json"), metadata);
         }
 
-        private static CachedSnapshot CreateCachedSnapshotWithTwoOnnxFiles()
+        private CachedSnapshot CreateCachedSnapshot(bool companion = false)
         {
-            var sampleOnnxPath = GetInferenceSampleOnnxPath();
-            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.ImportSnapshot", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(snapshotRoot);
-
-            var firstModelPath = Path.Combine(snapshotRoot, "model.onnx");
-            var secondModelPath = Path.Combine(snapshotRoot, "model_bnb4.onnx");
-            File.Copy(sampleOnnxPath, firstModelPath, true);
-            File.Copy(sampleOnnxPath, secondModelPath, true);
-
-            var metadata = new RawCacheMetadata
+            var files = new[] { ("SingleInputSingleOuput.onnx", "etag-single", (Func<string, byte[]>)(_ => File.ReadAllBytes(GetInferenceSampleOnnxPath()))) };
+            if (companion)
             {
-                Repository = "doji/test-model",
-                RequestedRevision = "main",
-                ResolvedCommitHash = "commit123",
-                CachedSnapshotRoot = snapshotRoot,
-                RepositoryFiles = new[]
-                {
-                    new RepositoryFileMetadata { RepoPath = "model.onnx" },
-                    new RepositoryFileMetadata { RepoPath = "model_bnb4.onnx" }
-                },
-                Files = new[]
-                {
-                    new RawCacheFileMetadata
-                    {
-                        RepoPath = "model.onnx",
-                        CachedFilePath = firstModelPath
-                    },
-                    new RawCacheFileMetadata
-                    {
-                        RepoPath = "model_bnb4.onnx",
-                        CachedFilePath = secondModelPath
-                    }
-                },
-                DownloadedAtUtc = DateTime.UtcNow.ToString("O")
-            };
+                files = files.Append(("SingleInputSingleOuput.onnx_data", "etag-data", _ => new byte[4])).ToArray();
+            }
 
-            return new CachedSnapshot(snapshotRoot, Path.Combine(snapshotRoot, "snapshot.hfhub.json"), metadata);
+            return CreateSnapshot(files);
         }
 
-        private static CachedSnapshot CreateCachedSnapshotWithoutOnnxFiles()
+        private CachedSnapshot CreateCachedSnapshotWithTwoOnnxFiles()
         {
-            var snapshotRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.ImportSnapshot", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(snapshotRoot);
+            return CreateSnapshot(
+                ("model.onnx", "etag-model", _ => File.ReadAllBytes(GetInferenceSampleOnnxPath())),
+                ("model_bnb4.onnx", "etag-bnb4", _ => File.ReadAllBytes(GetInferenceSampleOnnxPath())));
+        }
 
-            var tokenizerPath = Path.Combine(snapshotRoot, "tokenizer.json");
-            File.WriteAllText(tokenizerPath, "{}");
+        private CachedSnapshot CreateCachedSnapshotWithFormats()
+        {
+            var sentisBytes = File.ReadAllBytes(ConvertSampleAsync().GetAwaiter().GetResult());
+            return CreateSnapshot(
+                ("onnx/model.onnx", "etag-onnx", _ => File.ReadAllBytes(GetInferenceSampleOnnxPath())),
+                ("sentis/model.sentis", "etag-sentis", _ => sentisBytes));
+        }
 
-            var metadata = new RawCacheMetadata
+        private CachedSnapshot CreateCachedSnapshotWithoutOnnxFiles()
+        {
+            return CreateSnapshot(("tokenizer.json", "etag-tokenizer", _ => new byte[] { (byte)'{', (byte)'}' }));
+        }
+
+        /// <summary>
+        /// Converts the Inference Engine sample to a Sentis file in the test folder.
+        /// </summary>
+        private Task<string> ConvertSampleAsync()
+        {
+            var path = Path.Combine(_rootDirectory, "sample.sentis");
+            if (!File.Exists(path))
             {
-                Repository = "doji/test-model",
-                RequestedRevision = "main",
-                ResolvedCommitHash = "commit123",
-                CachedSnapshotRoot = snapshotRoot,
-                RepositoryFiles = new[]
-                {
-                    new RepositoryFileMetadata { RepoPath = "tokenizer.json" }
-                },
-                Files = new[]
-                {
-                    new RawCacheFileMetadata
-                    {
-                        RepoPath = "tokenizer.json",
-                        CachedFilePath = tokenizerPath
-                    }
-                },
-                DownloadedAtUtc = DateTime.UtcNow.ToString("O")
-            };
+                ModelWriter.Save(path, new EditorOnnxModelConverter().Convert(new OnnxConversionRequest(GetInferenceSampleOnnxPath())).Model);
+            }
 
-            return new CachedSnapshot(snapshotRoot, Path.Combine(snapshotRoot, "snapshot.hfhub.json"), metadata);
+            return Task.FromResult(path);
         }
 
         private static string GetInferenceSampleOnnxPath()
@@ -554,6 +490,31 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var samplePath = Path.Combine(packageInfo.resolvedPath, "Samples~", "Run a model", "SingleInputSingleOuput.onnx");
             Assert.That(File.Exists(samplePath), Is.True, $"Expected local ONNX sample at {samplePath}");
             return samplePath;
+        }
+
+        private sealed class FixedRecipeSource : IProjectModelRecipeSource
+        {
+            private readonly OnnxConversionRecipe _recipe;
+            private readonly ProjectModelRecipeSource _inner = new();
+
+            public FixedRecipeSource(OnnxConversionRecipe recipe)
+            {
+                _recipe = recipe;
+            }
+
+            public EffectiveOnnxConversionRecipe GetEffectiveRecipe(string repository, string repoPath)
+            {
+                return new EffectiveOnnxConversionRecipe(_recipe, "Test", null, true);
+            }
+
+            public string ComputeRecipeSetHash(string repository, System.Collections.Generic.IEnumerable<string> repoPaths)
+            {
+                return OnnxImportMetadataUtility.ComputeRecipeHash(_recipe) + string.Join("|", repoPaths);
+            }
+
+            public void SetProjectOverride(string repository, string repoPath, OnnxConversionRecipe recipe) => _inner.SetProjectOverride(repository, repoPath, recipe);
+            public string EnsureProjectOverride(string repository, string repoPath) => _inner.EnsureProjectOverride(repository, repoPath);
+            public bool RemoveProjectOverride(string repository, string repoPath) => _inner.RemoveProjectOverride(repository, repoPath);
         }
 
         private sealed class ThrowingOnnxConverter : IOnnxModelConverter

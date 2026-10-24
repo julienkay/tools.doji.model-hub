@@ -1,12 +1,14 @@
 using System;
 using Doji.AI.ModelHub;
+using Doji.Downloads;
 using Unity.InferenceEngine;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Samples
 {
     /// <summary>
-    /// Demonstrates project-owned runtime lookup and `.sentis` load through HF Hub locator data.
+    /// Loads one model with <see cref="Hub.LoadModelAsync(string,string,IProgress{DownloadProgress},System.Threading.CancellationToken)"/>.
+    /// The same call works in the Editor and in players, whether the project bundles the model or downloads it.
     /// </summary>
     public sealed class RuntimeLocatorSample : MonoBehaviour
     {
@@ -26,54 +28,54 @@ namespace Doji.AI.ModelHub.Samples
         private Model _loadedModel;
 
         /// <summary>
-        /// Stable HuggingFace model id declared in project or package manifest.
+        /// Hugging Face model id declared in a project or package manifest.
         /// </summary>
         public string RepoId => _repoId;
 
         /// <summary>
-        /// Repository-relative ONNX file to load from generated runtime snapshot.
+        /// Repository path of the model file, as declared in the manifest.
         /// </summary>
         public string ModelFile => _modelFile;
 
         /// <summary>
-        /// Last lookup or load status for sample diagnostics.
+        /// Last load status for sample diagnostics.
         /// </summary>
         public string Status => _status;
 
         /// <summary>
-        /// Last loaded Sentis model instance, or null when resolution or load failed.
+        /// Last loaded model, or null when loading failed.
         /// </summary>
         public Model LoadedModel => _loadedModel;
 
-        private void Start()
+        private async void Start()
         {
             if (_loadOnStart)
             {
-                Reload();
+                await ReloadAsync();
             }
         }
 
-        /// <summary>
-        /// Resolves generated runtime payload and loads serialized Sentis model from disk.
-        /// </summary>
         [ContextMenu("Reload Model")]
-        public void Reload()
+        public async void Reload()
+        {
+            await ReloadAsync();
+        }
+
+        private async Awaitable ReloadAsync()
         {
             _loadedModel = null;
-
-            if (!Hub.TryResolveRuntimeModel(_repoId, out var resolvedModel))
-            {
-                _status = $"Resolve failed: '{_repoId}' not found. Sync models first.";
-                Debug.LogWarning(_status, this);
-                return;
-            }
-
+            _status = $"Loading '{_repoId}:{_modelFile}'...";
             try
             {
-                _loadedModel = Hub.LoadRuntimeModel(_repoId, _modelFile);
-                resolvedModel.TryGetSentisPath(_modelFile, out var sentisPath);
-                _status = $"Loaded '{resolvedModel}' from '{sentisPath}'.";
+                var progress = new Progress<DownloadProgress>(value =>
+                    _status = $"Loading '{_repoId}:{_modelFile}': {value.DownloadedBytes} of {value.TotalBytes?.ToString() ?? "?"} bytes");
+                _loadedModel = await Hub.LoadModelAsync(_repoId, _modelFile, progress, destroyCancellationToken);
+                _status = $"Loaded '{_repoId}:{_modelFile}' with {_loadedModel.inputs.Count} inputs.";
                 Debug.Log(_status, this);
+            }
+            catch (OperationCanceledException)
+            {
+                _status = "Canceled.";
             }
             catch (Exception exception)
             {

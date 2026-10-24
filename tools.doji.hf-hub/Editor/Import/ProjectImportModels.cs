@@ -15,19 +15,58 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Records one generated runtime file inside imported repository snapshot.
+    /// Records the runtime model of one selected model file: the downloaded <c>.sentis</c> file in the Hugging Face
+    /// cache, or the converted <c>.sentis</c> file of an <c>.onnx</c> file in the shared converted folder.
     /// </summary>
     [Serializable]
     internal sealed class ImportedRuntimeFileMetadata
     {
         public string RepoPath { get; set; }
+
+        /// <summary>
+        /// Always <c>sentis</c>: the runtime model is a Sentis file.
+        /// </summary>
         public string Kind { get; set; }
-        public string AssetPath { get; set; }
-        public string RelativePath { get; set; }
+
+        /// <summary>
+        /// Format of the source file: <c>onnx</c> or <c>sentis</c>.
+        /// </summary>
+        public string Format { get; set; }
+
+        /// <summary>
+        /// Absolute path of the runtime model on this machine.
+        /// </summary>
+        public string FilePath { get; set; }
+
+        public string SourceEtag { get; set; }
+
+        public long? SourceSizeInBytes { get; set; }
+
+        /// <summary>
+        /// ONNX companion files (external weights) a player downloads with the model.
+        /// </summary>
+        public ImportedSourceFileMetadata[] Companions { get; set; } = Array.Empty<ImportedSourceFileMetadata>();
+
+        /// <summary>
+        /// Key in <see cref="ConvertedModelStore"/>, for converted files only.
+        /// </summary>
+        public string ConversionKey { get; set; }
+
         public long? SizeInBytes { get; set; }
         public string RecipeHash { get; set; }
         public string ConversionPipelineVersion { get; set; }
         public string InputSignatureHash { get; set; }
+    }
+
+    /// <summary>
+    /// One source file in the Hugging Face cache, by repository path, etag, and size.
+    /// </summary>
+    [Serializable]
+    internal sealed class ImportedSourceFileMetadata
+    {
+        public string RepoPath { get; set; }
+        public string Etag { get; set; }
+        public long? SizeInBytes { get; set; }
     }
 
     /// <summary>
@@ -46,7 +85,6 @@ namespace Doji.AI.ModelHub.Editor
         public string SentisVersion { get; set; }
         public string UnityVersion { get; set; }
         public string RecipeSetHash { get; set; }
-        public string RuntimeSnapshotAssetPath { get; set; }
         public ImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<ImportDiagnostic>();
         public ImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<ImportedRuntimeFileMetadata>();
 
@@ -59,9 +97,9 @@ namespace Doji.AI.ModelHub.Editor
         public string ImportedAtUtc { get; set; }
 
         /// <summary>
-        /// ONNX files the import handled: converted to <c>.sentis</c>, or skipped as unsupported. Sorted.
+        /// Model files the import handled: with a runtime model, or skipped because conversion failed. Sorted.
         /// </summary>
-        public string[] GetImportedOrSkippedOnnxRepoPaths()
+        public string[] GetImportedOrSkippedModelRepoPaths()
         {
             return (RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
                 .Where(file => string.Equals(file?.Kind, "sentis", StringComparison.Ordinal))
@@ -91,8 +129,6 @@ namespace Doji.AI.ModelHub.Editor
         public string RecipeSetHash { get; set; }
         public string DependencySelectionHash { get; set; }
         public string SharedImportMetadataPath { get; set; }
-        public string RuntimeRegistryAssetPath { get; set; }
-        public string RuntimeRegistryRelativePath { get; set; }
         public string BoundAtUtc { get; set; }
     }
 
@@ -117,8 +153,6 @@ namespace Doji.AI.ModelHub.Editor
         public string UnityVersion { get; set; }
         public string RecipeSetHash { get; set; }
         public string DependencySelectionHash { get; set; }
-        public string RuntimeRegistryAssetPath { get; set; }
-        public string RuntimeRegistryRelativePath { get; set; }
         public string BindingMetadataPath { get; set; }
         public string SharedImportMetadataPath { get; set; }
         public ImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<ImportDiagnostic>();
@@ -133,23 +167,18 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class ImportedModelArtifact
     {
         public ImportedModelArtifact(
-            string snapshotRootAssetPath,
             string bindingMetadataFilePath,
             ImportedModelMetadata metadata,
             string sharedMetadataFilePath = null)
         {
-            SnapshotRootAssetPath = snapshotRootAssetPath;
             BindingMetadataFilePath = bindingMetadataFilePath;
             Metadata = metadata;
             SharedMetadataFilePath = sharedMetadataFilePath;
         }
 
-        public string SnapshotRootAssetPath { get; }
         public string BindingMetadataFilePath { get; }
         public string SharedMetadataFilePath { get; }
         public ImportedModelMetadata Metadata { get; }
-        public string RuntimeRegistryAssetPath => Metadata?.RuntimeRegistryAssetPath;
-        public string RuntimeRegistryRelativePath => Metadata?.RuntimeRegistryRelativePath;
         public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => Metadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
 
         public bool TryGetRuntimeFile(string repoPath, string kind, out ImportedRuntimeFileMetadata file)

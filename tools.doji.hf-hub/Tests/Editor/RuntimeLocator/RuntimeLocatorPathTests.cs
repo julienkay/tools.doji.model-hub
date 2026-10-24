@@ -3,52 +3,34 @@ using NUnit.Framework;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers runtime locator path conventions under shared StreamingAssets root.
+    /// Covers where runtime models live inside StreamingAssets, in builds and when pulled into the project.
     /// </summary>
     internal sealed class RuntimeLocatorPathTests
     {
         /// <summary>
-        /// Verifies runtime `.sentis` paths stay repo-scoped even when resolved commit changes.
+        /// Verifies a runtime model keeps its repository folders and gets the .sentis extension.
         /// </summary>
-        [Test]
-        public void RuntimePaths_UseSerializedRepositoryAndCommitForGlobalUniqueness()
+        [TestCase("onnx/model.onnx", "hf-hub/models/hf-internal-testing/tiny-random-bert/onnx/model.sentis")]
+        [TestCase("sentis/model.sentis", "hf-hub/models/hf-internal-testing/tiny-random-bert/sentis/model.sentis")]
+        [TestCase("../../escape.onnx", "hf-hub/models/hf-internal-testing/tiny-random-bert/escape.sentis")]
+        public void RuntimeModelRelativePath_KeepsRepositoryFolders(string repoPath, string expected)
         {
-            var firstPath = ProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-a", "onnx/model.onnx");
-            var secondPath = ProjectPaths.GetRuntimeSentisAssetPath("hf-internal-testing/tiny-random-bert", "commit-b", "onnx/model.onnx");
-
-            Assert.That(firstPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
-            Assert.That(secondPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
+            Assert.That(ProjectPaths.GetRuntimeModelRelativePath("hf-internal-testing/tiny-random-bert", repoPath), Is.EqualTo(expected));
         }
 
         /// <summary>
-        /// Verifies generated runtime paths preserve repository subfolders.
+        /// Verifies a model pulled into the project sits where a build would put it.
         /// </summary>
         [Test]
-        public void RuntimeSentisPath_PreservesRelativeRepoFoldersWithinSnapshot()
+        public void PulledModelAssetPath_MatchesTheBuildLayout()
         {
-            var path = ProjectPaths.GetRuntimeSentisAssetPath(
-                "hf-internal-testing/tiny-random-bert",
-                "abc123",
-                "tokenizer/config.onnx");
-
-            Assert.That(path, Is.EqualTo(
-                "Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/tokenizer/config.sentis"));
+            Assert.That(
+                ProjectPaths.GetPulledModelAssetPath("doji/test-model", "onnx/model.onnx"),
+                Is.EqualTo("Assets/StreamingAssets/hf-hub/models/doji/test-model/onnx/model.sentis"));
         }
 
         /// <summary>
-        /// Verifies runtime registries stay scoped under each manifest owner id.
-        /// </summary>
-        [Test]
-        public void RuntimeRegistryPath_IsScopedPerPackage()
-        {
-            var path = ProjectPaths.GetRuntimeRegistryAssetPath("tools.doji.test");
-
-            Assert.That(path, Is.EqualTo(
-                "Assets/StreamingAssets/hf-hub/registries/tools.doji.test/hf-hub-runtime.json"));
-        }
-
-        /// <summary>
-        /// Verifies different project manifest assets get different binding and registry paths.
+        /// Verifies different project manifest assets get different binding paths.
         /// </summary>
         [Test]
         public void ProjectManifestPaths_UseDistinctOwnerIdsPerAsset()
@@ -62,26 +44,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "Assets/HF Hub/Project Manifest B.asset",
                 null);
 
-            var firstBindingPath = ProjectPaths.GetImportBindingMetadataFilePath(firstOwnerId, "doji/test-model");
-            var secondBindingPath = ProjectPaths.GetImportBindingMetadataFilePath(secondOwnerId, "doji/test-model");
-            var firstRegistryPath = ProjectPaths.GetRuntimeRegistryAssetPath(firstOwnerId);
-            var secondRegistryPath = ProjectPaths.GetRuntimeRegistryAssetPath(secondOwnerId);
-
-            Assert.That(firstBindingPath, Is.Not.EqualTo(secondBindingPath));
-            Assert.That(firstRegistryPath, Is.Not.EqualTo(secondRegistryPath));
-        }
-
-        /// <summary>
-        /// Verifies runtime-relative paths drop project asset prefix.
-        /// </summary>
-        [Test]
-        public void ToStreamingAssetsRelativePath_RemovesProjectStreamingAssetsPrefix()
-        {
-            var relativePath = ProjectPaths.ToStreamingAssetsRelativePath(
-                "Assets/StreamingAssets/hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis");
-
-            Assert.That(relativePath, Is.EqualTo(
-                "hf-hub/hf-internal-testing/tiny-random-bert/onnx/model.sentis"));
+            Assert.That(
+                ProjectPaths.GetImportBindingMetadataFilePath(firstOwnerId, "doji/test-model"),
+                Is.Not.EqualTo(ProjectPaths.GetImportBindingMetadataFilePath(secondOwnerId, "doji/test-model")));
         }
     }
 }

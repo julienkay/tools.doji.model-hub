@@ -369,7 +369,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             if (item.CacheSizeOnDiskBytes.HasValue || item.RuntimeSizeOnDiskBytes.HasValue ||
-                !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath) || !string.IsNullOrWhiteSpace(item.RuntimeSnapshotAssetPath))
+                !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath) || !string.IsNullOrWhiteSpace(item.RuntimeModelFolder))
             {
                 tabs.Add(DetailTab.Storage);
             }

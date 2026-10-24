@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor
@@ -18,8 +19,6 @@ namespace Doji.AI.ModelHub.Editor
         private const string LegacyImportStateRoot = "Library/Doji/HfHub/import-state";
         private const string CacheEstimateFileName = "hf-hub-cache-size.json";
         private const string CacheEstimatesRoot = "Library/Doji/HfHub/cache-size-estimates";
-        private const string RuntimeRegistryFileName = "hf-hub-runtime.json";
-        private const string RuntimeRegistriesRoot = Hub.RuntimeStreamingAssetsRoot + "/registries";
 
         /// <summary>
         /// Returns editor-only binding folder under `Library` for one owner dependency.
@@ -30,11 +29,24 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns shared import folder for one generated runtime artifact identity.
+        /// Returns the shared import folder of one repository commit, Inference Engine version, and settings set. The
+        /// last folder name is a short hash of all three, so paths stay under the Windows 260-character limit for long
+        /// repository ids.
         /// </summary>
         public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
-            return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}/{Hub.SanitizePathSegment(resolvedCommitHash)}/{Hub.SanitizePathSegment(sentisVersion)}/{Hub.SanitizePathSegment(recipeSetHash)}";
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var identity = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{resolvedCommitHash}|{sentisVersion}|{recipeSetHash}"));
+            var key = string.Concat(System.Linq.Enumerable.Take(identity, 8).Select(value => value.ToString("x2")));
+            return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}/{key}";
+        }
+
+        /// <summary>
+        /// Returns the folder of every shared import of one repository.
+        /// </summary>
+        public static string GetSharedImportRepositoryFolder(string repository)
+        {
+            return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}";
         }
 
         /// <summary>
@@ -86,44 +98,20 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns runtime registry JSON path for one package under shared StreamingAssets root.
+        /// Path of one runtime model inside StreamingAssets, the same in builds and for models pulled into the
+        /// project: <c>hf-hub/models/owner/name/onnx/model.sentis</c>.
         /// </summary>
-        public static string GetRuntimeRegistryAssetPath(string packageId)
+        public static string GetRuntimeModelRelativePath(string repository, string repoPath)
         {
-            return $"{RuntimeRegistriesRoot}/{Hub.SanitizePathSegment(packageId)}/{RuntimeRegistryFileName}";
+            return Hub.GetRuntimeModelRelativePath(repository, repoPath);
         }
 
         /// <summary>
-        /// Returns human-readable runtime folder under shared StreamingAssets root using repository owner and model path.
+        /// Project asset path of a runtime model pulled into <c>Assets/StreamingAssets</c>.
         /// </summary>
-        public static string GetRuntimeSnapshotFolder(string repository, string resolvedCommitHash)
+        public static string GetPulledModelAssetPath(string repository, string repoPath)
         {
-            return $"{Hub.RuntimeStreamingAssetsRoot}/{Hub.SanitizeRelativePath(repository)}";
-        }
-
-        /// <summary>
-        /// Returns runtime `.sentis` file path derived from one repository-relative ONNX file.
-        /// </summary>
-        public static string GetRuntimeSentisAssetPath(string repository, string resolvedCommitHash, string repoPath)
-        {
-            var sanitizedRelativeRepoPath = Hub.SanitizeRelativePath(repoPath);
-            var sentisRelativePath = Path.ChangeExtension(sanitizedRelativeRepoPath, ".sentis")?.Replace('\\', '/')
-                ?? throw new InvalidOperationException($"Could not derive .sentis path from '{repoPath}'.");
-            return $"{GetRuntimeSnapshotFolder(repository, resolvedCommitHash)}/{sentisRelativePath}";
-        }
-
-        /// <summary>
-        /// Converts project asset path under `Assets/StreamingAssets/` into runtime-relative path under `Application.streamingAssetsPath`.
-        /// </summary>
-        public static string ToStreamingAssetsRelativePath(string assetPath)
-        {
-            const string streamingAssetsPrefix = "Assets/StreamingAssets/";
-            if (!assetPath.StartsWith(streamingAssetsPrefix, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException($"Expected asset path under Assets/StreamingAssets, got '{assetPath}'.");
-            }
-
-            return assetPath.Substring(streamingAssetsPrefix.Length);
+            return "Assets/StreamingAssets/" + GetRuntimeModelRelativePath(repository, repoPath);
         }
 
         /// <summary>

@@ -78,7 +78,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.SelectionRequired,
-                    "This dependency has optional ONNX files, but none are currently enabled for this project owner.",
+                    "This dependency has optional model files, but none are currently enabled for this project owner.",
                     revisionRefPath,
                     null,
                     null,
@@ -202,13 +202,19 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAssetPath);
             }
 
+            var selectionProblem = dependency.GetSelectionProblem(
+                repositoryFilePaths.Length > 0 ? repositoryFilePaths : null,
+                fallbackCachedPaths);
             var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(repositoryFilePaths, fallbackCachedPaths).ToArray();
-            if (selectedOnnxRepoPaths.Length == 0)
+            var selectedModelRepoPaths = dependency.GetSelectedModelRepoPaths(
+                repositoryFilePaths.Length > 0 ? repositoryFilePaths : null,
+                fallbackCachedPaths).ToArray();
+            if (selectionProblem != null)
             {
                 return Failed(
                     dependency,
-                    DependencyReasonCode.NoSelectedOnnxFiles,
-                    "Dependency selection does not include any ONNX file.",
+                    DependencyReasonCode.InvalidSelection,
+                    selectionProblem,
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -314,7 +320,7 @@ namespace Doji.AI.ModelHub.Editor
                     BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
             }
 
-            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash, selectedOnnxRepoPaths))
+            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash, selectedModelRepoPaths))
             {
                 return Stale(
                     dependency,
@@ -348,12 +354,12 @@ namespace Doji.AI.ModelHub.Editor
 
             foreach (var runtimeFile in runtimeFiles)
             {
-                if (!File.Exists(ProjectPaths.ToAbsolutePath(runtimeFile.AssetPath)))
+                if (string.IsNullOrWhiteSpace(runtimeFile.FilePath) || !File.Exists(runtimeFile.FilePath))
                 {
                     return Missing(
                         dependency,
                         DependencyReasonCode.RuntimeFileMissing,
-                        $"Generated runtime file is missing: {runtimeFile.RelativePath ?? runtimeFile.AssetPath}.",
+                        $"Runtime model is missing: {runtimeFile.RepoPath} ({runtimeFile.FilePath}).",
                         revisionRefPath,
                         snapshotRoot,
                         rawMetadataPath,
@@ -364,7 +370,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }
 
-            runtimePreviewAssetPath = runtimeFiles.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
+            runtimePreviewAssetPath = runtimeFiles.FirstOrDefault()?.FilePath;
             return new DependencyStatus(
                 dependency,
                 DependencyState.Ready,
@@ -426,13 +432,13 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(
+            var selectedModelRepoPaths = dependency.GetSelectedModelRepoPaths(
                 (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
-                sharedMetadata.GetImportedOrSkippedOnnxRepoPaths())
+                sharedMetadata.GetImportedOrSkippedModelRepoPaths())
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
-            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedOnnxRepoPaths();
-            if (!runtimeRepoPaths.SequenceEqual(selectedOnnxRepoPaths, StringComparer.Ordinal))
+            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedModelRepoPaths();
+            if (!runtimeRepoPaths.SequenceEqual(selectedModelRepoPaths, StringComparer.Ordinal))
             {
                 return false;
             }
@@ -444,15 +450,12 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            foreach (var runtimeFile in runtimeFiles)
+            if (!ProjectImportService.HasRuntimeModels(runtimeFiles))
             {
-                if (!File.Exists(ProjectPaths.ToAbsolutePath(runtimeFile.AssetPath)))
-                {
-                    return false;
-                }
+                return false;
             }
 
-            var runtimePreviewAssetPath = runtimeFiles.FirstOrDefault(file => file.Kind == "sentis")?.AssetPath;
+            var runtimePreviewAssetPath = runtimeFiles.FirstOrDefault()?.FilePath;
             status = new DependencyStatus(
                 dependency,
                 DependencyState.Ready,
@@ -498,7 +501,7 @@ namespace Doji.AI.ModelHub.Editor
             RawCacheMetadata rawMetadata,
             string snapshotRoot,
             string expectedRecipeSetHash,
-            IReadOnlyList<string> selectedOnnxRepoPaths)
+            IReadOnlyList<string> selectedModelRepoPaths)
         {
             if (sharedMetadata == null)
             {
@@ -512,9 +515,10 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(sharedMetadata.SentisVersion, GetCurrentSentisVersion(), StringComparison.Ordinal) ||
                 !string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) ||
                 !(sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
-                    !string.IsNullOrWhiteSpace(file?.RecipeHash) &&
-                    !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)) ||
-                !string.Equals(sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal))
+                    file != null &&
+                    !string.IsNullOrWhiteSpace(file.FilePath) &&
+                    (!string.Equals(file.Format, "onnx", StringComparison.Ordinal) ||
+                     (!string.IsNullOrWhiteSpace(file.RecipeHash) && !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)))))
             {
                 return false;
             }
@@ -532,9 +536,9 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedOnnxRepoPaths();
+            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedModelRepoPaths();
             return runtimeRepoPaths.SequenceEqual(
-                (selectedOnnxRepoPaths ?? Array.Empty<string>())
+                (selectedModelRepoPaths ?? Array.Empty<string>())
                 .OrderBy(path => path, StringComparer.Ordinal),
                 StringComparer.Ordinal);
         }
@@ -561,8 +565,6 @@ namespace Doji.AI.ModelHub.Editor
                 UnityVersion = sharedMetadata?.UnityVersion,
                 RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata?.RecipeSetHash,
                 DependencySelectionHash = bindingMetadata?.DependencySelectionHash,
-                RuntimeRegistryAssetPath = bindingMetadata?.RuntimeRegistryAssetPath,
-                RuntimeRegistryRelativePath = bindingMetadata?.RuntimeRegistryRelativePath,
                 BindingMetadataPath = bindingMetadataPath,
                 SharedImportMetadataPath = bindingMetadata?.SharedImportMetadataPath,
                 Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
@@ -613,7 +615,6 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(mismatches, "raw metadata path", sharedMetadata.RawMetadataPath, rawMetadataPath);
             AddMismatch(mismatches, "Sentis version", sharedMetadata.SentisVersion, GetCurrentSentisVersion());
             AddMismatch(mismatches, "recipe set hash", sharedMetadata.RecipeSetHash, expectedRecipeSetHash);
-            AddMismatch(mismatches, "runtime snapshot asset path", sharedMetadata.RuntimeSnapshotAssetPath, ProjectPaths.GetRuntimeSnapshotFolder(dependency.Repository, rawMetadata.ResolvedCommitHash));
             AddMismatch(
                 mismatches,
                 "repository inventory",
@@ -622,8 +623,8 @@ namespace Doji.AI.ModelHub.Editor
             AddMismatch(
                 mismatches,
                 "runtime file set",
-                string.Join("|", sharedMetadata.GetImportedOrSkippedOnnxRepoPaths()),
-                string.Join("|", dependency.GetSelectedOnnxRepoPaths(
+                string.Join("|", sharedMetadata.GetImportedOrSkippedModelRepoPaths()),
+                string.Join("|", dependency.GetSelectedModelRepoPaths(
                         (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
                         (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath))
                     .OrderBy(path => path, StringComparer.Ordinal)));

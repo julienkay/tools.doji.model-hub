@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,12 +7,15 @@ using UnityEditor;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Removes project-owned owner bindings and garbage-collects shared runtime artifacts when no bindings remain.
+    /// Removes this project's import records and models pulled into the project, and removes files from the shared
+    /// Hugging Face cache.
     /// </summary>
     internal sealed class ProjectRemovalService
     {
         /// <summary>
-        /// Deletes owner binding metadata for one repository entry and removes shared runtime artifacts only when no bindings still reference them.
+        /// Deletes this project's import records of one repository and its models pulled into
+        /// <c>Assets/StreamingAssets</c>. Converted models stay in the shared converted folder, where other projects
+        /// may use them, so importing again is fast.
         /// </summary>
         public void Remove(ModelHubItem item)
         {
@@ -53,8 +56,15 @@ namespace Doji.AI.ModelHub.Editor
                 DeleteSharedImport(sharedMetadataPath);
             }
 
+            // Pulled copies belong to the repository, not to one owner: keep them while another owner still imports it.
+            var pulledFolder = $"Assets/StreamingAssets/{Hub.RuntimeStreamingRelativeRoot}/models/{Hub.SanitizeRelativePath(item.Repository)}";
+            if (!HasAnyBindingForRepository(item.Repository) && AssetDatabase.IsValidFolder(pulledFolder))
+            {
+                AssetDatabase.DeleteAsset(pulledFolder);
+            }
+
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            RebuildRuntimeRegistries();
+            EditorRuntimeCatalog.Invalidate();
         }
 
         /// <summary>
@@ -112,6 +122,15 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
+        private static bool HasAnyBindingForRepository(string repository)
+        {
+            var bindingsRoot = ProjectPaths.ToProjectAbsolutePath("Library/Doji/HfHub/imports/bindings");
+            return Directory.Exists(bindingsRoot) &&
+                Directory.EnumerateFiles(bindingsRoot, "hf-hub-binding.json", SearchOption.AllDirectories)
+                    .Any(path => ProjectImportService.TryReadBindingMetadata(path, out var binding) &&
+                        string.Equals(binding.Repository, repository, StringComparison.OrdinalIgnoreCase));
+        }
+
         private static bool HasAnyBindingReferencing(string sharedMetadataPath)
         {
             var bindingsRoot = ProjectPaths.ToProjectAbsolutePath("Library/Doji/HfHub/imports/bindings");
@@ -148,11 +167,6 @@ namespace Doji.AI.ModelHub.Editor
 
                 DeleteDirectoryIfEmpty(Path.GetDirectoryName(sharedMetadataAbsolutePath));
                 return;
-            }
-
-            if (!string.IsNullOrWhiteSpace(sharedMetadata.RuntimeSnapshotAssetPath))
-            {
-                AssetDatabase.DeleteAsset(sharedMetadata.RuntimeSnapshotAssetPath);
             }
 
             if (File.Exists(sharedMetadataAbsolutePath))
@@ -311,45 +325,6 @@ namespace Doji.AI.ModelHub.Editor
             {
                 Directory.Delete(path, false);
             }
-        }
-
-        private static void RebuildRuntimeRegistries()
-        {
-            var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
-            var statusReport = new StatusService().BuildStatusReport(discoveryReport);
-            var readyResults = statusReport.DependencyStatuses
-                .Where(status => status.State == DependencyState.Ready && status.ImportedMetadata != null)
-                .Select(status => new ModelSyncResult(
-                    SyncOperationMode.Full,
-                    status.Dependency,
-                    null,
-                    new ImportedModelArtifact(
-                        ProjectPaths.GetRuntimeSnapshotFolder(status.Dependency.Repository, status.ImportedMetadata.ResolvedCommitHash),
-                        status.BindingMetadataPath,
-                        status.ImportedMetadata,
-                        status.ImportedMetadata.SharedImportMetadataPath),
-                    null))
-                .ToArray();
-
-            var registryService = new RuntimeLocatorRegistryService();
-            registryService.WriteRegistries(readyResults);
-
-            var readyPackageIds = new HashSet<string>(
-                readyResults.Select(result => result.Dependency.PackageId),
-                StringComparer.Ordinal);
-
-            foreach (var packageId in discoveryReport.Dependencies.Select(dependency => dependency.PackageId).Distinct(StringComparer.Ordinal))
-            {
-                if (readyPackageIds.Contains(packageId))
-                {
-                    continue;
-                }
-
-                var registryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(packageId);
-                AssetDatabase.DeleteAsset(registryAssetPath);
-            }
-
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
     }
 }

@@ -86,7 +86,7 @@ namespace Doji.AI.ModelHub.Editor
             var expandKey = $"{BuildItemKey(item)}|{file.RepoPath}";
             var canExpand = file.SupportsImportRecipeEditing ||
                 !string.IsNullOrWhiteSpace(file.RawCachedFilePath) ||
-                !string.IsNullOrWhiteSpace(file.RuntimeFile?.AssetPath);
+                !string.IsNullOrWhiteSpace(file.RuntimeFile?.FilePath);
             var isExpanded = canExpand && _expandedFiles.Contains(expandKey);
 
             var header = UiKit.Element("mh-file__header");
@@ -179,7 +179,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(file.RawCachedFilePath) || !string.IsNullOrWhiteSpace(file.RuntimeFile?.AssetPath))
+            if (!string.IsNullOrWhiteSpace(file.RawCachedFilePath) || !string.IsNullOrWhiteSpace(file.RuntimeFile?.FilePath))
             {
                 body.Add(UiKit.Text("LOCATION", "hf-overline"));
                 if (!string.IsNullOrWhiteSpace(file.RawCachedFilePath))
@@ -188,10 +188,11 @@ namespace Doji.AI.ModelHub.Editor
                     body.Add(BuildPathRow("Downloaded file", rawPath, UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(rawPath)));
                 }
 
-                if (!string.IsNullOrWhiteSpace(file.RuntimeFile?.AssetPath))
+                var runtimePath = file.RuntimeFile?.FilePath;
+                if (!string.IsNullOrWhiteSpace(runtimePath) &&
+                    !string.Equals(runtimePath, file.RawCachedFilePath, StringComparison.OrdinalIgnoreCase))
                 {
-                    var assetPath = file.RuntimeFile.AssetPath;
-                    body.Add(BuildPathRow("Imported asset", assetPath, "Select", () => ProjectSettingsLinks.PingAsset(assetPath)));
+                    body.Add(BuildPathRow("Converted model", runtimePath, UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(runtimePath)));
                 }
             }
         }

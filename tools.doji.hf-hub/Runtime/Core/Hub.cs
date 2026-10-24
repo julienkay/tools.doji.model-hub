@@ -1,13 +1,17 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Doji.Downloads;
 using Unity.InferenceEngine;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Defines the package-level file and path conventions used by the HuggingFace Hub integration.
+    /// Loads the models that packages declare in their HF Hub manifests. The same calls work in the Editor and in
+    /// players, whether the project bundles a model or downloads it at runtime.
     /// </summary>
     public static class Hub
     {
@@ -22,111 +26,144 @@ namespace Doji.AI.ModelHub
         public const string ManifestTemplateFileName = "hf-hub-manifest.template.json";
 
         /// <summary>
-        /// Root folder inside the Unity project where runtime-loadable generated files are written for builds.
-        /// </summary>
-        public const string RuntimeStreamingAssetsRoot = "Assets/StreamingAssets/hf-hub";
-
-        /// <summary>
-        /// Relative root inside `Application.streamingAssetsPath` used by generated runtime locator registries and files.
+        /// Folder inside StreamingAssets that holds the registry and bundled models.
         /// </summary>
         public const string RuntimeStreamingRelativeRoot = "hf-hub";
 
         /// <summary>
-        /// Resolves one synchronized model by canonical HuggingFace model id.
+        /// Loads a model by repository id and the repository path the package declared, for example
+        /// <c>onnx/model.onnx</c> or <c>sentis/model.sentis</c>. A downloaded model is fetched on first use.
+        /// Works on every platform.
         /// </summary>
-        public static bool TryResolveRuntimeModel(string repoId, out ResolvedRuntimeModel model)
+        public static Task<Model> LoadModelAsync(
+            string repoId,
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
         {
-            return RuntimeLocatorService.TryResolveModel(repoId, out model);
+            return LoadModelAsync(null, repoId, repoPath, progress, cancellationToken);
         }
 
         /// <summary>
-        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace model id.
+        /// Loads a model of one package. Use it when two packages use the same repository with different files.
         /// </summary>
-        public static bool TryResolveRuntimeModel(
+        public static async Task<Model> LoadModelAsync(
             string packageId,
             string repoId,
-            out ResolvedRuntimeModel model)
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
         {
-            return RuntimeLocatorService.TryResolveModel(packageId, repoId, out model);
+            var catalog = await RuntimeModels.GetCatalogAsync();
+            var (_, model, file) = RuntimeModels.Find(catalog, packageId, repoId, repoPath);
+            return await RuntimeModels.LoadAsync(model, file, progress, cancellationToken);
         }
 
         /// <summary>
-        /// Resolves one synchronized model by canonical HuggingFace model id or throws when registry data is missing.
+        /// Loads a model without waiting. Works in the Editor, for bundled models on platforms where StreamingAssets is
+        /// a folder, and for downloaded models that are already on the device. Otherwise use
+        /// <see cref="LoadModelAsync(string,string,IProgress{DownloadProgress},CancellationToken)"/>.
         /// </summary>
-        public static ResolvedRuntimeModel ResolveRuntimeModel(string repoId)
+        public static Model LoadModel(string repoId, string repoPath)
         {
-            if (TryResolveRuntimeModel(repoId, out var model))
-            {
-                return model;
-            }
+            return LoadModel(null, repoId, repoPath);
+        }
 
-            throw new FileNotFoundException(
-                $"HF Hub runtime model '{repoId}' was not found under '{Application.streamingAssetsPath}'.");
+        public static Model LoadModel(string packageId, string repoId, string repoPath)
+        {
+            var (_, model, file) = RuntimeModels.Find(RuntimeModels.GetCatalog(), packageId, repoId, repoPath);
+            return RuntimeModels.Load(model, file);
         }
 
         /// <summary>
-        /// Resolves one synchronized model by manifest owner id plus canonical HuggingFace model id or throws when registry data is missing.
+        /// Downloads (and for ONNX files, converts) every file of a model without loading it, for loading screens.
+        /// Bundled models need nothing, except a one-time copy on Android.
         /// </summary>
-        public static ResolvedRuntimeModel ResolveRuntimeModel(string packageId, string repoId)
+        public static Task EnsureAvailableAsync(
+            string repoId,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
         {
-            if (TryResolveRuntimeModel(packageId, repoId, out var model))
-            {
-                return model;
-            }
+            return EnsureAvailableAsync(null, repoId, progress, cancellationToken);
+        }
 
-            throw new FileNotFoundException(
-                $"HF Hub runtime model '{packageId}/{repoId}' was not found under '{Application.streamingAssetsPath}'.");
+        public static async Task EnsureAvailableAsync(
+            string packageId,
+            string repoId,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            var catalog = await RuntimeModels.GetCatalogAsync();
+            var (_, model, _) = RuntimeModels.Find(catalog, packageId, repoId, null);
+            await RuntimeModels.EnsureAvailableAsync(model, progress, cancellationToken);
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot by canonical HuggingFace model id in `from_pretrained(...)` style.
+        /// Opens a model in <c>from_pretrained(...)</c> style. On Android and the Web use <see cref="FromPretrainedAsync(string)"/>.
         /// </summary>
         public static PretrainedRepository FromPretrained(string repoId)
         {
-            return new PretrainedRepository(ResolveRuntimeModel(repoId));
+            return FromPretrained(null, repoId);
         }
 
-        /// <summary>
-        /// Resolves one synchronized repository snapshot by manifest owner id plus canonical HuggingFace model id in `from_pretrained(...)` style.
-        /// </summary>
         public static PretrainedRepository FromPretrained(string packageId, string repoId)
         {
-            return new PretrainedRepository(ResolveRuntimeModel(packageId, repoId));
+            var (package, model, _) = RuntimeModels.Find(RuntimeModels.GetCatalog(), packageId, repoId, null);
+            return new PretrainedRepository(package, model);
+        }
+
+        public static Task<PretrainedRepository> FromPretrainedAsync(string repoId)
+        {
+            return FromPretrainedAsync(null, repoId);
+        }
+
+        public static async Task<PretrainedRepository> FromPretrainedAsync(string packageId, string repoId)
+        {
+            var catalog = await RuntimeModels.GetCatalogAsync();
+            var (package, model, _) = RuntimeModels.Find(catalog, packageId, repoId, null);
+            return new PretrainedRepository(package, model);
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot by canonical HuggingFace model id and loads one serialized Sentis payload.
+        /// Sets the converter for ONNX models that players download. HF Hub uses <c>tools.doji.onnx-model-loader</c>
+        /// when it is installed; call this to use another converter. The id must change whenever the converter's output
+        /// can change, because converted models are found by it.
         /// </summary>
-        public static Model LoadRuntimeModel(string repoId, string repoPath)
+        public static void RegisterOnnxConverter(IOnnxModelConverter converter, string converterId)
         {
-            return FromPretrained(repoId).LoadModel(repoPath);
+            if (converter != null && string.IsNullOrWhiteSpace(converterId))
+            {
+                throw new ArgumentException("A converter id is required.", nameof(converterId));
+            }
+
+            RuntimeModels.OnnxConverter = converter;
+            RuntimeModels.OnnxConverterId = converter == null ? null : converterId;
         }
 
         /// <summary>
-        /// Resolves one synchronized repository snapshot and loads one serialized Sentis payload from generated runtime path.
+        /// Path of one runtime model inside StreamingAssets: <c>hf-hub/models/owner/name/onnx/model.sentis</c>.
         /// </summary>
-        public static Model LoadRuntimeModel(string packageId, string repoId, string repoPath)
+        internal static string GetRuntimeModelRelativePath(string repository, string repoPath)
         {
-            return FromPretrained(packageId, repoId).LoadModel(repoPath);
-        }
-
-        internal static string GetRuntimeRegistryRelativePath(string packageId)
-        {
-            return $"{RuntimeStreamingRelativeRoot}/registries/{SanitizePathSegment(packageId)}/hf-hub-runtime.json";
-        }
-
-        internal static string GetRuntimeRegistryAbsolutePath(string packageId)
-        {
-            return Path.Combine(
-                Application.streamingAssetsPath,
-                GetRuntimeRegistryRelativePath(packageId).Replace('/', Path.DirectorySeparatorChar));
+            var relativeRepoPath = SanitizeRelativePath(repoPath);
+            var sentisPath = Path.ChangeExtension(relativeRepoPath, ".sentis")?.Replace('\\', '/');
+            return $"{RuntimeStreamingRelativeRoot}/models/{SanitizeRelativePath(repository)}/{sentisPath}";
         }
 
         internal static string GetRuntimeAbsolutePath(string relativePath)
         {
-            return Path.Combine(
-                Application.streamingAssetsPath,
-                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            return Path.Combine(Application.streamingAssetsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
+        /// URL of a StreamingAssets file for <c>UnityWebRequest</c>: a <c>jar:</c> URL on Android, an HTTP URL on the Web.
+        /// </summary>
+        internal static string GetRuntimeUrl(string relativePath)
+        {
+            var root = Application.streamingAssetsPath;
+            return root.Contains("://", StringComparison.Ordinal)
+                ? $"{root.TrimEnd('/')}/{relativePath}"
+                : new Uri(GetRuntimeAbsolutePath(relativePath)).AbsoluteUri;
         }
 
         internal static string SanitizePathSegment(string value)
@@ -156,17 +193,8 @@ namespace Doji.AI.ModelHub
             return string.Join(
                 "/",
                 value.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(segment => segment != "." && segment != "..")
                     .Select(SanitizePathSegment));
-        }
-
-        internal static string SerializeRepositoryId(string repository)
-        {
-            if (string.IsNullOrWhiteSpace(repository))
-            {
-                return "models--unnamed";
-            }
-
-            return $"models--{string.Join("--", repository.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries).Select(SanitizePathSegment))}";
         }
     }
 }

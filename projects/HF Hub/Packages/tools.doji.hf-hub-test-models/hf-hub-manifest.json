@@ -5,15 +5,25 @@
             "id": "onnx-community/tiny-clip-test-ONNX",
             "revision": "",
             "files": [
-                { "path": "config.json" },
-                { "path": "merges.txt" },
-                { "path": "onnx/model.onnx" }
+                {
+                    "path": "config.json"
+                },
+                {
+                    "path": "merges.txt"
+                },
+                {
+                    "path": "onnx/model.onnx"
+                }
             ]
         },
         {
             "id": "julienkay/sentis-midas",
             "revision": "",
-            "files": []
+            "files": [
+                {
+                    "path": "sentis/midas_v21_small_256.sentis"
+                }
+            ]
         }
     ]
 }

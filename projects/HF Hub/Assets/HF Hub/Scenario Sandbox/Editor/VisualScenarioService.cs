@@ -20,12 +20,10 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
         private const string GeneratedManifestFileNameSuffix = ".asset";
         private const string ImportsRoot = "Library/Doji/HfHub/imports";
         private const string BindingImportsRoot = ImportsRoot + "/bindings";
-        private const string SharedImportsRoot = ImportsRoot + "/shared";
         private const string BindingMetadataFileName = "hf-hub-binding.json";
         private const string SharedMetadataFileName = "hf-hub-shared-import.json";
         private const string ProjectOwnerId = "project";
         private const string ProjectOwnerVersion = "project";
-        private const string RuntimeStreamingAssetsPrefix = "Assets/StreamingAssets/";
 
         public static void PopulateWithRecommendedEntries(VisualScenarioAsset scenario)
         {
@@ -171,7 +169,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                          .Where(repository => !string.IsNullOrWhiteSpace(repository))
                          .Distinct(StringComparer.Ordinal))
             {
-                DeleteAssetIfExists(GetRuntimeSnapshotFolderAssetPath(repository));
+                DeleteDirectoryIfExists(ConvertedModelStore.GetRepositoryFolder(repository));
                 DeleteDirectoryIfExists(GetCacheRepositoryRoot(repository));
                 DeleteProjectDirectoryIfExists(GetImportBindingFolder(ProjectOwnerId, repository));
                 DeleteProjectDirectoryIfExists(GetSharedImportFolder(repository, entryResolvedCommitHash: null, deleteAllForRepository: true));
@@ -224,12 +222,13 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return $"{GetSharedImportFolder(entry.Repository, entry.ResolvedCommitHash, ComputeRecipeSetHash(GetSelectedOnnxRepoPaths(entry)))}/{SharedMetadataFileName}";
         }
 
-        public static string GetRuntimeSentisAssetPath(VisualScenarioEntry entry)
+        /// <summary>
+        /// Path of the fake converted model of an entry in the shared converted folder.
+        /// </summary>
+        public static string GetRuntimeModelPath(VisualScenarioEntry entry)
         {
-            var sanitizedRelativeRepoPath = SanitizeRelativePath(GetPrimaryImportedRepoPath(entry));
-            var sentisRelativePath = Path.ChangeExtension(sanitizedRelativeRepoPath, ".sentis")?.Replace('\\', '/')
-                ?? throw new InvalidOperationException($"Could not derive .sentis path from '{GetPrimaryImportedRepoPath(entry)}'.");
-            return $"{GetRuntimeSnapshotFolderAssetPath(entry.Repository)}/{sentisRelativePath}";
+            var key = ConvertedModelStore.ComputeKey($"sandbox:{GetPrimaryImportedRepoPath(entry)}", "visual-sandbox", "default");
+            return ConvertedModelStore.GetModelPath(entry.Repository, key);
         }
 
         public static string GetRevisionRefPath(VisualScenarioEntry entry)
@@ -245,8 +244,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             var snapshotRoot = GetSnapshotRoot(entry.Repository, entry.ResolvedCommitHash);
             var rawMetadataPath = GetSnapshotMetadataPath(entry.Repository, entry.ResolvedCommitHash);
             var revisionRefPath = GetRevisionRefPath(entry);
-            var runtimeAssetPath = GetRuntimeSentisAssetPath(entry);
-            var runtimeAbsolutePath = AssetPathToAbsolutePath(runtimeAssetPath);
+            var runtimeAbsolutePath = GetRuntimeModelPath(entry);
             var bindingMetadataProjectRelativePath = GetImportMetadataProjectRelativePath(entry);
             var bindingMetadataAbsolutePath = ProjectRelativeToAbsolutePath(bindingMetadataProjectRelativePath);
             var sharedMetadataProjectRelativePath = GetSharedImportMetadataProjectRelativePath(entry);
@@ -356,7 +354,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         SentisVersion = GetSentisVersion(),
                         UnityVersion = Application.unityVersion,
                         RecipeSetHash = recipeSetHash,
-                        RuntimeSnapshotAssetPath = GetRuntimeSnapshotFolderAssetPath(entry.Repository),
                         Diagnostics = diagnostics,
                         RuntimeFiles = new[]
                         {
@@ -364,13 +361,13 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                             {
                                 RepoPath = primaryImportedRepoPath,
                                 Kind = "sentis",
-                                AssetPath = runtimeAssetPath,
-                                RelativePath = ToStreamingAssetsRelativePath(runtimeAssetPath),
+                                Format = "onnx",
+                                FilePath = runtimeAbsolutePath,
                                 SizeInBytes = ShouldWriteRuntimeFile(entry.State)
                                     ? new FileInfo(runtimeAbsolutePath).Length
                                     : null,
                                 RecipeHash = ComputeDefaultRecipeHash(),
-                                ConversionPipelineVersion = "unity-inference-editor-v1"
+                                ConversionPipelineVersion = "visual-sandbox"
                             }
                         },
                         ImportedAtUtc = DateTime.UtcNow.ToString("O")
@@ -390,8 +387,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         RecipeSetHash = recipeSetHash,
                         DependencySelectionHash = dependencySelectionHash,
                         SharedImportMetadataPath = sharedMetadataProjectRelativePath,
-                        RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
-                        RuntimeRegistryRelativePath = $"hf-hub/registries/{ProjectOwnerId}/hf-hub-runtime.json",
                         BoundAtUtc = DateTime.UtcNow.ToString("O")
                     });
             }
@@ -667,11 +662,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return $"{GeneratedRootAssetPath}/{folderName}";
         }
 
-        private static string GetRuntimeSnapshotFolderAssetPath(string repository)
-        {
-            return $"{Hub.RuntimeStreamingAssetsRoot}/{SanitizeRelativePath(repository)}";
-        }
-
         private static string GetCacheRepositoryRoot(string repository)
         {
             return CachePaths.GetRepositoryRoot(repository);
@@ -699,13 +689,12 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
 
         private static string GetSharedImportFolder(string repository, string entryResolvedCommitHash, string recipeSetHash = null, bool deleteAllForRepository = false)
         {
-            var root = $"{SharedImportsRoot}/{SanitizePathSegment(repository)}";
             if (deleteAllForRepository || string.IsNullOrWhiteSpace(entryResolvedCommitHash))
             {
-                return root;
+                return ProjectPaths.GetSharedImportRepositoryFolder(repository);
             }
 
-            return $"{root}/{SanitizePathSegment(entryResolvedCommitHash)}/{SanitizePathSegment(GetSentisVersion())}/{SanitizePathSegment(recipeSetHash)}";
+            return ProjectPaths.GetSharedImportFolder(repository, entryResolvedCommitHash, GetSentisVersion(), recipeSetHash);
         }
 
         private static string SanitizeCacheSegment(string value)
@@ -746,16 +735,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 "/",
                 value.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(SanitizePathSegment));
-        }
-
-        private static string ToStreamingAssetsRelativePath(string assetPath)
-        {
-            if (!assetPath.StartsWith(RuntimeStreamingAssetsPrefix, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException($"Expected asset path under Assets/StreamingAssets, got '{assetPath}'.");
-            }
-
-            return assetPath.Substring(RuntimeStreamingAssetsPrefix.Length);
         }
 
         private static string AssetPathToAbsolutePath(string assetPath)
@@ -897,8 +876,8 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
         {
             public string RepoPath;
             public string Kind;
-            public string AssetPath;
-            public string RelativePath;
+            public string Format;
+            public string FilePath;
             public long? SizeInBytes;
             public string RecipeHash;
             public string ConversionPipelineVersion;
@@ -917,7 +896,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string SentisVersion;
             public string UnityVersion;
             public string RecipeSetHash;
-            public string RuntimeSnapshotAssetPath;
             public ImportDiagnosticDocument[] Diagnostics = Array.Empty<ImportDiagnosticDocument>();
             public ImportedRuntimeFileDocument[] RuntimeFiles = Array.Empty<ImportedRuntimeFileDocument>();
             public string ImportedAtUtc;
@@ -937,8 +915,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string RecipeSetHash;
             public string DependencySelectionHash;
             public string SharedImportMetadataPath;
-            public string RuntimeRegistryAssetPath;
-            public string RuntimeRegistryRelativePath;
             public string BoundAtUtc;
         }
     }

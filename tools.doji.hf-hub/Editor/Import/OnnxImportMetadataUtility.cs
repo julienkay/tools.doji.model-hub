@@ -11,7 +11,11 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class OnnxImportMetadataUtility
     {
-        public const string DefaultConversionPipelineVersion = "unity-inference-editor-v1";
+        /// <summary>
+        /// Converter id of the Editor import: Unity's Editor ONNX converter, followed by
+        /// <see cref="OnnxConversionSettings.Apply"/>. Combined with the Inference Engine version in conversion keys.
+        /// </summary>
+        public const string DefaultConversionPipelineVersion = "unity-inference-editor-v2";
 
         public static OnnxConversionRecipe CreateDefaultRecipe()
         {
@@ -22,7 +26,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             var effectiveRecipe = recipe ?? CreateDefaultRecipe();
             var builder = new StringBuilder();
-            builder.Append(effectiveRecipe.QuantizationMode?.Trim() ?? "none");
+            builder.Append(OnnxConversionSettings.NormalizeQuantizationMode(effectiveRecipe.QuantizationMode));
             builder.Append('\n');
 
             foreach (var shapeOverride in (effectiveRecipe.StaticInputShapeOverrides ?? Array.Empty<OnnxStaticInputShapeOverride>())

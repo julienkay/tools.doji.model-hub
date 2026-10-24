@@ -21,8 +21,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var discoveryReport = new DiscoveryReport(
                 new[] { dependency },
                 Array.Empty<ManifestDiscoveryIssue>());
-            var registryService = new FakeRuntimeLocatorRegistryService();
-            var syncService = new SyncService(new FakeRawCacheService(), new FakeProjectImportService(), registryService);
+            var syncService = new SyncService(new FakeRawCacheService(), new FakeProjectImportService());
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -30,9 +29,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.FailureCount, Is.EqualTo(0));
             Assert.That(report.ModelResults[0].Success, Is.True);
             Assert.That(report.ModelResults[0].CachedFile.SnapshotRootPath, Is.EqualTo("/cache/doji/test-model/abc123"));
-            Assert.That(report.ModelResults[0].ImportedArtifact.SnapshotRootAssetPath, Is.EqualTo("Assets/StreamingAssets/hf-hub/doji/test-model"));
-            Assert.That(registryService.CallCount, Is.EqualTo(1));
-            Assert.That(registryService.LastResults.Length, Is.EqualTo(1));
+            Assert.That(report.ModelResults[0].ImportedArtifact, Is.Not.Null);
         }
 
         /// <summary>
@@ -46,8 +43,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var discoveryReport = new DiscoveryReport(
                 new[] { dependency },
                 new[] { discoveryIssue });
-            var registryService = new FakeRuntimeLocatorRegistryService();
-            var syncService = new SyncService(new FakeRawCacheService(), new FakeProjectImportService("doji/broken-model"), registryService);
+            var syncService = new SyncService(new FakeRawCacheService(), new FakeProjectImportService("doji/broken-model"));
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -56,7 +52,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DiscoveryIssues.Count, Is.EqualTo(1));
             Assert.That(report.ModelResults[0].Success, Is.False);
             Assert.That(report.ModelResults[0].ErrorMessage, Does.Contain("Simulated import failure"));
-            Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
         /// <summary>
@@ -72,8 +67,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Array.Empty<ManifestDiscoveryIssue>());
             var rawCacheService = new FakeRawCacheService();
             var importService = new FakeProjectImportService();
-            var registryService = new FakeRuntimeLocatorRegistryService();
-            var syncService = new SyncService(rawCacheService, importService, registryService);
+            var syncService = new SyncService(rawCacheService, importService);
 
             var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
 
@@ -83,7 +77,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.ModelResults[1].ErrorMessage, Does.Contain("multiple requested revisions"));
             Assert.That(rawCacheService.CallCount, Is.EqualTo(0));
             Assert.That(importService.CallCount, Is.EqualTo(0));
-            Assert.That(registryService.CallCount, Is.EqualTo(1));
         }
 
         [Test]
@@ -95,7 +88,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Array.Empty<ManifestDiscoveryIssue>());
             var rawCacheService = new FakeRawCacheService();
             var importService = new FakeProjectImportService();
-            var syncService = new SyncService(rawCacheService, importService, new FakeRuntimeLocatorRegistryService());
+            var syncService = new SyncService(rawCacheService, importService);
 
             var report = await syncService.SyncAsync(discoveryReport, SyncOperationMode.DownloadOnly, CancellationToken.None);
 
@@ -116,7 +109,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Array.Empty<ManifestDiscoveryIssue>());
             var rawCacheService = new FakeRawCacheService();
             var importService = new FakeProjectImportService();
-            var syncService = new SyncService(rawCacheService, importService, new FakeRuntimeLocatorRegistryService());
+            var syncService = new SyncService(rawCacheService, importService);
 
             var report = await syncService.SyncAsync(discoveryReport, SyncOperationMode.MaterializeOnly, CancellationToken.None);
 
@@ -245,32 +238,17 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         {
                             RepoPath = "models/model.onnx",
                             Kind = "sentis",
-                            AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis",
-                            RelativePath = "hf-hub/doji/test-model/models/model.sentis"
+                            Format = "onnx",
+                            FilePath = "/data/converted/models--doji--test-model/key.sentis"
                         }
                     },
                     ImportedAtUtc = DateTime.UtcNow.ToString("O")
                 };
 
                 return Task.FromResult(new ImportedModelArtifact(
-                    "Assets/StreamingAssets/hf-hub/doji/test-model",
                     ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
                     metadata,
                     ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1", OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" }))));
-            }
-        }
-
-        private sealed class FakeRuntimeLocatorRegistryService : IRuntimeLocatorRegistryService
-        {
-            public int CallCount { get; private set; }
-            public ModelSyncResult[] LastResults { get; private set; }
-
-            public void WriteRegistries(System.Collections.Generic.IReadOnlyList<ModelSyncResult> modelResults)
-            {
-                CallCount++;
-                LastResults = modelResults == null
-                    ? Array.Empty<ModelSyncResult>()
-                    : System.Linq.Enumerable.ToArray(modelResults);
             }
         }
     }

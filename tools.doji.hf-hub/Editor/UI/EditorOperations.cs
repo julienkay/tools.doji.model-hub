@@ -305,13 +305,13 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var rawSnapshotPath = result.CachedFile?.SnapshotRootPath;
                     var sentisArtifactPath = result.ImportedArtifact?.RuntimeFiles
-                        .FirstOrDefault(file => file.Kind == "sentis")
-                        ?.AssetPath;
+                        .FirstOrDefault()
+                        ?.FilePath;
 
                     builder.AppendLine($"- OK {ownerLabel}/{result.Dependency.ModelId}");
                     builder.AppendLine($"  raw snapshot: {rawSnapshotPath ?? "<unknown>"}");
                     builder.AppendLine($"  mode: {result.Mode}");
-                    builder.AppendLine($"  runtime sentis: {sentisArtifactPath ?? "<none generated>"}");
+                    builder.AppendLine($"  runtime model: {sentisArtifactPath ?? "<none>"}");
                 }
                 else
                 {

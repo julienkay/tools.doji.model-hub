@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -17,7 +19,55 @@ namespace Doji.AI.ModelHub.Editor
         [SerializeField]
         private string _customCacheLocation = string.Empty;
 
+        [SerializeField]
+        private ModelDelivery _defaultDelivery = ModelDelivery.Bundle;
+
+        [SerializeField]
+        private List<DeliveryOverride> _deliveryOverrides = new();
+
         private static OverrideScope _overrideScope;
+
+        /// <summary>
+        /// How builds deliver models that have no override: bundled into StreamingAssets, or downloaded at runtime.
+        /// </summary>
+        public ModelDelivery DefaultDelivery => _defaultDelivery;
+
+        public void SetDefaultDelivery(ModelDelivery delivery)
+        {
+            _defaultDelivery = delivery;
+            Save(true);
+        }
+
+        /// <summary>
+        /// Returns the delivery override of one repository, or null when it follows the default.
+        /// </summary>
+        public ModelDelivery? GetDeliveryOverride(string repository)
+        {
+            var entry = _deliveryOverrides?.FirstOrDefault(item =>
+                string.Equals(item?.repository, repository, StringComparison.OrdinalIgnoreCase));
+            return entry?.delivery;
+        }
+
+        /// <summary>
+        /// Sets or clears (with null) the delivery override of one repository.
+        /// </summary>
+        public void SetDeliveryOverride(string repository, ModelDelivery? delivery)
+        {
+            _deliveryOverrides ??= new List<DeliveryOverride>();
+            _deliveryOverrides.RemoveAll(item => string.Equals(item?.repository, repository, StringComparison.OrdinalIgnoreCase));
+            if (delivery.HasValue)
+            {
+                _deliveryOverrides.Add(new DeliveryOverride { repository = repository, delivery = delivery.Value });
+                _deliveryOverrides.Sort((left, right) => string.CompareOrdinal(left.repository, right.repository));
+            }
+
+            Save(true);
+        }
+
+        public ModelDelivery GetEffectiveDelivery(string repository)
+        {
+            return GetDeliveryOverride(repository) ?? DefaultDelivery;
+        }
 
         /// <summary>
         /// Indicates whether cache resolution should use the platform default path.
@@ -64,6 +114,13 @@ namespace Doji.AI.ModelHub.Editor
             return string.IsNullOrWhiteSpace(customCacheLocation)
                 ? string.Empty
                 : customCacheLocation.Trim();
+        }
+
+        [Serializable]
+        private sealed class DeliveryOverride
+        {
+            public string repository;
+            public ModelDelivery delivery;
         }
 
         private sealed class OverrideScope

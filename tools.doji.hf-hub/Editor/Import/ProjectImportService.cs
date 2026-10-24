@@ -6,13 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Unity.InferenceEngine;
-using UnityEditor;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Converts cached repository snapshots into shared runtime files under `StreamingAssets` and writes owner bindings under `Library`.
+    /// Prepares the runtime model of every selected model file and records them for this project under
+    /// <c>Library</c>. A <c>.sentis</c> file is used as downloaded. An <c>.onnx</c> file is converted once into the
+    /// shared converted folder (<see cref="ConvertedModelStore"/>), with this project's conversion settings applied.
+    /// Nothing is written into <c>Assets</c>: builds take the runtime models from where they are.
     /// </summary>
     internal sealed class ProjectImportService : IProjectImportService
     {
@@ -28,7 +30,15 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Returns generated runtime snapshot artifact if binding and shared import are current, otherwise reuses or converts cached ONNX files into `.sentis` runtime assets.
+        /// Converter id used in conversion keys: the Editor pipeline plus the installed Inference Engine version.
+        /// </summary>
+        internal static string GetEditorConverterId()
+        {
+            return $"{OnnxImportMetadataUtility.DefaultConversionPipelineVersion}@{GetSentisVersion()}";
+        }
+
+        /// <summary>
+        /// Returns the recorded import when it is current, otherwise prepares the runtime models of the selected files.
         /// </summary>
         public Task<ImportedModelArtifact> ImportAsync(
             DiscoveredModelDependency dependency,
@@ -40,9 +50,6 @@ namespace Doji.AI.ModelHub.Editor
             var sentisVersion = GetSentisVersion();
             var resolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash
                 ?? throw new InvalidOperationException($"Cached snapshot for '{dependency.Repository}' is missing resolved commit hash.");
-            var snapshotRootAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(
-                dependency.Repository,
-                resolvedCommitHash);
             var bindingMetadataFilePath = ProjectPaths.GetImportBindingMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
@@ -53,16 +60,20 @@ namespace Doji.AI.ModelHub.Editor
             var fallbackCachedFiles = (cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
                 .Select(file => file.RepoPath)
                 .ToArray();
-            var selectedOnnxRepoPaths = dependency.GetSelectedOnnxRepoPaths(repositoryFiles, fallbackCachedFiles).ToArray();
-            if (selectedOnnxRepoPaths.Length == 0)
+            var selectionProblem = dependency.GetSelectionProblem(
+                repositoryFiles.Length > 0 ? repositoryFiles : null,
+                fallbackCachedFiles);
+            if (selectionProblem != null)
             {
-                throw new InvalidOperationException(
-                    $"Dependency '{dependency.ModelId}' does not select any ONNX file. Select the whole repository or at least one `.onnx` file.");
+                throw new InvalidOperationException(selectionProblem);
             }
 
+            var selectedModelRepoPaths = dependency.GetSelectedModelRepoPaths(
+                repositoryFiles.Length > 0 ? repositoryFiles : null,
+                fallbackCachedFiles);
             var recipeSetHash = _recipeSource.ComputeRecipeSetHash(
                 dependency.Repository,
-                selectedOnnxRepoPaths);
+                selectedModelRepoPaths.Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx));
             var sharedMetadataFilePath = ProjectPaths.GetSharedImportMetadataFilePath(
                 dependency.Repository,
                 resolvedCommitHash,
@@ -71,112 +82,126 @@ namespace Doji.AI.ModelHub.Editor
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataFilePath);
 
             if (TryReadResolvedMetadata(bindingMetadataAbsolutePath, out var existingMetadata) &&
-                IsUpToDate(existingMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sharedMetadataFilePath, recipeSetHash))
+                IsUpToDate(existingMetadata, dependency, cachedSnapshot, sharedMetadataFilePath, recipeSetHash))
             {
-                return Task.FromResult(new ImportedModelArtifact(
-                    snapshotRootAssetPath,
-                    bindingMetadataFilePath,
-                    existingMetadata,
-                    sharedMetadataFilePath));
+                return Task.FromResult(new ImportedModelArtifact(bindingMetadataFilePath, existingMetadata, sharedMetadataFilePath));
             }
 
             if (TryReadSharedMetadata(sharedMetadataAbsolutePath, out var existingSharedMetadata) &&
-                IsSharedUpToDate(existingSharedMetadata, dependency, cachedSnapshot, snapshotRootAssetPath, sentisVersion, recipeSetHash, selectedOnnxRepoPaths))
+                IsSharedUpToDate(existingSharedMetadata, dependency, cachedSnapshot, sentisVersion, recipeSetHash, selectedModelRepoPaths))
             {
-                var reusedBindingMetadata = CreateBindingMetadata(
-                    dependency,
-                    cachedSnapshot,
-                    sentisVersion,
-                    sharedMetadataFilePath,
-                    recipeSetHash);
-                WriteBindingMetadata(bindingMetadataAbsolutePath, reusedBindingMetadata);
-
-                var reusedResolvedMetadata = CreateResolvedMetadata(
-                    bindingMetadataFilePath,
-                    reusedBindingMetadata,
-                    existingSharedMetadata);
+                var reusedBindingMetadata = CreateBindingMetadata(dependency, cachedSnapshot, sentisVersion, sharedMetadataFilePath, recipeSetHash);
+                WriteJson(bindingMetadataAbsolutePath, reusedBindingMetadata);
                 return Task.FromResult(new ImportedModelArtifact(
-                    snapshotRootAssetPath,
                     bindingMetadataFilePath,
-                    reusedResolvedMetadata,
+                    CreateResolvedMetadata(bindingMetadataFilePath, reusedBindingMetadata, existingSharedMetadata),
                     sharedMetadataFilePath));
             }
 
             var runtimeFiles = new List<ImportedRuntimeFileMetadata>();
             var onnxFileCount = 0;
-            var sentisFileCount = 0;
             var conversionFailures = new List<string>();
             var skippedRepoPaths = new List<string>();
             var diagnostics = new List<ImportDiagnostic>();
+            var converterId = GetEditorConverterId();
             foreach (var snapshotFile in cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                if (!selectedOnnxRepoPaths.Contains(snapshotFile.RepoPath, StringComparer.Ordinal))
+                if (!selectedModelRepoPaths.Contains(snapshotFile.RepoPath, StringComparer.Ordinal))
                 {
+                    continue;
+                }
+
+                var sourceSize = CacheFiles.GetLength(snapshotFile.CachedFilePath);
+                if (ModelFiles.GetFormat(snapshotFile.RepoPath) == ModelFileFormat.Sentis)
+                {
+                    runtimeFiles.Add(new ImportedRuntimeFileMetadata
+                    {
+                        RepoPath = snapshotFile.RepoPath,
+                        Kind = "sentis",
+                        Format = "sentis",
+                        FilePath = snapshotFile.CachedFilePath,
+                        SourceEtag = SourceFileIdentity.GetEtag(snapshotFile),
+                        SourceSizeInBytes = sourceSize,
+                        SizeInBytes = sourceSize
+                    });
                     continue;
                 }
 
                 onnxFileCount++;
-                var runtimeSentisAssetPath = ProjectPaths.GetRuntimeSentisAssetPath(
-                    dependency.Repository,
-                    resolvedCommitHash,
-                    snapshotFile.RepoPath);
-                var runtimeSentisAbsolutePath = ProjectPaths.ToAbsolutePath(runtimeSentisAssetPath);
-                EnsureAssetFolderExists(Path.GetDirectoryName(runtimeSentisAssetPath)?.Replace('\\', '/')
-                    ?? throw new InvalidOperationException("Missing runtime sentis output directory."));
-
                 var recipe = _recipeSource.GetEffectiveRecipe(dependency.Repository, snapshotFile.RepoPath).Recipe;
-                OnnxConversionResult conversionResult;
-                try
+                var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(recipe);
+                var sourceEtag = SourceFileIdentity.GetEtag(snapshotFile);
+                var conversionKey = ConvertedModelStore.ComputeKey(sourceEtag, converterId, recipeHash);
+                if (!ConvertedModelStore.TryGet(dependency.Repository, conversionKey, out var convertedPath))
                 {
-                    conversionResult = _onnxModelConverter.Convert(
-                        new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe));
-                }
-                catch (Exception exception)
-                {
-                    var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
-                    conversionFailures.Add(failureMessage);
-                    skippedRepoPaths.Add(snapshotFile.RepoPath);
-                    diagnostics.Add(new ImportDiagnostic
+                    try
                     {
-                        Severity = "warning",
-                        Message = $"Partial ONNX conversion: skipped {snapshotFile.RepoPath} because {exception.Message}"
-                    });
-                    Debug.LogWarning(failureMessage);
-                    continue;
+                        var conversionResult = _onnxModelConverter.Convert(new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe));
+                        var settingWarnings = new List<string>();
+                        var convertedModel = OnnxConversionSettings.Apply(conversionResult.Model, recipe, settingWarnings);
+                        foreach (var warning in settingWarnings)
+                        {
+                            diagnostics.Add(new ImportDiagnostic { Severity = "warning", Message = $"{snapshotFile.RepoPath}: {warning}" });
+                        }
+
+                        foreach (var conversionDiagnostic in conversionResult.Diagnostics ?? Array.Empty<OnnxConversionDiagnostic>())
+                        {
+                            if (!string.IsNullOrWhiteSpace(conversionDiagnostic?.Message))
+                            {
+                                diagnostics.Add(new ImportDiagnostic
+                                {
+                                    Severity = string.IsNullOrWhiteSpace(conversionDiagnostic.Severity) ? "warning" : conversionDiagnostic.Severity,
+                                    Message = conversionDiagnostic.Message
+                                });
+                            }
+                        }
+
+                        convertedPath = ConvertedModelStore.Save(
+                            dependency.Repository,
+                            conversionKey,
+                            convertedModel,
+                            new ConvertedModelRecord
+                            {
+                                repository = dependency.Repository,
+                                repoPath = snapshotFile.RepoPath,
+                                sourceEtag = sourceEtag,
+                                converterId = converterId,
+                                recipeHash = recipeHash
+                            });
+                    }
+                    catch (Exception exception)
+                    {
+                        var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
+                        conversionFailures.Add(failureMessage);
+                        skippedRepoPaths.Add(snapshotFile.RepoPath);
+                        diagnostics.Add(new ImportDiagnostic
+                        {
+                            Severity = "warning",
+                            Message = $"Partial ONNX conversion: skipped {snapshotFile.RepoPath} because {exception.Message}"
+                        });
+                        Debug.LogWarning(failureMessage);
+                        continue;
+                    }
                 }
 
-                ModelWriter.Save(runtimeSentisAbsolutePath, conversionResult.Model);
-                sentisFileCount++;
                 runtimeFiles.Add(new ImportedRuntimeFileMetadata
                 {
                     RepoPath = snapshotFile.RepoPath,
                     Kind = "sentis",
-                    AssetPath = runtimeSentisAssetPath,
-                    RelativePath = ProjectPaths.ToStreamingAssetsRelativePath(runtimeSentisAssetPath),
-                    SizeInBytes = new FileInfo(runtimeSentisAbsolutePath).Length,
-                    RecipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(conversionResult.AppliedRecipe),
-                    ConversionPipelineVersion = conversionResult.ConversionPipelineVersion,
-                    InputSignatureHash = OnnxImportMetadataUtility.ComputeInputSignatureHash(conversionResult.InputSignature)
+                    Format = "onnx",
+                    FilePath = convertedPath,
+                    SourceEtag = sourceEtag,
+                    SourceSizeInBytes = sourceSize,
+                    Companions = GetCompanions(cachedSnapshot, snapshotFile.RepoPath),
+                    ConversionKey = conversionKey,
+                    SizeInBytes = new FileInfo(convertedPath).Length,
+                    RecipeHash = recipeHash,
+                    ConversionPipelineVersion = converterId
                 });
-
-                foreach (var conversionDiagnostic in conversionResult.Diagnostics ?? Array.Empty<OnnxConversionDiagnostic>())
-                {
-                    if (string.IsNullOrWhiteSpace(conversionDiagnostic?.Message))
-                    {
-                        continue;
-                    }
-
-                    diagnostics.Add(new ImportDiagnostic
-                    {
-                        Severity = string.IsNullOrWhiteSpace(conversionDiagnostic.Severity) ? "warning" : conversionDiagnostic.Severity,
-                        Message = conversionDiagnostic.Message
-                    });
-                }
             }
 
-            if (onnxFileCount > 0 && sentisFileCount == 0)
+            if (onnxFileCount > 0 && runtimeFiles.Count == 0)
             {
                 throw new InvalidOperationException(
                     conversionFailures.Count > 0
@@ -184,44 +209,32 @@ namespace Doji.AI.ModelHub.Editor
                         : $"Failed to convert ONNX files from repository '{dependency.Repository}'.");
             }
 
-            foreach (var runtimeFile in runtimeFiles)
-            {
-                AssetDatabase.ImportAsset(
-                    runtimeFile.AssetPath,
-                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-            }
+            var sharedMetadata = CreateSharedMetadata(dependency, cachedSnapshot, runtimeFiles, skippedRepoPaths, diagnostics, sentisVersion, recipeSetHash);
+            WriteJson(sharedMetadataAbsolutePath, sharedMetadata);
 
-            var sharedMetadata = CreateSharedMetadata(
-                dependency,
-                cachedSnapshot,
-                snapshotRootAssetPath,
-                runtimeFiles,
-                skippedRepoPaths,
-                diagnostics,
-                sentisVersion,
-                recipeSetHash);
-            WriteSharedMetadata(sharedMetadataAbsolutePath, sharedMetadata);
+            var bindingMetadata = CreateBindingMetadata(dependency, cachedSnapshot, sentisVersion, sharedMetadataFilePath, recipeSetHash);
+            WriteJson(bindingMetadataAbsolutePath, bindingMetadata);
 
-            var bindingMetadata = CreateBindingMetadata(
-                dependency,
-                cachedSnapshot,
-                sentisVersion,
-                sharedMetadataFilePath,
-                recipeSetHash);
-            WriteBindingMetadata(bindingMetadataAbsolutePath, bindingMetadata);
-            PruneDeselectedRuntimeFiles(dependency.Repository, resolvedCommitHash);
-
-            AssetDatabase.SaveAssets();
-
-            var resolvedMetadata = CreateResolvedMetadata(
-                bindingMetadataFilePath,
-                bindingMetadata,
-                sharedMetadata);
             return Task.FromResult(new ImportedModelArtifact(
-                snapshotRootAssetPath,
                 bindingMetadataFilePath,
-                resolvedMetadata,
+                CreateResolvedMetadata(bindingMetadataFilePath, bindingMetadata, sharedMetadata),
                 sharedMetadataFilePath));
+        }
+
+        private static ImportedSourceFileMetadata[] GetCompanions(CachedSnapshot cachedSnapshot, string onnxRepoPath)
+        {
+            var files = cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>();
+            var companionPaths = ModelFiles.GetCompanionFiles(onnxRepoPath, files.Select(file => file.RepoPath));
+            return files
+                .Where(file => companionPaths.Contains(file.RepoPath, StringComparer.Ordinal))
+                .Select(file => new ImportedSourceFileMetadata
+                {
+                    RepoPath = file.RepoPath,
+                    Etag = SourceFileIdentity.GetEtag(file),
+                    SizeInBytes = CacheFiles.GetLength(file.CachedFilePath)
+                })
+                .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToArray();
         }
 
         internal static bool TryReadMetadata(string metadataAbsolutePath, out ImportedModelMetadata metadata)
@@ -252,16 +265,27 @@ namespace Doji.AI.ModelHub.Editor
 
         internal static bool TryReadBindingMetadata(string metadataAbsolutePath, out ImportBindingMetadata metadata)
         {
-            metadata = null;
-            if (!File.Exists(metadataAbsolutePath))
+            return TryReadJson(metadataAbsolutePath, out metadata);
+        }
+
+        internal static bool TryReadSharedMetadata(string metadataAbsolutePath, out SharedImportMetadata metadata)
+        {
+            return TryReadJson(metadataAbsolutePath, out metadata);
+        }
+
+        private static bool TryReadJson<TDocument>(string absolutePath, out TDocument document)
+            where TDocument : class
+        {
+            document = null;
+            if (!File.Exists(absolutePath))
             {
                 return false;
             }
 
             try
             {
-                metadata = JsonConvert.DeserializeObject<ImportBindingMetadata>(File.ReadAllText(metadataAbsolutePath));
-                return metadata != null;
+                document = JsonConvert.DeserializeObject<TDocument>(File.ReadAllText(absolutePath));
+                return document != null;
             }
             catch
             {
@@ -269,39 +293,24 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
-        internal static bool TryReadSharedMetadata(string metadataAbsolutePath, out SharedImportMetadata metadata)
+        /// <summary>
+        /// Whether every runtime model of an import record is on disk.
+        /// </summary>
+        internal static bool HasRuntimeModels(IEnumerable<ImportedRuntimeFileMetadata> runtimeFiles)
         {
-            metadata = null;
-            if (!File.Exists(metadataAbsolutePath))
-            {
-                return false;
-            }
-
-            try
-            {
-                metadata = JsonConvert.DeserializeObject<SharedImportMetadata>(File.ReadAllText(metadataAbsolutePath));
-                return metadata != null;
-            }
-            catch
-            {
-                return false;
-            }
+            var files = (runtimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).ToArray();
+            return files.Length > 0 && files.All(file => !string.IsNullOrWhiteSpace(file?.FilePath) && File.Exists(file.FilePath));
         }
 
         private static bool IsUpToDate(
             ImportedModelMetadata metadata,
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
-            string snapshotRootAssetPath,
             string sharedMetadataFilePath,
             string recipeSetHash)
         {
-            if (metadata == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(metadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
+            if (metadata == null ||
+                !string.Equals(metadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
@@ -316,99 +325,54 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            if (!(metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                    .Select(file => file.RepoPath)
-                    .OrderBy(path => path, StringComparer.Ordinal)
-                    .SequenceEqual(
-                        (cachedSnapshot.Metadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                        .Select(file => file.RepoPath)
-                        .OrderBy(path => path, StringComparer.Ordinal),
-                        StringComparer.Ordinal))
-            {
-                return false;
-            }
-
-            var importedFiles = metadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
-            if (importedFiles.Length == 0)
-            {
-                return false;
-            }
-
-            if (!Directory.Exists(ProjectPaths.ToAbsolutePath(snapshotRootAssetPath)))
-            {
-                return false;
-            }
-
-            return importedFiles.All(file => File.Exists(ProjectPaths.ToAbsolutePath(file.AssetPath)));
+            return HasSameRepositoryFiles(metadata.RepositoryFiles, cachedSnapshot) && HasRuntimeModels(metadata.RuntimeFiles);
         }
 
         private static bool IsSharedUpToDate(
             SharedImportMetadata metadata,
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
-            string snapshotRootAssetPath,
             string sentisVersion,
             string recipeSetHash,
-            IReadOnlyList<string> selectedOnnxRepoPaths)
+            IReadOnlyList<string> selectedModelRepoPaths)
         {
-            if (metadata == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
+            if (metadata == null ||
+                !string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawSnapshotRootPath, cachedSnapshot.SnapshotRootPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RawMetadataPath, cachedSnapshot.MetadataPath, StringComparison.Ordinal) ||
                 !string.Equals(metadata.SentisVersion, sentisVersion, StringComparison.Ordinal) ||
-                !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal) ||
-                !string.Equals(metadata.RuntimeSnapshotAssetPath, snapshotRootAssetPath, StringComparison.Ordinal))
+                !string.Equals(metadata.RecipeSetHash, recipeSetHash, StringComparison.Ordinal))
             {
                 return false;
             }
 
-            var runtimeFiles = metadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
-            if (runtimeFiles.Length == 0)
-            {
-                return false;
-            }
-
-            if (!Directory.Exists(ProjectPaths.ToAbsolutePath(snapshotRootAssetPath)))
-            {
-                return false;
-            }
-
-            if (!(metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                    .Select(file => file.RepoPath)
-                    .OrderBy(path => path, StringComparer.Ordinal)
-                    .SequenceEqual(
-                        (cachedSnapshot.Metadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                        .Select(file => file.RepoPath)
-                        .OrderBy(path => path, StringComparer.Ordinal),
-                        StringComparer.Ordinal))
-            {
-                return false;
-            }
-
-            var runtimeRepoPaths = metadata.GetImportedOrSkippedOnnxRepoPaths();
-            if (!runtimeRepoPaths.SequenceEqual(
-                    (selectedOnnxRepoPaths ?? Array.Empty<string>())
-                    .OrderBy(path => path, StringComparer.Ordinal),
+            if (!HasSameRepositoryFiles(metadata.RepositoryFiles, cachedSnapshot) ||
+                !metadata.GetImportedOrSkippedModelRepoPaths().SequenceEqual(
+                    (selectedModelRepoPaths ?? Array.Empty<string>()).OrderBy(path => path, StringComparer.Ordinal),
                     StringComparer.Ordinal))
             {
                 return false;
             }
 
-            return runtimeFiles.All(file =>
-                File.Exists(ProjectPaths.ToAbsolutePath(file.AssetPath)) &&
-                !string.IsNullOrWhiteSpace(file.RecipeHash) &&
-                !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion));
+            return HasRuntimeModels(metadata.RuntimeFiles);
+        }
+
+        private static bool HasSameRepositoryFiles(IEnumerable<RepositoryFileMetadata> recorded, CachedSnapshot cachedSnapshot)
+        {
+            return (recorded ?? Array.Empty<RepositoryFileMetadata>())
+                .Select(file => file.RepoPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .SequenceEqual(
+                    (cachedSnapshot.Metadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                    .Select(file => file.RepoPath)
+                    .OrderBy(path => path, StringComparer.Ordinal),
+                    StringComparer.Ordinal);
         }
 
         private static SharedImportMetadata CreateSharedMetadata(
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
-            string snapshotRootAssetPath,
             IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
             IReadOnlyList<string> skippedRepoPaths,
             IReadOnlyList<ImportDiagnostic> diagnostics,
@@ -430,7 +394,6 @@ namespace Doji.AI.ModelHub.Editor
                 SentisVersion = sentisVersion,
                 UnityVersion = Application.unityVersion,
                 RecipeSetHash = recipeSetHash,
-                RuntimeSnapshotAssetPath = snapshotRootAssetPath,
                 Diagnostics = diagnostics?.ToArray() ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = runtimeFiles.ToArray(),
                 SkippedRepoPaths = skippedRepoPaths?.ToArray() ?? Array.Empty<string>(),
@@ -445,7 +408,6 @@ namespace Doji.AI.ModelHub.Editor
             string sharedMetadataFilePath,
             string recipeSetHash)
         {
-            var runtimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(dependency.PackageId);
             return new ImportBindingMetadata
             {
                 PackageId = dependency.PackageId,
@@ -459,18 +421,16 @@ namespace Doji.AI.ModelHub.Editor
                 RecipeSetHash = recipeSetHash,
                 DependencySelectionHash = dependency.DependencySelectionHash,
                 SharedImportMetadataPath = sharedMetadataFilePath,
-                RuntimeRegistryAssetPath = runtimeRegistryAssetPath,
-                RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(runtimeRegistryAssetPath),
                 BoundAtUtc = DateTime.UtcNow.ToString("O")
             };
         }
 
-        private static ImportedModelMetadata CreateResolvedMetadata(
+        internal static ImportedModelMetadata CreateResolvedMetadata(
             string bindingMetadataFilePath,
             ImportBindingMetadata bindingMetadata,
             SharedImportMetadata sharedMetadata)
         {
-            if (bindingMetadata == null || sharedMetadata == null)
+            if (bindingMetadata == null)
             {
                 return null;
             }
@@ -483,34 +443,22 @@ namespace Doji.AI.ModelHub.Editor
                 ManifestHash = bindingMetadata.ManifestHash,
                 Repository = bindingMetadata.Repository,
                 RequestedRevision = bindingMetadata.RequestedRevision,
-                ResolvedCommitHash = sharedMetadata.ResolvedCommitHash,
-                RawSnapshotRootPath = sharedMetadata.RawSnapshotRootPath,
-                RawMetadataPath = sharedMetadata.RawMetadataPath,
-                RepositoryFiles = sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>(),
-                RawCacheSizeInBytes = sharedMetadata.RawCacheSizeInBytes,
-                SentisVersion = sharedMetadata.SentisVersion,
-                UnityVersion = sharedMetadata.UnityVersion,
-                RecipeSetHash = sharedMetadata.RecipeSetHash ?? bindingMetadata.RecipeSetHash,
+                ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata.ResolvedCommitHash,
+                RawSnapshotRootPath = sharedMetadata?.RawSnapshotRootPath,
+                RawMetadataPath = sharedMetadata?.RawMetadataPath,
+                RepositoryFiles = sharedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>(),
+                RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
+                SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata.SentisVersion,
+                UnityVersion = sharedMetadata?.UnityVersion,
+                RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata.RecipeSetHash,
                 DependencySelectionHash = bindingMetadata.DependencySelectionHash,
-                RuntimeRegistryAssetPath = bindingMetadata.RuntimeRegistryAssetPath,
-                RuntimeRegistryRelativePath = bindingMetadata.RuntimeRegistryRelativePath,
                 BindingMetadataPath = bindingMetadataFilePath,
                 SharedImportMetadataPath = bindingMetadata.SharedImportMetadataPath,
-                Diagnostics = sharedMetadata.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
-                RuntimeFiles = sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
-                SkippedRepoPaths = sharedMetadata.SkippedRepoPaths ?? Array.Empty<string>(),
-                ImportedAtUtc = sharedMetadata.ImportedAtUtc
+                Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
+                RuntimeFiles = sharedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
+                SkippedRepoPaths = sharedMetadata?.SkippedRepoPaths ?? Array.Empty<string>(),
+                ImportedAtUtc = sharedMetadata?.ImportedAtUtc
             };
-        }
-
-        private static void WriteBindingMetadata(string metadataAbsolutePath, ImportBindingMetadata metadata)
-        {
-            WriteJson(metadataAbsolutePath, metadata);
-        }
-
-        private static void WriteSharedMetadata(string metadataAbsolutePath, SharedImportMetadata metadata)
-        {
-            WriteJson(metadataAbsolutePath, metadata);
         }
 
         private static void WriteJson<TDocument>(string absolutePath, TDocument document)
@@ -528,105 +476,7 @@ namespace Doji.AI.ModelHub.Editor
             File.Move(temporaryPath, absolutePath);
         }
 
-        private static void EnsureAssetFolderExists(string assetFolderPath)
-        {
-            if (AssetDatabase.IsValidFolder(assetFolderPath))
-            {
-                return;
-            }
-
-            var parts = assetFolderPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0 || !string.Equals(parts[0], "Assets", StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException($"Expected Unity asset folder under Assets, got '{assetFolderPath}'.");
-            }
-
-            var currentFolder = parts[0];
-            for (var i = 1; i < parts.Length; i++)
-            {
-                var nextFolder = $"{currentFolder}/{parts[i]}";
-                if (!AssetDatabase.IsValidFolder(nextFolder))
-                {
-                    AssetDatabase.CreateFolder(currentFolder, parts[i]);
-                }
-
-                currentFolder = nextFolder;
-            }
-        }
-
-        private static void PruneDeselectedRuntimeFiles(string repository, string resolvedCommitHash)
-        {
-            var runtimeSnapshotAssetPath = ProjectPaths.GetRuntimeSnapshotFolder(repository, resolvedCommitHash);
-            var runtimeSnapshotAbsolutePath = ProjectPaths.ToAbsolutePath(runtimeSnapshotAssetPath);
-            if (!Directory.Exists(runtimeSnapshotAbsolutePath))
-            {
-                return;
-            }
-
-            var referencedRuntimeAssetPaths = GetReferencedRuntimeAssetPaths(repository, resolvedCommitHash);
-            foreach (var absoluteRuntimeFilePath in Directory.EnumerateFiles(runtimeSnapshotAbsolutePath, "*.sentis", SearchOption.AllDirectories))
-            {
-                var runtimeAssetPath = ToAssetPath(absoluteRuntimeFilePath);
-                if (referencedRuntimeAssetPaths.Contains(runtimeAssetPath))
-                {
-                    continue;
-                }
-
-                AssetDatabase.DeleteAsset(runtimeAssetPath);
-            }
-        }
-
-        private static HashSet<string> GetReferencedRuntimeAssetPaths(string repository, string resolvedCommitHash)
-        {
-            var referencedRuntimeAssetPaths = new HashSet<string>(StringComparer.Ordinal);
-            var bindingsRootAbsolutePath = ProjectPaths.ToProjectAbsolutePath("Library/Doji/HfHub/imports/bindings");
-            if (!Directory.Exists(bindingsRootAbsolutePath))
-            {
-                return referencedRuntimeAssetPaths;
-            }
-
-            foreach (var bindingMetadataAbsolutePath in Directory.EnumerateFiles(
-                         bindingsRootAbsolutePath,
-                         "hf-hub-binding.json",
-                         SearchOption.AllDirectories))
-            {
-                if (!TryReadBindingMetadata(bindingMetadataAbsolutePath, out var bindingMetadata) ||
-                    !string.Equals(bindingMetadata.Repository, repository, StringComparison.Ordinal) ||
-                    !string.Equals(bindingMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal) ||
-                    string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
-                {
-                    continue;
-                }
-
-                var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
-                if (!TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata) ||
-                    !string.Equals(sharedMetadata.Repository, repository, StringComparison.Ordinal) ||
-                    !string.Equals(sharedMetadata.ResolvedCommitHash, resolvedCommitHash, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                foreach (var runtimeFile in sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
-                {
-                    if (string.Equals(runtimeFile.Kind, "sentis", StringComparison.Ordinal) &&
-                        !string.IsNullOrWhiteSpace(runtimeFile.AssetPath))
-                    {
-                        referencedRuntimeAssetPaths.Add(runtimeFile.AssetPath);
-                    }
-                }
-            }
-
-            return referencedRuntimeAssetPaths;
-        }
-
-        private static string ToAssetPath(string absolutePath)
-        {
-            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            var projectRelativePath = Path.GetRelativePath(projectRoot, absolutePath);
-            return projectRelativePath.Replace('\\', '/');
-        }
-
-        private static string GetSentisVersion()
+        internal static string GetSentisVersion()
         {
             return UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly)?.version ?? "unknown";
         }

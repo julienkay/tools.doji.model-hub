@@ -64,36 +64,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies runtime registry paths stay attached to each dependent instead of collapsing into one repo-level value.
-        /// </summary>
-        [Test]
-        public void BuildReport_PreservesOwnerSpecificRuntimeRegistryPathsOnDependents()
-        {
-            var projectOwnerId = ProjectManifestDiscovery.GetOwnerId(
-                "5a899f24b6fd4a1ba127ab1a1b267c7e",
-                "Assets/HF Hub/HF Hub Project Manifest.asset",
-                null);
-            var report = new StatusReport(
-                Array.Empty<ManifestDiscoveryIssue>(),
-                new[]
-                {
-                    CreateDependencyStatus(projectOwnerId, "Project", "model-a"),
-                    CreateDependencyStatus("tools.doji.pkg-b", "Package B", "model-b")
-                });
-
-            var hubReport = new ModelHubService().BuildReport(report);
-
-            Assert.That(hubReport.Items.Count, Is.EqualTo(1));
-            Assert.That(hubReport.Items[0].Dependents.Count, Is.EqualTo(2));
-            Assert.That(
-                hubReport.Items[0].Dependents[0].ImportedMetadata?.RuntimeRegistryAssetPath,
-                Is.EqualTo("Assets/StreamingAssets/hf-hub/registries/tools.doji.pkg-b/hf-hub-runtime.json"));
-            Assert.That(
-                hubReport.Items[0].Dependents[1].ImportedMetadata?.RuntimeRegistryAssetPath,
-                Is.EqualTo(ProjectPaths.GetRuntimeRegistryAssetPath(projectOwnerId)));
-        }
-
-        /// <summary>
         /// Verifies manifest owner count reflects distinct manifest sources, including Project Settings manifests.
         /// </summary>
         [Test]
@@ -175,7 +145,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.ActionRequired));
             Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional ONNX file for this manifest owner before downloading or importing."));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional model file for this manifest owner before downloading or importing."));
         }
 
         /// <summary>
@@ -268,8 +238,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         RepoPath = "model.onnx",
                         Kind = "sentis",
-                        AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
-                        RelativePath = "hf-hub/doji/test-model/model.sentis",
+                        Format = "onnx",
+                        FilePath = "/data/converted/models--doji--test-model/key.sentis",
                         SizeInBytes = 6
                     }
                 }
@@ -288,7 +258,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null,
                         null,
                         null,
-                        "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
+                        "/data/converted/models--doji--test-model/key.sentis",
                         ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.pkg-a", "model-a"),
                         metadata)
                 });
@@ -501,7 +471,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void BuildReport_ReportsPerFileDiskUsage()
         {
             var rawPath = CreateTempFileWithSize(12);
-            var runtimeAssetPath = CreateRuntimeAssetFileWithSize("Assets/StreamingAssets/hf-hub/tests/model.sentis", 7);
+            var runtimeAssetPath = CreateTempFileWithSize(7);
             var dependency = CreateDependencyStatus(
                 "tools.doji.pkg-a",
                 "Package A",
@@ -591,7 +561,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             DependencyReasonCode? reasonCode = null,
             string maintainerMessage = null,
             string rawCachedFilePath = "/cache/doji/test-model/abc123/model.onnx",
-            string runtimeAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
+            string runtimeAssetPath = "/data/converted/models--doji--test-model/key.sentis",
             bool includeRawMetadata = true,
             string[] selectedFiles = null,
             ModelDependencyFileDefinition[] fileEntries = null,
@@ -624,7 +594,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RawCacheSizeInBytes = 12,
                 RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile, extraRepositoryFiles),
                 DependencySelectionHash = dependency.DependencySelectionHash,
-                RuntimeRegistryAssetPath = $"Assets/StreamingAssets/hf-hub/registries/{packageId}/hf-hub-runtime.json",
                 Diagnostics = importedDiagnostics ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = new[]
                 {
@@ -632,8 +601,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         RepoPath = "model.onnx",
                         Kind = "sentis",
-                        AssetPath = runtimeAssetPath,
-                        RelativePath = "hf-hub/doji/test-model/model.sentis",
+                        Format = "onnx",
+                        FilePath = runtimeAssetPath,
                         SizeInBytes = 6
                     }
                 }
@@ -706,15 +675,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             File.WriteAllBytes(path, new byte[sizeInBytes]);
             _tempPaths.Add(path);
             return path;
-        }
-
-        private string CreateRuntimeAssetFileWithSize(string assetPath, int sizeInBytes)
-        {
-            var absolutePath = ProjectPaths.ToAbsolutePath(assetPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(absolutePath) ?? throw new InvalidOperationException("Expected runtime directory."));
-            File.WriteAllBytes(absolutePath, new byte[sizeInBytes]);
-            _tempPaths.Add(absolutePath);
-            return assetPath;
         }
     }
 

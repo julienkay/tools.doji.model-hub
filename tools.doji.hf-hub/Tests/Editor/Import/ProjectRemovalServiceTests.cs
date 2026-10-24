@@ -128,13 +128,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.first", "doji/test-model"))), Is.False);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.second", "doji/test-model"))), Is.True);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath)), Is.True);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis")), Is.True);
+            Assert.That(File.Exists(PulledModelAbsolutePath), Is.True);
 
             new ProjectRemovalService().Remove(secondItem);
 
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.second", "doji/test-model"))), Is.False);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath)), Is.False);
-            Assert.That(AssetDatabase.LoadMainAssetAtPath("Assets/StreamingAssets/hf-hub/doji/test-model") == null, Is.True);
+            Assert.That(File.Exists(PulledModelAbsolutePath), Is.False, "Models pulled into the project are removed with it.");
+            Assert.That(File.Exists(ConvertedModelPath), Is.True, "Converted models stay in the shared folder for other projects.");
         }
 
         /// <summary>
@@ -157,7 +158,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.first", "doji/test-model"))), Is.True);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath)), Is.True);
-            Assert.That(File.Exists(ProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis")), Is.True);
+            Assert.That(File.Exists(PulledModelAbsolutePath), Is.True);
         }
 
         /// <summary>
@@ -191,7 +192,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 requestedRevision,
                 resolvedCommitHash,
                 CachePaths.GetSnapshotRoot("doji/test-model", resolvedCommitHash),
-                "Assets/StreamingAssets/hf-hub/doji/test-model",
+                null,
                 null,
                 null,
                 null,
@@ -256,8 +257,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     {
                         RepoPath = "models/model.onnx",
                         Kind = "sentis",
-                        AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis",
-                        RelativePath = "hf-hub/doji/test-model/models/model.sentis"
+                        Format = "onnx",
+                        FilePath = ConvertedModelPath
                     }
                 }
             };
@@ -267,7 +268,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "main",
                 "abc123",
                 CachePaths.GetSnapshotRoot("doji/test-model", "abc123"),
-                "Assets/StreamingAssets/hf-hub/doji/test-model",
+                null,
                 null,
                 null,
                 null,
@@ -284,7 +285,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         CachePaths.GetSnapshotRoot("doji/test-model", "abc123"),
                         CachePaths.GetSnapshotMetadataPath("doji/test-model", "abc123"),
                         null,
-                        "Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis",
+                        ConvertedModelPath,
                         ProjectPaths.GetImportBindingMetadataFilePath(packageId, "doji/test-model"),
                         importedMetadata)
                 },
@@ -324,20 +325,23 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 SentisVersion = sentisVersion,
                 DependencySelectionHash = ModelDependencyDefinition.ComputeSelectionHash(null),
                 SharedImportMetadataPath = sharedMetadataPath,
-                RuntimeRegistryAssetPath = ProjectPaths.GetRuntimeRegistryAssetPath(packageId),
-                RuntimeRegistryRelativePath = ProjectPaths.ToStreamingAssetsRelativePath(ProjectPaths.GetRuntimeRegistryAssetPath(packageId)),
                 BoundAtUtc = DateTime.UtcNow.ToString("O")
             }));
         }
+
+        private static string ConvertedModelPath => ConvertedModelStore.GetModelPath("doji/test-model", "removal-test");
+
+        private static string PulledModelAbsolutePath => ProjectPaths.ToAbsolutePath(ProjectPaths.GetPulledModelAssetPath("doji/test-model", "models/model.onnx"));
 
         private static void WriteSharedImport(string sharedMetadataPath, string sentisVersion = "sentis-test")
         {
             var sharedAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
             Directory.CreateDirectory(Path.GetDirectoryName(sharedAbsolutePath) ?? throw new InvalidOperationException());
-            var runtimeAbsolutePath = ProjectPaths.ToAbsolutePath("Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis");
-            Directory.CreateDirectory(Path.GetDirectoryName(runtimeAbsolutePath) ?? throw new InvalidOperationException());
-            File.WriteAllText(runtimeAbsolutePath, "sentis");
-            AssetDatabase.ImportAsset("Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis", ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            Directory.CreateDirectory(Path.GetDirectoryName(ConvertedModelPath) ?? throw new InvalidOperationException());
+            File.WriteAllText(ConvertedModelPath, "sentis");
+            Directory.CreateDirectory(Path.GetDirectoryName(PulledModelAbsolutePath) ?? throw new InvalidOperationException());
+            File.WriteAllText(PulledModelAbsolutePath, "sentis");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
             File.WriteAllText(sharedAbsolutePath, Newtonsoft.Json.JsonConvert.SerializeObject(new SharedImportMetadata
             {
@@ -353,15 +357,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     }
                 },
                 SentisVersion = sentisVersion,
-                RuntimeSnapshotAssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model",
                 RuntimeFiles = new[]
                 {
                     new ImportedRuntimeFileMetadata
                     {
                         RepoPath = "models/model.onnx",
                         Kind = "sentis",
-                        AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/models/model.sentis",
-                        RelativePath = "hf-hub/doji/test-model/models/model.sentis"
+                        Format = "onnx",
+                        FilePath = ConvertedModelPath
                     }
                 },
                 ImportedAtUtc = DateTime.UtcNow.ToString("O")

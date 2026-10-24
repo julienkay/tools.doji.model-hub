@@ -13,8 +13,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             {
                 RepoPath = "model.onnx",
                 Kind = "sentis",
-                AssetPath = "Assets/StreamingAssets/hf-hub/doji/test-model/model.sentis",
-                RelativePath = "hf-hub/doji/test-model/model.sentis"
+                Format = "onnx",
+                FilePath = "/data/converted/models--doji--test-model/key.sentis"
             }
         };
 

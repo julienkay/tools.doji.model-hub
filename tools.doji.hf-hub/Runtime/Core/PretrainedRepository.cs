@@ -1,64 +1,86 @@
 using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Doji.Downloads;
 using Unity.InferenceEngine;
 
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Wraps one synchronized repository snapshot in a `from_pretrained(...)` style runtime API.
+    /// One model of one package in a <c>from_pretrained(...)</c> style API.
     /// </summary>
     public sealed class PretrainedRepository
     {
-        private readonly ResolvedRuntimeModel _resolvedModel;
+        private readonly RuntimeModelEntry _model;
 
-        internal PretrainedRepository(ResolvedRuntimeModel resolvedModel)
+        internal PretrainedRepository(RuntimePackageEntry package, RuntimeModelEntry model)
         {
-            _resolvedModel = resolvedModel ?? throw new ArgumentNullException(nameof(resolvedModel));
+            _model = model ?? throw new ArgumentNullException(nameof(model));
+            PackageId = package?.packageId;
+            PackageVersion = package?.packageVersion;
         }
 
         /// <summary>
-        /// Manifest owner id that published this synchronized repository snapshot.
+        /// Package whose manifest declares this model.
         /// </summary>
-        public string PackageId => _resolvedModel.PackageId;
+        public string PackageId { get; }
+
+        public string PackageVersion { get; }
 
         /// <summary>
-        /// Package version associated with this synchronized repository snapshot.
+        /// Hugging Face repository id.
         /// </summary>
-        public string PackageVersion => _resolvedModel.PackageVersion;
+        public string RepoId => _model.repoId;
 
         /// <summary>
-        /// Canonical HuggingFace model id for this synchronized snapshot.
+        /// The commit resolved in the Editor.
         /// </summary>
-        public string RepoId => _resolvedModel.RepoId;
+        public string Commit => _model.commit;
+
+        public ModelDelivery Delivery => _model.Delivery;
 
         /// <summary>
-        /// Tries to resolve one generated Sentis payload by repository-relative ONNX path.
+        /// Repository paths of the model files this package uses.
         /// </summary>
-        public bool TryGetSentisPath(string repoPath, out string filePath)
+        public IReadOnlyList<string> Files => (_model.files ?? Array.Empty<RuntimeModelFile>()).Select(file => file.repoPath).ToArray();
+
+        public Task<Model> LoadModelAsync(
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
         {
-            return _resolvedModel.TryGetSentisPath(repoPath, out filePath);
+            return RuntimeModels.LoadAsync(_model, GetFile(repoPath), progress, cancellationToken);
         }
 
         /// <summary>
-        /// Resolves one generated Sentis payload by repository-relative ONNX path or throws when missing.
-        /// </summary>
-        public string GetSentisPath(string repoPath)
-        {
-            if (TryGetSentisPath(repoPath, out var filePath))
-            {
-                return filePath;
-            }
-
-            throw new FileNotFoundException(
-                $"HF Hub runtime model '{RepoId}:{repoPath}' was not found under '{UnityEngine.Application.streamingAssetsPath}'.");
-        }
-
-        /// <summary>
-        /// Loads one generated Sentis payload by repository-relative ONNX path.
+        /// Loads without waiting, where <see cref="Hub.LoadModel(string,string)"/> can.
         /// </summary>
         public Model LoadModel(string repoPath)
         {
-            return ModelLoader.Load(GetSentisPath(repoPath));
+            return RuntimeModels.Load(_model, GetFile(repoPath));
+        }
+
+        /// <summary>
+        /// Returns the runtime model's path when it is already a file on this device.
+        /// </summary>
+        public bool TryGetModelPath(string repoPath, out string path)
+        {
+            path = null;
+            var file = _model.FindFile(repoPath);
+            return file != null && RuntimeModels.TryGetLocalPathWithoutWaiting(_model, file, out path);
+        }
+
+        public Task EnsureAvailableAsync(IProgress<DownloadProgress> progress = null, CancellationToken cancellationToken = default)
+        {
+            return RuntimeModels.EnsureAvailableAsync(_model, progress, cancellationToken);
+        }
+
+        private RuntimeModelFile GetFile(string repoPath)
+        {
+            return _model.FindFile(repoPath) ?? throw new System.IO.FileNotFoundException(
+                $"HF Hub model '{RepoId}' has no file '{repoPath}'. Its files are: {string.Join(", ", Files)}.");
         }
     }
 }

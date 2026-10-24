@@ -23,13 +23,15 @@ namespace Doji.AI.ModelHub.Editor
                 () => ProjectSettingsLinks.RevealPath(item.RawSnapshotRootPath),
                 isFirst: true));
             stats.Add(BuildStorageStat(
-                "This project",
+                "Converted",
                 "mh-stat__swatch--project",
                 item.RuntimeSizeOnDiskBytes,
-                item.RuntimeSizeOnDiskBytes.HasValue ? "Imported Sentis models and metadata" : "Not imported yet",
-                item.RuntimeSnapshotAssetPath,
-                "Show in Project",
-                () => ProjectSettingsLinks.PingAsset(item.RuntimeSnapshotAssetPath),
+                item.RuntimeSizeOnDiskBytes.HasValue
+                    ? "Sentis models converted from ONNX, shared by all projects"
+                    : item.RuntimeFiles.Count > 0 ? "Uses the downloaded Sentis files as they are" : "Not imported yet",
+                item.RuntimeModelFolder,
+                UiKit.RevealInFileBrowserLabel,
+                () => ProjectSettingsLinks.RevealPath(item.RuntimeModelFolder),
                 isFirst: false));
             content.Add(stats);
 

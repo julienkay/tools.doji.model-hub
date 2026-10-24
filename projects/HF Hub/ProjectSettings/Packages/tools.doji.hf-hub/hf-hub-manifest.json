@@ -4,7 +4,11 @@
         {
             "id": "julienkay/sentis-midas",
             "revision": "",
-            "files": []
+            "files": [
+                {
+                    "path": "onnx/midas_v21_small_256.onnx"
+                }
+            ]
         }
     ]
 }

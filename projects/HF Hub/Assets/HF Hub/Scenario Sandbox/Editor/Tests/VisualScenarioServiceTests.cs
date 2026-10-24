@@ -177,7 +177,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                 AssetDatabase.LoadAssetAtPath<ProjectManifestAsset>(VisualScenarioService.GetGeneratedManifestAssetPath(scenario, 0)),
                 Is.Null);
             Assert.That(File.Exists(VisualScenarioService.GetRevisionRefPath(scenario.Entries[0])), Is.False);
-            Assert.That(AssetDatabase.LoadMainAssetAtPath(VisualScenarioService.GetRuntimeSentisAssetPath(scenario.Entries[0])), Is.Null);
+            Assert.That(File.Exists(VisualScenarioService.GetRuntimeModelPath(scenario.Entries[0])), Is.False);
         }
 
         /// <summary>

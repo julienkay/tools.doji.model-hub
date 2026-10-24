@@ -109,33 +109,22 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Contract for rebuilding package runtime locator registries from successful imports.
-    /// </summary>
-    internal interface IRuntimeLocatorRegistryService
-    {
-        void WriteRegistries(IReadOnlyList<ModelSyncResult> modelResults);
-    }
-
-    /// <summary>
     /// Syncs discovered model dependencies into shared cache and project-owned `.sentis` artifacts.
     /// </summary>
     internal sealed class SyncService
     {
         private readonly IRawCacheService _rawCacheService;
         private readonly IProjectImportService _projectImportService;
-        private readonly IRuntimeLocatorRegistryService _runtimeLocatorRegistryService;
 
         /// <summary>
         /// Creates sync service with optional injected raw-cache and import services.
         /// </summary>
         public SyncService(
             IRawCacheService rawCacheService = null,
-            IProjectImportService projectImportService = null,
-            IRuntimeLocatorRegistryService runtimeLocatorRegistryService = null)
+            IProjectImportService projectImportService = null)
         {
             _rawCacheService = rawCacheService ?? new RawCacheService();
             _projectImportService = projectImportService ?? new ProjectImportService();
-            _runtimeLocatorRegistryService = runtimeLocatorRegistryService ?? new RuntimeLocatorRegistryService();
         }
 
         /// <summary>
@@ -201,8 +190,6 @@ namespace Doji.AI.ModelHub.Editor
                     modelResults.Add(new ModelSyncResult(mode, dependency, null, null, exception.Message));
                 }
             }
-
-            _runtimeLocatorRegistryService.WriteRegistries(modelResults);
 
             return new SyncReport(discoveryReport.Issues, modelResults);
         }

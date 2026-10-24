@@ -45,7 +45,7 @@ namespace Doji.AI.ModelHub.Editor
         RawCacheFilesMissing,
         RevisionConflict,
         SelectionRequired,
-        NoSelectedOnnxFiles,
+        InvalidSelection,
         ImportBindingMissing,
         ImportBindingInvalid,
         ImportBindingStale,

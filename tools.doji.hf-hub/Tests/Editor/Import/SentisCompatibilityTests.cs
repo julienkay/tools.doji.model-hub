@@ -13,12 +13,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// <summary>
         /// Verifies versions map to the newest generation they reach, including pre-releases and future versions.
         /// </summary>
-        [TestCase("2.2.0", "ie-2.2.0")]
-        [TestCase("2.6.1", "ie-2.2.0")]
-        [TestCase("2.7.0-pre.3", "ie-2.2.0")]
-        [TestCase("9.0.0", "ie-2.2.0")]
-        [TestCase("2.1.0", "before-ie-2.2.0")]
-        [TestCase("1.6.0-pre.1", "before-ie-2.2.0")]
+        [TestCase("2.2.0", "sentis-f8")]
+        [TestCase("2.6.1", "sentis-f8")]
+        [TestCase("2.7.0-pre.3", "sentis-f8")]
+        [TestCase("9.0.0", "sentis-f8")]
+        [TestCase("2.1.0", "before-sentis-f8")]
+        [TestCase("1.6.0-pre.1", "before-sentis-f8")]
         public void GetGeneration_MapsVersionsToTheirFormatGeneration(string version, string generation)
         {
             Assert.That(SentisCompatibility.GetGeneration(version), Is.EqualTo(generation));
@@ -45,7 +45,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies generations are listed oldest first with non-decreasing writer versions.
+        /// Verifies a generation id names its writer version, and an importer-only break adds a revision.
+        /// </summary>
+        [Test]
+        public void GenerationId_NamesTheWriterVersionAndRevision()
+        {
+            Assert.That(new SentisCompatibility.Generation("2.2.0", 8).Id, Is.EqualTo("sentis-f8"));
+            Assert.That(new SentisCompatibility.Generation("2.9.0", 8, revision: 1).Id, Is.EqualTo("sentis-f8.1"));
+            Assert.That(new SentisCompatibility.Generation("2.2.0", 8, checkedUpToWriterVersion: 9).Id, Is.EqualTo("sentis-f8"));
+        }
+
+        /// <summary>
+        /// Verifies generations are listed oldest first with non-decreasing writer versions, and that ids are unique.
         /// </summary>
         [Test]
         public void Generations_AreOrdered()
@@ -56,12 +67,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Assert.That(System.Version.Parse(generations[index].FirstVersion), Is.GreaterThan(System.Version.Parse(generations[index - 1].FirstVersion)));
                 Assert.That(generations[index].ModelWriterVersion, Is.GreaterThanOrEqualTo(generations[index - 1].ModelWriterVersion));
             }
+
+            Assert.That(generations.Select(generation => generation.Id), Is.Unique);
         }
 
         /// <summary>
         /// Tripwire: fails when the installed Inference Engine writes a newer <c>.sentis</c> format than the last
         /// generation was checked against. Decide whether older conversions stay usable, then add a generation or
-        /// raise the checked writer version in <see cref="SentisCompatibility.Generations"/>.
+        /// raise <c>checkedUpToWriterVersion</c> of the last entry in <see cref="SentisCompatibility.Generations"/>.
         /// </summary>
         [Test]
         public void Generations_CoverTheInstalledModelWriterVersion()
@@ -76,7 +89,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var installed = (int)field.GetValue(null);
             Assert.That(
                 installed,
-                Is.LessThanOrEqualTo(SentisCompatibility.Generations.Last().ModelWriterVersion),
+                Is.LessThanOrEqualTo(SentisCompatibility.Generations.Last().CheckedUpToWriterVersion),
                 $"Inference Engine {ProjectImportService.GetSentisVersion()} writes .sentis format {installed}. Review SentisCompatibility.Generations.");
         }
     }

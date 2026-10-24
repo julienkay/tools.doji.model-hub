@@ -33,7 +33,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void GetConvertedModels_ListsModelsWithTheirRecords()
         {
-            var withRecord = WriteConverted("doji/a", "k1", "ie-2.2.0", "onnx/a.onnx");
+            var withRecord = WriteConverted("doji/a", "k1", "sentis-f8", "onnx/a.onnx");
             var withoutRecord = WriteConverted("doji/b", "k2", null, null, writeRecord: false);
 
             var models = HubStorage.GetConvertedModels();
@@ -42,7 +42,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var listed = models.Single(model => model.ModelPath == withRecord);
             Assert.That(listed.Repository, Is.EqualTo("doji/a"));
             Assert.That(listed.RepoPath, Is.EqualTo("onnx/a.onnx"));
-            Assert.That(listed.FormatGeneration, Is.EqualTo("ie-2.2.0"));
+            Assert.That(listed.FormatGeneration, Is.EqualTo("sentis-f8"));
             Assert.That(listed.SizeInBytes, Is.EqualTo(5));
             Assert.That(models.Single(model => model.ModelPath == withoutRecord).Repository, Is.Null);
         }
@@ -53,9 +53,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void DeleteConvertedModels_DeletesOnlyMatchingModels()
         {
-            var old = WriteConverted("doji/a", "old", "before-ie-2.2.0", "onnx/a.onnx");
-            var current = WriteConverted("doji/b", "new", "ie-2.2.0", "onnx/b.onnx");
-            RuntimeModels.RegistryOverride = new RuntimeRegistry { formatGeneration = "ie-2.2.0" };
+            var old = WriteConverted("doji/a", "old", "before-sentis-f8", "onnx/a.onnx");
+            var current = WriteConverted("doji/b", "new", "sentis-f8", "onnx/b.onnx");
+            RuntimeModels.RegistryOverride = new RuntimeRegistry { formatGeneration = "sentis-f8" };
 
             var deleted = HubStorage.DeleteConvertedModels(model => model.FormatGeneration != HubStorage.FormatGeneration);
 
@@ -72,7 +72,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [Test]
         public void DeleteConvertedModels_SkipsModelsBeingWritten()
         {
-            var path = WriteConverted("doji/a", "busy", "ie-2.2.0", "onnx/a.onnx");
+            var path = WriteConverted("doji/a", "busy", "sentis-f8", "onnx/a.onnx");
             Assert.That(BlobLock.TryAcquire(path + ".lock", out var writer), Is.True);
             using (writer)
             {

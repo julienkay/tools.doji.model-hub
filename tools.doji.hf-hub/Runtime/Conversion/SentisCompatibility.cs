@@ -13,29 +13,47 @@ namespace Doji.AI.ModelHub
     public static class SentisCompatibility
     {
         /// <summary>
-        /// One format generation: the first Inference Engine version whose converted models older versions must not
-        /// reuse, and the <c>ModelWriter.version</c> that generation was last checked against.
+        /// One format generation: the first Inference Engine version it covers, the <c>ModelWriter.version</c> it
+        /// started with, a revision for importer changes that keep the file format but must not reuse older
+        /// conversions, and the newest writer version checked to still reuse this generation's files.
         /// </summary>
         internal readonly struct Generation
         {
-            public Generation(string firstVersion, int modelWriterVersion)
+            public Generation(string firstVersion, int modelWriterVersion, int revision = 0, int? checkedUpToWriterVersion = null)
             {
                 FirstVersion = firstVersion;
                 ModelWriterVersion = modelWriterVersion;
+                Revision = revision;
+                CheckedUpToWriterVersion = checkedUpToWriterVersion ?? modelWriterVersion;
             }
 
             public string FirstVersion { get; }
 
+            /// <summary>
+            /// The writer version this generation started with. It names the generation and never changes.
+            /// </summary>
             public int ModelWriterVersion { get; }
 
-            public string Id => "ie-" + FirstVersion;
+            public int Revision { get; }
+
+            /// <summary>
+            /// The newest writer version known to keep using this generation's files. Raising it keeps the id.
+            /// </summary>
+            public int CheckedUpToWriterVersion { get; }
+
+            /// <summary>
+            /// For example <c>sentis-f8</c>, or <c>sentis-f8.1</c> after an importer-only break.
+            /// </summary>
+            public string Id => Revision == 0 ? $"sentis-f{ModelWriterVersion}" : $"sentis-f{ModelWriterVersion}.{Revision}";
         }
 
         /// <summary>
         /// Format generations, oldest first. Add one when an Inference Engine release changes the serialized format
-        /// (<c>ModelWriter.version</c>) or what the ONNX importer produces in a way older conversions must not be reused
-        /// for. A test fails when the installed <c>ModelWriter.version</c> is newer than the last entry, so a format
-        /// change is never missed.
+        /// (<c>ModelWriter.version</c>) in a way older conversions must not be reused for, or raise the revision when
+        /// the ONNX importer's output changes without a format change. A test fails when the installed
+        /// <c>ModelWriter.version</c> is newer than the last entry checked, so a format change is never missed. When a
+        /// newer format still reads older files well, raise <c>checkedUpToWriterVersion</c> of the last entry instead:
+        /// the id stays, and existing conversions are reused.
         /// </summary>
         internal static readonly IReadOnlyList<Generation> Generations = new[]
         {
@@ -43,7 +61,7 @@ namespace Doji.AI.ModelHub
         };
 
         /// <summary>
-        /// Gets the format generation of an Inference Engine version, for example <c>ie-2.2.0</c>. Versions newer than
+        /// Gets the format generation of an Inference Engine version, for example <c>sentis-f8</c>. Versions newer than
         /// every entry belong to the last generation, so an update reuses existing conversions by default. A version
         /// that cannot be read also belongs to the last generation.
         /// </summary>

@@ -39,31 +39,21 @@ namespace Doji.AI.ModelHub
             }
 
             var snapshotPath = CachePaths.GetSnapshotFilePath(repoId, commit, file.repoPath);
-            if (IsComplete(snapshotPath, file.size))
+            if (CacheBlobs.IsComplete(snapshotPath, file.size))
             {
                 return snapshotPath;
             }
 
-            var etag = CachePaths.NormalizeEtag(file.etag);
-            if (string.IsNullOrWhiteSpace(etag))
-            {
-                await DownloadAsync(BuildResolveUrl(repoId, commit, file.repoPath), snapshotPath, file.size, progress, cancellationToken);
-            }
-            else
-            {
-                using var blobLock = await BlobLock.AcquireAsync(
-                    CachePaths.GetBlobLockPath(repoId, etag),
-                    null,
-                    cancellationToken);
-                var blobPath = CachePaths.GetBlobPath(repoId, etag);
-                var isNewBlob = !IsComplete(blobPath, file.size);
-                if (isNewBlob)
-                {
-                    await DownloadAsync(BuildResolveUrl(repoId, commit, file.repoPath), blobPath, file.size, progress, cancellationToken);
-                }
-
-                CacheFiles.LinkSnapshotFile(blobPath, snapshotPath, isNewBlob);
-            }
+            var url = BuildResolveUrl(repoId, commit, file.repoPath);
+            await CacheBlobs.StoreAsync(
+                repoId,
+                commit,
+                file.repoPath,
+                file.etag,
+                file.size,
+                targetPath => DownloadAsync(url, targetPath, file.size, progress, cancellationToken),
+                null,
+                cancellationToken);
 
             WriteRefIfMissing(repoId, revision, commit);
             return snapshotPath;
@@ -78,12 +68,6 @@ namespace Doji.AI.ModelHub
         private static string Escape(string segment)
         {
             return UnityWebRequest.EscapeURL(segment ?? string.Empty).Replace("+", "%20");
-        }
-
-        private static bool IsComplete(string path, long size)
-        {
-            var length = CacheFiles.GetLength(path);
-            return length.HasValue && (size <= 0 || length.Value == size);
         }
 
         private static async Task DownloadAsync(string url, string targetPath, long size, IProgress<DownloadProgress> progress, CancellationToken cancellationToken)

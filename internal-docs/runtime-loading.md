@@ -96,7 +96,8 @@ Desktop players share the user's Hugging Face cache by default, so a model the E
 [RuntimeDownloader.cs](../tools.doji.hf-hub/Runtime/Locator/RuntimeDownloader.cs):
 
 - URL: `https://huggingface.co/<cacheRepoId>/resolve/<commit>/<escaped path>`.
-- With an etag: take the blob lock, download into `blobs/<etag>` when missing or the wrong size, link the snapshot file, and write `refs/<revision>` only when it is missing. Without an etag: download into the snapshot path.
+- `CacheBlobs.StoreAsync` ([CacheBlobs.cs](../tools.doji.hf-hub/Runtime/Cache/CacheBlobs.cs)), shared with Editor sync: with an etag, take the blob lock, download into `blobs/<etag>` when missing or the wrong size, and link the snapshot file. Without an etag, download into the snapshot path.
+- The player then writes `refs/<revision>` only when it is missing. Editor sync always writes it, because it just resolved the revision.
 - Desktop and mobile use `ResumableDownloader` from `tools.doji.downloads`. The Web has no streaming handler: the file arrives in memory and is written once.
 - `BlobLock` uses `flock` and symbolic links only under `UNITY_EDITOR || UNITY_STANDALONE`. Other players use an in-process lock and copies.
 - The downloader does not await with `ConfigureAwait(false)`: `ModelLoader` and `UnityWebRequest` need the main thread.
@@ -113,4 +114,3 @@ Desktop players share the user's Hugging Face cache by default, so a model the E
 - Players do not verify a downloaded file's hash against its etag; they check only the size.
 - The Web download writes the whole file from memory, then loads it again.
 - Only public repositories download at runtime. A token cannot ship in a build.
-- The Editor `RawCacheService` and `RuntimeDownloader` each implement blob download and linking. Merge them when either changes.

@@ -151,6 +151,8 @@ Editor UI and manifest editing:
 - `tools.doji.hf-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`
   - pre-download inventory for manifests without a revision
   - refresh of estimates saved without a file list
+- `tools.doji.hf-hub/Tests/Editor/Cache/CacheBlobsTests.cs`
+  - the blob store shared by Editor sync and players: blob plus snapshot link, reuse across revisions, wrong-size blobs downloaded again, unknown size accepts existing blobs, files without an etag, lock wait and cancellation
 - `tools.doji.hf-hub/Tests/Editor/Cache/BlobLockTests.cs`
   - blob lock exclusion, waiting, and cancellation; waits run on the thread pool because the main thread is blocked during a test
 - `tools.doji.hf-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`

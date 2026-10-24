@@ -25,7 +25,7 @@ Layout, as in `huggingface_hub`:
 
 Repository ids are not case-sensitive on the Hub. A download takes the Hub's spelling of the id from the revision API (`id`), as `huggingface_hub` does, so `julienkay/sentis-midas` is stored as `models--julienkay--sentis-MiDaS`. `CachePaths.ResolveRepositoryFolderName` reuses an existing repository folder whose name differs only in case, for the repository root, blob locks, and the index, so manifests with any spelling find the same folder on case-sensitive file systems.
 
-Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`RawCacheService.DownloadIntoSnapshotAsync`, `CacheFiles`):
+Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`CacheBlobs.StoreAsync`, shared with players, and `CacheFiles`):
 
 1. The etag names the blob: the sha256 for LFS files, the git sha1 for small files. `huggingface_hub` reads it from `X-Linked-Etag` on a HEAD request per file. HF Hub reads the same etag and size from the tree listing of the resolved commit (`lfs.oid`, else `oid`), so it sends no HEAD request. HEAD is only a fallback for entries without them; `UnityWebRequest` follows its redirect to the CDN, whose `ETag` is a xet hash, so only `X-Linked-*` headers are trusted from it.
    Files download from `/resolve/<commit>/<path>`. The downloader follows the redirect to a signed CDN URL on each attempt, so its resume state keeps a URL that never expires.

@@ -11,9 +11,6 @@ entry when it ships or is rejected.
   applications that must not write to the user's Hugging Face cache.
 - **Large-model stress tests.** Downloads, conversion, and builds with models
   over 2 GB and external weights.
-- **One blob downloader.** The Editor `RawCacheService` and the runtime
-  `RuntimeDownloader` both download and link blobs. Move the Editor onto the
-  runtime code.
 - **Download verification in players.** Check the content hash against the
   etag, not only the size.
 - **`.sentis` format version.** Read `ModelWriter.version` from the file

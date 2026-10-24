@@ -66,48 +66,23 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Stores one file like <c>huggingface_hub</c>: content in <c>blobs/&lt;etag&gt;</c>, and the snapshot path
-        /// links to it. A blob that another revision already downloaded is reused without downloading.
-        /// Files without an etag are downloaded straight into the snapshot.
+        /// Stores one file through <see cref="CacheBlobs"/>, the same blob code players use.
         /// </summary>
-        private async Task DownloadIntoSnapshotAsync(
+        private Task DownloadIntoSnapshotAsync(
             ResolvedSnapshotVersion resolvedSnapshot,
             ResolvedRepoFile file,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
-            var snapshotPath = CachePaths.GetSnapshotFilePath(
+            return CacheBlobs.StoreAsync(
                 resolvedSnapshot.Repository,
                 resolvedSnapshot.ResolvedCommitHash,
-                file.RepoPath);
-            var etag = CachePaths.NormalizeEtag(file.EntityTag);
-            if (string.IsNullOrWhiteSpace(etag))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath) ?? CachePaths.GetSnapshotRoot(resolvedSnapshot.Repository, resolvedSnapshot.ResolvedCommitHash));
-                await _httpClient.DownloadFileAsync(file, snapshotPath, progress, cancellationToken);
-                return;
-            }
-
-            // Same lock as huggingface_hub, so Unity and Python never write one blob at the same time.
-            using var blobLock = await BlobLock.AcquireAsync(
-                CachePaths.GetBlobLockPath(resolvedSnapshot.Repository, etag),
+                file.RepoPath,
+                file.EntityTag,
+                file.SizeInBytes,
+                targetPath => _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken),
                 () => UnityEngine.Debug.Log($"HF Hub is waiting for another program that is downloading {file.RepoPath} of {resolvedSnapshot.Repository}."),
                 cancellationToken);
-            var blobPath = CachePaths.GetBlobPath(resolvedSnapshot.Repository, etag);
-            var isNewBlob = !IsCompleteBlob(blobPath, file.SizeInBytes);
-            if (isNewBlob)
-            {
-                Directory.CreateDirectory(CachePaths.GetBlobsRoot(resolvedSnapshot.Repository));
-                await _httpClient.DownloadFileAsync(file, blobPath, progress, cancellationToken);
-            }
-
-            CacheFiles.LinkSnapshotFile(blobPath, snapshotPath, isNewBlob);
-        }
-
-        private static bool IsCompleteBlob(string blobPath, long? expectedSizeInBytes)
-        {
-            var length = CacheFiles.GetLength(blobPath);
-            return length.HasValue && (!expectedSizeInBytes.HasValue || length.Value == expectedSizeInBytes.Value);
         }
 
         /// <summary>

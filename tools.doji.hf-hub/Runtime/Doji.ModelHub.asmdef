@@ -3,6 +3,7 @@
     "rootNamespace": "Doji.AI.ModelHub",
     "references": [
         "Unity.InferenceEngine",
+        "Doji.AI.ONNXModelLoader",
         "GUID:33634f0321224cbab008d083a50cd823"
     ],
     "includePlatforms": [],

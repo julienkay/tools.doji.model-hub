@@ -39,7 +39,7 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 ## Fields
 
 - `version`: manifest schema version. Current value is `1`.
-- `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`.
+- `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The repository must be public: HF Hub sends no access token, so gated and private models fail to download with a message that says so.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
 - `files`: optional exact repo-relative file objects. Omit this field to require the whole repository. If present, each entry has `path` and optional `optional`.
 - `files[].path`: exact repo-relative file path.

@@ -123,7 +123,7 @@ Rules:
 - The build fails, with a list, when a model is not imported. Import it in Model Hub first. A build never ships without a model silently.
 - The registry stores the commit that the Editor resolved. Players download exactly that commit and do not ask Hugging Face for the latest revision.
 - **Download at runtime** for an `.onnx` file needs the `tools.doji.onnx-model-loader` package, which converts ONNX models on the device. Without it, the build fails for that model.
-- Only public repositories can download at runtime. A build cannot contain an access token.
+- Only public repositories can download at runtime. A build cannot contain an access token. A gated or private file fails with an `IOException` that names the repository and file.
 
 ### Pull into project
 

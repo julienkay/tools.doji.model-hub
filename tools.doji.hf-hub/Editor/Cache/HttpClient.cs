@@ -307,7 +307,15 @@ namespace Doji.AI.ModelHub.Editor
         {
             var escapedRevision = EscapePathSegment(revision);
             var apiUrl = $"{HubEndpoint.Url}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha&expand[]=cardData";
-            var response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
+            JsonResponse response;
+            try
+            {
+                response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
+            }
+            catch (WebRequestException exception) when (HubAccess.IsDenied(exception.ResponseCode) || exception.ResponseCode == 404)
+            {
+                throw HubAccess.RepositoryDenied(repository, revision, exception);
+            }
             if (response.Json is JObject jsonObject)
             {
                 return jsonObject;

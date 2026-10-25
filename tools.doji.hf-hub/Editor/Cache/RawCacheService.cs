@@ -80,9 +80,26 @@ namespace Doji.AI.ModelHub.Editor
                 file.RepoPath,
                 file.EntityTag,
                 file.SizeInBytes,
-                targetPath => _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken),
+                targetPath => DownloadFileAsync(resolvedSnapshot.Repository, file, targetPath, progress, cancellationToken),
                 () => UnityEngine.Debug.Log($"HF Hub is waiting for another program that is downloading {file.RepoPath} of {resolvedSnapshot.Repository}."),
                 cancellationToken);
+        }
+
+        private async Task DownloadFileAsync(
+            string repository,
+            ResolvedRepoFile file,
+            string targetPath,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _httpClient.DownloadFileAsync(file, targetPath, progress, cancellationToken);
+            }
+            catch (WebRequestException exception) when (HubAccess.IsDenied(exception.ResponseCode))
+            {
+                throw HubAccess.FileDenied(repository, file.RepoPath, exception);
+            }
         }
 
         /// <summary>

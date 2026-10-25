@@ -49,7 +49,7 @@ namespace Doji.AI.ModelHub
                 file.repoPath,
                 file.etag,
                 file.size,
-                targetPath => DownloadAsync(url, targetPath, file.size, progress, cancellationToken),
+                targetPath => DownloadAsync(repoId, file.repoPath, url, targetPath, file.size, progress, cancellationToken),
                 null,
                 cancellationToken);
 
@@ -69,7 +69,14 @@ namespace Doji.AI.ModelHub
             return UnityWebRequest.EscapeURL(segment ?? string.Empty).Replace("+", "%20");
         }
 
-        private static async Task DownloadAsync(string url, string targetPath, long size, IProgress<DownloadProgress> progress, CancellationToken cancellationToken)
+        private static async Task DownloadAsync(
+            string repoId,
+            string repoPath,
+            string url,
+            string targetPath,
+            long size,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? string.Empty);
             if (DownloadOverride != null)
@@ -89,6 +96,11 @@ namespace Doji.AI.ModelHub
                 await Task.Yield();
             }
 
+            if (HubAccess.IsDenied(request.responseCode))
+            {
+                throw HubAccess.FileDenied(repoId, repoPath);
+            }
+
             if (request.result != UnityWebRequest.Result.Success)
             {
                 throw new IOException($"Download of '{url}' failed: {request.error}");
@@ -96,7 +108,14 @@ namespace Doji.AI.ModelHub
 
             File.WriteAllBytes(targetPath, request.downloadHandler.data);
 #else
-            await new ResumableDownloader().DownloadFileAsync(url, targetPath, size > 0 ? size : (long?)null, progress, cancellationToken);
+            try
+            {
+                await new ResumableDownloader().DownloadFileAsync(url, targetPath, size > 0 ? size : (long?)null, progress, cancellationToken);
+            }
+            catch (WebRequestException exception) when (HubAccess.IsDenied(exception.ResponseCode))
+            {
+                throw HubAccess.FileDenied(repoId, repoPath, exception);
+            }
 #endif
         }
 

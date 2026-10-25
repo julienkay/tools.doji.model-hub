@@ -174,6 +174,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 return;
             }
 
+            if (target.Gated)
+            {
+                // The Hub answers a request without an access token like this for gated and private files.
+                response.StatusCode = 401;
+                response.Close();
+                return;
+            }
+
             await WriteFileAsync(request, response, target);
         }
 
@@ -303,6 +311,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public long Size { get; }
         public string ETag { get; }
         public bool Lfs { get; }
+
+        /// <summary>
+        /// Answers downloads with 401, like a gated or private file requested without an access token.
+        /// </summary>
+        public bool Gated { get; set; }
         public string ResolvePath => $"/{Repository}/resolve/{Commit}/{RepoPath}";
 
         /// <summary>

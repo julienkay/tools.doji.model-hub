@@ -205,6 +205,7 @@ HF Hub never repairs on its own. An earlier auto-heal started download-only sync
 
 Rules:
 
+- turn 401 and 403 into `HubAccess` messages: a denied file download means the model is gated or private; a denied or missing revision lookup means no public repository has that id and revision (the Hub answers 401 for missing repositories too). HF Hub sends no token
 - start downloads only from an explicit user action: the setup prompt, a Model Hub button, **Import All**, or the menu
 - `BackgroundSyncManager.ResumeIfNeeded` only resumes a persisted queue the user already started
 

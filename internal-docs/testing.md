@@ -63,11 +63,6 @@ Cache and repository inventory:
 - `tools.doji.hf-hub/Tests/Editor/Cache/RawCacheTests.cs`
   - raw metadata persistence
   - repository inventory persistence
-- `tools.doji.hf-hub/Tests/Editor/Cache/LegacyCacheMigrationTests.cs`
-  - old `raw/` snapshots move into blobs, refs, and the index; the old folder is removed
-  - large-file blobs are named by content sha256, not the old xet-hash etag
-  - partial, unlisted, and wrong-size files are dropped; existing blobs and newer refs win
-  - a repository with a locked blob stays in `raw/` and migrates on retry
 - `tools.doji.hf-hub/Tests/Editor/Cache/CacheOverviewServiceTests.cs`
   - whole-cache scan: repository ids and types, refs, sizes, partial downloads, linked blob names
   - Remove from Cache deletes the repository, its locks, and its index, and deletes nothing while a blob is locked
@@ -100,8 +95,6 @@ Import and generated assets:
   - revision-conflict removal blocking
 - `tools.doji.hf-hub/Tests/Editor/Import/PulledModelsTests.cs`
   - pull copies to the build path; remove deletes them; a missing runtime model is explained
-- `tools.doji.hf-hub/Tests/Editor/Import/LegacyProjectOutputCleanupTests.cs`
-  - old generated folders and registries are deleted; everything else stays
 
 Status and sync:
 

@@ -15,8 +15,6 @@ namespace Doji.AI.ModelHub.Editor
         private const string ImportsRoot = "Library/Doji/HfHub/imports";
         private const string SharedImportsRoot = ImportsRoot + "/shared";
         private const string BindingImportsRoot = ImportsRoot + "/bindings";
-        private const string LegacyImportMetadataFileName = "hf-hub-import.json";
-        private const string LegacyImportStateRoot = "Library/Doji/HfHub/import-state";
         private const string CacheEstimateFileName = "hf-hub-cache-size.json";
         private const string CacheEstimatesRoot = "Library/Doji/HfHub/cache-size-estimates";
 
@@ -73,21 +71,7 @@ namespace Doji.AI.ModelHub.Editor
             return $"{GetImportBindingFolder(packageId, modelId)}/{BindingMetadataFileName}";
         }
 
-        /// <summary>
-        /// Returns legacy monolithic import folder used before shared import split.
-        /// </summary>
-        public static string GetLegacyImportStateFolder(string packageId, string modelId)
-        {
-            return $"{LegacyImportStateRoot}/{Hub.SanitizePathSegment(packageId)}/{Hub.SanitizePathSegment(modelId)}";
-        }
 
-        /// <summary>
-        /// Returns legacy monolithic import metadata path used before shared import split.
-        /// </summary>
-        public static string GetLegacyImportMetadataFilePath(string packageId, string modelId)
-        {
-            return $"{GetLegacyImportStateFolder(packageId, modelId)}/{LegacyImportMetadataFileName}";
-        }
 
         /// <summary>
         /// Returns project-local sidecar metadata path for one requested repository revision cache-size lookup.

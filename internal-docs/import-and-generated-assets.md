@@ -85,10 +85,6 @@ A shared import is stale when the resolved commit, the selected model file union
 
 [PulledModels.cs](../tools.doji.hf-hub/Editor/Import/PulledModels.cs) copies runtime models to `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/<repoPath with .sentis>`, the same relative path a build uses. `RuntimeRegistryBuilder` checks that path: a pulled file is not bundled again, and the Editor catalog points at it.
 
-## Old project output
-
-[LegacyProjectOutputCleanup.cs](../tools.doji.hf-hub/Editor/Import/LegacyProjectOutputCleanup.cs) runs once per Editor session (not in batch mode). It deletes `Assets/StreamingAssets/hf-hub/registries/` and old `Assets/StreamingAssets/hf-hub/<owner>/<name>/` folders that hold only `.sentis` files. It never touches `hf-hub/models/`.
-
 ## Revision conflicts
 
 One project may request one revision per repository. With conflicting revisions, the repository is not imported, reimported, or removed, and status shows **Conflict** for each row.

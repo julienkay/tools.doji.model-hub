@@ -85,18 +85,6 @@ Current implementation notes:
 - the index entry still stores the requested revision; ref files are authoritative for revision-to-commit mapping, and `ReadSnapshot` ignores the stored revision
 - index entries describe one `repository + resolved commit`, not owner dependency scope
 
-## Moving The Old Cache
-
-Before the switch, HF Hub kept downloads in `<data-root>/raw/<owner>--<name>/snapshots/<commit>/`, with a `snapshot.hfhub.json` per snapshot. `LegacyCacheMigration` runs once per editor session while that folder exists:
-
-1. Read each snapshot's `snapshot.hfhub.json`. A snapshot without readable metadata is dropped.
-2. For each listed file whose size matches, take its etag. The old metadata recorded the CDN's xet hash for LFS files, so a 64-character etag is replaced by the sha256 of the content, which is the LFS etag `huggingface_hub` uses.
-3. Move the file into `blobs/<etag>` through `<etag>.incomplete` and link it into the snapshot, under the blob lock, as a download would. An existing blob or snapshot file is kept, and the old copy is dropped.
-4. Write the index entry and copy refs that do not exist yet. A newer ref in the shared cache wins.
-5. Delete the repository's old folder, including partial and unlisted files, and finally `raw/` itself.
-
-A repository that fails, for example because another program holds a blob lock, stays in `raw/` and is retried in the next editor session. A custom cache folder from the old Project Settings is not migrated.
-
 The download cache and the converted store have separate lifecycles. If a user removes cache from Model Hub, HF Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Converted models stay valid after cache removal. A `.sentis` dependency uses the cached file itself, so removing the cache makes it need a download again.
 
 Players download with the same layout, blob names, and locks; see [runtime-loading.md](runtime-loading.md#downloads).

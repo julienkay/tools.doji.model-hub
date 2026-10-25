@@ -71,7 +71,7 @@ HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports ev
 
 `DOJI_HF_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at temporary folders.
 
-The index entry records the repository file list and file etags for one commit. It is a hint, never the truth:
+The index entry records the repository file list, file etags, and the model card's license fields for one commit. It is a hint, never the truth:
 
 - `RawCacheService.ReadSnapshot` builds every snapshot view from disk: the files in `snapshots/<commit>` count as cached, whoever wrote them (HF Hub or Python), with sizes read through links. Status, the sync, import, and Model Hub all use this view.
 - The index only adds the repository file list and etags, and only when it describes the same repository (ignoring letter case) and commit. A missing, unreadable, or foreign index is ignored.

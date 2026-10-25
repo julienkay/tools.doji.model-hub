@@ -29,8 +29,10 @@ namespace Doji.AI.ModelHub.Editor
 
             var window = CreateInstance<AutoPromptWindow>();
             window.titleContent = new GUIContent(ModelHubWindow.Title);
-            window._viewModel = BuildViewModel(report, GetDownloadSizes());
-            var height = Mathf.Min(220f + (window._viewModel.Models.Count * 46f), 520f);
+            var items = GetHubItems();
+            window._viewModel = BuildViewModel(report, GetDownloadSizes(items), GetLicenseLinks(items));
+            window.EnsureModelCards(report, items);
+            var height = Mathf.Min(220f + (window._viewModel.Models.Count * 64f), 560f);
             var main = EditorGUIUtility.GetMainWindowPosition();
             window.position = new Rect(
                 main.x + ((main.width - WindowWidth) * 0.5f),
@@ -55,23 +57,75 @@ namespace Doji.AI.ModelHub.Editor
             return Resources.FindObjectsOfTypeAll<AutoPromptWindow>().FirstOrDefault();
         }
 
-        private static IReadOnlyDictionary<string, long?> GetDownloadSizes()
+        private static IReadOnlyDictionary<string, ModelHubItem> GetHubItems()
         {
             try
             {
                 return EditorOperations.CreateModelHubReport().Items
                     .GroupBy(item => item.Repository, StringComparer.Ordinal)
-                    .ToDictionary(group => group.Key, group => group.First().SourceSizeBytes, StringComparer.Ordinal);
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
             }
             catch (Exception)
             {
-                return new Dictionary<string, long?>();
+                return new Dictionary<string, ModelHubItem>();
+            }
+        }
+
+        private static IReadOnlyDictionary<string, long?> GetDownloadSizes(IReadOnlyDictionary<string, ModelHubItem> items)
+        {
+            return items.ToDictionary(pair => pair.Key, pair => pair.Value.SourceSizeBytes, StringComparer.Ordinal);
+        }
+
+        private static IReadOnlyDictionary<string, ModelLink> GetLicenseLinks(IReadOnlyDictionary<string, ModelHubItem> items)
+        {
+            return items.ToDictionary(
+                pair => pair.Key,
+                pair => ModelLinks.GetLicenseLink(
+                    pair.Key,
+                    string.IsNullOrWhiteSpace(pair.Value.ResolvedCommitHash)
+                        ? ManifestRevision.NormalizeForResolution(pair.Value.RequestedRevision)
+                        : pair.Value.ResolvedCommitHash,
+                    pair.Value.ModelCard,
+                    pair.Value.Files.Select(file => file.RepoPath)),
+                StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Asks the Hub for the model cards the prompt does not know yet, then shows their licenses.
+        /// </summary>
+        private void EnsureModelCards(StatusReport report, IReadOnlyDictionary<string, ModelHubItem> items)
+        {
+            var service = new RemoteSnapshotSizeEstimateService();
+            foreach (var status in (report?.DependencyStatuses ?? Array.Empty<DependencyStatus>()).Where(status => status.NeedsStartupPrompt))
+            {
+                if (items.TryGetValue(status.Dependency.Repository, out var item) && item.ModelCard != null)
+                {
+                    continue;
+                }
+
+                service.EnsureEstimateLookup(status.Dependency, () =>
+                {
+                    if (this == null)
+                    {
+                        return;
+                    }
+
+                    var refreshed = GetHubItems();
+                    _viewModel = BuildViewModel(report, GetDownloadSizes(refreshed), GetLicenseLinks(refreshed));
+                    rootVisualElement.Clear();
+                    CreateGUI();
+                });
             }
         }
 
         private void CreateGUI()
         {
-            _viewModel ??= BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes());
+            if (_viewModel == null)
+            {
+                var items = GetHubItems();
+                _viewModel = BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes(items), GetLicenseLinks(items));
+            }
+
             var root = rootVisualElement;
             UiKit.ApplyTheme(root, StyleSheet);
             root.AddToClassList("sp");
@@ -138,6 +192,13 @@ namespace Doji.AI.ModelHub.Editor
             var detail = UiKit.Text($"{model.Repository} · for {string.Join(", ", model.Owners)}", "sp-model__detail");
             detail.tooltip = string.Join("\n", model.ManifestPaths);
             text.Add(detail);
+            text.Add(UiKit.Links(
+                new[]
+                {
+                    new ModelLink("Model card", ModelLinks.GetModelCardUrl(model.Repository), "Open the model card on Hugging Face."),
+                    model.LicenseLink
+                },
+                "sp-model__links"));
             row.Add(text);
             var size = UiKit.FormatBytes(model.DownloadSizeBytes);
             if (!string.IsNullOrWhiteSpace(size) && model.NeedsDownload)
@@ -162,7 +223,10 @@ namespace Doji.AI.ModelHub.Editor
 
         // ---------------------------------------------------------------- View model
 
-        internal static PromptViewModel BuildViewModel(StatusReport report, IReadOnlyDictionary<string, long?> downloadSizes = null)
+        internal static PromptViewModel BuildViewModel(
+            StatusReport report,
+            IReadOnlyDictionary<string, long?> downloadSizes = null,
+            IReadOnlyDictionary<string, ModelLink> licenseLinks = null)
         {
             var attention = (report?.DependencyStatuses ?? Array.Empty<DependencyStatus>())
                 .Where(status => status.NeedsStartupPrompt)
@@ -175,13 +239,20 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     long? size = null;
                     downloadSizes?.TryGetValue(group.Key, out size);
+                    var licenseLink = default(ModelLink);
+                    if (licenseLinks == null || !licenseLinks.TryGetValue(group.Key, out licenseLink))
+                    {
+                        licenseLink = ModelLinks.GetLicenseLink(group.Key, null, null, null);
+                    }
+
                     return new PromptModelEntry(
                         group.Key,
                         group.Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
                         group.Select(status => status.Dependency.ManifestPath).Distinct().ToArray(),
                         group.Any(status => status.ReasonCode == DependencyReasonCode.RevisionConflict),
                         group.Any(status => !HasRawCache(status) || status.ReasonCode == DependencyReasonCode.RawCacheFilesMissing || status.HasDamagedCache),
-                        size);
+                        size,
+                        licenseLink);
                 })
                 .OrderBy(model => ModelStatus.GetModelName(model.Repository), StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -292,8 +363,10 @@ namespace Doji.AI.ModelHub.Editor
                 IReadOnlyList<string> manifestPaths,
                 bool isConflict,
                 bool needsDownload,
-                long? downloadSizeBytes)
+                long? downloadSizeBytes,
+                ModelLink licenseLink)
             {
+                LicenseLink = licenseLink;
                 Repository = repository;
                 Owners = owners ?? Array.Empty<string>();
                 ManifestPaths = manifestPaths ?? Array.Empty<string>();
@@ -308,6 +381,11 @@ namespace Doji.AI.ModelHub.Editor
             public bool IsConflict { get; }
             public bool NeedsDownload { get; }
             public long? DownloadSizeBytes { get; }
+
+            /// <summary>
+            /// The license the model card declares, and where to read it.
+            /// </summary>
+            public ModelLink LicenseLink { get; }
         }
     }
 }

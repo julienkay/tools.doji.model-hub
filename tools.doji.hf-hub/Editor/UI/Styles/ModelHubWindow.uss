@@ -208,6 +208,10 @@
     margin-right: 10px;
 }
 
+.mh-header__links {
+    margin-top: 6px;
+}
+
 .mh-header > .hf-pill {
     margin-top: 3px;
 }

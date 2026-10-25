@@ -40,6 +40,52 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
+    /// The license fields of a model card, from the Hub's <c>cardData</c>. Empty fields mean the card does not
+    /// declare them; an instance with no fields means the card declares no license.
+    /// </summary>
+    [Serializable]
+    internal sealed class ModelCardMetadata
+    {
+        /// <summary>
+        /// The license id, such as <c>mit</c>, <c>apache-2.0</c>, or <c>other</c>. Several ids are joined with ", ".
+        /// </summary>
+        public string License { get; set; }
+
+        /// <summary>
+        /// The name of a custom license (<c>license: other</c>).
+        /// </summary>
+        public string LicenseName { get; set; }
+
+        /// <summary>
+        /// A URL or a repository path to the license text.
+        /// </summary>
+        public string LicenseLink { get; set; }
+
+        /// <summary>
+        /// Reads the license fields from a <c>cardData</c> object. A missing card gives an empty instance.
+        /// </summary>
+        public static ModelCardMetadata FromCardData(Newtonsoft.Json.Linq.JToken cardData)
+        {
+            var card = cardData as Newtonsoft.Json.Linq.JObject;
+            return new ModelCardMetadata
+            {
+                License = ReadText(card?["license"]),
+                LicenseName = ReadText(card?["license_name"]),
+                LicenseLink = ReadText(card?["license_link"])
+            };
+        }
+
+        private static string ReadText(Newtonsoft.Json.Linq.JToken token)
+        {
+            var values = token is Newtonsoft.Json.Linq.JArray array
+                ? array.Select(item => item.Type == Newtonsoft.Json.Linq.JTokenType.String ? (string)item : null)
+                : new[] { token?.Type == Newtonsoft.Json.Linq.JTokenType.String ? (string)token : null };
+            var text = string.Join(", ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()));
+            return text.Length == 0 ? null : text;
+        }
+    }
+
+    /// <summary>
     /// Describes the full file inventory for one resolved repository revision.
     /// </summary>
     internal sealed class ResolvedRepositoryInventory
@@ -50,18 +96,21 @@ namespace Doji.AI.ModelHub.Editor
             string repository,
             string requestedRevision,
             string resolvedCommitHash,
-            IReadOnlyList<RepositoryFileMetadata> files)
+            IReadOnlyList<RepositoryFileMetadata> files,
+            ModelCardMetadata modelCard = null)
         {
             Repository = repository;
             RequestedRevision = requestedRevision;
             ResolvedCommitHash = resolvedCommitHash;
             _files = files?.ToArray() ?? Array.Empty<RepositoryFileMetadata>();
+            ModelCard = modelCard;
         }
 
         public string Repository { get; }
         public string RequestedRevision { get; }
         public string ResolvedCommitHash { get; }
         public IReadOnlyList<RepositoryFileMetadata> Files => _files;
+        public ModelCardMetadata ModelCard { get; }
     }
 
     /// <summary>
@@ -77,8 +126,10 @@ namespace Doji.AI.ModelHub.Editor
             string requestedRevision,
             string resolvedCommitHash,
             IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
-            IReadOnlyList<ResolvedRepoFile> requestedFiles)
+            IReadOnlyList<ResolvedRepoFile> requestedFiles,
+            ModelCardMetadata modelCard = null)
         {
+            ModelCard = modelCard;
             Repository = repository;
             RequestedRevision = requestedRevision;
             ResolvedCommitHash = resolvedCommitHash;
@@ -91,6 +142,7 @@ namespace Doji.AI.ModelHub.Editor
         public string ResolvedCommitHash { get; }
         public IReadOnlyList<RepositoryFileMetadata> RepositoryFiles => _repositoryFiles;
         public IReadOnlyList<ResolvedRepoFile> Files => _requestedFiles;
+        public ModelCardMetadata ModelCard { get; }
     }
 
     /// <summary>
@@ -117,6 +169,7 @@ namespace Doji.AI.ModelHub.Editor
         public string CachedSnapshotRoot { get; set; }
         public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
         public RawCacheFileMetadata[] Files { get; set; } = Array.Empty<RawCacheFileMetadata>();
+        public ModelCardMetadata ModelCard { get; set; }
         public string DownloadedAtUtc { get; set; }
     }
 

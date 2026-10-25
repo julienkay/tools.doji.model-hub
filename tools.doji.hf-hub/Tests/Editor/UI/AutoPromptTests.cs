@@ -36,6 +36,32 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies each model row carries its license link, and a model whose card is unknown links the model card.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_AddsLicenseLinks()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing)
+                });
+            var licenseLinks = new System.Collections.Generic.Dictionary<string, ModelLink>
+            {
+                ["doji/test-model"] = ModelLinks.GetLicenseLink("doji/test-model", "abc123", new ModelCardMetadata { License = "mit" }, new[] { "LICENSE" })
+            };
+
+            var withCard = AutoPromptWindow.BuildViewModel(report, null, licenseLinks);
+            var withoutCard = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(withCard.Models[0].LicenseLink.Label, Is.EqualTo("License: mit"));
+            Assert.That(withCard.Models[0].LicenseLink.Url, Is.EqualTo("https://huggingface.co/doji/test-model/blob/abc123/LICENSE"));
+            Assert.That(withoutCard.Models[0].LicenseLink.Label, Is.EqualTo("License"));
+            Assert.That(withoutCard.Models[0].LicenseLink.Url, Is.EqualTo("https://huggingface.co/doji/test-model"));
+        }
+
+        /// <summary>
         /// Files selected after the first download still need a download, so the prompt does not offer a plain Import.
         /// </summary>
         [Test]

@@ -43,12 +43,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public async Task ResolveSnapshotVersionAsync_ResolvesInventoryAndSelectedFiles()
         {
             var transport = new FakeTransport();
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData",
                     new JObject
                     {
-                        ["sha"] = "abc123"
+                        ["sha"] = "abc123",
+                        ["cardData"] = new JObject { ["license"] = "apache-2.0", ["base_model"] = "doji/base" }
                     });
             transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
@@ -79,6 +80,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var resolved = await client.ResolveSnapshotVersionAsync(CreateDependency(new[] { "onnx/model.onnx" }), CancellationToken.None);
 
             Assert.That(resolved.ResolvedCommitHash, Is.EqualTo("abc123"));
+            Assert.That(resolved.ModelCard?.License, Is.EqualTo("apache-2.0"), "The license comes with the revision lookup, without another request.");
             Assert.That(resolved.RepositoryFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "config.json", "onnx/model.onnx" }));
             Assert.That(resolved.Files.Select(file => file.RepoPath), Is.EqualTo(new[] { "onnx/model.onnx" }));
             Assert.That(resolved.Files[0].DownloadUrl, Is.EqualTo("https://huggingface.co/doji/test-model/resolve/abc123/onnx/model.onnx"));
@@ -94,9 +96,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public async Task ResolveSnapshotVersionAsync_UsesTreeListingEtags()
         {
             var transport = new FakeTransport();
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData",
                     new JObject { ["sha"] = "abc123" });
             transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
@@ -138,9 +140,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public async Task ResolveSnapshotVersionAsync_UsesHubSpellingOfTheId(string hubId, string expected)
         {
             var transport = new FakeTransport();
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData",
                     new JObject { ["sha"] = "abc123", ["id"] = hubId });
             transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/tree/abc123?recursive=true"] =
                 CreateJsonResponse(
@@ -163,9 +165,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public async Task GetRepositoryInventoryAsync_FollowsPagedTreeResponses()
         {
             var transport = new FakeTransport();
-            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha"] =
+            transport.JsonResponses["https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData"] =
                 CreateJsonResponse(
-                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha",
+                    "https://huggingface.co/api/models/doji/test-model/revision/main?expand[]=sha&expand[]=cardData",
                     new JObject
                     {
                         ["sha"] = "abc123"

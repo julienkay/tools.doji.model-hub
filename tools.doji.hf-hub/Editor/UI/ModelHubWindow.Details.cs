@@ -83,6 +83,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private void BuildItemDetails(VisualElement container, ModelHubItem item)
         {
+            EnsureHubLookup(item);
             var status = ModelStatus.From(item);
             container.Add(BuildHeader(item, status));
             container.Add(BuildActions(item, status));
@@ -132,16 +133,22 @@ namespace Doji.AI.ModelHub.Editor
             text.Add(UiKit.Text(ModelStatus.GetModelName(item.Repository), "hf-title"));
 
             var subtitle = UiKit.Element("mh-header__subtitle");
-            subtitle.Add(UiKit.LinkButton(
-                item.Repository,
-                () => Application.OpenURL($"https://huggingface.co/{item.Repository}"),
-                "Open on Hugging Face"));
+            var repository = UiKit.Text(item.Repository);
+            repository.selection.isSelectable = true;
+            subtitle.Add(repository);
             subtitle.Add(UiKit.Tag(
                 ManifestRevision.NormalizeForResolution(item.RequestedRevision),
                 string.IsNullOrWhiteSpace(item.ResolvedCommitHash)
                     ? "Requested revision"
                     : $"Requested revision. Resolved commit: {item.ResolvedCommitHash}"));
             text.Add(subtitle);
+            text.Add(UiKit.Links(
+                ModelLinks.Build(
+                    item.Repository,
+                    string.IsNullOrWhiteSpace(item.ResolvedCommitHash) ? ManifestRevision.NormalizeForResolution(item.RequestedRevision) : item.ResolvedCommitHash,
+                    item.ModelCard,
+                    item.Files.Select(file => file.RepoPath)),
+                "mh-header__links"));
             header.Add(text);
             header.Add(UiKit.Pill(status.Tone, status.Label, status.Description));
             return header;
@@ -444,7 +451,6 @@ namespace Doji.AI.ModelHub.Editor
 
         private void BuildOverviewTab(VisualElement content, ModelHubItem item)
         {
-            EnsureSizeEstimate(item);
 
             var optionalSection = BuildOptionalFilesSection(item);
             if (optionalSection != null)
@@ -548,9 +554,13 @@ namespace Doji.AI.ModelHub.Editor
             return delivery == ModelDelivery.Download ? "Download at runtime" : "Bundle in the build";
         }
 
-        private void EnsureSizeEstimate(ModelHubItem item)
+        /// <summary>
+        /// Asks the Hub once for what the details need and the caches lack: the file list, sizes, and the model
+        /// card's license.
+        /// </summary>
+        private void EnsureHubLookup(ModelHubItem item)
         {
-            if (item == null || (item.Files.Count > 0 && (item.CacheSizeOnDiskBytes.HasValue || item.EstimatedCacheSizeBytes.HasValue)))
+            if (item == null || (item.Files.Count > 0 && item.ModelCard != null && (item.CacheSizeOnDiskBytes.HasValue || item.EstimatedCacheSizeBytes.HasValue)))
             {
                 return;
             }

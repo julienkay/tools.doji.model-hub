@@ -104,8 +104,10 @@ namespace Doji.AI.ModelHub.Editor
             IReadOnlyList<DependencyStatus> dependents,
             IReadOnlyList<ModelHubDiagnostic> diagnostics,
             IReadOnlyList<ImportedRuntimeFileMetadata> runtimeFiles,
-            IReadOnlyList<ModelHubFileItem> files)
+            IReadOnlyList<ModelHubFileItem> files,
+            ModelCardMetadata modelCard = null)
         {
+            ModelCard = modelCard;
             Repository = repository;
             RequestedRevision = requestedRevision;
             ResolvedCommitHash = resolvedCommitHash;
@@ -125,6 +127,11 @@ namespace Doji.AI.ModelHub.Editor
         public string Repository { get; }
         public string RequestedRevision { get; }
         public string ResolvedCommitHash { get; }
+
+        /// <summary>
+        /// The model card's license fields, or null before the Hub was asked.
+        /// </summary>
+        public ModelCardMetadata ModelCard { get; }
         public string RawSnapshotRootPath { get; }
         public string RuntimeModelFolder { get; }
         public long? CacheSizeOnDiskBytes { get; }

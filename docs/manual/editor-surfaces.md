@@ -40,6 +40,12 @@ The details pane shows the status and the next action for the selected model.
 
 While a download or import runs, a bar under the toolbar shows the current file and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
 
+Under the model name, the header shows the repository id and the requested revision, then three links:
+
+- **Model card** opens the repository page on Hugging Face.
+- **Files** opens the repository files at the resolved commit.
+- **License** names the license that the model card declares, for example **License: mit**. It opens the license text: the link the model card gives, else a `LICENSE` file at the top of the repository, else the model card. **No license** means the model card declares none. Check the model card before you use or ship such a model. The license is read from Hugging Face with the file list, so it can show **License** without a name until that lookup is done.
+
 More actions:
 
 - **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
@@ -128,7 +134,7 @@ Removing is not possible while HF Hub imports models, or while another program d
 
 ![Setup prompt that lists five models the project needs, with the total download size on the Download & Import All button.](../images/manual/setup-prompt.png)
 
-When packages need models that are not imported yet, HF Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size.
+When packages need models that are not imported yet, HF Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size. Each model has a **Model card** link and a **License** link that names the license the model card declares, as in Model Hub. Check the licenses before you download.
 
 - **Download & Import** (or **Import** when the files are already downloaded) starts the work and opens Model Hub to show progress. With several models the button says **Download & Import All**. The button shows the total download size when every size is known.
 - **Open Model Hub** opens Model Hub without starting anything.

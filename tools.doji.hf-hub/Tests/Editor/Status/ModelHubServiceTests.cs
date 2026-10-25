@@ -311,6 +311,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].EstimatedCacheSizeBytes, Is.EqualTo(42));
         }
 
+        /// <summary>
+        /// Verifies the model card comes from the download cache when it has one, else from the lookup made before
+        /// download.
+        /// </summary>
+        [Test]
+        public void BuildReport_PrefersCachedModelCardOverLookup()
+        {
+            var lookup = new FakeRemoteSnapshotSizeEstimateService(null, null, new ModelCardMetadata { License = "lookup" });
+            var cachedStatus = CreateDependencyStatus("tools.doji.pkg-a", "Package A", "model-a");
+            cachedStatus.RawMetadata.ModelCard = new ModelCardMetadata { License = "cached" };
+            var uncachedStatus = CreateDependencyStatus(
+                "tools.doji.pkg-a",
+                "Package A",
+                "model-a",
+                DependencyState.Missing,
+                reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing,
+                rawCachedFilePath: null,
+                includeRawMetadata: false);
+
+            var cached = new ModelHubService(remoteSnapshotSizeEstimateService: lookup)
+                .BuildReport(new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), new[] { cachedStatus }));
+            var uncached = new ModelHubService(remoteSnapshotSizeEstimateService: lookup)
+                .BuildReport(new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), new[] { uncachedStatus }));
+
+            Assert.That(cached.Items[0].ModelCard.License, Is.EqualTo("cached"));
+            Assert.That(uncached.Items[0].ModelCard.License, Is.EqualTo("lookup"));
+        }
+
         [Test]
         public void BuildReport_FiltersOutInvalidRepositoryStatuses()
         {
@@ -740,11 +768,22 @@ namespace Doji.AI.ModelHub.Editor.Tests
     {
         private readonly long? _estimatedCacheSizeBytes;
         private readonly RepositoryFileMetadata[] _repositoryFiles;
+        private readonly ModelCardMetadata _modelCard;
 
-        public FakeRemoteSnapshotSizeEstimateService(long? estimatedCacheSizeBytes, RepositoryFileMetadata[] repositoryFiles = null)
+        public FakeRemoteSnapshotSizeEstimateService(
+            long? estimatedCacheSizeBytes,
+            RepositoryFileMetadata[] repositoryFiles = null,
+            ModelCardMetadata modelCard = null)
         {
             _estimatedCacheSizeBytes = estimatedCacheSizeBytes;
             _repositoryFiles = repositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
+            _modelCard = modelCard;
+        }
+
+        public bool TryGetModelCard(string repository, string requestedRevision, out ModelCardMetadata modelCard)
+        {
+            modelCard = _modelCard;
+            return modelCard != null;
         }
 
         public bool TryGetEstimatedCacheSize(string repository, string requestedRevision, out long? estimatedCacheSizeBytes)

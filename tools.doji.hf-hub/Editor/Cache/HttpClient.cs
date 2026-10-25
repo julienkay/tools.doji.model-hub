@@ -204,7 +204,8 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(canonicalRepository, repository, StringComparison.OrdinalIgnoreCase) ? canonicalRepository : repository,
                 revision,
                 resolvedCommit,
-                repositoryFiles);
+                repositoryFiles,
+                ModelCardMetadata.FromCardData(apiResponse["cardData"]));
         }
 
         /// <summary>
@@ -264,7 +265,8 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.Revision,
                 repositoryInventory.ResolvedCommitHash,
                 repositoryInventory.Files,
-                files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray());
+                files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray(),
+                repositoryInventory.ModelCard);
         }
 
         /// <summary>
@@ -304,7 +306,7 @@ namespace Doji.AI.ModelHub.Editor
             CancellationToken cancellationToken)
         {
             var escapedRevision = EscapePathSegment(revision);
-            var apiUrl = $"{HubEndpoint.Url}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha";
+            var apiUrl = $"{HubEndpoint.Url}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha&expand[]=cardData";
             var response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
             if (response.Json is JObject jsonObject)
             {

@@ -16,6 +16,7 @@ namespace Doji.AI.ModelHub.Editor
     {
         bool TryGetEstimatedCacheSize(string repository, string requestedRevision, out long? estimatedCacheSizeBytes);
         bool TryGetRepositoryInventory(string repository, string requestedRevision, out RepositoryFileMetadata[] repositoryFiles);
+        bool TryGetModelCard(string repository, string requestedRevision, out ModelCardMetadata modelCard);
         void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null);
     }
 
@@ -30,6 +31,7 @@ namespace Doji.AI.ModelHub.Editor
         public long? EstimatedCacheSizeBytes { get; set; }
         public string ResolvedCommitHash { get; set; }
         public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
+        public ModelCardMetadata ModelCard { get; set; }
         public string AttemptedAtUtc { get; set; }
     }
 
@@ -70,6 +72,18 @@ namespace Doji.AI.ModelHub.Editor
 
             repositoryFiles = metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
             return repositoryFiles.Length > 0;
+        }
+
+        public bool TryGetModelCard(string repository, string requestedRevision, out ModelCardMetadata modelCard)
+        {
+            modelCard = null;
+            if (!TryReadMetadata(repository, requestedRevision, out var metadata))
+            {
+                return false;
+            }
+
+            modelCard = metadata.ModelCard;
+            return modelCard != null;
         }
 
         public void EnsureEstimateLookup(DiscoveredModelDependency dependency, Action onCompleted = null)
@@ -120,6 +134,7 @@ namespace Doji.AI.ModelHub.Editor
                     RequestedRevision = revision,
                     ResolvedCommitHash = repositoryInventory.ResolvedCommitHash,
                     RepositoryFiles = repositoryInventory.Files.ToArray(),
+                    ModelCard = repositoryInventory.ModelCard ?? new ModelCardMetadata(),
                     EstimatedCacheSizeBytes = SumFileSizes(repositoryInventory.Files),
                     AttemptedAtUtc = DateTime.UtcNow.ToString("O")
                 };
@@ -172,13 +187,13 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Refetches estimates without a file list (older format) and failed attempts older than one day.
+        /// Refetches estimates without a file list or model card (older format) and failed attempts older than one day.
         /// </summary>
         private static bool NeedsRefresh(RemoteSnapshotSizeEstimateMetadata metadata)
         {
             if (metadata.RepositoryFiles?.Length > 0)
             {
-                return false;
+                return metadata.ModelCard == null;
             }
 
             if (!string.IsNullOrWhiteSpace(metadata.ResolvedCommitHash))

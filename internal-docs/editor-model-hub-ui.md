@@ -68,7 +68,7 @@ List sections, in order: `Manifest errors` (discovery issues), `Needs action` (e
 
 Details pane:
 
-- header: model name, repository link, revision tag (resolved commit in tooltip), status pill
+- header: model name, repository id (selectable text), revision tag (resolved commit in tooltip), status pill, and the links row `Model card | Files | License` (`ModelLinks.Build`, drawn by `UiKit.Links`)
 - actions: primary action from `ModelStatus`, `Show Manifest`, and a `⋮` menu (open on Hugging Face, copy id, Pull into Project or Remove Pulled Copies, Remove from Project, Remove from Cache)
 - Details card: `Format` from `ModelFiles.Describe` of the selected model files, and `In builds` (`BuildDeliveryField`): project default, bundle, or download, stored in `ProjectSettings` as a per-repository override. It invalidates `EditorRuntimeCatalog`. A hint appears when download is chosen for ONNX files without `tools.doji.onnx-model-loader`
 - status callout: the status description; error diagnostics are added only for error states, because download/import/update diagnostics repeat the status
@@ -89,7 +89,15 @@ Download cache view:
 
 The window polls `BackgroundSyncManager.TryGetProgress` to show the progress banner and refreshes its report whenever a sync stops, in addition to `SyncStateChanged`.
 
-Overview requests the remote inventory (`RemoteSnapshotSizeEstimateService.EnsureEstimateLookup`) whenever the item has no file list yet, so optional-file sizes show before any download.
+Opening an item requests the remote inventory (`RemoteSnapshotSizeEstimateService.EnsureEstimateLookup`) whenever the item has no file list, size, or model card yet, so optional-file sizes and the license show before any download.
+
+### Model Links
+
+`ModelLinks` builds the links row, like Package Manager's `Documentation | Changelog | Licenses`. The license fields come from the revision API (`?expand[]=sha&expand[]=cardData`, no extra request) as `ModelCardMetadata`: `license` (a list is joined with ", "), `license_name`, `license_link`. They are stored in the cache index (`RawCacheMetadata.ModelCard`) and in the pre-download lookup (`RemoteSnapshotSizeEstimateMetadata.ModelCard`); `ModelHubService` prefers the cache. A lookup without a card stores an empty instance, so it is not repeated.
+
+- label: `License: <id>`, the `license_name` for `license: other`, `No license` for a card without one, `License` while the card is unknown
+- target: an absolute http(s) `license_link`; a relative `license_link` as a repository path at the commit; a top-level `LICENSE`, `LICENCE`, `.md`, or `.txt` file; else the model card
+- the setup prompt shows `Model card | License` per model and starts the lookups for models whose card is unknown, then redraws
 
 ### Primary Action
 

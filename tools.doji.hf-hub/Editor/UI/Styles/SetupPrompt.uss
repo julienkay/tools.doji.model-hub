@@ -81,6 +81,10 @@
     text-overflow: ellipsis;
 }
 
+.sp-model__links {
+    margin-top: 2px;
+}
+
 .sp-model__size {
     margin-left: 10px;
     color: var(--hf-text-muted);

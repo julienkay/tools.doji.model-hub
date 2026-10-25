@@ -237,6 +237,25 @@
     color: var(--hf-text-strong);
 }
 
+/* Links row: Model card | Files | License */
+
+.hf-links {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.hf-links > .hf-link {
+    font-size: 11px;
+}
+
+.hf-links__separator {
+    margin: 0 6px;
+    padding: 0;
+    font-size: 11px;
+    color: var(--hf-text-faint);
+}
+
 /* Icons */
 
 .hf-icon {

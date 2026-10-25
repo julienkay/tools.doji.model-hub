@@ -26,7 +26,6 @@ entry when it ships or is rejected.
 - **Offline and portable cache.** Reuse and move the shared cache without
   network access.
 - **Remote browsing.** Browse HuggingFace repositories in Model Hub.
-- **License display.** Show model license information on first import.
 - **`from_pretrained` helpers.** Extend the wrapper only when a concrete
   tokenizer, config, or runtime need appears.
 

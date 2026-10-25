@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -103,6 +105,26 @@ namespace Doji.AI.ModelHub.Editor
             var button = new Button(onClick) { text = text, tooltip = tooltip };
             button.AddToClassList("hf-link");
             return button;
+        }
+
+        /// <summary>
+        /// Builds a row of small links separated by bars, like Package Manager's Documentation | Changelog | Licenses.
+        /// </summary>
+        public static VisualElement Links(IEnumerable<ModelLink> links, params string[] classNames)
+        {
+            var row = Element(new[] { "hf-links" }.Concat(classNames).ToArray());
+            foreach (var link in links)
+            {
+                if (row.childCount > 0)
+                {
+                    row.Add(Text("|", "hf-links__separator"));
+                }
+
+                var url = link.Url;
+                row.Add(LinkButton(link.Label, () => UnityEngine.Application.OpenURL(url), link.Tooltip));
+            }
+
+            return row;
         }
 
         /// <summary>

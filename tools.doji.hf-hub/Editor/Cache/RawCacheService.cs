@@ -135,6 +135,7 @@ namespace Doji.AI.ModelHub.Editor
                 CachedSnapshotRoot = snapshotRoot,
                 RepositoryFiles = hasIndex ? index.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>() : Array.Empty<RepositoryFileMetadata>(),
                 Files = files.OrderBy(file => file.RepoPath, StringComparer.Ordinal).ToArray(),
+                ModelCard = hasIndex ? index.ModelCard : null,
                 DownloadedAtUtc = hasIndex ? index.DownloadedAtUtc : null
             };
         }
@@ -276,6 +277,7 @@ namespace Doji.AI.ModelHub.Editor
                 Files = mergedFiles.Values
                     .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
                     .ToArray(),
+                ModelCard = resolvedSnapshot.ModelCard,
                 DownloadedAtUtc = DateTime.UtcNow.ToString("O")
             };
         }

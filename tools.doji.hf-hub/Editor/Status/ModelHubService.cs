@@ -115,7 +115,26 @@ namespace Doji.AI.ModelHub.Editor
                 dependents,
                 diagnostics,
                 runtimeFiles,
-                fileItems);
+                fileItems,
+                GetModelCard(primary.Dependency.Repository, primary.Dependency.Revision, dependents));
+        }
+
+        /// <summary>
+        /// The model card's license fields from the download cache, else from the lookup made before download.
+        /// </summary>
+        private ModelCardMetadata GetModelCard(string repository, string requestedRevision, IReadOnlyList<DependencyStatus> dependents)
+        {
+            var cached = dependents
+                .Select(item => item.RawMetadata?.ModelCard)
+                .FirstOrDefault(card => card != null);
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            return _remoteSnapshotSizeEstimateService.TryGetModelCard(repository, requestedRevision, out var modelCard)
+                ? modelCard
+                : null;
         }
 
         private IReadOnlyList<ModelHubFileItem> BuildFileItems(

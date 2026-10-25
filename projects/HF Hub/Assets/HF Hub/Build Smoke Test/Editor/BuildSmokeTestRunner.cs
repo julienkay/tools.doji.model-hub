@@ -12,8 +12,10 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Samples.Editor
 {
     /// <summary>
-    /// Builds a Windows player that loads models through <see cref="Hub"/>, runs it headless with an empty Hugging Face
-    /// cache, and returns what it loaded. Bundled models come from the build; downloaded models come from the Hub.
+    /// Builds players that load models through <see cref="Hub"/> and report what they loaded. <see cref="BuildAndRun"/>
+    /// builds and runs a Windows player with an empty Hugging Face cache; <see cref="BuildPlayer"/> builds Android and
+    /// Web players to run on a device or in a browser. Bundled models come from the build; downloaded models come
+    /// from the Hub.
     /// </summary>
     public static class BuildSmokeTestRunner
     {
@@ -76,6 +78,42 @@ namespace Doji.AI.ModelHub.Samples.Editor
                 $"exit={(exited ? process.ExitCode.ToString() : "timeout")}",
                 "shipped:",
             }.Concat(shipped.Select(line => "  " + line)).Append("results:").Concat(results.Select(line => "  " + line)).Append($"log: {log}"));
+        }
+
+        /// <summary>
+        /// Builds an Android APK (IL2CPP, ARM64) or an uncompressed Web player for the same scene, and returns its path.
+        /// The player logs its results with the prefix <c>HFHUB-SMOKE</c>: install the APK with an empty app and read
+        /// <c>adb logcat -s Unity</c>, or serve the Web folder locally and read the browser console. Run both twice: the
+        /// second run must load downloaded models from the device without downloading them again.
+        /// </summary>
+        public static string BuildPlayer(string platform, string[] entries)
+        {
+            var root = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Temp", "HfHubSmoke-" + platform));
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+
+            Directory.CreateDirectory(root);
+            CreateScene(entries);
+
+            // Release-like Android players, and a Web build that a plain local server can host.
+            var android = string.Equals(platform, "android", StringComparison.OrdinalIgnoreCase);
+            PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+
+            var location = android ? Path.Combine(root, "Smoke.apk") : Path.Combine(root, "Web");
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = location,
+                target = android ? BuildTarget.Android : BuildTarget.WebGL,
+                options = BuildOptions.Development
+            });
+            return report.summary.result == BuildResult.Succeeded
+                ? $"BUILT {location}"
+                : $"BUILD {report.summary.result}: {string.Join(" | ", report.steps.SelectMany(step => step.messages).Where(message => message.type is LogType.Error or LogType.Exception).Select(message => message.content))}";
         }
 
         private static void CreateScene(IEnumerable<string> entries)

@@ -8,7 +8,9 @@ namespace Doji.AI.ModelHub.Samples
 {
     /// <summary>
     /// Loads a list of models through the public <see cref="Hub"/> API in a built player and writes one line per model
-    /// to the file given by <c>-hfhub-smoke-output</c>, then quits. <c>BuildSmokeTestRunner</c> builds and runs it.
+    /// to the file given by <c>-hfhub-smoke-output</c>, then quits. Every line is also logged with the prefix
+    /// <c>HFHUB-SMOKE</c>, followed by <c>HFHUB-SMOKE-DONE</c>, for players without a command line (Android, Web).
+    /// <c>BuildSmokeTestRunner</c> builds and runs it.
     /// </summary>
     public sealed class BuildSmokeTest : MonoBehaviour
     {
@@ -47,12 +49,14 @@ namespace Doji.AI.ModelHub.Samples
                 File.WriteAllLines(output, lines);
             }
 
+            var passed = lines.TrueForAll(line => line.StartsWith("OK", StringComparison.Ordinal));
             foreach (var line in lines)
             {
-                Debug.Log(line);
+                Debug.Log("HFHUB-SMOKE " + line);
             }
 
-            Application.Quit(lines.TrueForAll(line => line.StartsWith("OK", StringComparison.Ordinal)) ? 0 : 1);
+            Debug.Log("HFHUB-SMOKE-DONE " + (passed ? "PASS" : "FAIL"));
+            Application.Quit(passed ? 0 : 1);
         }
 
         private static string GetArgument(string name)

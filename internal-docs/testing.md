@@ -23,7 +23,12 @@ Runtime tests never touch the network or StreamingAssets of the project:
 - `Hub.RegisterOnnxConverter` installs a fake converter. Reset it in `TearDown`.
 - Test models are tiny `FunctionalGraph` models written with `ModelWriter`, so conversion and quantization run in milliseconds.
 
-The build is covered end to end by the companion project's smoke test, `Assets/HF Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. It downloads from Hugging Face, so it is not part of the test run. Use small models only.
+The build is covered end to end by the companion project's smoke test, `Assets/HF Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. `BuildPlayer("android" | "web", entries)` builds the same scene for Android (IL2CPP, ARM64) or an uncompressed Web player:
+
+- Android: uninstall the app, `adb install` the APK, launch it, and read `adb logcat -s Unity` for `HFHUB-SMOKE` lines.
+- Web: serve the `Web` folder from a new local port (a fresh origin has empty IndexedDB) with `Cache-Control: no-store`, and read the browser console. Keep the page visible: a hidden page runs at about one frame per second.
+
+Run each player twice. The second run must load downloaded models without a request to Hugging Face. The smoke test downloads from Hugging Face, so it is not part of the test run. Use small models only.
 
 ## Coverage Map
 

@@ -5,8 +5,8 @@ entry when it ships or is rejected.
 
 ## Features
 
-- **Device testing.** Run the build smoke test on Android, iOS, Web, macOS,
-  and Linux players.
+- **Device testing.** Run the build smoke test on iOS, macOS, and Linux
+  players.
 - **`persistentDataPath` cache for desktop players.** An opt-in for
   applications that must not write to the user's Hugging Face cache.
 - **Large-model stress tests.** Downloads, conversion, and builds with models

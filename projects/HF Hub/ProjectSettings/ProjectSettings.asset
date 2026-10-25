@@ -689,7 +689,8 @@ PlayerSettings:
     Standalone: APP_UI_EDITOR_ONLY;UNITY_ASTOOLS_EXPERIMENTAL;SENTIS_ANALYTICS_ENABLED
   additionalCompilerArguments: {}
   platformArchitecture: {}
-  scriptingBackend: {}
+  scriptingBackend:
+    Android: 1
   il2cppCompilerConfiguration: {}
   il2cppCodeGeneration: {}
   il2cppLTOMode: {}

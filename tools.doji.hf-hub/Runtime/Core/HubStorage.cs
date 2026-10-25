@@ -129,6 +129,7 @@ namespace Doji.AI.ModelHub
                 deleted++;
             }
 
+            PersistentStorage.Flush();
             return deleted;
         }
 

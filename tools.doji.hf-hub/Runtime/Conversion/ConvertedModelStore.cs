@@ -115,6 +115,7 @@ namespace Doji.AI.ModelHub
             }
 
             TryDelete(modelPath + ".lock");
+            PersistentStorage.Flush();
             return modelPath;
         }
 

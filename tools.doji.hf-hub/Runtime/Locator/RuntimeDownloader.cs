@@ -56,6 +56,7 @@ namespace Doji.AI.ModelHub
                 cancellationToken);
 
             WriteRefIfMissing(repoId, revision, commit);
+            PersistentStorage.Flush();
             return snapshotPath;
         }
 

@@ -14,7 +14,9 @@ namespace Doji.AI.ModelHub
     {
         private const uint SymbolicLinkFlagAllowUnprivilegedCreate = 0x2;
         private static readonly Dictionary<string, bool> SymlinkSupportByFolder = new(StringComparer.OrdinalIgnoreCase);
+#if UNITY_EDITOR || UNITY_STANDALONE
         private static bool _loggedCopyFallback;
+#endif
 
         /// <summary>
         /// Test hook that forces the copy fallback, as on Windows without Developer Mode.
@@ -42,6 +44,8 @@ namespace Doji.AI.ModelHub
                 return;
             }
 
+#if UNITY_EDITOR || UNITY_STANDALONE
+            // Only desktops share the cache with other programs, so only there do copies cost extra space users can fix.
             if (!_loggedCopyFallback)
             {
                 _loggedCopyFallback = true;
@@ -49,6 +53,7 @@ namespace Doji.AI.ModelHub
                     "HF Hub stores model files as copies because this file system does not allow symbolic links. " +
                     "Files shared by several revisions then use extra disk space. On Windows, turn on Developer Mode to allow symbolic links.");
             }
+#endif
 
             if (isNewBlob)
             {

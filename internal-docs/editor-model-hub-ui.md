@@ -81,7 +81,7 @@ Size labels:
 
 Download cache view:
 
-- data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete` and `.downloading` files are partial downloads. Tiles are named by the snapshot path that links to the blob, else by HF Hub's index, else by the etag
+- data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete`, `.downloading`, and `.downloading.segment` (the body of the current request) files are partial downloads; deleting a partial download also deletes its resume state and segment. Tiles are named by the snapshot path that links to the blob, else by HF Hub's index, else by the etag
 - "used by this project" means a model repository that the current report lists, compared without letter case
 - the treemap lays out tiles with `TreemapLayout.Squarify` on `GeometryChangedEvent`, as absolutely positioned elements. The Files view nests file tiles in repository groups and merges files past the largest 120 into one tile
 - `Remove from Cache` takes every blob lock of the repository first and deletes nothing if one is held, then deletes the repository folder, its `.locks` folder, and its index folder. It removes all revisions, unlike the per-model action, which removes one revision

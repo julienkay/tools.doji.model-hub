@@ -122,7 +122,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies deleting a partial download removes the file and its resume state and keeps complete files.
+        /// Verifies deleting a partial download removes the file, its resume state, and the body of an interrupted
+        /// request, and keeps complete files.
         /// </summary>
         [Test]
         public void DeletePartialFile_RemovesPartialAndResumeState()
@@ -131,9 +132,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             WriteFile(Path.Combine(model, "blobs", "etag-model"), 10);
             WriteFile(Path.Combine(model, "blobs", "etag-part.downloading"), 20);
             File.WriteAllText(Path.Combine(model, "blobs", "etag-part.downloading.json"), "{}");
+            WriteFile(Path.Combine(model, "blobs", "etag-part.downloading.segment"), 5);
             var repository = CacheOverviewService.Scan(_cacheRoot).Repositories.Single();
 
-            CacheOverviewService.DeletePartialFile(repository, repository.Files.Single(file => file.IsPartial), _cacheRoot);
+            Assert.That(repository.Files.Where(file => file.IsPartial).Select(file => file.SizeInBytes), Is.EquivalentTo(new[] { 20L, 5L }));
+            CacheOverviewService.DeletePartialFile(repository, repository.Files.First(file => file.SizeInBytes == 20), _cacheRoot);
 
             Assert.That(Directory.GetFiles(Path.Combine(model, "blobs")).Select(Path.GetFileName), Is.EqualTo(new[] { "etag-model" }));
         }

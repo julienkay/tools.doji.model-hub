@@ -55,7 +55,7 @@ namespace Doji.AI.ModelHub.Editor
     internal static class CacheOverviewService
     {
         private static readonly string[] RepoTypePrefixes = { "models", "datasets", "spaces" };
-        private static readonly string[] PartialSuffixes = { ".incomplete", ".downloading" };
+        private static readonly string[] PartialSuffixes = { ".incomplete", ".downloading", ".downloading.segment" };
         private const string PartialStateSuffix = ".downloading.json";
 
         /// <summary>
@@ -293,7 +293,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Deletes one partial download and its resume state. Throws <see cref="IOException"/> when another program is
+        /// Deletes one partial download, its resume state, and the body of an interrupted request. Throws <see cref="IOException"/> when another program is
         /// still downloading it.
         /// </summary>
         public static void DeletePartialFile(CacheRepositoryEntry repository, CacheFileEntry file, string cacheRoot = null)
@@ -315,6 +315,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 DeleteFileIfExists(file.Path);
                 DeleteFileIfExists(file.Path + ".json");
+                DeleteFileIfExists(file.Path + ".segment");
             }
         }
 

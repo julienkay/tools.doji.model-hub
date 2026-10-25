@@ -15,8 +15,6 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal static class RuntimeDownloader
     {
-        internal const string HubEndpoint = "https://huggingface.co";
-
         /// <summary>
         /// Test hook that replaces the network: receives the URL and the target path, and writes the file.
         /// </summary>
@@ -63,7 +61,7 @@ namespace Doji.AI.ModelHub
         internal static string BuildResolveUrl(string repoId, string commit, string repoPath)
         {
             var escapedPath = string.Join("/", repoPath.Split('/').Select(Escape));
-            return $"{HubEndpoint}/{repoId}/resolve/{Escape(commit)}/{escapedPath}";
+            return $"{HubEndpoint.Url}/{repoId}/resolve/{Escape(commit)}/{escapedPath}";
         }
 
         private static string Escape(string segment)

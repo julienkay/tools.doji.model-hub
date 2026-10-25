@@ -23,6 +23,8 @@ Runtime tests never touch the network or StreamingAssets of the project:
 - `Hub.RegisterOnnxConverter` installs a fake converter. Reset it in `TearDown`.
 - Test models are tiny `FunctionalGraph` models written with `ModelWriter`, so conversion and quantization run in milliseconds.
 
+Tests that need real HTTP use `FakeHubServer` (`Tests/Editor/FakeHubServer.cs`), a local stand-in for the Hub's revision API, tree API, and `/resolve` downloads with `Range` and `If-Range`. Set `HubEndpoint.Override` to its `Url` and reset it in `TearDown`. File content is generated from the byte offset (`FakeHubServer.ByteAt`), so files of any size cost no memory, and `CutNextDownloadAfter` drops one connection to test resuming.
+
 The build is covered end to end by the companion project's smoke test, `Assets/HF Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. `BuildPlayer("android" | "web", entries)` builds the same scene for Android (IL2CPP, ARM64) or an uncompressed Web player:
 
 - Android: uninstall the app, `adb install` the APK, launch it, and read `adb logcat -s Unity` for `HFHUB-SMOKE` lines.
@@ -164,6 +166,11 @@ Editor UI and manifest editing:
   - refresh of estimates saved without a file list
 - `tools.doji.hf-hub/Tests/Editor/Cache/CacheBlobsTests.cs`
   - the blob store shared by Editor sync and players: blob plus snapshot link, reuse across revisions, wrong-size blobs downloaded again, unknown size accepts existing blobs, files without an etag, lock wait and cancellation
+- `tools.doji.hf-hub/Tests/Editor/Cache/LargeFileTests.cs` (category `LargeFiles`)
+  - ONNX external weights larger than 2 GiB from `FakeHubServer`, through Editor sync and through the player download
+  - the connection drops past 2 GiB and the next attempt resumes with a `Range` offset above `int.MaxValue`
+  - the companion file joins the selection, sizes and progress stay exact, bytes around the 2 GiB mark and the end match, and a later player load needs no network
+  - each test writes about 2.1 GiB to the temp folder
 - `tools.doji.hf-hub/Tests/Editor/Cache/BlobLockTests.cs`
   - blob lock exclusion, waiting, and cancellation; waits run on the thread pool because the main thread is blocked during a test
 - `tools.doji.hf-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`

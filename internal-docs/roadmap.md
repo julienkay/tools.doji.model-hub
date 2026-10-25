@@ -9,8 +9,8 @@ entry when it ships or is rejected.
   players.
 - **`persistentDataPath` cache for desktop players.** An opt-in for
   applications that must not write to the user's Hugging Face cache.
-- **Large-model stress tests.** Downloads, conversion, and builds with models
-  over 2 GB and external weights.
+- **Large-model stress tests.** Conversion and builds with models over 2 GB
+  and external weights. Downloads are covered by `LargeFileTests`.
 - **`.sentis` format version.** Read `ModelWriter.version` from the file
   header and warn when a downloaded `.sentis` file targets a newer Inference
   Engine.

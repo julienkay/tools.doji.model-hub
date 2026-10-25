@@ -160,7 +160,6 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class HttpClient : IHttpClient
     {
-        private const string HubEndpoint = "https://huggingface.co";
         private const string ETagHeaderName = "etag";
         private const string LinkedETagHeaderName = "x-linked-etag";
         private const string ContentLengthHeaderName = "content-length";
@@ -292,7 +291,7 @@ namespace Doji.AI.ModelHub.Editor
                 "/",
                 sourceFile.Split('/')
                     .Select(EscapePathSegment));
-            return $"{HubEndpoint}/{repository}/resolve/{escapedRevision}/{escapedSourceFile}";
+            return $"{HubEndpoint.Url}/{repository}/resolve/{escapedRevision}/{escapedSourceFile}";
         }
 
         /// <summary>
@@ -305,7 +304,7 @@ namespace Doji.AI.ModelHub.Editor
             CancellationToken cancellationToken)
         {
             var escapedRevision = EscapePathSegment(revision);
-            var apiUrl = $"{HubEndpoint}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha";
+            var apiUrl = $"{HubEndpoint.Url}/api/models/{repository}/revision/{escapedRevision}?expand[]=sha";
             var response = await _transport.GetJsonAsync(apiUrl, cancellationToken);
             if (response.Json is JObject jsonObject)
             {
@@ -322,7 +321,7 @@ namespace Doji.AI.ModelHub.Editor
             CancellationToken cancellationToken)
         {
             var escapedRevision = EscapePathSegment(revision);
-            var nextPageUrl = $"{HubEndpoint}/api/models/{repository}/tree/{escapedRevision}?recursive=true";
+            var nextPageUrl = $"{HubEndpoint.Url}/api/models/{repository}/tree/{escapedRevision}?recursive=true";
             var repositoryFiles = new List<RepositoryFileMetadata>();
 
             while (!string.IsNullOrWhiteSpace(nextPageUrl))

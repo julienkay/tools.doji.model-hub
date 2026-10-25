@@ -2,11 +2,11 @@
 
 ## Current Schema
 
-HF Hub uses a single JSON manifest stored inside each package that depends on AI model files.
+AI Model Hub uses a single JSON manifest stored inside each package that depends on AI model files.
 
 Recommended location:
 
-- `Packages/<package-id>/hf-hub-manifest.json`
+- `Packages/<package-id>/model-hub-manifest.json`
 
 Manifest stays on `version: 1` and supports:
 
@@ -75,7 +75,7 @@ Manifest meaning:
 - optional model variants must not be modeled as duplicate manifest rows with same `id`
 - one entry may depend on whole repo, on explicit always-required files, or on required files plus optional files inside that repo
 - the extension decides each selected file's format: `.onnx` is converted, `.sentis` is used as downloaded; see [import-and-generated-assets.md](import-and-generated-assets.md)
-- a whole-repository dependency on a repository with both formats is invalid, so HF Hub never picks a format
+- a whole-repository dependency on a repository with both formats is invalid, so AI Model Hub never picks a format
 - selecting an `.onnx` file adds its external weight files (`ModelFiles.GetCompanionFiles`)
 
 File selection uses exact repo-relative paths first. Pattern-based authoring can layer on later if needed, but manifest truth is still concrete file selection.
@@ -109,7 +109,7 @@ Selection storage rule:
 - project-owned override data records enabled optional file paths per owner dependency
 - status, download, import, and runtime registry logic all reason over effective selection, not raw manifest text alone
 
-If the effective selection is empty because every model file is optional and none is enabled, status is `SelectionRequired` (**Choose files**), not an error, and HF Hub downloads nothing. A selection without any `.onnx` or `.sentis` file is `InvalidSelection`.
+If the effective selection is empty because every model file is optional and none is enabled, status is `SelectionRequired` (**Choose files**), not an error, and AI Model Hub downloads nothing. A selection without any `.onnx` or `.sentis` file is `InvalidSelection`.
 
 ## Selection Boundary
 
@@ -124,7 +124,7 @@ Simple maintainer translation:
 
 - manifest says what owner needs
 - the download cache says what source files are already present locally
-- selected-file dependency does not force HF Hub to pretend repo snapshot only contains selected files
+- selected-file dependency does not force AI Model Hub to pretend repo snapshot only contains selected files
 
 ## Reference Alignment
 
@@ -136,7 +136,7 @@ This schema matches upstream HuggingFace concepts:
 - it resolves requested revision to concrete commit, stores `refs/<revision> -> <commit>`, and downloads files into `snapshots/<commit>/...`
 - when sibling listing is unreliable, it falls back from repo info to `list_repo_tree(...)` before filtering files
 
-HF Hub keeps manifest identity close to upstream:
+AI Model Hub keeps manifest identity close to upstream:
 
 - `id` is repo id
 - `revision` is resolution input

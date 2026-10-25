@@ -2,7 +2,7 @@
 
 ## Cache Location
 
-HF Hub uses the Hugging Face cache of the `huggingface_hub` Python library, so Unity projects and Python tools reuse each other's downloads (see `VISION.md`).
+AI Model Hub uses the Hugging Face cache of the `huggingface_hub` Python library, so Unity projects and Python tools reuse each other's downloads (see `VISION.md`).
 
 Cache root, resolved like `huggingface_hub` (`CachePaths.GetDefaultCacheRoot`):
 
@@ -27,12 +27,12 @@ Repository ids are not case-sensitive on the Hub. A download takes the Hub's spe
 
 Files are stored like `_hf_hub_download_to_cache_dir` and `_create_symlink` in `huggingface_hub` (`CacheBlobs.StoreAsync`, shared with players, and `CacheFiles`):
 
-1. The etag names the blob: the sha256 for LFS files, the git sha1 for small files. `huggingface_hub` reads it from `X-Linked-Etag` on a HEAD request per file. HF Hub reads the same etag and size from the tree listing of the resolved commit (`lfs.oid`, else `oid`), so it sends no HEAD request. HEAD is only a fallback for entries without them; `UnityWebRequest` follows its redirect to the CDN, whose `ETag` is a xet hash, so only `X-Linked-*` headers are trusted from it.
+1. The etag names the blob: the sha256 for LFS files, the git sha1 for small files. `huggingface_hub` reads it from `X-Linked-Etag` on a HEAD request per file. AI Model Hub reads the same etag and size from the tree listing of the resolved commit (`lfs.oid`, else `oid`), so it sends no HEAD request. HEAD is only a fallback for entries without them; `UnityWebRequest` follows its redirect to the CDN, whose `ETag` is a xet hash, so only `X-Linked-*` headers are trusted from it.
    Files download from `/resolve/<commit>/<path>`. The downloader follows the redirect to a signed CDN URL on each attempt, so its resume state keeps a URL that never expires.
 2. A complete blob already in the cache, from another revision or from Python, is reused without a download.
 3. Otherwise the file downloads to `blobs/<etag>`, with partial data in `<etag>.downloading` so an interrupted download resumes. Upstream downloads to a process-unique `<etag>.<id>.incomplete` and never resumes, so the two never share partial files.
 4. The snapshot path becomes a relative symlink to the blob. `CacheFiles.AreSymlinksSupported` probes each cache folder once, like `are_symlinks_supported`.
-5. Without symlinks (Windows without Developer Mode), a new blob moves into the snapshot and an existing blob is copied, exactly like upstream. HF Hub logs this once.
+5. Without symlinks (Windows without Developer Mode), a new blob moves into the snapshot and an existing blob is copied, exactly like upstream. AI Model Hub logs this once.
 6. Files without an etag download straight into the snapshot.
 
 On Windows a symlink reports 0 bytes, so sizes go through `CacheFiles.GetLength`, which opens the file and follows the link.
@@ -46,7 +46,7 @@ A waiting download polls every 100 ms, logs once that it waits for another progr
 
 The Windows path was checked against a Python process that locks like `filelock` (`os.open` plus `msvcrt.locking`), in both directions. The `flock` path is not yet checked on macOS or Linux.
 
-The per-snapshot index lock (`<data-root>/index/.../<commit>.json.lock`) is HF Hub's own and only guards the index entry.
+The per-snapshot index lock (`<data-root>/index/.../<commit>.json.lock`) is AI Model Hub's own and only guards the index entry.
 
 Remove from Cache works like `delete_revisions` in `huggingface_hub` (`ProjectRemovalService.RemoveRawCache`):
 
@@ -58,22 +58,22 @@ Remove from Cache works like `delete_revisions` in `huggingface_hub` (`ProjectRe
 
 Other files in `blobs/`, such as another program's partial `.incomplete` download, are never deleted.
 
-HF Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports every unknown folder in the cache root as a corrupted entry. The index lives in HF Hub's data folder (`CachePaths.GetDataRoot`):
+AI Model Hub's own bookkeeping never goes into the cache. `huggingface_hub` reports every unknown folder in the cache root as a corrupted entry. The index lives in AI Model Hub's data folder (`CachePaths.GetDataRoot`):
 
-- Windows: `%LocalAppData%/Doji/HfHub`
-- macOS: `~/Library/Application Support/Doji/HfHub`
-- Linux: `$XDG_CACHE_HOME/doji/hf-hub` or `~/.cache/doji/hf-hub`
+- Windows: `%LocalAppData%/Doji/ModelHub`
+- macOS: `~/Library/Application Support/Doji/ModelHub`
+- Linux: `$XDG_CACHE_HOME/doji/model-hub` or `~/.cache/doji/model-hub`
 
 ```text
 <data-root>/index/models--<owner>--<name>/<commit>.json
 <data-root>/index/models--<owner>--<name>/<commit>.json.lock
 ```
 
-`DOJI_HF_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_HF_HUB_DATA_ROOT` at temporary folders.
+`DOJI_MODEL_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_MODEL_HUB_DATA_ROOT` at temporary folders.
 
 The index entry records the repository file list, file etags, and the model card's license fields for one commit. It is a hint, never the truth:
 
-- `RawCacheService.ReadSnapshot` builds every snapshot view from disk: the files in `snapshots/<commit>` count as cached, whoever wrote them (HF Hub or Python), with sizes read through links. Status, the sync, import, and Model Hub all use this view.
+- `RawCacheService.ReadSnapshot` builds every snapshot view from disk: the files in `snapshots/<commit>` count as cached, whoever wrote them (AI Model Hub or Python), with sizes read through links. Status, the sync, import, and Model Hub all use this view.
 - The index only adds the repository file list and etags, and only when it describes the same repository (ignoring letter case) and commit. A missing, unreadable, or foreign index is ignored.
 - A file-selective dependency needs no index: its selected files are either on disk or not.
 - A whole-repository dependency needs the file list to know what "every file" is. Without it, status reports `RawCacheFilesMissing` ("Update needed"). The update resolves the file list, downloads nothing that is already on disk with the right size, and writes a new index entry.
@@ -85,13 +85,13 @@ Current implementation notes:
 - the index entry still stores the requested revision; ref files are authoritative for revision-to-commit mapping, and `ReadSnapshot` ignores the stored revision
 - index entries describe one `repository + resolved commit`, not owner dependency scope
 
-The download cache and the converted store have separate lifecycles. If a user removes cache from Model Hub, HF Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Converted models stay valid after cache removal. A `.sentis` dependency uses the cached file itself, so removing the cache makes it need a download again.
+The download cache and the converted store have separate lifecycles. If a user removes cache from Model Hub, AI Model Hub deletes the revision ref, and deletes the snapshot and its index entry only when no other ref still points at that commit. Converted models stay valid after cache removal. A `.sentis` dependency uses the cached file itself, so removing the cache makes it need a download again.
 
 Players download with the same layout, blob names, and locks; see [runtime-loading.md](runtime-loading.md#downloads).
 
 ## Selection Boundary
 
-HF Hub keeps two different truths separate:
+AI Model Hub keeps two different truths separate:
 
 - the cache index answers: which repo files are currently cached on this machine for this resolved commit
 - dependency selection answers: which repo files one manifest owner requires
@@ -121,7 +121,7 @@ Dependency declaration is repo-scoped, with optional file-level narrowing inside
 In simple terms:
 
 - upstream `huggingface_hub` can download only one file, only selected files, or whole repo
-- HF Hub ensures only dependency-required files are downloaded into cache for that request
+- AI Model Hub ensures only dependency-required files are downloaded into cache for that request
 
 Upstream mode depends on API used:
 
@@ -155,11 +155,11 @@ Optional-file selection rules:
 - package authors declare available optional files in manifest
 - project stores enabled optional file paths per owner dependency
 - download only respects effective selection after project overrides are applied
-- if no optional model file is enabled and no required model file exists, HF Hub does not download the whole repository
+- if no optional model file is enabled and no required model file exists, AI Model Hub does not download the whole repository
 
 Selection rule:
 
-- if one owner depends on specific repo files, HF Hub ensures only those files are needed for that request
+- if one owner depends on specific repo files, AI Model Hub ensures only those files are needed for that request
 - cache still remains repo-snapshot-scoped, not owner-selection-scoped
 - the cache index answers "what files are cached for this repo commit"
 - owner metadata answers "what files this dependency selected"
@@ -187,13 +187,13 @@ Only damage on disk counts:
 
 `DependencyStatus.DamagedCacheCodes` names this set. Model Hub shows these models as `Needs repair` with a **Repair** button and the download size; the setup prompt counts them as downloads. The fix is a normal sync.
 
-HF Hub's index is never damage, because it is a hint (see Cache Location). The former `RawCacheMetadataInvalid`, `RawCacheMetadataMismatch`, and `RawCacheMetadataMissingAfterImport` codes described index problems and were removed when status started reading the cache from disk.
+AI Model Hub's index is never damage, because it is a hint (see Cache Location). The former `RawCacheMetadataInvalid`, `RawCacheMetadataMismatch`, and `RawCacheMetadataMissingAfterImport` codes described index problems and were removed when status started reading the cache from disk.
 
-HF Hub never repairs on its own. An earlier auto-heal started download-only syncs at editor startup and on every Model Hub refresh, and with damaged bookkeeping it downloaded every selected file again, for whole-repository dependencies the whole repository, without asking. That broke the product rule to ask the user once before downloading.
+AI Model Hub never repairs on its own. An earlier auto-heal started download-only syncs at editor startup and on every Model Hub refresh, and with damaged bookkeeping it downloaded every selected file again, for whole-repository dependencies the whole repository, without asking. That broke the product rule to ask the user once before downloading.
 
 Rules:
 
-- turn 401 and 403 into `HubAccess` messages: a denied file download means the model is gated or private; a denied or missing revision lookup means no public repository has that id and revision (the Hub answers 401 for missing repositories too). HF Hub sends no token
+- turn 401 and 403 into `HubAccess` messages: a denied file download means the model is gated or private; a denied or missing revision lookup means no public repository has that id and revision (the Hub answers 401 for missing repositories too). AI Model Hub sends no token
 - start downloads only from an explicit user action: the setup prompt, a Model Hub button, **Import All**, or the menu
 - `BackgroundSyncManager.ResumeIfNeeded` only resumes a persisted queue the user already started
 

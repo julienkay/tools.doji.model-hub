@@ -1,0 +1,19 @@
+{
+  "name": "tools.doji.model-hub",
+  "version": "1.0.0",
+  "displayName": "AI Model Hub",
+  "description": "Downloads and imports AI models from the Hugging Face Hub into Unity Sentis, in the Editor and in players. Not affiliated with Hugging Face.",
+  "unity": "6000.3",
+  "author": {
+    "name": "Doji Technologies",
+    "url": "https://docs.doji-tech.com/tools.doji.model-hub",
+    "email": "support@doji-tech.com"
+  },
+  "documentationUrl": "https://docs.doji-tech.com/tools.doji.model-hub",
+  "dependencies": {
+    "tools.doji.downloads": "1.0.0",
+    "tools.doji.formats.onnx": "1.0.0",
+    "com.unity.ai.inference": "2.6.1",
+    "com.unity.nuget.newtonsoft-json": "3.2.2"
+  }
+}

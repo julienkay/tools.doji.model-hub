@@ -6,7 +6,7 @@
           "files": [
             "**/*.cs"
           ],
-          "src": "../tools.doji.hf-hub"
+          "src": "../tools.doji.model-hub"
         }
       ],
       "dest": "api",
@@ -56,11 +56,11 @@
     "globalMetadata": {
       "_appFaviconPath": "images/favicon.ico",
       "_appLogoPath": "images/logo.png",
-      "_appLogoUrl": "https://docs.doji-tech.com/tools.doji.hf-hub",
+      "_appLogoUrl": "https://docs.doji-tech.com/tools.doji.model-hub",
       "_disableContribution": true,
       "pdf": true,
       "pdfTocPage": true,
-      "pdfFileName": "tools.doji.hf-hub.pdf"
+      "pdfFileName": "tools.doji.model-hub.pdf"
     },
     "fileMetadataFiles": [],
     "template": [

@@ -1,0 +1,10 @@
+{
+  "name": "tools.doji.model-hub-test-models",
+  "version": "0.0.1",
+  "displayName": "AI Model Hub Test Models",
+  "description": "Local test package for AI Model Hub manifest discovery and sync flows.",
+  "unity": "6000.3",
+  "dependencies": {
+    "tools.doji.model-hub": "1.0.0"
+  }
+}

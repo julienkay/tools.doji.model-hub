@@ -11,7 +11,7 @@ The package writes the loading code once. The project decides delivery (bundle o
 
 ## Registry
 
-[RuntimeRegistry.cs](../tools.doji.hf-hub/Runtime/Locator/RuntimeRegistry.cs), JSON through `JsonUtility`, `version` 2. `FromJson` refuses newer versions.
+[RuntimeRegistry.cs](../tools.doji.model-hub/Runtime/Locator/RuntimeRegistry.cs), JSON through `JsonUtility`, `version` 2. `FromJson` refuses newer versions.
 
 ```text
 RuntimeRegistry   version, onnxConverterId, packages[]
@@ -21,7 +21,7 @@ RuntimeModelFile   repoPath, format ("onnx" | "sentis"), relativePath,
                    source {repoPath, etag, size}, companions[], recipeHash, quantization, inputShapes[]
 ```
 
-- `relativePath` is the bundled path under StreamingAssets: `hf-hub/models/<owner>/<name>/<repoPath with .sentis>` (`Hub.GetRuntimeModelRelativePath`).
+- `relativePath` is the bundled path under StreamingAssets: `model-hub/models/<owner>/<name>/<repoPath with .sentis>` (`Hub.GetRuntimeModelRelativePath`).
 - `cacheRepoId` is the repository id as the Editor's cache folder spells it, so a player downloads into the same folder name as the Hub and Python use. Lookup uses `repoId`, case-insensitively.
 - `commit` is the commit the Editor resolved. Players download from `/resolve/<commit>/` and never call the revision API.
 - `source` and `companions` hold etags and sizes, so players name blobs like the Editor does.
@@ -35,8 +35,8 @@ A package entry lists only its own owner's selection. The shared import may hold
 `RuntimeModels.GetCatalog(Async)` takes the first that exists:
 
 1. `RegistryOverride` (tests)
-2. In the Editor, `EditorCatalog`: [EditorRuntimeCatalog.cs](../tools.doji.hf-hub/Editor/Build/EditorRuntimeCatalog.cs) builds the registry from the project's import records with `forEditor: true`, so files point at the converted store, the cache, or pulled copies. Play mode needs no StreamingAssets files, in either delivery mode. It is rebuilt after a sync or a project change.
-3. In players, `StreamingAssets/hf-hub/hf-hub-runtime.json`, read with `File` where StreamingAssets is a folder and with `UnityWebRequest` on Android and the Web.
+2. In the Editor, `EditorCatalog`: [EditorRuntimeCatalog.cs](../tools.doji.model-hub/Editor/Build/EditorRuntimeCatalog.cs) builds the registry from the project's import records with `forEditor: true`, so files point at the converted store, the cache, or pulled copies. Play mode needs no StreamingAssets files, in either delivery mode. It is rebuilt after a sync or a project change.
+3. In players, `StreamingAssets/model-hub/model-hub-runtime.json`, read with `File` where StreamingAssets is a folder and with `UnityWebRequest` on Android and the Web.
 
 ## Lookup
 
@@ -48,20 +48,20 @@ A package entry lists only its own owner's selection. The shared import may hold
 
 ## Build
 
-[RuntimeRegistryBuilder.cs](../tools.doji.hf-hub/Editor/Build/RuntimeRegistryBuilder.cs) turns a `StatusReport` into a `Plan`: registry, bundled files, and problems. [HfHubBuildProcessor.cs](../tools.doji.hf-hub/Editor/Build/HfHubBuildProcessor.cs) runs it in `BuildPlayerProcessor.PrepareForBuild`:
+[RuntimeRegistryBuilder.cs](../tools.doji.model-hub/Editor/Build/RuntimeRegistryBuilder.cs) turns a `StatusReport` into a `Plan`: registry, bundled files, and problems. [ModelHubBuildProcessor.cs](../tools.doji.model-hub/Editor/Build/ModelHubBuildProcessor.cs) runs it in `BuildPlayerProcessor.PrepareForBuild`:
 
 - Problems fail the build with `BuildFailedException` and a list: a model that is not imported, a missing runtime model file, a download-mode file without an etag, or a download-mode ONNX file when `tools.doji.onnx-model-loader` is not installed.
 - Each bundled runtime model goes in with `BuildPlayerContext.AddAdditionalPathToStreamingAssets`, straight from the converted store or the cache. Nothing is copied into `Assets`.
 - A runtime model shared by two packages is bundled once.
-- A pulled copy under `Assets/StreamingAssets/hf-hub/models/` is already in the build, so it is not added again.
-- The registry is written to `Library/Doji/HfHub/build/hf-hub-runtime.json` and added as `hf-hub/hf-hub-runtime.json`.
+- A pulled copy under `Assets/StreamingAssets/model-hub/models/` is already in the build, so it is not added again.
+- The registry is written to `Library/Doji/ModelHub/build/model-hub-runtime.json` and added as `model-hub/model-hub-runtime.json`.
 - `onnxConverterId` is `doji-onnx-model-loader@<version>+<format generation>` when the loader package is installed, else null. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
 
 Builds never ship `.onnx` files.
 
 ## Players
 
-[RuntimeModels.cs](../tools.doji.hf-hub/Runtime/Locator/RuntimeModels.cs) decides per file:
+[RuntimeModels.cs](../tools.doji.model-hub/Runtime/Locator/RuntimeModels.cs) decides per file:
 
 | Delivery | Format | Player |
 |---|---|---|
@@ -81,37 +81,37 @@ The synchronous `Hub.LoadModel` and `Hub.FromPretrained` work only when a local 
 
 ### Device folders
 
-[CachePaths.cs](../tools.doji.hf-hub/Runtime/Cache/CachePaths.cs), shared with the Editor:
+[CachePaths.cs](../tools.doji.model-hub/Runtime/Cache/CachePaths.cs), shared with the Editor:
 
 | Platform | Cache root | Data root |
 |---|---|---|
 | Editor | Project Settings custom folder (`CacheRootOverride`), else Hugging Face default | per-user Doji folder |
 | Windows, macOS, Linux players | Hugging Face default: `HF_HUB_CACHE`, `HF_HOME/hub`, `~/.cache/huggingface/hub` | per-user Doji folder, same as the Editor |
-| Other players | `persistentDataPath/huggingface/hub` | `persistentDataPath/hf-hub` |
+| Other players | `persistentDataPath/huggingface/hub` | `persistentDataPath/model-hub` |
 
 Desktop players share the user's Hugging Face cache by default, so a model the Editor or Python downloaded is reused. A project that must not write to the user's home folder bundles its models. A `persistentDataPath` option for desktop players is on the [roadmap](roadmap.md).
 
 ### Downloads
 
-[RuntimeDownloader.cs](../tools.doji.hf-hub/Runtime/Locator/RuntimeDownloader.cs):
+[RuntimeDownloader.cs](../tools.doji.model-hub/Runtime/Locator/RuntimeDownloader.cs):
 
 - URL: `https://huggingface.co/<cacheRepoId>/resolve/<commit>/<escaped path>`.
-- `CacheBlobs.StoreAsync` ([CacheBlobs.cs](../tools.doji.hf-hub/Runtime/Cache/CacheBlobs.cs)), shared with Editor sync: with an etag, take the blob lock, download into `blobs/<etag>` when missing or the wrong size, and link the snapshot file. Without an etag, download into the snapshot path.
+- `CacheBlobs.StoreAsync` ([CacheBlobs.cs](../tools.doji.model-hub/Runtime/Cache/CacheBlobs.cs)), shared with Editor sync: with an etag, take the blob lock, download into `blobs/<etag>` when missing or the wrong size, and link the snapshot file. Without an etag, download into the snapshot path.
 - The player then writes `refs/<revision>` only when it is missing. Editor sync always writes it, because it just resolved the revision.
 - Desktop and mobile use `ResumableDownloader` from `tools.doji.downloads`. The Web has no streaming handler: the file arrives in memory and is written once.
 - `BlobLock` uses `flock` and symbolic links only under `UNITY_EDITOR || UNITY_STANDALONE`. Other players use an in-process lock and copies.
 - The downloader does not await with `ConfigureAwait(false)`: `ModelLoader` and `UnityWebRequest` need the main thread.
-- On the Web, `persistentDataPath` is in memory until the player copies it to IndexedDB. `PersistentStorage.Flush` ([PersistentStorage.cs](../tools.doji.hf-hub/Runtime/Cache/PersistentStorage.cs)) runs `FS.syncfs` from [PersistentStorage.jslib](../tools.doji.hf-hub/Runtime/Cache/PersistentStorage.jslib) after each download, conversion, and `HubStorage` delete, one copy at a time. It does nothing when the template sets `autoSyncPersistentDataPath`, because Unity then saves each file when it closes. Without it, every page load downloads and converts again. It does not call Unity's `JS_FileSystem_Sync`, which logs a deprecation warning.
+- On the Web, `persistentDataPath` is in memory until the player copies it to IndexedDB. `PersistentStorage.Flush` ([PersistentStorage.cs](../tools.doji.model-hub/Runtime/Cache/PersistentStorage.cs)) runs `FS.syncfs` from [PersistentStorage.jslib](../tools.doji.model-hub/Runtime/Cache/PersistentStorage.jslib) after each download, conversion, and `HubStorage` delete, one copy at a time. It does nothing when the template sets `autoSyncPersistentDataPath`, because Unity then saves each file when it closes. Without it, every page load downloads and converts again. It does not call Unity's `JS_FileSystem_Sync`, which logs a deprecation warning.
 
 ### ONNX on the device
 
-[OnnxModelLoaderConverter.cs](../tools.doji.hf-hub/Runtime/Conversion/OnnxModelLoaderConverter.cs) compiles under the `HF_HUB_ONNX_MODEL_LOADER` version define, set when `tools.doji.onnx-model-loader` is installed. It registers itself with `RuntimeInitializeOnLoadMethod`. `Hub.RegisterOnnxConverter(converter, converterId)` replaces it.
+[OnnxModelLoaderConverter.cs](../tools.doji.model-hub/Runtime/Conversion/OnnxModelLoaderConverter.cs) compiles under the `MODEL_HUB_ONNX_MODEL_LOADER` version define, set when `tools.doji.onnx-model-loader` is installed. It registers itself with `RuntimeInitializeOnLoadMethod`. `Hub.RegisterOnnxConverter(converter, converterId)` replaces it.
 
 `RuntimeModels.CurrentConverterId` is the registered converter's id, else the registry's `onnxConverterId`. It is part of the conversion key, so a loader upgrade converts again.
 
 ## Known limits
 
-- The build smoke test (`projects/HF Hub/Assets/HF Hub/Build Smoke Test/`) has passed on Windows, Android (IL2CPP, ARM64), and the Web. iOS, macOS, and Linux players are not verified on devices.
+- The build smoke test (`projects/AI Model Hub/Assets/AI Model Hub/Build Smoke Test/`) has passed on Windows, Android (IL2CPP, ARM64), and the Web. iOS, macOS, and Linux players are not verified on devices.
 - Like `huggingface_hub`, downloads are checked by size only, not by content hash.
 - The Web download writes the whole file from memory, then loads it again.
 - Only public repositories download at runtime. A token cannot ship in a build.

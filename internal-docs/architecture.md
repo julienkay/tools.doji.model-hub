@@ -18,19 +18,19 @@ The companion project references the package and its dependencies with
 | `tools.doji.downloads` | Resumable transfer, persisted queue state, file locks, Editor `Progress` operations |
 | `tools.doji.formats.onnx` | `OnnxModelSignatureReader`: ONNX input shapes for the import UI, without loading weights |
 | `com.unity.ai.inference` | ONNX to `.sentis` conversion in the Editor and runtime `Model` loading |
-| `tools.doji.onnx-model-loader` (optional) | ONNX conversion in players, behind the `HF_HUB_ONNX_MODEL_LOADER` version define |
+| `tools.doji.onnx-model-loader` (optional) | ONNX conversion in players, behind the `MODEL_HUB_ONNX_MODEL_LOADER` version define |
 | `com.unity.nuget.newtonsoft-json` | Manifest, metadata and registry JSON |
 
 Generic download behavior belongs in `tools.doji.downloads`, not here.
-HF Hub owns HuggingFace resolution, cache policy, prompts, status, and
-import orchestration. Robust downloads are still core to HF Hub, so treat
-regressions there as HF Hub bugs.
+AI Model Hub owns HuggingFace resolution, cache policy, prompts, status, and
+import orchestration. Robust downloads are still core to AI Model Hub, so treat
+regressions there as AI Model Hub bugs.
 
 ## Flow
 
-1. **Discover.** Packages declare dependencies in `hf-hub-manifest.json` at
+1. **Discover.** Packages declare dependencies in `model-hub-manifest.json` at
    the package root. Projects declare them in
-   `ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json` or in
+   `ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json` or in
    `ProjectManifestAsset` assets. See [manifest-schema.md](manifest-schema.md).
 2. **Resolve and download.** The Hub API resolves the revision to a commit.
    Only the selected files are downloaded, into a shared per-user cache with
@@ -40,7 +40,7 @@ regressions there as HF Hub bugs.
 3. **Import.** The extension decides each file's format. Selected `.onnx`
    files are converted into the shared converted store in the data root,
    keyed by source etag, converter, and recipe. `.sentis` files are used as
-   downloaded. Import records go to `Library/Doji/HfHub/imports/`; nothing
+   downloaded. Import records go to `Library/Doji/ModelHub/imports/`; nothing
    goes into `Assets`. See
    [import-and-generated-assets.md](import-and-generated-assets.md) and
    [per-file-conversion-recipes.md](per-file-conversion-recipes.md).
@@ -62,14 +62,14 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
 
 - `Window > AI Model Hub`
 - `Project Settings > Doji > AI > AI Model Hub`
-- `Tools > Doji > HF Hub`: `Import All`, `Show Status`, `Open Project Settings`
-- custom Inspector for writable `hf-hub-manifest.json` files
+- `Tools > Doji > AI Model Hub`: `Import All`, `Show Status`, `Open Project Settings`
+- custom Inspector for writable `model-hub-manifest.json` files
 
 ## Conventions
 
 - Converted `.sentis` output is keyed by Sentis **format generation**, not
   by exact version (`SentisCompatibility`). Updates within a generation
-  reuse conversions; HF Hub never deletes old ones on its own (`HubStorage`).
+  reuse conversions; AI Model Hub never deletes old ones on its own (`HubStorage`).
 - Never load full ONNX models to show files, recipes, or import settings.
   Read signatures through `tools.doji.formats.onnx`.
 - Avoid long-lived references to ONNX `ModelAsset` objects; they force
@@ -83,5 +83,5 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
   test. Android, iOS, Web, macOS, and Linux players are untested on
   devices. See [runtime-loading.md](runtime-loading.md#known-limits).
 - Repository ids map to cache folders by replacing `/` with `--`
-  ([CachePaths.cs](../tools.doji.hf-hub/Runtime/Cache/CachePaths.cs)). The
+  ([CachePaths.cs](../tools.doji.model-hub/Runtime/Cache/CachePaths.cs)). The
   mapping is not reversible, so two distinct ids can collide.

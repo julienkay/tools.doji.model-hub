@@ -1,20 +1,20 @@
-# HF Hub
+# AI Model Hub
 
 ## Purpose
 
-HF Hub is package management for AI models in Unity.
+AI Model Hub is package management for AI models in Unity.
 
 An AI-powered Unity package needs model files that are too large to ship with
 it. Git LFS, OpenUPM, the Asset Store, and GitHub all make large binaries hard
-to distribute. HF Hub removes that problem: the package references its models
-on HuggingFace, and HF Hub gets them into the user's project.
+to distribute. AI Model Hub removes that problem: the package references its models
+on HuggingFace, and AI Model Hub gets them into the user's project.
 
 ## Users
 
 - **Package developers** build AI-powered Unity packages. They declare the
   models their package needs in a manifest. They do not host, ship, or
   version the model files themselves.
-- **Package consumers** install those packages as usual. HF Hub detects the
+- **Package consumers** install those packages as usual. AI Model Hub detects the
   required models and gets them into the project with one click.
 
 ## Principles
@@ -33,7 +33,7 @@ on HuggingFace, and HF Hub gets them into the user's project.
   the same files.
 - **Share the Hugging Face cache.** Use the same cache location and layout as
   the official `huggingface_hub` Python library. A model downloaded by Python
-  tools is reused in Unity, and the other way round. Keep HF Hub's own
+  tools is reused in Unity, and the other way round. Keep AI Model Hub's own
   bookkeeping outside that cache, and treat it as a rebuildable index: the
   files in the cache are the truth.
 - **Built for Sentis.** Load `.sentis` files as published, and convert ONNX

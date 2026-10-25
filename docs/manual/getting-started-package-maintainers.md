@@ -2,10 +2,10 @@
 
 Package maintainers declare model dependencies without shipping large model files in the Unity package. Package code then loads the models by repository id and file path; the project that uses the package decides whether builds bundle them or download them at runtime.
 
-Create `hf-hub-manifest.json` at the package root. HF Hub discovers that file when the package is installed in a Unity project.
+Create `model-hub-manifest.json` at the package root. AI Model Hub discovers that file when the package is installed in a Unity project.
 
 ```text
-Packages/com.example.my-package/hf-hub-manifest.json
+Packages/com.example.my-package/model-hub-manifest.json
 ```
 
 ## Minimal Manifest
@@ -23,7 +23,7 @@ This manifest requires the full repository inventory for `hf-internal-testing/ti
 }
 ```
 
-Omitting `files` means whole-repository scope. HF Hub downloads every repository file for the resolved revision. `.onnx` files are converted to Sentis models, and `.sentis` files are used as downloaded. A repository with both formats needs a `files` list.
+Omitting `files` means whole-repository scope. AI Model Hub downloads every repository file for the resolved revision. `.onnx` files are converted to Sentis models, and `.sentis` files are used as downloaded. A repository with both formats needs a `files` list.
 
 ## Selected Files
 
@@ -81,13 +81,13 @@ Mark a selected file as optional when the package can work with more than one mo
 }
 ```
 
-The `optional` flag does not mean "download if present." It means "show this selected repo file as project-selectable." Until the project enables an optional file, HF Hub ignores that file for status, download, import, runtime registry output, and startup prompts.
+The `optional` flag does not mean "download if present." It means "show this selected repo file as project-selectable." Until the project enables an optional file, AI Model Hub ignores that file for status, download, import, runtime registry output, and startup prompts.
 
 If every model file in a dependency is optional, Model Hub shows `Choose files` until the project turns on at least one.
 
 ## Authoring In Unity
 
-Select a writable `hf-hub-manifest.json` package asset in Unity to use the focused manifest Inspector. Installed package cache entries are read-only until the package source is embedded or otherwise made local and writable.
+Select a writable `model-hub-manifest.json` package asset in Unity to use the focused manifest Inspector. Installed package cache entries are read-only until the package source is embedded or otherwise made local and writable.
 
 The file picker uses one repository file list:
 

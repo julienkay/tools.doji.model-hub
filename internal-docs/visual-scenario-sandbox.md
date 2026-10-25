@@ -2,11 +2,11 @@
 
 ## Intent
 
-The visual scenario sandbox is a maintainer-only companion-project tool for generating fake HF Hub local state so Model Hub UI and diagnostics can be reviewed without downloading real models.
+The visual scenario sandbox is a maintainer-only companion-project tool for generating fake AI Model Hub local state so Model Hub UI and diagnostics can be reviewed without downloading real models.
 
 Primary location:
 
-- `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`
+- `projects/AI Model Hub/Assets/AI Model Hub/Scenario Sandbox/`
 
 Use it to materialize fake project manifests, download cache files, import metadata, and runtime files for visual review.
 
@@ -24,7 +24,7 @@ Rules:
 
 Scenario apply writes one generated project manifest asset per scenario entry under:
 
-- `Assets/HF Hub/Scenario Sandbox/Generated/`
+- `Assets/AI Model Hub/Scenario Sandbox/Generated/`
 
 Those generated assets are still normal discovered project manifests.
 
@@ -33,7 +33,7 @@ Rules:
 - generated sandbox manifest assets are treated as maintainer-only test inputs by status code and bypass `InvalidRepository` filtering even when repo ids do not exist remotely
 - sandbox still seeds `RepositoryValidationCacheService` with `exists = true` during scenario apply so other editor surfaces read consistent validation state, but manifest-path bypass is authoritative for Model Hub visibility
 - sandbox writes one generated project manifest asset per scenario entry so repeated repo ids simulate multiple manifests depending on the same repo
-- repeated repo ids intentionally still share one project import/runtime slot because real HF Hub imports are repo-scoped by repository
+- repeated repo ids intentionally still share one project import/runtime slot because real AI Model Hub imports are repo-scoped by repository
 - prefer explicit revision-conflict scenarios when visually testing repeated repo ids at different requested revisions
 
 ## Selected-File Scenarios

@@ -33,6 +33,6 @@ entry when it ships or is rejected.
 
 - Which cleanup or eviction policy should the shared cache use?
 - Is the project-open plus `projectChanged` prompt hook enough for package
-  imports and updates, or does HF Hub need a Package Manager event?
+  imports and updates, or does AI Model Hub need a Package Manager event?
 - Should `tools.doji.downloads` own the Editor `Progress` adapter, or should
-  HF Hub keep that orchestration?
+  AI Model Hub keep that orchestration?

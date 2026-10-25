@@ -1,13 +1,13 @@
 # Editor Surfaces
 
-HF Hub has four places in the Editor:
+AI Model Hub has four places in the Editor:
 
 | Surface | Open with | Use it to |
 |---|---|---|
 | Model Hub | `Window > AI Model Hub` | See every model the project needs, download and import them, choose optional files, change conversion settings, and choose how builds deliver each model. |
 | Setup prompt | Opens by itself | Get the models that installed packages need, in one click. |
 | Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and choose the download cache folder. |
-| Manifest Inspector | Select an `hf-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
+| Manifest Inspector | Select an `model-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
 ## Model Hub
 
@@ -15,7 +15,7 @@ HF Hub has four places in the Editor:
 
 The list on the left shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
 
-- **Manifest errors**: manifests that HF Hub could not read. Their models are skipped until the manifest is fixed.
+- **Manifest errors**: manifests that AI Model Hub could not read. Their models are skipped until the manifest is fixed.
 - **Needs action**: models to download, import, update, or fix. Errors are listed first.
 - **Ready**: models this project can load.
 
@@ -29,14 +29,14 @@ The details pane shows the status and the next action for the selected model.
 |---|---|---|
 | Not downloaded | The selected files are not in the download cache. | **Download & Import** downloads them and imports the model. The button shows the download size when it is known. |
 | Not imported | The files are downloaded, but the ONNX files are not converted for this project yet. | **Import** |
-| Update needed | More files are selected than were downloaded, the imported files are out of date, or HF Hub needs the repository's file list to check a download made by another tool. | **Update** downloads missing files and imports the model again. |
+| Update needed | More files are selected than were downloaded, the imported files are out of date, or AI Model Hub needs the repository's file list to check a download made by another tool. | **Update** downloads missing files and imports the model again. |
 | Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again and imports the model. The button shows the download size when it is known. |
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
 | Error | The import failed, the converted models are missing, or the file selection is invalid, for example a whole-repository dependency on a repository with both ONNX and Sentis files. The details explain why. | **Retry Import** |
 | Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
 | Ready | The model can load. A dependency on `.sentis` files is ready as soon as it is downloaded. If some ONNX files could not be converted, a warning lists them; the other files are converted. | None |
 
-**Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending. HF Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
+**Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending. AI Model Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
 
 While a download or import runs, a bar under the toolbar shows the current file and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
 
@@ -50,17 +50,17 @@ More actions:
 
 - **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
 - The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Pull into Project**, **Remove from Project**, and **Remove from Cache**.
-  - **Pull into Project** copies the model's Sentis files into `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/`. Builds and Play mode then use the copies. When copies exist, the item is **Remove Pulled Copies**. See [Pull into project](import-cache-runtime.md#pull-into-project).
+  - **Pull into Project** copies the model's Sentis files into `Assets/StreamingAssets/model-hub/models/<owner>/<name>/`. Builds and Play mode then use the copies. When copies exist, the item is **Remove Pulled Copies**. See [Pull into project](import-cache-runtime.md#pull-into-project).
   - **Remove from Project** deletes this project's import records and pulled copies. Downloaded files and converted models stay in the shared folders, so importing again is fast.
   - **Remove from Cache** deletes the downloaded files from the shared Hugging Face cache on this machine. Other Unity projects and Python tools that use this cache must download the model again. Files that another revision of the model still uses are kept.
 - **+ Add Model** in the toolbar adds a Hugging Face model to the project manifest or to the manifest of a local package. See [Add a model](#add-a-model).
 
 ### Overview tab
 
-The **Optional files** section appears when a manifest marks files as optional. Turn on the files this project needs. HF Hub stores the choice in this project only, in:
+The **Optional files** section appears when a manifest marks files as optional. Turn on the files this project needs. AI Model Hub stores the choice in this project only, in:
 
 ```text
-Assets/Doji/HfHub/HF Hub Optional File Selections.asset
+Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
 ```
 
 The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, imported, or counted in status.
@@ -79,14 +79,14 @@ The choice is stored per manifest and model, so different packages can turn on d
 
 The **Files** tab lists the files the project uses from the repository. **Show unused** also lists files that no manifest selects.
 
-Expand an ONNX file to change how HF Hub converts it. `.sentis` files have no conversion settings.
+Expand an ONNX file to change how AI Model Hub converts it. `.sentis` files have no conversion settings.
 
 - **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the converted model smaller and can reduce accuracy.
 - **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at import, or `-1` to keep it dynamic. Dimensions with the same name share one value.
 - **Settings from**: whether the settings come from the package or from a project override.
 - **Location**: the downloaded file and the converted Sentis model.
 
-After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, HF Hub asks whether to apply or discard them.
+After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, AI Model Hub asks whether to apply or discard them.
 
 ### Storage tab
 
@@ -117,7 +117,7 @@ Select a tile to see its size, partial downloads, and revisions. Actions:
 - **Delete Partial Downloads** deletes the partial files only.
 - **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 
-Removing is not possible while HF Hub imports models, or while another program downloads a file of that repository.
+Removing is not possible while AI Model Hub imports models, or while another program downloads a file of that repository.
 
 ### Add a model
 
@@ -126,7 +126,7 @@ Removing is not possible while HF Hub imports models, or while another program d
 **+ Add Model** opens a small form:
 
 1. Enter a model id such as `julienkay/sentis-MiDaS`, or paste the model's Hugging Face URL.
-2. HF Hub checks that the model exists on Hugging Face and shows its format: **ONNX**, **Sentis**, **ONNX + Sentis**, or **No model files**. **Add** stays disabled until the check passes.
+2. AI Model Hub checks that the model exists on Hugging Face and shows its format: **ONNX**, **Sentis**, **ONNX + Sentis**, or **No model files**. **Add** stays disabled until the check passes.
 3. In **Add to**, choose **This project** or a package in the project's `Packages` folder.
 4. Optionally use **Choose…** to select files. The default is all files. A repository with both ONNX and Sentis files needs a file selection. A repository without model files cannot be added with all files.
 
@@ -134,7 +134,7 @@ Removing is not possible while HF Hub imports models, or while another program d
 
 ![Setup prompt that lists five models the project needs, with the total download size on the Download & Import All button.](../images/manual/setup-prompt.png)
 
-When packages need models that are not imported yet, HF Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size. Each model has a **Model card** link and a **License** link that names the license the model card declares, as in Model Hub. Check the licenses before you download.
+When packages need models that are not imported yet, AI Model Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size. Each model has a **Model card** link and a **License** link that names the license the model card declares, as in Model Hub. Check the licenses before you download.
 
 - **Download & Import** (or **Import** when the files are already downloaded) starts the work and opens Model Hub to show progress. With several models the button says **Download & Import All**. The button shows the total download size when every size is known.
 - **Open Model Hub** opens Model Hub without starting anything.
@@ -149,32 +149,32 @@ Models that only have optional files and none turned on do not open the prompt. 
 **Project models** lists the models this project declares itself, in addition to the ones packages bring. It is stored in:
 
 ```text
-ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
+ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json
 ```
 
 The table works like the [manifest Inspector](#manifest-inspector).
 
 **In builds** sets how builds deliver models by default: **Bundle in the build** or **Download at runtime**. Model Hub can override it per model. See [Builds](import-cache-runtime.md#builds).
 
-**Download cache** sets where the Editor stores downloaded files. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder HF Hub uses now.
+**Download cache** sets where the Editor stores downloaded files. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder AI Model Hub uses now.
 
-The page also shows the installed Sentis version and its format generation. Sentis updates reuse converted models; HF Hub converts them again only when an update starts a new format generation.
+The page also shows the installed Sentis version and its format generation. Sentis updates reuse converted models; AI Model Hub converts them again only when an update starts a new format generation.
 
 ## Manifest Inspector
 
 ![Manifest Inspector with two models, each with a revision, a files button, and a green check.](../images/manual/manifest-inspector.png)
 
-Select an `hf-hub-manifest.json` in a package, or a project manifest asset, to edit its models in the Inspector:
+Select an `model-hub-manifest.json` in a package, or a project manifest asset, to edit its models in the Inspector:
 
-- **Model ID**: `owner/name`. You can paste a Hugging Face URL; HF Hub keeps only the model id.
+- **Model ID**: `owner/name`. You can paste a Hugging Face URL; AI Model Hub keeps only the model id.
 - **Revision**: a branch, tag, or commit. Leave it empty to use `main`.
 - **Files**: **All files**, or a summary such as `1 + 3 optional`. Click it to open the file picker.
 - The round badge shows whether the model id and revision exist on Hugging Face: a green check when found, `!` when not found, `…` while checking, and `?` when not checked yet.
-- **+ Add Model** adds a row, `−` removes one. **Apply** saves the manifest; **Revert** discards your changes. If you select another asset with unapplied changes, HF Hub asks whether to apply them.
+- **+ Add Model** adds a row, `−` removes one. **Apply** saves the manifest; **Revert** discards your changes. If you select another asset with unapplied changes, AI Model Hub asks whether to apply them.
 
 Manifests of installed packages are read-only. To edit one, embed the package in the project.
 
-If HF Hub already knows that a model id does not exist on Hugging Face, Model Hub hides that model and sync skips it until the manifest is fixed.
+If AI Model Hub already knows that a model id does not exist on Hugging Face, Model Hub hides that model and sync skips it until the manifest is fixed.
 
 ### File picker
 

@@ -9,7 +9,7 @@ The editor UX has four surfaces with separate jobs:
 - `Window > AI Model Hub`: the operational inventory. One row per repository, status, the next action, optional files, import settings, and storage.
 - Setup prompt (`AutoPromptWindow`): a one-click "get the models your packages need" dialog.
 - `Project Settings > Doji > AI > AI Model Hub`: project-scoped configuration only (project manifest, cache folder).
-- Manifest Inspectors: authoring for package `hf-hub-manifest.json` and `ProjectManifestAsset`.
+- Manifest Inspectors: authoring for package `model-hub-manifest.json` and `ProjectManifestAsset`.
 
 User-facing behavior is documented in `docs/manual/editor-surfaces.md`. This page covers structure and rules.
 
@@ -19,7 +19,7 @@ All files live in `Editor/UI/`.
 
 | File | Owns |
 |---|---|
-| `Styles/HfHub.uss` | Theme tokens (`.hf-dark`, `.hf-light`) and shared components: buttons, pills, dots, tags, callouts, cards, sections, key/value rows, search field, progress bar, empty state |
+| `Styles/ModelHub.uss` | Theme tokens (`.hf-dark`, `.hf-light`) and shared components: buttons, pills, dots, tags, callouts, cards, sections, key/value rows, search field, progress bar, empty state |
 | `Styles/ModelHubWindow.uss`, `Styles/SetupPrompt.uss`, `Styles/Settings.uss`, `Styles/ManifestEditor.uss` | Layout for one surface each. `ManifestEditor.uss` also styles the Add Model popup and the file picker |
 | `UiKit.cs` | Element factories that apply the shared classes, `ApplyTheme`, icon loading, `FormatBytes` |
 | `ModelStatus.cs` | The single mapping from `ModelHubItem` to status label, description, tone, and next action |
@@ -44,7 +44,7 @@ Maintainer rules:
 - Use the `--hf-*` tokens for colors. Add a token to both `.hf-dark` and `.hf-light` instead of hard-coding a color in a surface sheet.
 - Read status copy from `ModelStatus`. Do not re-derive "download vs import" wording in a surface.
 - Keep logic that tests need (view models, parsing, status mapping) out of element-building code.
-- Stylesheets load from `Packages/tools.doji.hf-hub/Editor/UI/Styles/` through `UiKit.ApplyTheme`.
+- Stylesheets load from `Packages/tools.doji.model-hub/Editor/UI/Styles/` through `UiKit.ApplyTheme`.
 
 ## Surface Split
 
@@ -52,7 +52,7 @@ Maintainer rules:
 
 Project Settings answers only:
 
-- which models this project declares itself (`ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json`)
+- which models this project declares itself (`ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`)
 - where the shared cache lives, and which folder is in effect
 - which Sentis version imports target
 
@@ -81,7 +81,7 @@ Size labels:
 
 Download cache view:
 
-- data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete`, `.downloading`, and `.downloading.segment` (the body of the current request) files are partial downloads; deleting a partial download also deletes its resume state and segment. Tiles are named by the snapshot path that links to the blob, else by HF Hub's index, else by the etag
+- data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete`, `.downloading`, and `.downloading.segment` (the body of the current request) files are partial downloads; deleting a partial download also deletes its resume state and segment. Tiles are named by the snapshot path that links to the blob, else by AI Model Hub's index, else by the etag
 - "used by this project" means a model repository that the current report lists, compared without letter case
 - the treemap lays out tiles with `TreemapLayout.Squarify` on `GeometryChangedEvent`, as absolutely positioned elements. The Files view nests file tiles in repository groups and merges files past the largest 120 into one tile
 - `Remove from Cache` takes every blob lock of the repository first and deletes nothing if one is held, then deletes the repository folder, its `.locks` folder, and its index folder. It removes all revisions, unlike the per-model action, which removes one revision
@@ -115,7 +115,7 @@ Opening an item requests the remote inventory (`RemoteSnapshotSizeEstimateServic
 All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync. Nothing starts a download without a user action; see "Damaged Cache" in `download-and-cache.md`.
 
 - `Remove from Project` deletes owner binding metadata and shared import records for this project. Converted models stay in the shared store. Pulled copies go only when no binding for the repository remains
-- `Pull into Project` copies runtime models into `Assets/StreamingAssets/hf-hub/models/<owner>/<name>/` (`PulledModels`); builds then skip bundling them.
+- `Pull into Project` copies runtime models into `Assets/StreamingAssets/model-hub/models/<owner>/<name>/` (`PulledModels`); builds then skip bundling them.
 - `Remove from Cache` deletes this machine's download cache entry while leaving converted models intact.
 
 That split matters because imported runtime files are project-owned artifacts, while raw snapshots are machine-local shared cache artifacts. Model Hub status must keep imported entries usable after cache removal as long as import metadata and runtime files still validate.
@@ -148,9 +148,9 @@ Existing status evaluation still works per discovered dependency because stale c
 
 The Model Hub layer adds one editor-facing aggregation step:
 
-1. build normal `HfHubStatusReport`
+1. build normal `StatusReport`
 2. group dependency statuses by `repository + revision`
-3. merge dependents, runtime files, and high-level diagnostics into one `HfHubModelHubItem`
+3. merge dependents, runtime files, and high-level diagnostics into one `ModelHubItem`
 
 UI diagnostic requirement:
 
@@ -181,7 +181,7 @@ If same repository is declared at multiple requested revisions:
 - every affected dependency is conflict state, not `Ready`
 - Model Hub still shows one row per `repository + requested revision` so users can see each conflicting request
 - every conflicting row renders `Error`
-- primary diagnostic should say repo is declared at multiple revisions and HF Hub supports only one revision per repo per project
+- primary diagnostic should say repo is declared at multiple revisions and AI Model Hub supports only one revision per repo per project
 - `Show Manifest` and the Used by rows stay available so users can jump to conflicting manifests
 - conflict summary UI should classify owners as project, embedded/local package, or installed package so user sees whether fix is direct manifest edit or package-version change
 - conflict UX should offer clipboard summary and `Open Package Manager` when installed packages participate
@@ -243,7 +243,7 @@ Those features should reuse the repo-level item model instead of reintroducing d
 
 ## Manifest Editor
 
-`ManifestEditorElement` is the shared manifest table for the package `hf-hub-manifest.json` Inspector (`ModelManifestInspector`, a `TextAsset` editor that falls back to Unity's text inspector for other files), the `ProjectManifestAsset` Inspector, and Project Settings.
+`ManifestEditorElement` is the shared manifest table for the package `model-hub-manifest.json` Inspector (`ModelManifestInspector`, a `TextAsset` editor that falls back to Unity's text inspector for other files), the `ProjectManifestAsset` Inspector, and Project Settings.
 
 - one `Model ID` field per row; `ManifestModelEntry.TryParseModelId` accepts `owner/name` or a Hugging Face URL
 - revision field with a `main` placeholder; authored text is preserved (see Revision Semantics)
@@ -261,7 +261,7 @@ Validation (`ManifestModelValidationController`):
 
 Shared invalid-repository flow:
 
-1. `RepositoryValidationCacheService` stores repo-exists checks under `Library/.../hf-hub-repo-validation.json`
+1. `RepositoryValidationCacheService` stores repo-exists checks under `Library/.../model-hub-repo-validation.json`
 2. `ManifestEditorElement` writes successful yes/no checks into that shared cache when the store persists validation
 3. `StatusService` upgrades cached negative results into `DependencyReasonCode.InvalidRepository`
 4. `ModelHubService` filters those dependency statuses out instead of showing a broken row
@@ -275,7 +275,7 @@ Maintainer rule:
 
 Cache strategy:
 
-- cache file lives under `Library/Doji/HfHub/model-manifest-validation/hf-hub-repo-validation.json`
+- cache file lives under `Library/Doji/ModelHub/model-manifest-validation/model-hub-repo-validation.json`
 - cache key is `modelId` (`owner/name`)
 - entries expire by age only; anything older than 1 day is treated as a cache miss
 - failed network checks do not overwrite the previous cached result
@@ -286,7 +286,7 @@ Cache strategy:
 `AddModelPopup` adds one model to the project manifest or to a local package manifest (`LocalPackageManifestStore`).
 
 - validation runs 400 ms after the last keystroke, through `ManifestModelValidationController.ValidateDependencyAsync(..., writePersistentCache: false)`
-- the popup does not write `Library/.../hf-hub-repo-validation.json`; its result is transient
+- the popup does not write `Library/.../model-hub-repo-validation.json`; its result is transient
 - `Add` stays disabled until the current id resolves as valid
 - the popup is repo-id only and validates `main`; do not add revision-aware validation until it exposes a revision input
 
@@ -315,7 +315,7 @@ Maintainer rule:
 
 Companion project now includes maintainer-only visual sandbox under:
 
-- `projects/HF Hub/Assets/HF Hub/Scenario Sandbox/`
+- `projects/AI Model Hub/Assets/AI Model Hub/Scenario Sandbox/`
 
 Detailed maintainer behavior, constraints, and supported workflow live in:
 
@@ -325,8 +325,8 @@ Detailed maintainer behavior, constraints, and supported workflow live in:
 
 Import storage now has two layers:
 
-- owner binding metadata under `Library/Doji/HfHub/imports/bindings/...`
-- shared repo import metadata under `Library/Doji/HfHub/imports/shared/...`
+- owner binding metadata under `Library/Doji/ModelHub/imports/bindings/...`
+- shared repo import metadata under `Library/Doji/ModelHub/imports/shared/...`
 
 Model Hub should still think in repo rows, but maintainer-facing removal and stale reasoning must respect this split:
 

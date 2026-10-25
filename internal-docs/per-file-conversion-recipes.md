@@ -7,11 +7,11 @@ Clean mental model:
 - repo cache answers what bits
 - conversion recipe answers how this project bakes those bits
 
-HF Hub should keep those identities separate. The download cache stays keyed by upstream repo snapshot. Generated `.sentis` output becomes keyed by repo file plus effective recipe. That lets Model Hub expose per-file conversion control without breaking package-management guarantees, raw-cache reuse, or runtime lookup simplicity.
+AI Model Hub should keep those identities separate. The download cache stays keyed by upstream repo snapshot. Generated `.sentis` output becomes keyed by repo file plus effective recipe. That lets Model Hub expose per-file conversion control without breaking package-management guarantees, raw-cache reuse, or runtime lookup simplicity.
 
 ## Intent
 
-HF Hub currently treats repository download and `.onnx` to `.sentis` conversion as one coarse repo-level step:
+AI Model Hub currently treats repository download and `.onnx` to `.sentis` conversion as one coarse repo-level step:
 
 - one manifest entry declares one `repo_id`
 - one cache snapshot stores source files for one resolved commit
@@ -39,9 +39,9 @@ Today shared import reuse is keyed by:
 
 See:
 
-- [ProjectPaths.GetSharedImportFolder](../tools.doji.hf-hub/Editor/Import/ProjectPaths.cs)
-- [ProjectImportService.ImportAsync](../tools.doji.hf-hub/Editor/Import/ProjectImportService.cs)
-- [StatusService.IsSharedCurrent](../tools.doji.hf-hub/Editor/Status/StatusService.cs)
+- [ProjectPaths.GetSharedImportFolder](../tools.doji.model-hub/Editor/Import/ProjectPaths.cs)
+- [ProjectImportService.ImportAsync](../tools.doji.model-hub/Editor/Import/ProjectImportService.cs)
+- [StatusService.IsSharedCurrent](../tools.doji.model-hub/Editor/Status/StatusService.cs)
 
 That means:
 
@@ -52,7 +52,7 @@ That means:
 
 Current Model Hub UI is also too late in pipeline:
 
-- [ModelHubWindow](../tools.doji.hf-hub/Editor/UI/ModelHubWindow.cs) `Files` tab shows generated runtime files only
+- [ModelHubWindow](../tools.doji.model-hub/Editor/UI/ModelHubWindow.cs) `Files` tab shows generated runtime files only
 - raw ONNX inventory and conversion controls are not first-class
 - background sync still couples raw download and runtime materialization in one operation
 
@@ -69,7 +69,7 @@ Split two concerns cleanly:
 - source dependency answers `what repo snapshot this project consumes`
 - conversion recipe answers `how one ONNX file in that snapshot becomes project runtime artifact`
 
-HF Hub should keep the download cache identity separate from conversion identity.
+AI Model Hub should keep the download cache identity separate from conversion identity.
 
 ## Identity Layers
 
@@ -136,15 +136,15 @@ Runtime API currently resolves files by:
 
 See:
 
-- [Hub](../tools.doji.hf-hub/Runtime/Core/Hub.cs)
-- [PretrainedRepository](../tools.doji.hf-hub/Runtime/Core/PretrainedRepository.cs)
-- [ResolvedRuntimeModel](../tools.doji.hf-hub/Runtime/Locator/ResolvedRuntimeModel.cs)
+- [Hub](../tools.doji.model-hub/Runtime/Core/Hub.cs)
+- [PretrainedRepository](../tools.doji.model-hub/Runtime/Core/PretrainedRepository.cs)
+- [ResolvedRuntimeModel](../tools.doji.model-hub/Runtime/Locator/ResolvedRuntimeModel.cs)
 
 Keeping one effective recipe per `repo + repoPath` preserves that runtime contract and avoids adding recipe identifiers to public runtime lookup before they are clearly needed.
 
 ## Recipe Sources
 
-HF Hub should support layered recipe sources.
+AI Model Hub should support layered recipe sources.
 
 ### Package Default
 
@@ -176,7 +176,7 @@ Effective recipe for one file follows precedence:
 2. package default
 3. built-in converter default
 
-HF Hub should surface recipe source in UI so users can see whether current settings come from package, project, or fallback behavior.
+AI Model Hub should surface recipe source in UI so users can see whether current settings come from package, project, or fallback behavior.
 
 ## Storage Model
 
@@ -235,7 +235,7 @@ Target shape:
 
 Recommended location direction:
 
-- dedicated HF Hub project asset under `Assets/Doji/HfHub/`
+- dedicated AI Model Hub project asset under `Assets/Doji/ModelHub/`
 - or extend existing project manifest asset system with explicit override asset
 
 Keep it separate from package manifest parsing so package-owned declaration and project-owned override remain distinct.
@@ -244,7 +244,7 @@ Keep it separate from package manifest parsing so package-owned declaration and 
 
 Current converter seam is too small:
 
-- [IOnnxModelConverter.ConvertFromFile(string)](../tools.doji.hf-hub/Runtime/Conversion/IOnnxModelConverter.cs)
+- [IOnnxModelConverter.ConvertFromFile(string)](../tools.doji.model-hub/Runtime/Conversion/IOnnxModelConverter.cs)
 
 Configurable conversion needs explicit request and result types.
 
@@ -272,15 +272,15 @@ This keeps editor bridge and future runtime converter behind same contract.
 
 Model Hub file configuration needs lightweight ONNX inspection before conversion.
 
-HF Hub uses ONNX inspection only to discover the model signature needed for recipe UI and validation. It must not import the ONNX file as a Unity asset, hold a long-lived `ModelAsset`, or load multi-GB model payloads just to draw Model Hub.
+AI Model Hub uses ONNX inspection only to discover the model signature needed for recipe UI and validation. It must not import the ONNX file as a Unity asset, hold a long-lived `ModelAsset`, or load multi-GB model payloads just to draw Model Hub.
 
 Current integration boundary:
 
-- `tools.doji.hf-hub` owns recipe state, Model Hub UI, project overrides, conversion orchestration, and stale decisions
+- `tools.doji.model-hub` owns recipe state, Model Hub UI, project overrides, conversion orchestration, and stale decisions
 - `tools.doji.formats.onnx` owns lightweight ONNX signature reading (`Doji.ONNX.OnnxModelSignatureReader`)
-- `OnnxModelInspector` adapts the external signature reader into HF Hub's internal `OnnxInspectedModel` shape
+- `OnnxModelInspector` adapts the external signature reader into AI Model Hub's internal `OnnxInspectedModel` shape
 
-HF Hub should extract or receive file-level inspection data such as:
+AI Model Hub should extract or receive file-level inspection data such as:
 
 - input names
 - rank
@@ -329,7 +329,7 @@ Import settings currently use the inspected ONNX signature this way:
 - dynamic or unknown dimensions become editable rows initialized to `-1`
 - symbolic dimension names such as `batch` are shared across matching inputs so one UI row can update all bound axes
 - unnamed dynamic dimensions are labeled as `inputName[index]`
-- when the user enters a non-`-1` value, HF Hub writes a full shape override for the affected input because the converter needs complete static input shapes, not just changed axes
+- when the user enters a non-`-1` value, AI Model Hub writes a full shape override for the affected input because the converter needs complete static input shapes, not just changed axes
 
 Non-ONNX files can remain visible later if manifest v2 adds artifact grouping, but first slice only needs actionable ONNX rows.
 
@@ -344,7 +344,7 @@ Current background sync still does:
 
 in one pass.
 
-See [BackgroundSyncManager.RunAsync](../tools.doji.hf-hub/Editor/Sync/BackgroundSyncManager.cs).
+See [BackgroundSyncManager.RunAsync](../tools.doji.model-hub/Editor/Sync/BackgroundSyncManager.cs).
 
 Per-file recipes make this split architecturally important:
 
@@ -357,13 +357,13 @@ Benefits:
 - recipe edits can trigger re-materialization without redownloading
 - offline reconfiguration becomes possible when the download cache already exists
 
-HF Hub can still offer one-click `Import` for convenience, but backend should treat download and materialize as separate operations.
+AI Model Hub can still offer one-click `Import` for convenience, but backend should treat download and materialize as separate operations.
 
 ## Validation
 
 ### Recipe Validation
 
-HF Hub should validate recipe data before conversion:
+AI Model Hub should validate recipe data before conversion:
 
 - static dimensions only on known dynamic axes
 - no conflicting overrides for same input axis
@@ -390,7 +390,7 @@ Current strict revision conflict rule remains unchanged.
 
 Additional future conflict rule:
 
-- if multiple owners declare different package-default recipes for same `repo + repoPath`, HF Hub must not silently choose one
+- if multiple owners declare different package-default recipes for same `repo + repoPath`, AI Model Hub must not silently choose one
 
 Preferred resolution:
 

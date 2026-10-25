@@ -2,22 +2,22 @@
 
 Unity project users resolve model dependencies for the current Unity project.
 
-HF Hub discovers model manifests from installed packages, project settings, and project manifest assets. Model Hub then shows which repositories need download, import, optional-file configuration, repair, or revision conflict resolution.
+AI Model Hub discovers model manifests from installed packages, project settings, and project manifest assets. Model Hub then shows which repositories need download, import, optional-file configuration, repair, or revision conflict resolution.
 
 ## Add Or Discover Dependencies
 
-Package dependencies appear when an installed package contains `hf-hub-manifest.json`.
+Package dependencies appear when an installed package contains `model-hub-manifest.json`.
 
 Project-owned dependencies can be added from:
 
 - `Project Settings > Doji > AI > AI Model Hub`
 - Model Hub `+ Add Model`
-- `Assets > Create > Doji > AI > HF Hub Project Manifest`
+- `Assets > Create > Doji > AI > AI Model Hub Project Manifest`
 
 Project Settings writes to:
 
 ```text
-ProjectSettings/Packages/tools.doji.hf-hub/hf-hub-manifest.json
+ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json
 ```
 
 ScriptableObject project manifests are normal Unity assets and are discovered in addition to the Project Settings manifest.
@@ -28,17 +28,17 @@ Open `Window > AI Model Hub`.
 
 Select the model. When its manifest marks files as optional, the **Optional files** section of the **Overview** tab lists them with their sizes. Turning on a file includes it in this project only.
 
-HF Hub stores project-owned optional-file choices in:
+AI Model Hub stores project-owned optional-file choices in:
 
 ```text
-Assets/Doji/HfHub/HF Hub Optional File Selections.asset
+Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
 ```
 
 Optional files that are off do not count for status, download, import, builds, or startup prompts. Optional files that are on count like any other selected file.
 
 ## Download And Import
 
-Use the setup prompt, the action button of a model in Model Hub, **Import All** in the Model Hub toolbar, or `Tools/Doji/HF Hub/Import All`.
+Use the setup prompt, the action button of a model in Model Hub, **Import All** in the Model Hub toolbar, or `Tools/Doji/AI Model Hub/Import All`.
 
 - `Download & Import`: download the selected files into the shared cache, then convert the ONNX files.
 - `Import`: the files are already downloaded; convert the ONNX files.

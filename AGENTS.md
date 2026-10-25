@@ -2,9 +2,9 @@
 
 ## Project Intent
 
-This repository contains the Unity package `tools.doji.hf-hub` and its companion project `HF Hub`.
+This repository contains the Unity package `tools.doji.model-hub` and its companion project `AI Model Hub`.
 
-Package management for AI models in Unity: packages reference HuggingFace models in a manifest; HF Hub downloads them and imports them as `.sentis` assets.
+Package management for AI models in Unity: packages reference HuggingFace models in a manifest; AI Model Hub downloads them and imports them as `.sentis` assets.
 
 Unity 6000.6 for development; the package supports 6000.3 LTS and later.
 
@@ -23,15 +23,15 @@ Unity 6000.6 for development; the package supports 6000.3 LTS and later.
 Prefer these locations:
 
 - repository root: orient from the repository root for searches, docs, and cross-package work; from this companion Unity project working directory, the repository root is `../..`
-- `tools.doji.hf-hub/`: local package under development
+- `tools.doji.model-hub/`: local package under development
   - `Runtime`: manifests, `Hub` lookup, runtime locator, conversion contracts
   - `Editor`: discovery, cache, sync, import, status, and UI
   - `Tests/Editor`: EditMode tests, grouped like the package folders
 - `docs/`: user-facing package documentation only; keep maintainer notes and internal architecture docs out of DocFX content
 - `internal-docs/`: design notes for maintainers; `internal-docs/README.md` indexes them. Read
   `internal-docs/architecture.md` first, then the topic doc for the area you change.
-- `.claude/skills/`: project skills for tests (`unity-hf-hub-test-creation`) and user docs (`user-facing-docfx-docs`)
-- `projects/HF Hub/Assets`: companion-project assets and test scenes
+- `.claude/skills/`: project skills for tests (`unity-model-hub-test-creation`) and user docs (`user-facing-docfx-docs`)
+- `projects/AI Model Hub/Assets`: companion-project assets and test scenes
 
 Prefer working in the package folder when functionality is package-owned.
 

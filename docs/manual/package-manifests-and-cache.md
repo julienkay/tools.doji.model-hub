@@ -1,6 +1,6 @@
 # Model Manifests and Cache
 
-HF Hub has two main workflows.
+AI Model Hub has two main workflows.
 
 - Package maintainers declare HuggingFace model dependencies in package manifests without committing model files into the package.
 - Unity project users resolve those declarations in the Editor, download the files into the shared Hugging Face cache, and choose whether builds bundle each model or download it at runtime.

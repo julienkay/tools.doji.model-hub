@@ -1,6 +1,6 @@
 ---
 name: user-facing-docfx-docs
-description: Write or revise user-facing DocFX documentation for the in-development `tools.doji.hf-hub` Unity package. Use when expanding the manual, documenting package manifests, shared cache behavior, HuggingFace download workflows, Sentis-related outputs, editor status surfaces, or improving DocFX navigation while keeping maintainer-only build notes out of consumer docs.
+description: Write or revise user-facing DocFX documentation for the in-development `tools.doji.model-hub` Unity package. Use when expanding the manual, documenting package manifests, shared cache behavior, HuggingFace download workflows, Sentis-related outputs, editor status surfaces, or improving DocFX navigation while keeping maintainer-only build notes out of consumer docs.
 ---
 
 # User-Facing DocFX Docs
@@ -11,7 +11,7 @@ Use this skill when editing `docs/` for package consumers.
 
 Keep user-facing docs focused on using the package:
 
-- what HF Hub does for package authors and Unity projects
+- what AI Model Hub does for package authors and Unity projects
 - when to use package manifests, shared cache, and generated assets
 - what editor-visible surfaces or menu entries do
 - what files, folders, downloads, or generated outputs the user should expect
@@ -24,10 +24,10 @@ Do not guess from UI text alone. Verify against implementation before documentin
 
 Read only the files needed for the current page, usually:
 
-- package-level constants and manifest contracts in `tools.doji.hf-hub/Runtime/`
-- runtime-safe manifest and model dependency types in `tools.doji.hf-hub/Runtime/`
-- editor package discovery, menu items, cache services, and download logic in `tools.doji.hf-hub/Editor/`
-- package tests in `tools.doji.hf-hub/Tests/` when behavior or edge cases need confirmation
+- package-level constants and manifest contracts in `tools.doji.model-hub/Runtime/`
+- runtime-safe manifest and model dependency types in `tools.doji.model-hub/Runtime/`
+- editor package discovery, menu items, cache services, and download logic in `tools.doji.model-hub/Editor/`
+- package tests in `tools.doji.model-hub/Tests/` when behavior or edge cases need confirmation
 - existing user docs in `docs/` so new pages match the current manual structure
 
 Document actual behavior, including:
@@ -103,7 +103,7 @@ Screenshot best practices:
 - when adding a placeholder, use the final intended filename so the real screenshot can replace it without markdown changes
 - keep alt text functional and specific, describing the UI surface shown rather than repeating the heading verbatim
 
-For HF Hub workflow documentation:
+For AI Model Hub workflow documentation:
 
 - distinguish package author scope, project scope, shared machine cache scope, and generated asset scope clearly
 - explain which data lives in package manifests versus shared cache metadata versus generated project assets
@@ -125,8 +125,8 @@ For manifest and cache reference pages:
 - Keep the tone practical and explicit. Avoid filler marketing language.
 - Prefer concrete file names, menu paths, cache paths, generated output paths, and manifest filenames.
 - Put screenshot placeholders under `docs/images/`, preferably grouped by topic such as `docs/images/manual/`.
-- Treat `hf-hub-manifest.json` as the primary package author entry point unless the current implementation adds another stronger user-facing workflow.
-- Prefer `tools.doji.hf-hub/` as the package-owned source of truth and `projects/HF Hub/Assets` only when documenting companion-project examples or sample scenes.
+- Treat `model-hub-manifest.json` as the primary package author entry point unless the current implementation adds another stronger user-facing workflow.
+- Prefer `tools.doji.model-hub/` as the package-owned source of truth and `projects/AI Model Hub/Assets` only when documenting companion-project examples or sample scenes.
 - Reflect the active architecture direction: shared Hub logic should be documented as runtime-safe where implemented, with editor-only integration called out separately.
 
 ## Local preview workflow

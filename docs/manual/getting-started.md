@@ -1,12 +1,12 @@
 # Getting Started
 
-HF Hub separates model declaration from model materialization.
+AI Model Hub separates model declaration from model materialization.
 
 Package maintainers describe which HuggingFace repositories and files a package needs. Unity project users decide which project-scoped optional files to include, then import the selected sources into generated runtime assets.
 
 ## Installation
 
-HF Hub and its dependencies `tools.doji.downloads` and `tools.doji.formats.onnx` are published on OpenUPM. Add a scoped registry for `tools.doji` to `Packages/manifest.json`, then add the package:
+AI Model Hub and its dependencies `tools.doji.downloads` and `tools.doji.formats.onnx` are published on OpenUPM. Add a scoped registry for `tools.doji` to `Packages/manifest.json`, then add the package:
 
 ```json
 {
@@ -18,20 +18,20 @@ HF Hub and its dependencies `tools.doji.downloads` and `tools.doji.formats.onnx`
     }
   ],
   "dependencies": {
-    "tools.doji.hf-hub": "1.0.0"
+    "tools.doji.model-hub": "1.0.0"
   }
 }
 ```
 
-HF Hub requires Unity 6000.3 LTS or later and Unity Inference Engine (Sentis) `2.6.1`, which Package Manager installs automatically.
+AI Model Hub requires Unity 6000.3 LTS or later and Unity Inference Engine (Sentis) `2.6.1`, which Package Manager installs automatically.
 
-Package maintainers add `tools.doji.hf-hub` to the `dependencies` of their own `package.json` instead, so their users get HF Hub with the package.
+Package maintainers add `tools.doji.model-hub` to the `dependencies` of their own `package.json` instead, so their users get AI Model Hub with the package.
 
 ## For Package Maintainers
 
 Use this path when you publish or maintain a Unity package that needs AI model files.
 
-Package maintainers create `hf-hub-manifest.json` at package root. The manifest names HuggingFace repositories, requested revisions, and optional file scope. The package can stay small because source ONNX files and generated `.sentis` files are not shipped inside the package.
+Package maintainers create `model-hub-manifest.json` at package root. The manifest names HuggingFace repositories, requested revisions, and optional file scope. The package can stay small because source ONNX files and generated `.sentis` files are not shipped inside the package.
 
 Typical package maintainer tasks:
 
@@ -46,7 +46,7 @@ Continue with [For Package Maintainers](getting-started-package-maintainers.md).
 
 Use this path when a Unity project consumes a package with model dependencies or declares project-owned model dependencies.
 
-Unity project users work in Project Settings and Model Hub. HF Hub discovers package and project manifests, shows model status, downloads files into the shared Hugging Face cache, and converts ONNX files into a shared folder. Builds bundle the models or download them at runtime.
+Unity project users work in Project Settings and Model Hub. AI Model Hub discovers package and project manifests, shows model status, downloads files into the shared Hugging Face cache, and converts ONNX files into a shared folder. Builds bundle the models or download them at runtime.
 
 This workflow is project-scoped. Optional-file selections, conversion settings, delivery modes, and import records belong to the current project, even when the model dependency came from an installed package.
 

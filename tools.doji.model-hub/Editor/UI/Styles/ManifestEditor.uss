@@ -1,0 +1,325 @@
+/* Manifest editor, Add Model popup, and file picker. Shared tokens live in ModelHub.uss. */
+
+.me {
+    flex-grow: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.me-header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.me-header__count {
+    margin-left: 6px;
+    color: var(--hf-text-faint);
+}
+
+.me-table {
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--hf-border-subtle);
+    background-color: var(--hf-surface);
+    overflow: hidden;
+}
+
+.me-columns {
+    flex-direction: row;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hf-border-subtle);
+}
+
+.me-columns > Label {
+    font-size: 10px;
+    -unity-font-style: bold;
+    color: var(--hf-text-muted);
+}
+
+.me-row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hf-border-subtle);
+}
+
+.me-row--last {
+    border-bottom-width: 0;
+}
+
+.me-col-id {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    margin-right: 6px;
+}
+
+.me-col-revision {
+    width: 96px;
+    margin-right: 6px;
+}
+
+.me-col-files {
+    width: 96px;
+    margin-right: 6px;
+}
+
+.me-col-status {
+    width: 20px;
+    align-items: center;
+}
+
+.me-col-remove {
+    width: 24px;
+}
+
+.me-row > .me-col-files {
+    height: 22px;
+    margin-left: 0;
+    padding: 0 6px;
+}
+
+.me-row > Label.me-col-id,
+.me-row > Label.me-col-revision,
+.me-row > Label.me-col-files {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.me-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: var(--hf-accent-text);
+}
+
+.me-check--unknown {
+    background-color: var(--hf-neutral-bg);
+    color: var(--hf-text-muted);
+}
+
+.me-check--checking {
+    background-color: var(--hf-info-bg);
+    color: var(--hf-info);
+}
+
+.me-check--valid {
+    background-color: var(--hf-success);
+}
+
+.me-check--invalid {
+    background-color: var(--hf-error);
+}
+
+.me-empty {
+    padding: 14px 10px;
+    color: var(--hf-text-muted);
+    white-space: normal;
+}
+
+.me-footer {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.me-note {
+    margin-top: 8px;
+}
+
+/* Add Model popup */
+
+.am {
+    padding: 14px 16px;
+}
+
+.am-title {
+    margin-bottom: 10px;
+}
+
+.am-label {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    -unity-font-style: bold;
+    color: var(--hf-text-strong);
+}
+
+.am-check {
+    flex-direction: row;
+    align-items: center;
+    min-height: 18px;
+    margin-top: 5px;
+}
+
+.am-check > .me-check {
+    margin-right: 6px;
+}
+
+.am-check > Label {
+    font-size: 11px;
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.am-problem {
+    margin-top: 2px;
+    color: var(--hf-warning);
+    white-space: normal;
+}
+
+.am-files {
+    flex-direction: row;
+    align-items: center;
+}
+
+.am-files > .hf-button {
+    margin-left: 0;
+}
+
+.am-files > Label {
+    margin-left: 8px;
+    color: var(--hf-text-muted);
+}
+
+.am-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+/* File picker popup */
+
+.fp {
+    flex-grow: 1;
+    padding: 12px 14px;
+}
+
+.fp-header {
+    flex-direction: row;
+    align-items: center;
+}
+
+.fp-subtitle {
+    margin-top: 2px;
+    margin-bottom: 10px;
+    color: var(--hf-text-muted);
+}
+
+.fp-controls {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.fp-controls > .hf-search {
+    flex-grow: 1;
+    margin-right: 8px;
+}
+
+.fp-filter {
+    flex-direction: row;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: var(--hf-button-border);
+    overflow: hidden;
+}
+
+.fp-filter > Button {
+    height: 22px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: var(--hf-button);
+    color: var(--hf-text-muted);
+}
+
+.fp-filter > Button:hover {
+    background-color: var(--hf-button-hover);
+}
+
+.fp-filter > .fp-filter--active,
+.fp-filter > .fp-filter--active:hover {
+    background-color: var(--hf-selection);
+    color: var(--hf-selection-text);
+}
+
+.fp-list {
+    flex-grow: 1;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--hf-border-subtle);
+    background-color: var(--hf-surface);
+}
+
+.fp-row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hf-border-subtle);
+}
+
+.fp-row > Toggle {
+    margin: 0 6px 0 0;
+}
+
+.fp-row__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fp-row--off > .fp-row__name {
+    color: var(--hf-text-faint);
+}
+
+.fp-row__optional {
+    margin: 0 8px;
+}
+
+.fp-row__optional > .unity-toggle__input > .unity-toggle__text {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--hf-text-muted);
+}
+
+.fp-invisible {
+    visibility: hidden;
+}
+
+.fp-row__size {
+    width: 64px;
+    font-size: 11px;
+    color: var(--hf-text-muted);
+    -unity-text-align: middle-right;
+}
+
+.fp-message {
+    padding: 14px;
+    white-space: normal;
+    color: var(--hf-text-muted);
+}
+
+.fp-footer {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 10px;
+}
+
+/* Inspector host */
+
+.me-host {
+    padding: 6px 2px 10px 2px;
+    background-color: rgba(0, 0, 0, 0);
+}

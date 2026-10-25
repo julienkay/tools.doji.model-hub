@@ -2,6 +2,8 @@
 
 Reference AI models on Hugging Face from Unity packages, and load them as Inference Engine models in the Editor and in players.
 
+AI Model Hub is not affiliated with Hugging Face.
+
 ## Manual
 
 - [Getting Started](manual/getting-started.md)

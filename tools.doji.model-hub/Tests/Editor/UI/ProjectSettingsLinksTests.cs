@@ -1,0 +1,290 @@
+using NUnit.Framework;
+using System;
+using System.Linq;
+using System.IO;
+using UnityEngine;
+
+namespace Doji.AI.ModelHub.Editor.Tests
+{
+    /// <summary>
+    /// Covers link targets shown in Project Settings.
+    /// </summary>
+    internal sealed class ProjectSettingsLinksTests
+    {
+        /// <summary>
+        /// Ensures source links open repository tree view for declared revision.
+        /// </summary>
+        [Test]
+        public void GetSourceRepositoryUrl_BuildsHuggingFaceTreeUrl()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.test",
+                "Test Package",
+                "1.0.0",
+                "/tmp/tools.doji.test",
+                "/tmp/tools.doji.test/model-hub-manifest.json",
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "refs/pr/12"));
+
+            var url = ProjectSettingsLinks.GetSourceRepositoryUrl(dependency);
+
+            Assert.That(
+                url,
+                Is.EqualTo("https://huggingface.co/doji/test-model/tree/refs%2Fpr%2F12"));
+        }
+
+        /// <summary>
+        /// Ensures absolute manifest paths under project root normalize to Unity asset paths.
+        /// </summary>
+        [Test]
+        public void TryGetProjectAssetPath_NormalizesProjectRelativeAssetPath()
+        {
+            var projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
+            var manifestPath = System.IO.Path.Combine(projectRoot, "Packages", "tools.doji.test", "model-hub-manifest.json");
+
+            var assetPath = ProjectSettingsLinks.TryGetProjectAssetPath(manifestPath);
+
+            Assert.That(assetPath, Is.EqualTo("Packages/tools.doji.test/model-hub-manifest.json"));
+        }
+
+        /// <summary>
+        /// Ensures locate targets collapse duplicate manifest paths and sort stable by label.
+        /// </summary>
+        [Test]
+        public void BuildManifestLocateTargets_DeduplicatesManifestPaths()
+        {
+            var sharedManifestPath = "Packages/tools.doji.pkg/model-hub-manifest.json";
+            var projectOwnerId = CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e");
+            var item = new ModelHubItem(
+                "hf-internal-testing/tiny-random-bert",
+                "main",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ModelHubItemState.Ready,
+                new[]
+                {
+                    CreateDependencyStatus("tools.doji.beta", "Beta", "beta-model", sharedManifestPath),
+                    CreateDependencyStatus("tools.doji.alpha", "Alpha", "alpha-model", sharedManifestPath),
+                    CreateDependencyStatus(projectOwnerId, "Project", "project-model", "Assets/AI Model Hub/AI Model Hub Project Manifest.asset")
+                },
+                Array.Empty<ModelHubDiagnostic>(),
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
+
+            var targets = ProjectSettingsLinks.BuildManifestLocateTargets(item);
+
+            Assert.That(targets.Select(target => target.Label).ToArray(), Is.EqualTo(new[]
+            {
+                "Alpha / alpha-model",
+                "Project / project-model"
+            }));
+            Assert.That(targets.Select(target => target.ManifestPath).ToArray(), Is.EqualTo(new[]
+            {
+                sharedManifestPath,
+                "Assets/AI Model Hub/AI Model Hub Project Manifest.asset"
+            }));
+        }
+
+        /// <summary>
+        /// Ensures Project Settings manifest owners appear as first-class locate targets.
+        /// </summary>
+        [Test]
+        public void BuildManifestLocateTargets_IncludesProjectSettingsManifestOwner()
+        {
+            var item = new ModelHubItem(
+                "julienkay/sentis-midas",
+                "main",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ModelHubItemState.Ready,
+                new[]
+                {
+                    CreateDependencyStatus(
+                        ProjectManifestDiscovery.ProjectSettingsManifestOwnerId,
+                        "Project Settings",
+                        "julienkay/sentis-midas",
+                        "/tmp/AI Model Hub/ProjectSettings/model-hub-manifest.json"),
+                    CreateDependencyStatus(
+                        "tools.doji.model-hub-test-models",
+                        "AI Model Hub Test Models",
+                        "julienkay/sentis-midas",
+                        "Packages/tools.doji.model-hub-test-models/model-hub-manifest.json")
+                },
+                Array.Empty<ModelHubDiagnostic>(),
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
+
+            var targets = ProjectSettingsLinks.BuildManifestLocateTargets(item);
+
+            Assert.That(targets.Count, Is.EqualTo(2));
+            Assert.That(targets.Select(target => target.OwnerId).ToArray(), Is.EqualTo(new[]
+            {
+                "tools.doji.model-hub-test-models",
+                ProjectManifestDiscovery.ProjectSettingsManifestOwnerId
+            }));
+            Assert.That(targets.Select(target => target.Label).ToArray(), Is.EqualTo(new[]
+            {
+                "AI Model Hub Test Models / julienkay/sentis-midas",
+                "Project Settings"
+            }));
+        }
+
+        /// <summary>
+        /// Ensures package-cache manifests are treated as package-manager owned rather than directly editable project files.
+        /// </summary>
+        [Test]
+        public void GetManifestOwnerResolutionInfo_ClassifiesInstalledPackageCacheAsPackageManagerOwned()
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "tools.doji.pkg@1.2.3");
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.pkg",
+                "Locked Package",
+                "1.2.3",
+                packageRoot,
+                Path.Combine(packageRoot, "model-hub-manifest.json"),
+                "manifesthash",
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "refs/tags/v1"));
+
+            var info = ProjectSettingsLinks.GetManifestOwnerResolutionInfo(dependency);
+
+            Assert.That(info.Kind, Is.EqualTo(ProjectSettingsLinks.ManifestOwnerResolutionKind.InstalledPackage));
+            Assert.That(info.IsDirectlyEditable, Is.False);
+            Assert.That(info.SuggestsPackageManager, Is.True);
+            Assert.That(info.ResolutionHint, Does.Contain("Package Manager"));
+        }
+
+        /// <summary>
+        /// Ensures copied conflict summary includes owner source and package-manager guidance for locked package owners.
+        /// </summary>
+        [Test]
+        public void BuildRevisionConflictSummary_ListsOwnerKindsAndResolutionHints()
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var packageRoot = Path.Combine(projectRoot, "Library", "PackageCache", "tools.doji.pkg@1.2.3");
+            var projectOwnerId = CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e");
+            var item = new ModelHubItem(
+                "doji/test-model",
+                "main",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ModelHubItemState.Error,
+                new[]
+                {
+                    CreateDependencyStatus(
+                        projectOwnerId,
+                        "Project",
+                        "project-model",
+                        "Assets/AI Model Hub/AI Model Hub Project Manifest.asset",
+                        packageResolvedPath: Path.Combine(projectRoot, "Assets", "AI Model Hub")),
+                    CreateDependencyStatus(
+                        "tools.doji.pkg",
+                        "Locked Package",
+                        "package-model",
+                        Path.Combine(packageRoot, "model-hub-manifest.json"),
+                        packageVersion: "1.2.3",
+                        packageResolvedPath: packageRoot,
+                        revision: "refs/tags/v1",
+                        reasonCode: DependencyReasonCode.RevisionConflict)
+                },
+                Array.Empty<ModelHubDiagnostic>(),
+                Array.Empty<ImportedRuntimeFileMetadata>(),
+                Array.Empty<ModelHubFileItem>());
+
+            var summary = ProjectSettingsLinks.BuildRevisionConflictSummary(item);
+
+            Assert.That(summary, Does.Contain("AI Model Hub revision conflict"));
+            Assert.That(summary, Does.Contain("Project manifest"));
+            Assert.That(summary, Does.Contain("Installed package"));
+            Assert.That(summary, Does.Contain("Package Manager"));
+            Assert.That(summary, Does.Contain("Assets/AI Model Hub/AI Model Hub Project Manifest.asset"));
+            Assert.That(summary, Does.Contain("Library/PackageCache"));
+        }
+
+        /// <summary>
+        /// Ensures reminder context stays null when unresolved dependencies come from more than one manifest path.
+        /// </summary>
+        [Test]
+        public void TryGetSingleManifestContextObject_ReturnsNullForMultipleManifestPaths()
+        {
+            var statuses = new[]
+            {
+                CreateDependencyStatus(
+                    CreateProjectOwnerId("5a899f24b6fd4a1ba127ab1a1b267c7e"),
+                    "Project",
+                    "project-model",
+                    "Assets/AI Model Hub/AI Model Hub Project Manifest.asset",
+                    reasonCode: DependencyReasonCode.ImportBindingMissing),
+                CreateDependencyStatus(
+                    "tools.doji.pkg",
+                    "Locked Package",
+                    "package-model",
+                    "Packages/tools.doji.pkg/model-hub-manifest.json",
+                    reasonCode: DependencyReasonCode.ImportBindingMissing)
+            };
+
+            var context = ProjectSettingsLinks.TryGetSingleManifestContextObject(statuses);
+
+            Assert.That(context, Is.Null);
+        }
+
+        private static DependencyStatus CreateDependencyStatus(
+            string packageId,
+            string packageDisplayName,
+            string modelId,
+            string manifestPath,
+            string packageVersion = "1.0.0",
+            string packageResolvedPath = null,
+            string revision = "main",
+            DependencyReasonCode reasonCode = DependencyReasonCode.None)
+        {
+            var dependency = new DiscoveredModelDependency(
+                packageId,
+                packageDisplayName,
+                packageVersion,
+                packageResolvedPath ?? $"/tmp/{packageId}",
+                manifestPath,
+                $"{packageId}-hash",
+                new ModelDependencyDefinition(
+                    modelId,
+                    revision));
+
+            return new DependencyStatus(
+                dependency,
+                reasonCode == DependencyReasonCode.None ? DependencyState.Ready : DependencyState.Failed,
+                reasonCode,
+                reasonCode == DependencyReasonCode.None ? "Ready" : "Conflict",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        }
+
+        private static string CreateProjectOwnerId(string assetGuid)
+        {
+            return ProjectManifestDiscovery.GetOwnerId(assetGuid, "Assets/AI Model Hub/AI Model Hub Project Manifest.asset", null);
+        }
+    }
+}

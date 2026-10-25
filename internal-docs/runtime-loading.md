@@ -101,7 +101,7 @@ Desktop players share the user's Hugging Face cache by default, so a model the E
 - Desktop and mobile use `ResumableDownloader` from `tools.doji.downloads`. The Web has no streaming handler: the file arrives in memory and is written once.
 - `BlobLock` uses `flock` and symbolic links only under `UNITY_EDITOR || UNITY_STANDALONE`. Other players use an in-process lock and copies.
 - The downloader does not await with `ConfigureAwait(false)`: `ModelLoader` and `UnityWebRequest` need the main thread.
-- On the Web, `persistentDataPath` is in memory until the player copies it to IndexedDB. `PersistentStorage.Flush` ([PersistentStorage.cs](../tools.doji.hf-hub/Runtime/Cache/PersistentStorage.cs)) calls Unity's `JS_FileSystem_Sync` after each download, conversion, and `HubStorage` delete. Without it, every page load downloads and converts again.
+- On the Web, `persistentDataPath` is in memory until the player copies it to IndexedDB. `PersistentStorage.Flush` ([PersistentStorage.cs](../tools.doji.hf-hub/Runtime/Cache/PersistentStorage.cs)) runs `FS.syncfs` from [PersistentStorage.jslib](../tools.doji.hf-hub/Runtime/Cache/PersistentStorage.jslib) after each download, conversion, and `HubStorage` delete, one copy at a time. It does nothing when the template sets `autoSyncPersistentDataPath`, because Unity then saves each file when it closes. Without it, every page load downloads and converts again. It does not call Unity's `JS_FileSystem_Sync`, which logs a deprecation warning.
 
 ### ONNX on the device
 
@@ -112,6 +112,6 @@ Desktop players share the user's Hugging Face cache by default, so a model the E
 ## Known limits
 
 - The build smoke test (`projects/HF Hub/Assets/HF Hub/Build Smoke Test/`) has passed on Windows, Android (IL2CPP, ARM64), and the Web. iOS, macOS, and Linux players are not verified on devices.
-- Players do not verify a downloaded file's hash against its etag; they check only the size.
+- Like `huggingface_hub`, downloads are checked by size only, not by content hash.
 - The Web download writes the whole file from memory, then loads it again.
 - Only public repositories download at runtime. A token cannot ship in a build.

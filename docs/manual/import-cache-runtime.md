@@ -142,7 +142,7 @@ Builds then use these copies instead of adding the model, and Play mode loads th
 | Windows, macOS, Linux | The user's Hugging Face cache, shared with Python tools and the Editor | The HF Hub data folder of that user |
 | Android, iOS, Web | `persistentDataPath/huggingface/hub` | `persistentDataPath/hf-hub/converted` |
 
-On the Web, `persistentDataPath` lives in the browser's IndexedDB. HF Hub saves it after each download and conversion, so a model downloads once per browser. The browser logs a one-time note that manual synchronization is deprecated; set `config.autoSyncPersistentDataPath = true` in your Web template to remove it.
+On the Web, `persistentDataPath` lives in the browser's IndexedDB. HF Hub saves it after each download and conversion, so a model downloads once per browser.
 
 Desktop players use the same environment variables as the Editor (`HF_HUB_CACHE`, `HF_HOME`). The Project Settings custom folder applies to the Editor only. If your application must not write to the user's Hugging Face cache, bundle its models.
 

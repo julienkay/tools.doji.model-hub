@@ -286,7 +286,7 @@ namespace Doji.AI.ModelHub.Editor
         /// Builds the public HuggingFace `resolve` URL used for both HEAD metadata lookup and file download.
         /// Path segments are escaped individually so nested repo paths remain stable.
         /// </summary>
-        private static string BuildResolveUrl(string repository, string revision, string sourceFile)
+        internal static string BuildResolveUrl(string repository, string revision, string sourceFile)
         {
             var escapedRevision = EscapePathSegment(revision);
             var escapedSourceFile = string.Join(

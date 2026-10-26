@@ -109,11 +109,15 @@ The **Storage** tab shows disk usage in two places:
 
 ### Model Cache
 
-![Model Cache view. The list shows Sharp-onnx under Not in this project and four models under In this project. The details show Add to Project with the target This project, the revision main, and the cached model file.](../images/manual/model-hub-model-cache.png)
+![Model Cache view. The list shows Sharp-onnx under Not in this project and four models under In this project. The details show the Add to Project button, the start of the model card with Show more, and the size and revisions in the cache.](../images/manual/model-hub-model-cache.png)
 
 **Model Cache** lists the models in the Hugging Face cache on this machine: models from this project, from other Unity projects, and from Python tools. Models this project does not use come first.
 
-**Add to Project** lists the selected model in a manifest, without downloading it again:
+The details show the start of the model card (`README.md`) as plain text. **Show more** shows the whole card. AI Model Hub reads the card from the cache when it was downloaded, else from Hugging Face.
+
+![Add to Project popup with Add to set to This project, Revision set to main, and one cached model file.](../images/manual/model-hub-add-cached-model.png)
+
+**Add to Project…** opens a popup that lists the model in a manifest, without downloading it again:
 
 - **Add to**: **This project** writes the project manifest in `ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`. A package in this project's `Packages` folder, for example a package in development, writes that package's `model-hub-manifest.json`.
 - **Revision**: the cached branches and tags. The manifest pins this revision.
@@ -121,9 +125,9 @@ The **Storage** tab shows disk usage in two places:
 
 After **Add to Project**, Model Hub switches to **In Project** and selects the model. A model whose files are all cached and whose converted models exist is ready at once; ONNX files that were never converted for these settings show **Needs conversion**.
 
-For a model this project uses already, **Show in Project** selects it in **In Project**, and **Add to** can still list it in a package.
+For a model this project uses already, **Show in Project** selects it in **In Project**, and **Add to Package…** lists it in a package in this project's `Packages` folder.
 
-**In the Cache** shows the size and revisions, with **Show in Explorer** (or Finder), **Open Disk Usage**, and **Remove from Cache**.
+**In the cache** shows the size, the revisions, and the cached model files, with **Show in Explorer** (or Finder), **Open Disk Usage**, and **Remove from Cache**.
 
 ### Model Cache Disk Usage
 

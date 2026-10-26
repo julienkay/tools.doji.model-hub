@@ -93,9 +93,28 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static IReadOnlyList<string> GetSnapshotFiles(string repositoryFolder, string revision)
         {
-            if (string.IsNullOrWhiteSpace(repositoryFolder) || string.IsNullOrWhiteSpace(revision))
+            var snapshot = GetSnapshotFolder(repositoryFolder, revision);
+            if (snapshot == null)
             {
                 return Array.Empty<string>();
+            }
+
+            var prefix = Path.GetFullPath(snapshot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return Directory.EnumerateFiles(snapshot, "*", SearchOption.AllDirectories)
+                .Select(file => Path.GetFullPath(file).Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/'))
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns the snapshot folder of one cached revision: a ref such as <c>main</c>, or a commit hash. Returns null
+        /// when the revision is not in the cache.
+        /// </summary>
+        public static string GetSnapshotFolder(string repositoryFolder, string revision)
+        {
+            if (string.IsNullOrWhiteSpace(repositoryFolder) || string.IsNullOrWhiteSpace(revision))
+            {
+                return null;
             }
 
             var commit = revision.Trim();
@@ -106,16 +125,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var snapshot = Path.Combine(repositoryFolder, "snapshots", commit);
-            if (commit.Length == 0 || !Directory.Exists(snapshot))
-            {
-                return Array.Empty<string>();
-            }
-
-            var prefix = Path.GetFullPath(snapshot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            return Directory.EnumerateFiles(snapshot, "*", SearchOption.AllDirectories)
-                .Select(file => Path.GetFullPath(file).Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/'))
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
+            return commit.Length > 0 && Directory.Exists(snapshot) ? snapshot : null;
         }
 
         /// <summary>

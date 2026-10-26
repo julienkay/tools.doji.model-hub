@@ -8,20 +8,18 @@ using UnityEngine.UIElements;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Model Cache view: the models downloaded on this machine, and Add to Project, which lists a cached model in the
-    /// project manifest or in the manifest of a package in development. The cached files are used, so the model needs
-    /// no download.
+    /// Model Cache view: the models downloaded on this machine, with their model card, and Add to Project, which lists
+    /// a cached model in the project manifest or in the manifest of a package in development.
     /// </summary>
     internal sealed partial class ModelHubWindow
     {
-        private const string ProjectTargetLabel = "This project";
+        private const int ModelCardPreviewLines = 8;
+        private const int ModelCardPreviewCharacters = 480;
+        private const int ModelCardMaxCharacters = 16000;
 
-        [SerializeField] private int _addTargetIndex;
+        [SerializeField] private bool _modelCardExpanded;
 
-        private string _addFolder;
-        private string _addRevision;
-        private string[] _addFiles = Array.Empty<string>();
-        private bool _addFilesChosen;
+        private string _modelCardFolder;
 
         // ---------------------------------------------------------------- List
 
@@ -92,9 +90,15 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            ResetAddFormIfNeeded(repository);
+            if (!string.Equals(_modelCardFolder, repository.FolderName, StringComparison.Ordinal))
+            {
+                _modelCardFolder = repository.FolderName;
+                _modelCardExpanded = false;
+            }
+
             var item = _report?.Items.FirstOrDefault(entry =>
                 string.Equals(entry.Repository, repository.Repository, StringComparison.OrdinalIgnoreCase));
+            var revision = repository.Refs.Contains("main") ? "main" : repository.Refs.FirstOrDefault();
 
             var header = UiKit.Element("mh-header");
             var headerText = UiKit.Element("mh-header__text");
@@ -110,107 +114,141 @@ namespace Doji.AI.ModelHub.Editor
 
             headerText.Add(subtitle);
             headerText.Add(UiKit.Links(
-                new[] { new ModelLink("Model card", $"https://huggingface.co/{repository.Repository}", "Open the model card on Hugging Face.") },
+                new[] { new ModelLink("Model card", ModelLinks.GetModelCardUrl(repository.Repository), "Open the model card on Hugging Face.") },
                 "mh-header__links"));
             header.Add(headerText);
             header.Add(item != null
                 ? UiKit.Pill(UiTone.Info, "In this project")
                 : UiKit.Pill(UiTone.Neutral, "Not in this project"));
             content.Add(header);
+            content.Add(BuildCachedModelActions(repository, item));
+            content.Add(BuildModelCardSection(repository, revision));
+            content.Add(BuildCachedModelStorageSection(repository, item != null, revision));
+        }
+
+        private VisualElement BuildCachedModelActions(CacheRepositoryEntry repository, ModelHubItem item)
+        {
+            var actions = UiKit.Element("mh-actions");
+            var isFirst = true;
+            void AddAction(Button button)
+            {
+                if (isFirst)
+                {
+                    button.AddToClassList("hf-button--first");
+                    isFirst = false;
+                }
+
+                actions.Add(button);
+            }
 
             if (item != null)
             {
-                var actions = UiKit.Element("mh-actions");
-                actions.Add(UiKit.Button("Show in Project", () => ShowInProject(item.Repository, item.RequestedRevision), "hf-button--first"));
-                content.Add(actions);
+                AddAction(UiKit.Button("Show in Project", () => ShowInProject(item.Repository, item.RequestedRevision)));
             }
 
-            content.Add(BuildAddToProjectSection(repository, item != null));
-            content.Add(BuildCachedModelStorageSection(repository, item != null));
+            var isUsed = item != null;
+            if (AddCachedModelPopup.HasTarget(isUsed))
+            {
+                Button add = null;
+                add = UiKit.Button(isUsed ? "Add to Package…" : "Add to Project…", () => UnityEditor.PopupWindow.Show(
+                    add.worldBound,
+                    new AddCachedModelPopup(repository, isUsed, revision => ShowInProject(repository.Repository, revision))));
+                add.tooltip = isUsed
+                    ? "List this model in a package in this project's Packages folder."
+                    : "List this model in this project, or in a package in development. The cached files are used, so it needs no download.";
+                AddAction(add);
+            }
+
+            return actions;
         }
 
-        private VisualElement BuildAddToProjectSection(CacheRepositoryEntry repository, bool isUsed)
+        private VisualElement BuildModelCardSection(CacheRepositoryEntry repository, string revision)
         {
-            var section = UiKit.Section(
-                isUsed ? "Add to a Package" : "Add to Project",
-                isUsed
-                    ? "This project uses this model already. You can also list it in a package in development."
-                    : "Lists the model in this project, or in a package in development. The cached files are used, so it needs no download.");
-            var card = UiKit.Element("hf-card", "mh-add-card");
+            var section = UiKit.Section("Model card");
+            var card = UiKit.Element("hf-card", "mh-model-card");
+            section.Add(card);
 
-            var packages = LocalPackageManifestStore.GetProjectLocalPackages();
-            var targets = new List<string> { ProjectTargetLabel };
-            targets.AddRange(packages.Select(package => package.Label));
-            _addTargetIndex = Mathf.Clamp(_addTargetIndex, 0, targets.Count - 1);
-            var target = new DropdownField(targets, _addTargetIndex);
-            target.AddToClassList("mh-add-card__field");
-            target.tooltip = "The project manifest in ProjectSettings, or the manifest of a package in this project's Packages folder.";
-            card.Add(UiKit.KeyValue("Add to", target));
-
-            DropdownField revision = null;
-            if (repository.Refs.Count > 0)
+            var cached = revision == null ? null : ModelCardService.ReadCached(repository.FolderPath, revision);
+            if (cached != null)
             {
-                revision = new DropdownField(repository.Refs.ToList(), Math.Max(0, repository.Refs.ToList().IndexOf(_addRevision)));
-                revision.AddToClassList("mh-add-card__field");
-                revision.tooltip = "The cached revisions. The manifest pins this revision.";
-                card.Add(UiKit.KeyValue("Revision", revision));
+                AddModelCardText(card, repository, cached);
+                return section;
+            }
+
+            if (revision == null)
+            {
+                card.Add(UiKit.Text("No model card is cached.", "hf-muted"));
+                return section;
+            }
+
+            var task = ModelCardService.FetchAsync(repository.Repository, revision);
+            if (!task.IsCompleted)
+            {
+                card.Add(UiKit.Text("Loading the model card from Hugging Face…", "hf-muted"));
+                var folder = repository.FolderName;
+                task.ContinueWith(
+                    _ => EditorApplication.delayCall += () =>
+                    {
+                        if (this != null && _view == ModelHubView.Cache && string.Equals(_selectedCacheFolder, folder, StringComparison.Ordinal))
+                        {
+                            RebuildDetails();
+                        }
+                    });
+                return section;
+            }
+
+            if (task.IsFaulted)
+            {
+                card.Add(UiKit.Text("Could not load the model card from Hugging Face.", "hf-muted"));
             }
             else
             {
-                card.Add(UiKit.KeyValue("Revision", "No named revision in the cache"));
+                AddModelCardText(card, repository, task.Result);
             }
 
-            var files = UiKit.Element("mh-add-card__files");
-            var filesSummary = UiKit.Text(DescribeAddFiles());
-            filesSummary.tooltip = string.Join("\n", _addFiles);
-            files.Add(filesSummary);
-            Button choose = null;
-            choose = UiKit.Button("Choose…", () => ChooseAddFiles(repository, choose.worldBound));
-            choose.tooltip = "Pick the files from the model's file list on Hugging Face.";
-            files.Add(choose);
-            card.Add(UiKit.KeyValue("Files", files));
-
-            var problem = repository.Refs.Count == 0
-                ? "Download this model with a branch or tag name to add it from the cache."
-                : _addFiles.Length == 0
-                    ? "No .onnx or .sentis file of this revision is cached. Choose the files to use."
-                    : null;
-            if (problem != null)
-            {
-                card.Add(UiKit.Text(problem, "hf-small", "am-problem"));
-            }
-
-            var actions = UiKit.Element("mh-actions");
-            var add = UiKit.PrimaryButton(BuildAddLabel(targets[_addTargetIndex]), () => AddCachedModel(repository, packages), "hf-button--first");
-            add.SetEnabled(problem == null && !(isUsed && _addTargetIndex == 0));
-            if (isUsed && _addTargetIndex == 0)
-            {
-                add.tooltip = "This project uses this model already.";
-            }
-
-            actions.Add(add);
-            card.Add(actions);
-
-            target.RegisterValueChangedCallback(_ =>
-            {
-                _addTargetIndex = target.index;
-                RebuildDetails();
-            });
-            revision?.RegisterValueChangedCallback(evt =>
-            {
-                _addRevision = evt.newValue;
-                _addFilesChosen = false;
-                _addFiles = GetDefaultAddFiles(repository, _addRevision);
-                RebuildDetails();
-            });
-
-            section.Add(card);
             return section;
         }
 
-        private VisualElement BuildCachedModelStorageSection(CacheRepositoryEntry repository, bool isUsed)
+        private void AddModelCardText(VisualElement card, CacheRepositoryEntry repository, string markdown)
         {
-            var section = UiKit.Section("In the Cache");
+            var text = ModelCardText.ToPlainText(markdown);
+            if (text.Length == 0)
+            {
+                card.Add(UiKit.Text("This model has no model card text.", "hf-muted"));
+                return;
+            }
+
+            var isLong = text.Length > ModelCardMaxCharacters;
+            var full = isLong ? text.Substring(0, ModelCardMaxCharacters).TrimEnd() + "…" : text;
+            var preview = ModelCardText.GetPreview(full, ModelCardPreviewLines, ModelCardPreviewCharacters, out var isTruncated);
+            var label = UiKit.Text(_modelCardExpanded ? full : preview, "hf-wrap", "mh-model-card__text");
+            label.selection.isSelectable = true;
+            card.Add(label);
+
+            var footer = UiKit.Element("mh-model-card__footer");
+            if (isTruncated)
+            {
+                footer.Add(UiKit.LinkButton(_modelCardExpanded ? "Show less" : "Show more", () =>
+                {
+                    _modelCardExpanded = !_modelCardExpanded;
+                    RebuildDetails();
+                }));
+            }
+
+            if (isLong && _modelCardExpanded)
+            {
+                footer.Add(UiKit.LinkButton("Read the rest on Hugging Face", () => Application.OpenURL(ModelLinks.GetModelCardUrl(repository.Repository))));
+            }
+
+            if (footer.childCount > 0)
+            {
+                card.Add(footer);
+            }
+        }
+
+        private VisualElement BuildCachedModelStorageSection(CacheRepositoryEntry repository, bool isUsed, string revision)
+        {
+            var section = UiKit.Section("In the cache");
             var card = UiKit.Element("hf-card");
             card.Add(UiKit.KeyValue("Size on disk", UiKit.FormatBytes(repository.SizeInBytes) ?? "—"));
             if (repository.HasPartialDownloads)
@@ -221,10 +259,12 @@ namespace Doji.AI.ModelHub.Editor
             card.Add(UiKit.KeyValue("Revisions", repository.Refs.Count > 0
                 ? string.Join(", ", repository.Refs)
                 : $"{repository.SnapshotCount} snapshot(s), no named revision"));
-            var cachedModels = repository.Refs.Count > 0 ? GetDefaultAddFiles(repository, _addRevision) : Array.Empty<string>();
-            if (cachedModels.Length > 0)
+            var cachedModels = revision == null
+                ? Array.Empty<string>()
+                : CacheOverviewService.GetCachedModelFiles(CacheOverviewService.GetSnapshotFiles(repository.FolderPath, revision));
+            if (cachedModels.Count > 0)
             {
-                card.Add(UiKit.KeyValue("Format", ModelFiles.GetLabel(ModelFiles.Describe(cachedModels))));
+                card.Add(UiKit.KeyValue("Model files", $"{cachedModels.Count} · {ModelFiles.GetLabel(ModelFiles.Describe(cachedModels))}", string.Join("\n", cachedModels)));
             }
 
             var actions = UiKit.Element("mh-actions");
@@ -247,83 +287,6 @@ namespace Doji.AI.ModelHub.Editor
             card.Add(actions);
             section.Add(card);
             return section;
-        }
-
-        // ---------------------------------------------------------------- Add
-
-        private void ResetAddFormIfNeeded(CacheRepositoryEntry repository)
-        {
-            if (string.Equals(_addFolder, repository.FolderName, StringComparison.Ordinal) &&
-                (_addRevision == null || repository.Refs.Contains(_addRevision)))
-            {
-                return;
-            }
-
-            _addFolder = repository.FolderName;
-            _addRevision = repository.Refs.Contains("main") ? "main" : repository.Refs.FirstOrDefault();
-            _addFilesChosen = false;
-            _addFiles = GetDefaultAddFiles(repository, _addRevision);
-        }
-
-        private static string[] GetDefaultAddFiles(CacheRepositoryEntry repository, string revision)
-        {
-            return CacheOverviewService.GetCachedModelFiles(
-                CacheOverviewService.GetSnapshotFiles(repository.FolderPath, revision)).ToArray();
-        }
-
-        private string DescribeAddFiles()
-        {
-            var count = _addFiles.Length;
-            var files = count == 1 ? "1 file" : $"{count} files";
-            if (count == 0)
-            {
-                return "None";
-            }
-
-            return _addFilesChosen ? $"{files} chosen" : $"{files} · the cached model files";
-        }
-
-        private static string BuildAddLabel(string target)
-        {
-            return string.Equals(target, ProjectTargetLabel, StringComparison.Ordinal) ? "Add to Project" : $"Add to {target}";
-        }
-
-        private void ChooseAddFiles(CacheRepositoryEntry repository, Rect buttonRect)
-        {
-            UnityEditor.PopupWindow.Show(
-                buttonRect,
-                new FileSelectionPopup(
-                    repository.Repository,
-                    _addRevision,
-                    _addFiles.Select(path => new ModelDependencyFileDefinition(path)).ToArray(),
-                    allowOptional: false,
-                    files =>
-                    {
-                        _addFiles = files?.Select(file => file.Path).ToArray() ?? Array.Empty<string>();
-                        _addFilesChosen = true;
-                        RebuildDetails();
-                    }));
-        }
-
-        private void AddCachedModel(CacheRepositoryEntry repository, IReadOnlyList<LocalPackageManifestStore.LocalPackageOption> packages)
-        {
-            if (string.IsNullOrWhiteSpace(_addRevision) || _addFiles.Length == 0)
-            {
-                return;
-            }
-
-            string errorMessage;
-            var added = _addTargetIndex <= 0
-                ? ProjectSettingsModelManifestStore.TryAddModelId(repository.Repository, _addRevision, _addFiles, out errorMessage)
-                : LocalPackageManifestStore.TryAddModelId(packages[_addTargetIndex - 1], repository.Repository, _addRevision, _addFiles, out errorMessage);
-            if (!added)
-            {
-                EditorUtility.DisplayDialog("Could Not Add Model", errorMessage, "OK");
-                return;
-            }
-
-            ProjectSettingsProvider.Refresh();
-            ShowInProject(repository.Repository, _addRevision);
         }
 
         /// <summary>

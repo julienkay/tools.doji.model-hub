@@ -27,7 +27,8 @@ All files live in `Editor/UI/`.
 | `ModelHubWindow.Details.cs` | Header, actions, status callouts, tabs, Overview tab, manifest-error details, empty state |
 | `ModelHubWindow.Files.cs` | Files tab, per-file import settings, apply bar, unsaved-settings prompt |
 | `ModelHubWindow.Storage.cs` | Storage tab |
-| `ModelHubWindow.CachedModels.cs` | Model Cache view: cached model list and details, Add to Project |
+| `ModelHubWindow.CachedModels.cs` | Model Cache view: cached model list and details, model card preview |
+| `AddCachedModelPopup.cs` | Add to Project popup for a cached model |
 | `ModelHubWindow.Cache.cs` | Cache scan, `cache:` row keys, cached-model list rows, cache selection |
 | `CacheDiskUsageWindow.cs` | Model Cache Disk Usage window: legend, treemap, selection card, removal dialogs |
 | `TreemapLayout.cs` | Squarified treemap layout (no UI) |
@@ -72,7 +73,7 @@ In `Project`, list sections, in order: `Manifest errors` (discovery issues), `Ne
 
 In `Cache`, rows have key `cache:{folder}` and select `_selectedCacheFolder`; search filters by repository id. The list shows model repositories with a snapshot, `Not in this project` first, then `In this project`. `OpenCachedModel(folder)` opens Model Hub in `Cache` with one repository selected.
 
-Model Cache details: header, Add to Project card, In the Cache card. Add to Project targets the project manifest (`ProjectSettingsModelManifestStore.TryAddModelId`) or a local package (`LocalPackageManifestStore.TryAddModelId`), with a cached ref as revision. Default files are `CacheOverviewService.GetCachedModelFiles` of `GetSnapshotFiles(folder, ref)`: the cached `.onnx` and `.sentis` files, so the new dependency needs no download. **Choose…** opens `FileSelectionPopup` on the remote inventory. After adding, the window refreshes, switches to `Project`, and selects the new item. Adding to the project manifest is disabled when the project uses the model already.
+Model Cache details: header with `Show in Project` and `Add to Project…` (`Add to Package…` when the project uses the model), the model card, and the In the cache card. The model card comes from `ModelCardService`: `README.md` of the cached snapshot (`CacheOverviewService.GetSnapshotFolder`), else one request per model and revision to the `resolve` URL, kept for the session; a 404 means no card. `ModelCardText.ToPlainText` drops YAML front matter, HTML, images, code fences, and Markdown markup; `GetPreview` keeps 8 lines or about 480 characters, and the expanded card stops at 16,000 characters with a link to Hugging Face. `AddCachedModelPopup` targets the project manifest (`ProjectSettingsModelManifestStore.TryAddModelId`) or a local package (`LocalPackageManifestStore.TryAddModelId`), with a cached ref as revision. Default files are `CacheOverviewService.GetCachedModelFiles` of `GetSnapshotFiles(folder, ref)`: the cached `.onnx` and `.sentis` files, so the new dependency needs no download. **Choose…** opens `FileSelectionPopup` on the remote inventory. After adding, the window refreshes, switches to `Project`, and selects the new item. When the project uses the model already, the popup offers only local packages, and the button is hidden when there is none.
 
 Details pane:
 

@@ -116,7 +116,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies a build stops for models it cannot deliver: not imported, a missing runtime model, a downloaded
+        /// Verifies a build stops for models it cannot deliver: not downloaded, not set up, a missing runtime model, a downloaded
         /// ONNX model without a player converter, or a source without an etag.
         /// </summary>
         [Test]
@@ -128,12 +128,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             noEtag.SourceEtag = null;
 
             var notImported = Plan(ModelDelivery.Bundle, NotImported("tools.doji.a"));
+            var notDownloaded = Plan(ModelDelivery.Bundle, NotImported("tools.doji.a", DependencyReasonCode.RawCacheRevisionRefMissing));
             var missingFile = Plan(ModelDelivery.Bundle, Ready("tools.doji.a", missing));
             var noConverter = Plan(ModelDelivery.Download, Ready("tools.doji.a", OnnxFile("onnx/model.onnx")));
             var withoutEtag = Plan(ModelDelivery.Download, Ready("tools.doji.a", noEtag));
             var sentisDownload = Plan(ModelDelivery.Download, Ready("tools.doji.a", SentisFile("sentis/model.sentis")));
 
-            Assert.That(notImported.Problems.Single(), Does.Contain("not imported"));
+            Assert.That(notImported.Problems.Single(), Does.Contain("could not be set up from the downloaded files"));
+            Assert.That(notDownloaded.Problems.Single(), Does.Contain("not downloaded. Download it in Window > AI Model Hub"));
             Assert.That(missingFile.Problems.Single(), Does.Contain("missing"));
             Assert.That(noConverter.Problems.Single(), Does.Contain("tools.doji.onnx-model-loader"));
             Assert.That(withoutEtag.Problems.Single(), Does.Contain("etag"));
@@ -280,12 +282,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 });
         }
 
-        private static DependencyStatus NotImported(string packageId)
+        private static DependencyStatus NotImported(string packageId, DependencyReasonCode reasonCode = DependencyReasonCode.ImportBindingMissing)
         {
             return new DependencyStatus(
                 CreateDependency(packageId, "doji/test-model"),
                 DependencyState.Missing,
-                DependencyReasonCode.ImportBindingMissing,
+                reasonCode,
                 "Import binding metadata file is missing.",
                 null,
                 null,

@@ -8,8 +8,8 @@ namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
     /// Adds AI Model Hub's registry and bundled runtime models to the build's StreamingAssets, straight from the shared
-    /// caches. Nothing is copied into <c>Assets</c>, so a failed build leaves nothing behind. A model that is not
-    /// imported fails the build with a list, instead of shipping without it.
+    /// caches. Nothing is copied into <c>Assets</c>, so a failed build leaves nothing behind. Cached models are converted
+    /// first; a model that is not downloaded fails the build with a list, instead of shipping without it.
     /// </summary>
     internal sealed class ModelHubBuildProcessor : BuildPlayerProcessor
     {
@@ -19,6 +19,7 @@ namespace Doji.AI.ModelHub.Editor
 
         public override void PrepareForBuild(BuildPlayerContext buildPlayerContext)
         {
+            ImportCachedModels();
             var plan = CreatePlan();
             if (plan.Registry.packages.Length == 0)
             {
@@ -38,6 +39,56 @@ namespace Doji.AI.ModelHub.Editor
 
             buildPlayerContext.AddAdditionalPathToStreamingAssets(WriteRegistry(plan.Registry), RuntimeModels.RegistryRelativePath);
             Debug.Log($"AI Model Hub added {plan.BundledFiles.Count} bundled models and its registry to the build.");
+        }
+
+        /// <summary>
+        /// Starting a build is a user action, so models whose files are cached are set up and converted without a
+        /// prompt. A build never downloads: models that are not downloaded fail the build in <see cref="CreatePlan"/>.
+        /// </summary>
+        internal static CachedModelImporter.Result ImportCachedModels()
+        {
+            var report = EditorOperations.CreateStatusReport();
+            if (!report.DependencyStatuses.Any(status => status.IsImportPending))
+            {
+                return new CachedModelImporter.Result();
+            }
+
+            var showProgress = !Application.isBatchMode;
+            CachedModelImporter.Result result;
+            try
+            {
+                result = CachedModelImporter.Import(
+                    report,
+                    allowConversion: true,
+                    new RawCacheService(),
+                    new ProjectImportService(),
+                    (dependency, index, count) =>
+                    {
+                        if (showProgress)
+                        {
+                            EditorUtility.DisplayProgressBar(
+                                "AI Model Hub",
+                                $"Converting {BackgroundSyncManager.GetDependencyDisplayLabel(dependency)}",
+                                count == 0 ? 1f : (float)index / count);
+                        }
+                    });
+            }
+            finally
+            {
+                if (showProgress)
+                {
+                    EditorUtility.ClearProgressBar();
+                }
+            }
+
+            if (result.Imported.Count > 0)
+            {
+                Debug.Log($"AI Model Hub set up {result.Imported.Count} cached models for the build.");
+                EditorRuntimeCatalog.Invalidate();
+                BackgroundSyncManager.NotifyStateChanged();
+            }
+
+            return result;
         }
 
         internal static RuntimeRegistryBuilder.Plan CreatePlan()

@@ -5,6 +5,20 @@ using System.Linq;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
+    /// An import would convert ONNX files, but the caller allowed only imports that reuse converted models.
+    /// </summary>
+    internal sealed class ConversionRequiredException : InvalidOperationException
+    {
+        public ConversionRequiredException(string repository, IReadOnlyList<string> repoPaths)
+            : base($"'{repository}' needs conversion of {string.Join(", ", repoPaths ?? Array.Empty<string>())}.")
+        {
+            RepoPaths = repoPaths?.ToArray() ?? Array.Empty<string>();
+        }
+
+        public IReadOnlyList<string> RepoPaths { get; }
+    }
+
+    /// <summary>
     /// Stores import-time warnings or errors that should survive later status refreshes.
     /// </summary>
     [Serializable]

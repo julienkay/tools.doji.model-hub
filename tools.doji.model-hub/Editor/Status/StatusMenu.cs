@@ -13,7 +13,7 @@ namespace Doji.AI.ModelHub.Editor
             ModelHubWindow.OpenWindow();
         }
 
-        [MenuItem("Tools/Doji/AI Model Hub/Import All")]
+        [MenuItem("Tools/Doji/AI Model Hub/Set Up All Models")]
         private static void SyncModels()
         {
             EditorOperations.StartBackgroundSync();

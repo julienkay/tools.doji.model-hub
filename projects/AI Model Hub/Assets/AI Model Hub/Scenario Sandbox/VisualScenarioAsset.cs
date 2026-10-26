@@ -9,7 +9,7 @@ namespace Doji.AI.ModelHub.Sandbox
     public enum VisualScenarioState
     {
         DownloadNeeded,
-        ImportNeeded,
+        ConversionNeeded,
         Imported,
         ImportedCacheRemoved,
         UpdateNeeded,
@@ -44,7 +44,7 @@ namespace Doji.AI.ModelHub.Sandbox
         public string[] RepositoryFiles { get; set; }
 
         [field: SerializeField]
-        public VisualScenarioState State { get; set; } = VisualScenarioState.ImportNeeded;
+        public VisualScenarioState State { get; set; } = VisualScenarioState.ConversionNeeded;
 
         [field: SerializeField]
         public string PartialWarningRepoPath { get; set; } = "models/model_bnb4.onnx";

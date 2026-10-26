@@ -27,12 +27,120 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(viewModel.Headline, Is.EqualTo("Test Package needs an AI model"));
             Assert.That(viewModel.Body, Does.Contain("downloads it from Hugging Face"));
+            Assert.That(viewModel.Body, Does.Contain("converts the model to Sentis"));
+            Assert.That(viewModel.Models[0].WillConvert, Is.True, "A model with an unknown file list is assumed to convert.");
             Assert.That(viewModel.Models.Count, Is.EqualTo(1));
             Assert.That(viewModel.Models[0].Repository, Is.EqualTo("doji/test-model"));
             Assert.That(viewModel.Models[0].Owners, Is.EqualTo(new[] { "Test Package" }));
             Assert.That(viewModel.IssueCount, Is.EqualTo(0));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert"));
+            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("CPU, memory"));
             Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.StartSync));
+        }
+
+        /// <summary>
+        /// A model that selects only Sentis files downloads without a conversion, so the prompt does not mention one.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_OffersPlainDownloadWhenNothingConverts()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing)
+                });
+            var onnxSelections = new System.Collections.Generic.Dictionary<string, bool> { ["doji/test-model"] = false };
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report, null, null, onnxSelections);
+
+            Assert.That(viewModel.Models[0].WillConvert, Is.False);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download"));
+            Assert.That(viewModel.Body, Does.Not.Contain("convert"));
+            Assert.That(viewModel.PrimaryActionTooltip, Does.Not.Contain("convert"));
+        }
+
+        /// <summary>
+        /// A downloaded model whose converted models are all in the store needs no prompt: AI Model Hub sets it up.
+        /// </summary>
+        [Test]
+        public void ShouldPrompt_ReturnsFalseWhenOnlyCheapSetupIsPending()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing, hasRawCache: true),
+                    CreateStatus(DependencyState.Stale, repository: "alpha/model-a", hasRawCache: true)
+                });
+
+            Assert.That(AutoPrompt.ShouldPrompt(report), Is.False);
+            Assert.That(AutoPromptWindow.BuildViewModel(report).Models, Is.Empty);
+        }
+
+        /// <summary>
+        /// A downloaded model that needs a conversion is listed with a Convert tag and no download size.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_OffersConvertWhenOnlyConversionIsPending()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Missing, hasRawCache: true, pendingConversions: new[] { "model.onnx" }),
+                    CreateStatus(DependencyState.Missing, repository: "alpha/cheap", hasRawCache: true)
+                });
+            var sizes = new System.Collections.Generic.Dictionary<string, long?> { ["doji/test-model"] = 1024L };
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report, sizes);
+
+            Assert.That(AutoPrompt.ShouldPrompt(report), Is.True);
+            Assert.That(viewModel.Models.Select(model => model.Repository), Is.EqualTo(new[] { "doji/test-model" }));
+            Assert.That(viewModel.Models[0].NeedsDownload, Is.False);
+            Assert.That(viewModel.Models[0].WillConvert, Is.True);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Convert"), "A conversion shows no download size.");
+            Assert.That(viewModel.Body, Does.Contain("already downloaded"));
+            Assert.That(viewModel.Body, Does.Contain("CPU, memory"));
+        }
+
+        /// <summary>
+        /// After a Sentis update with a new model format, the prompt explains why downloaded models convert again.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_ExplainsFormatChange()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Stale, hasRawCache: true, pendingConversions: new[] { "model.onnx" }, conversionCause: ConversionCause.FormatChanged),
+                    CreateStatus(DependencyState.Stale, repository: "alpha/model-a", hasRawCache: true, pendingConversions: new[] { "model.onnx" }, conversionCause: ConversionCause.FormatChanged)
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Convert All"));
+            Assert.That(viewModel.Body, Does.Contain($"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format"));
+            Assert.That(viewModel.Body, Does.Contain("they need converting again"));
+        }
+
+        /// <summary>
+        /// Changed import settings make downloaded models convert again, and the prompt says so.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_ExplainsSettingsChange()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateStatus(DependencyState.Stale, hasRawCache: true, pendingConversions: new[] { "model.onnx" }, conversionCause: ConversionCause.SettingsChanged)
+                });
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report);
+
+            Assert.That(viewModel.Body, Does.Contain("import settings changed, so it needs converting again"));
         }
 
         /// <summary>
@@ -62,7 +170,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Files selected after the first download still need a download, so the prompt does not offer a plain Import.
+        /// Files selected after the first download still need a download, so the prompt does not offer a plain Convert.
         /// </summary>
         [Test]
         public void BuildViewModel_TreatsMissingCacheFilesAsDownload()
@@ -77,11 +185,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert"));
         }
 
         /// <summary>
-        /// Damaged cache needs a fresh download, so the prompt does not offer a plain Import.
+        /// Damaged cache needs a fresh download, so the prompt does not offer a plain Convert.
         /// </summary>
         [Test]
         public void BuildViewModel_TreatsDamagedCacheAsDownload()
@@ -96,7 +204,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert"));
         }
 
         /// <summary>
@@ -120,7 +228,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var viewModel = AutoPromptWindow.BuildViewModel(report, sizes);
 
-            Assert.That(viewModel.PrimaryActionLabel, Does.StartWith("Download & Import All"));
+            Assert.That(viewModel.PrimaryActionLabel, Does.StartWith("Download & Convert All"));
             Assert.That(viewModel.PrimaryActionLabel, Does.EndWith("3 MB"));
         }
 
@@ -153,41 +261,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies single-repository prompt uses import wording when files already exist in cache.
+        /// A mix of downloads and conversions shows the download size of the downloads only.
         /// </summary>
         [Test]
-        public void BuildViewModel_UsesImportActionWhenOneModelIsAlreadyDownloaded()
+        public void BuildViewModel_SumsOnlyDownloadSizesWhenConversionsArePending()
         {
             var report = new StatusReport(
                 Array.Empty<ManifestDiscoveryIssue>(),
                 new[]
                 {
-                    CreateStatus(DependencyState.Stale, hasRawCache: true)
+                    CreateStatus(DependencyState.Missing, "alpha/model-a"),
+                    CreateStatus(DependencyState.Missing, "beta/model-b", hasRawCache: true, pendingConversions: new[] { "model.onnx" })
                 });
+            var sizes = new System.Collections.Generic.Dictionary<string, long?>
+            {
+                ["alpha/model-a"] = 1024L * 1024L,
+                ["beta/model-b"] = 5L * 1024L * 1024L
+            };
 
-            var viewModel = AutoPromptWindow.BuildViewModel(report);
+            var viewModel = AutoPromptWindow.BuildViewModel(report, sizes);
 
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("already downloaded"));
-        }
-
-        /// <summary>
-        /// Verifies missing import metadata still uses import wording when raw cache already exists.
-        /// </summary>
-        [Test]
-        public void BuildViewModel_UsesImportActionWhenCacheExistsButImportIsMissing()
-        {
-            var report = new StatusReport(
-                Array.Empty<ManifestDiscoveryIssue>(),
-                new[]
-                {
-                    CreateStatus(DependencyState.Missing, hasRawCache: true)
-                });
-
-            var viewModel = AutoPromptWindow.BuildViewModel(report);
-
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Import"));
-            Assert.That(viewModel.PrimaryActionTooltip, Does.Contain("already downloaded"));
+            Assert.That(viewModel.PrimaryActionLabel, Does.StartWith("Download & Convert All"));
+            Assert.That(viewModel.PrimaryActionLabel, Does.EndWith("1 MB"));
         }
 
         /// <summary>
@@ -222,7 +317,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "beta/model-b"
             }));
             Assert.That(viewModel.IssueCount, Is.EqualTo(1));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import All"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert All"));
         }
 
         /// <summary>
@@ -250,7 +345,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.Headline, Is.EqualTo("Test Package needs an AI model"));
             Assert.That(viewModel.Models.Count, Is.EqualTo(1));
             Assert.That(viewModel.Models[0].Repository, Is.EqualTo("beta/required-missing"));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert"));
         }
 
         /// <summary>
@@ -396,7 +491,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string packageDisplayName = "Test Package",
             string packageVersion = "1.0.0",
             string packageResolvedPath = null,
-            string manifestPath = null)
+            string manifestPath = null,
+            string[] pendingConversions = null,
+            ConversionCause conversionCause = ConversionCause.FirstConversion)
         {
             var dependency = new DiscoveredModelDependency(
                 packageId,
@@ -412,9 +509,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new DependencyStatus(
                 dependency,
                 state,
-                reasonCode ?? (state == DependencyState.Stale
-                    ? DependencyReasonCode.ImportBindingStale
-                    : DependencyReasonCode.ImportBindingMissing),
+                reasonCode ?? (!hasRawCache
+                    ? DependencyReasonCode.RawCacheRevisionRefMissing
+                    : state == DependencyState.Stale
+                        ? DependencyReasonCode.ImportBindingStale
+                        : DependencyReasonCode.ImportBindingMissing),
                 state.ToString(),
                 hasRawCache ? "/tmp/cache/refs/main" : null,
                 hasRawCache ? "/tmp/cache/snapshots/commit" : null,
@@ -429,7 +528,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 } : null,
                 null,
                 null,
-                null);
+                null,
+                pendingConversions,
+                conversionCause);
         }
     }
 }

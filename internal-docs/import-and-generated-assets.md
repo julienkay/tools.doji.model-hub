@@ -20,6 +20,34 @@ Import turns the selected model files of one dependency into **runtime models**:
 
 A conversion failure skips that file when another ONNX file converts. The model stays **Ready** with a warning, and `SkippedRepoPaths` keeps status from retrying it every time. Import fails only when no ONNX file converts.
 
+`ImportAsync(..., allowConversion: false)` throws `ConversionRequiredException` (with the ONNX repo paths) before it writes anything when a selected ONNX file has no store hit. The two early returns that reuse current records run first, so a current import never throws.
+
+## Consent boundary
+
+Import is not a user-facing word. To the user a model is **Ready**, needs a download, or needs a conversion. The boundary is cost:
+
+| Work | Cost | Runs |
+|---|---|---|
+| Records under `Library/Doji/ModelHub/imports`, `.sentis` files, ONNX files with a store hit | file writes | without a prompt, by `AutoImport` |
+| Downloads | network, disk | after consent: setup prompt, Model Hub button, toolbar, menu |
+| New conversions (first conversion, changed recipe, new format generation) | CPU, RAM, time | after consent; user actions count: **Convert**, **Apply & Convert**, the toolbar, a build |
+
+Status computes the split up front. `StatusService` wraps every import-pending status (`DependencyStatus.ImportPendingCodes`: missing, invalid, or stale bindings and shared records, missing runtime files) with `ProjectImportService.GetPendingConversions`: the selected ONNX files without a store hit. That gives:
+
+- `IsImportPending`: every selected file is cached; only this project's import is missing or out of date
+- `CanImportAutomatically`: import pending and no pending conversions
+- `NeedsConversion`: import pending with pending conversions; `ConversionCause` says why: `FormatChanged` when the recorded Sentis version is in another format generation, `SettingsChanged` when a pending file's recorded `RecipeHash` differs from the current recipe, else `FirstConversion`
+- `NeedsStartupPrompt` excludes `CanImportAutomatically`, so a cheap import never prompts
+
+Invalid binding and shared records are `Missing`, not `Failed`: they are rewritten from the cache like missing ones.
+
+`CachedModelImporter.Import(report, allowConversion, ...)` runs the imports synchronously from the cache and never downloads. Without conversions it takes `CanImportAutomatically` statuses and reports a `ConversionRequiredException` as `NeedConversion` (the store entry vanished between status and import); with conversions it takes every `IsImportPending` status. Callers:
+
+- `AutoImport` (`[InitializeOnLoad]`): after Editor start, `projectChanged`, and `SyncStateChanged`, through `delayCall`, and directly on `ExitingEditMode`. It skips batch mode, Play mode, a running sync, and `AutoImport.Suspended` (set by the test assembly's `AutoImportSuspension` fixture). It logs each failure once per session.
+- `ModelHubBuildProcessor.ImportCachedModels`: before `CreatePlan`, with conversions and a progress bar outside batch mode. A build never downloads; `RuntimeRegistryBuilder` reports models that are not downloaded.
+
+Background sync downgrades `Full` to `MaterializeOnly` for import-pending dependencies (`BackgroundSyncManager.BuildPendingItems`), so **Convert** needs no network and shows "Converting", and it leaves `Ready` dependencies out.
+
 ## Conversion key
 
 [ConvertedModelStore.cs](../tools.doji.model-hub/Runtime/Conversion/ConvertedModelStore.cs) is in `Runtime`, so players use the same store.
@@ -75,7 +103,7 @@ The shared record covers the union of every owner's selection for one repository
 
 A binding is stale when the manifest hash, requested revision, selection, enabled optional files, resolved commit, Sentis format generation, or shared record path changes. Records keep the exact Sentis version that imported them, for diagnostics.
 
-A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis format generation changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Import** again.
+A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis format generation changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Convert** again.
 
 ## Removal
 
@@ -87,8 +115,8 @@ A shared import is stale when the resolved commit, the selected model file union
 
 ## Revision conflicts
 
-One project may request one revision per repository. With conflicting revisions, the repository is not imported, reimported, or removed, and status shows **Conflict** for each row.
+One project may request one revision per repository. With conflicting revisions, the repository is not imported or removed, and status shows **Conflict** for each row.
 
 ## Selection gating
 
-A dependency whose model files are all optional and none enabled is **Choose files**, not an error. `Import All` skips it and the startup prompt ignores it.
+A dependency whose model files are all optional and none enabled is **Choose files**, not an error. Sync skips it and the setup prompt ignores it.

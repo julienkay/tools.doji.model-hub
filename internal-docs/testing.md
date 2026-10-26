@@ -14,7 +14,7 @@ Tests run inside the companion project, where a maintainer may have real models 
 - `TestProjectStateScope` records the files under `Assets/StreamingAssets/model-hub` (pulled copies) and `Library/Doji/ModelHub/imports` (or other roots you pass) at `SetUp`, and at `TearDown` deletes only the files and folders the test added. Use fake repository ids such as `doji/test-model`, so test output never overwrites a real import.
 - Pass project files that would change a test's result, such as the conversion overrides and optional-file selections assets, as isolated files. The scope moves them aside for the test and restores them, `.meta` and GUID included, afterwards.
 
-Create both in `SetUp` and dispose them in `TearDown`. Do not delete those folders wholesale. The companion project's sandbox tests reference `Doji.ModelHub.Editor.Tests` to reuse the same scope.
+Create both in `SetUp` and dispose them in `TearDown`. Do not delete those folders wholesale. The `AutoImportSuspension` set-up fixture sets `AutoImport.Suspended` for the whole test assembly, so automatic imports never write records while a test runs. The companion project's sandbox tests reference `Doji.ModelHub.Editor.Tests` to reuse the same scope.
 
 Runtime tests never touch the network or StreamingAssets of the project:
 
@@ -79,6 +79,8 @@ Import and generated assets:
   - a deleted converted model converts again
   - companion files are recorded with etags
   - selection subset, mixed-format and no-model-file failures, partial conversion warnings
+  - pending conversions: selected ONNX files without a store hit, a settings change misses the store
+  - `allowConversion: false` throws `ConversionRequiredException` before writing, reuses store hits, and never counts `.sentis` files
 - `tools.doji.model-hub/Tests/Editor/Import/SentisCompatibilityTests.cs`
   - versions map to format generations; updates within one are compatible
   - tripwire: the installed `ModelWriter.version` is covered by the table
@@ -107,12 +109,21 @@ Status and sync:
   - same-repo later-added broader selection marks only new owner as cache-update-needed
   - binding/shared stale detection
   - converted models stay ready after cache removal
+  - invalid records are missing, not failed
+  - `NeedsConversion` without a store hit, `CanImportAutomatically` with one or when only records are missing, no conversions before the download
+  - conversion causes: first conversion, format generation change, settings change
+  - background sync skips ready models and downgrades full syncs of cached models to `MaterializeOnly`
 - `tools.doji.model-hub/Tests/Editor/Status/ModelHubServiceTests.cs`
   - status aggregation into Model Hub rows
   - selection-required diagnostics
   - same-repo multi-owner selection growth aggregates into one update-needed row
+  - import-pending items get no diagnostic
 - `tools.doji.model-hub/Tests/Editor/Sync/SyncServiceTests.cs`
   - sync success and failure orchestration
+- `tools.doji.model-hub/Tests/Editor/Sync/CachedModelImporterTests.cs`
+  - automatic setup imports only cheap setups; a user action converts every cached model; neither downloads
+  - a model that turns out to need a conversion is left for the prompt; failures are reported per model
+  - `AutoImport` does nothing while suspended
 - `tools.doji.model-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and damaged-cache codes
   - status reads snapshots from disk; a missing or foreign index is ignored
@@ -137,7 +148,7 @@ Runtime loading and builds:
 - `tools.doji.model-hub/Tests/Editor/Build/RuntimeRegistryBuilderTests.cs`
   - bundled models at their lookup path, shared models bundled once, pulled copies skipped
   - download entries carry commit, etags, companions, and recipe
-  - models a build cannot deliver are reported
+  - models a build cannot deliver are reported, with different text for not downloaded and not set up
   - delivery per repository, cache spelling of the repository id
 
 Editor UI and manifest editing:
@@ -155,7 +166,7 @@ Editor UI and manifest editing:
 - `tools.doji.model-hub/Tests/Editor/UI/TreemapLayoutTests.cs`
   - tile areas match weights, stay in bounds, do not overlap, and stay close to square
 - `tools.doji.model-hub/Tests/Editor/UI/ModelStatusTests.cs`
-  - status kind, tone, and primary action for every Model Hub state
+  - status kind, tone, and primary action for every Model Hub state, conversion descriptions by cause, toolbar label
 - `tools.doji.model-hub/Tests/Editor/Cache/RemoteSnapshotSizeEstimateServiceTests.cs`
   - pre-download inventory for manifests without a revision
   - refresh of estimates saved without a file list
@@ -187,6 +198,8 @@ Editor UI and manifest editing:
 - `tools.doji.model-hub/Tests/Editor/UI/AutoPromptTests.cs`
   - prompt grouping by repository, headline, and primary action
   - download detection for missing cache files and total download size label
+  - Download, Convert, and Download & Convert labels; body text for conversion cost and format or settings changes
+  - cheap setups never prompt
 
 ## Selected-File vs Whole-Repo Matrix
 

@@ -159,6 +159,36 @@ namespace Doji.AI.ModelHub.Editor
         public bool HasDamagedCache => _dependents.Any(item => item.HasDamagedCache);
 
         /// <summary>
+        /// Every selected file is cached and only this project's setup is missing or out of date.
+        /// </summary>
+        public bool IsImportPending => _dependents.Length > 0 &&
+            _dependents.Where(item => item.NeedsAttention).All(item => item.IsImportPending) &&
+            _dependents.Any(item => item.IsImportPending);
+
+        /// <summary>
+        /// The cached files are complete, but ONNX files need a conversion that waits for the user.
+        /// </summary>
+        public bool NeedsConversion => IsImportPending && _dependents.Any(item => item.NeedsConversion);
+
+        /// <summary>
+        /// Selected ONNX files that need a new conversion for this project.
+        /// </summary>
+        public IReadOnlyList<string> PendingConversions => _dependents
+            .SelectMany(item => item.PendingConversions)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        /// <summary>
+        /// Why the conversion is needed. A format change wins over a settings change, which wins over a first conversion.
+        /// </summary>
+        public ConversionCause ConversionCause => _dependents
+            .Where(item => item.NeedsConversion)
+            .Select(item => item.ConversionCause)
+            .DefaultIfEmpty(ConversionCause.None)
+            .Max();
+
+        /// <summary>
         /// Selected ONNX files that Sentis could not convert in the last import.
         /// </summary>
         public IReadOnlyList<string> SkippedOnnxRepoPaths => _dependents

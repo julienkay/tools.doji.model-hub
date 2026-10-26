@@ -126,12 +126,12 @@ namespace Doji.AI.ModelHub.Editor
 
             toolbar.Add(UiKit.Spacer());
 
-            _importAllButton = UiKit.PrimaryButton("Import All", () =>
+            _importAllButton = UiKit.PrimaryButton("Set Up All", () =>
             {
                 EditorOperations.StartBackgroundSync();
                 Refresh();
             });
-            _importAllButton.tooltip = "Download and import every model that needs it.";
+            _importAllButton.tooltip = "Download and convert every model that needs it. Converting takes CPU, memory, and time for large models.";
             toolbar.Add(_importAllButton);
 
             toolbar.Add(UiKit.IconButton("Refresh", "Refresh", Refresh));
@@ -164,9 +164,12 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var pendingCount = _report.Items.Count(item => ModelStatus.From(item).Action == ModelActionKind.Sync);
-            UiKit.SetVisible(_importAllButton, pendingCount > 0);
-            _importAllButton.text = $"Import All ({pendingCount})";
+            var pending = _report.Items
+                .Select(ModelStatus.From)
+                .Where(status => status.Action == ModelActionKind.Sync)
+                .ToArray();
+            UiKit.SetVisible(_importAllButton, pending.Length > 0);
+            _importAllButton.text = $"{ModelStatus.BuildBulkActionLabel(pending)} ({pending.Length})";
             _importAllButton.SetEnabled(!BackgroundSyncManager.IsRunning);
         }
 
@@ -176,7 +179,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             _syncBanner = UiKit.Element("mh-sync", "hf-hidden");
             var text = UiKit.Element("mh-sync__text");
-            text.Add(UiKit.Text("Importing models…", "mh-sync__title"));
+            text.Add(UiKit.Text("Setting up models…", "mh-sync__title"));
             _syncDescription = UiKit.Text(string.Empty, "mh-sync__description");
             text.Add(_syncDescription);
             var track = UiKit.Element("hf-progress");

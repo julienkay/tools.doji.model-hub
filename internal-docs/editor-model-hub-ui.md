@@ -107,12 +107,15 @@ Opening an item requests the remote inventory (`RemoteSnapshotSizeEstimateServic
 | `Ready` | item state `Ready` | none | n/a |
 | `ChooseFiles` | any dependent has `SelectionRequired` | **Choose Files** | switches to Overview |
 | `RepairNeeded` | any dependent has a `DependencyStatus.DamagedCacheCodes` code | **Repair** (with size) | `StartForRepository(..., Full)` |
-| `DownloadNeeded` | no cache snapshot | **Download & Import** (with size) | same |
-| `Error` | item state `Error` with cache | **Retry Import** | same |
-| `UpdateNeeded` | `RawCacheFilesMissing`, or runtime files exist but are stale | **Update** | same |
-| `ImportNeeded` | cache exists, nothing imported | **Import** | same |
+| `DownloadNeeded` | no cache snapshot | **Download** (with size) | same |
+| `UpdateNeeded` | `RawCacheFilesMissing` | **Update** | same |
+| `Error` | item state `Error` with cache | **Try Again** | same |
+| `ConversionNeeded` | `ModelHubItem.NeedsConversion` | **Convert** | same; sync uses `MaterializeOnly` |
+| `Preparing` | `ModelHubItem.IsImportPending` without conversions; `AutoImport` finishes it | **Finish** | same |
 
-All per-item actions operate on one repository only. Only **Import All** (toolbar, setup prompt, menu) runs a global sync. Nothing starts a download without a user action; see "Damaged Cache" in `download-and-cache.md`.
+`Ready` copy is "Ready to use." `ConversionNeeded` copy comes from `ModelStatus.BuildConversionDescription`: the count of ONNX files, the cause (`ConversionCause`), and the CPU and memory cost. Import-pending codes get no diagnostic in `ModelHubService`; the status card explains them.
+
+All per-item actions operate on one repository only. The toolbar button, the setup prompt, and `Tools > Doji > AI Model Hub > Set Up All Models` run a global sync. The toolbar label comes from `ModelStatus.BuildBulkActionLabel`: **Download All** when any pending item downloads, else **Convert All** when any converts, else **Set Up All**. Nothing starts a download or a conversion without a user action; see "Consent boundary" in `import-and-generated-assets.md` and "Damaged Cache" in `download-and-cache.md`.
 
 - `Remove from Project` deletes owner binding metadata and shared import records for this project. Converted models stay in the shared store. Pulled copies go only when no binding for the repository remains
 - `Pull into Project` copies runtime models into `Assets/StreamingAssets/model-hub/models/<owner>/<name>/` (`PulledModels`); builds then skip bundling them.
@@ -122,7 +125,7 @@ That split matters because imported runtime files are project-owned artifacts, w
 
 ### Setup Prompt
 
-`AutoPrompt` opens `AutoPromptWindow` once per session when `StatusReport.NeedsStartupPrompt` is true. `BuildViewModel` groups attention statuses by repository. A repository needs a download when any dependent has no the download cache or reports `RawCacheFilesMissing`. The primary label includes the total download size only when every pending size is known. The primary action starts a full sync and opens Model Hub, which shows progress.
+`AutoPrompt` opens `AutoPromptWindow` once per session when `StatusReport.NeedsStartupPrompt` is true; cheap imports (`CanImportAutomatically`) never count. `BuildViewModel` groups attention statuses by repository. A repository needs a download when a dependent that is not import-pending has no download cache, reports `RawCacheFilesMissing`, or has damaged cache. `PromptModelEntry.WillConvert` is true for `NeedsConversion`, and for downloads unless `onnxSelections` says the selection has no ONNX file. The primary label is **Download**, **Convert**, or **Download & Convert**, with **All** for several models, plus the total download size of the downloads when every size is known. The body names the shared cache, the conversion cost, and the cause for convert-only prompts (format change or settings change). The primary action starts a full sync and opens Model Hub, which shows progress.
 
 ## Repo Metadata File Filtering
 
@@ -157,8 +160,8 @@ UI diagnostic requirement:
 - dependency-level status should expose structured `ReasonCode` plus optional maintainer-facing detail text
 - Model Hub must map `ReasonCode` into user-helpful lifecycle copy before rendering it
 - raw maintainer detail is fallback/debug text, not primary user copy
-- prefer action-oriented wording such as `needs download`, `needs import`, `needs re-import`, or `is out of date`
-- reserve error-severity rendering for true failed/invalid states, not normal `import needed` or `update needed` cases
+- prefer action-oriented wording such as `needs download`, `needs conversion`, or `is out of date`; never `import`
+- reserve error-severity rendering for true failed states, not normal `needs conversion` or `update needed` cases
 
 Aggregate state precedence:
 
@@ -186,7 +189,7 @@ If same repository is declared at multiple requested revisions:
 - conflict summary UI should classify owners as project, embedded/local package, or installed package so user sees whether fix is direct manifest edit or package-version change
 - conflict UX should offer clipboard summary and `Open Package Manager` when installed packages participate
 - import and manage actions stay disabled for conflicting rows until project resolves conflict to one revision
-- `Import All` must skip or fail those dependencies without touching shared runtime payload for that repo
+- a global sync must skip or fail those dependencies without touching shared runtime payload for that repo
 
 Later if pain stays common:
 
@@ -203,23 +206,7 @@ Current dependency-level status is still backend-oriented:
 - `Stale`
 - `Failed`
 
-That works for validation, but `Missing` currently covers several user-visible situations:
-
-- the files were never downloaded
-- the files are downloaded, but import metadata is missing
-- import metadata exists, but converted models are missing
-
-If the UI keeps needing direct lifecycle copy, a better future split would be:
-
-- `DownloadNeeded`
-- `ImportNeeded`
-- `UpdateNeeded`
-- `Ready`
-- `Failed`
-
-`RawCacheFilesMissing` is the current concrete code that approximates `UpdateNeeded` — the button and diagnostic severity already reflect this intent even before a formal status split.
-
-That would let prompts and badges choose wording directly from status instead of inferring `download` versus `import` from raw-cache fields.
+That works for validation. User-visible lifecycle comes from the reason code plus the derived properties: `HasDamagedCache`, `IsImportPending`, `NeedsConversion`, and `CanImportAutomatically`. `ModelStatus.From` maps them to `ModelStatusKind`; the prompt reads the same properties, so the two never disagree about download versus conversion.
 
 ## Why Repo-Centric
 
@@ -330,6 +317,6 @@ Import storage now has two layers:
 
 Model Hub should still think in repo rows, but maintainer-facing removal and stale reasoning must respect this split:
 
-- owner binding mismatch means one manifest owner needs re-import
-- shared import mismatch means generated repo artifact itself needs re-import
+- owner binding mismatch means one manifest owner's records are rewritten
+- shared import mismatch means the repository's shared record is rewritten, with conversions when the store has no hit
 - removing one owner must not delete shared runtime artifacts while another binding still points at same shared import

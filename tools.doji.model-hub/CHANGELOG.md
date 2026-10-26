@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Models are ready, need a download, or need a conversion; Model Hub no longer shows an import step. AI Model Hub sets up downloaded models by itself when their converted models exist, and asks before it downloads or converts. **Needs conversion** says why: a first conversion, changed import settings, or a Sentis update with a new model format. Builds convert downloaded models without asking and never download. `Tools > Doji > AI Model Hub > Import All` is now **Set Up All Models**.
 - Downloads use the shared Hugging Face cache instead of a private `raw` folder. Existing downloads are moved on the first Editor start.
 - Converted models live in a shared folder outside the project, keyed by source file, converter, and conversion settings. Nothing is written into `Assets`.
 - A whole-repository dependency on a repository with both ONNX and Sentis files is invalid. List the files you use.

@@ -207,39 +207,25 @@ namespace Doji.AI.ModelHub.Editor
                 return null;
             }
 
+            if (status.IsImportPending)
+            {
+                // The status card explains setup and conversion; these records are rewritten from the cache.
+                return null;
+            }
+
             return status.ReasonCode switch
             {
                 DependencyReasonCode.InvalidRepository => "Repository was not found on Hugging Face.",
-                DependencyReasonCode.ImportBindingMissing => "Model needs import into this project.",
-                DependencyReasonCode.SharedImportMetadataMissing => "Generated runtime artifacts are missing. Re-import this model.",
-                DependencyReasonCode.RuntimeFilesMissing => "Generated runtime files are missing. Re-import this model.",
-                DependencyReasonCode.RawCacheRevisionRefMissing => "Model needs download before it can be imported.",
-                DependencyReasonCode.RawSnapshotRootMissing => "Cached source files are missing. Download this model again before importing.",
-                DependencyReasonCode.RawCacheFilesMissing => "Cached source files are missing. Update the model cache.",
-                DependencyReasonCode.ImportBindingInvalid => "Project import binding metadata is invalid. Re-import this model.",
-                DependencyReasonCode.SharedImportMetadataInvalid => "Generated runtime metadata is invalid. Re-import this model.",
-                DependencyReasonCode.RuntimeFileMissing => BuildRuntimeFileMissingMessage(status.MaintainerMessage),
-                DependencyReasonCode.ImportBindingStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
-                DependencyReasonCode.SharedImportMetadataStale => "Imported files are out of date with current manifest, cache snapshot, or Sentis version. Re-import this model.",
+                DependencyReasonCode.RawCacheRevisionRefMissing => "Download this model to use it.",
+                DependencyReasonCode.RawSnapshotRootMissing => "The downloaded files are missing. Download this model again.",
+                DependencyReasonCode.RawCacheFilesMissing => "Some selected files are not downloaded yet. Update the model.",
                 DependencyReasonCode.RevisionConflict => null,
                 DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
-                DependencyReasonCode.SelectionRequired => "Choose at least one optional model file for this manifest owner before downloading or importing.",
+                DependencyReasonCode.SelectionRequired => "Choose at least one optional model file for this manifest owner.",
                 DependencyReasonCode.InvalidSelection => status.MaintainerMessage,
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
                 _ => status.MaintainerMessage
             };
-        }
-
-        private static string BuildRuntimeFileMissingMessage(string maintainerMessage)
-        {
-            const string prefix = "Generated runtime file is missing:";
-            if (string.IsNullOrWhiteSpace(maintainerMessage) ||
-                !maintainerMessage.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return "Generated runtime file is missing. Re-import this model.";
-            }
-
-            return $"Generated runtime file is missing. Re-import this model. ({maintainerMessage.Substring(prefix.Length).Trim()})";
         }
 
         private static void AddRevisionConflictDiagnostics(IReadOnlyList<ModelHubItem> items)

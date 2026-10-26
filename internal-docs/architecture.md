@@ -62,7 +62,7 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
 
 - `Window > AI Model Hub`
 - `Project Settings > Doji > AI > AI Model Hub`
-- `Tools > Doji > AI Model Hub`: `Import All`, `Show Status`, `Open Project Settings`
+- `Tools > Doji > AI Model Hub`: `Set Up All Models`, `Show Status`, `Open Project Settings`
 - custom Inspector for writable `model-hub-manifest.json` files
 
 ## Conventions

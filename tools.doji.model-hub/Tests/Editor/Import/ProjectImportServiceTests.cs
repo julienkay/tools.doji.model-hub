@@ -419,6 +419,106 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(asset.Selections, Is.Empty);
         }
 
+        /// <summary>
+        /// Verifies pending conversions list the selected ONNX files without a converted model in the store, and that
+        /// one conversion serves every later lookup with the same etag, converter, and settings.
+        /// </summary>
+        [Test]
+        public async Task GetPendingConversions_ListsSelectedOnnxFilesWithoutAStoreHit()
+        {
+            var cachedSnapshot = CreateCachedSnapshotWithTwoOnnxFiles();
+            var recipes = new ProjectModelRecipeSource();
+            var both = new[] { "model.onnx", "model_bnb4.onnx" };
+
+            var before = ProjectImportService.GetPendingConversions("doji/test-model", cachedSnapshot.Metadata.Files, both, recipes);
+            await _service.ImportAsync(CreateDependency(files: new[] { "model.onnx" }), cachedSnapshot, CancellationToken.None);
+            var after = ProjectImportService.GetPendingConversions("doji/test-model", cachedSnapshot.Metadata.Files, both, recipes);
+            var unselected = ProjectImportService.GetPendingConversions("doji/test-model", cachedSnapshot.Metadata.Files, Array.Empty<string>(), recipes);
+
+            Assert.That(before, Is.EqualTo(both));
+            Assert.That(after, Is.EqualTo(new[] { "model_bnb4.onnx" }));
+            Assert.That(unselected, Is.Empty);
+        }
+
+        /// <summary>
+        /// Verifies changed conversion settings miss the store, because the settings are part of the key.
+        /// </summary>
+        [Test]
+        public async Task GetPendingConversions_MissesTheStoreAfterASettingsChange()
+        {
+            var cachedSnapshot = CreateCachedSnapshot();
+            await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var changed = new FixedRecipeSource(new OnnxConversionRecipe { QuantizationMode = "float16" });
+
+            var pending = ProjectImportService.GetPendingConversions(
+                "doji/test-model",
+                cachedSnapshot.Metadata.Files,
+                new[] { "SingleInputSingleOuput.onnx" },
+                changed);
+
+            Assert.That(pending, Is.EqualTo(new[] { "SingleInputSingleOuput.onnx" }));
+        }
+
+        /// <summary>
+        /// Verifies an import that may not convert stops before it writes records when an ONNX file needs converting.
+        /// </summary>
+        [Test]
+        public void ImportAsync_WithoutConversion_ThrowsBeforeWritingAnything()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+            var dependency = CreateDependency();
+
+            var exception = Assert.ThrowsAsync<ConversionRequiredException>(async () =>
+                await service.ImportAsync(dependency, CreateCachedSnapshot(), CancellationToken.None, allowConversion: false));
+
+            Assert.That(exception.RepoPaths, Is.EqualTo(new[] { "SingleInputSingleOuput.onnx" }));
+            Assert.That(converter.CallCount, Is.Zero);
+            Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId))), Is.False);
+        }
+
+        /// <summary>
+        /// Verifies an import that may not convert still finishes when the store has every converted model, for
+        /// example for a second project or owner on the same machine.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_WithoutConversion_ReusesStoreHits()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+            var cachedSnapshot = CreateCachedSnapshot();
+            var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            var second = await service.ImportAsync(
+                CreateDependency(packageId: "tools.doji.other", manifestHash: "other"),
+                cachedSnapshot,
+                CancellationToken.None,
+                allowConversion: false);
+
+            Assert.That(converter.CallCount, Is.EqualTo(1));
+            Assert.That(second.RuntimeFiles.Single().FilePath, Is.EqualTo(first.RuntimeFiles.Single().FilePath));
+            Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(second.BindingMetadataFilePath)), Is.True);
+        }
+
+        /// <summary>
+        /// Verifies Sentis files never count as conversions, so their import is always cheap.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_WithoutConversion_UsesSentisFiles()
+        {
+            var converter = new CountingOnnxConverter();
+            var service = new ProjectImportService(converter);
+
+            var artifact = await service.ImportAsync(
+                CreateDependency(files: new[] { "sentis/model.sentis" }),
+                CreateCachedSnapshotWithFormats(),
+                CancellationToken.None,
+                allowConversion: false);
+
+            Assert.That(converter.CallCount, Is.Zero);
+            Assert.That(artifact.RuntimeFiles.Single().Format, Is.EqualTo("sentis"));
+        }
+
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "tools.doji.test",
             string manifestHash = "manifesthash",

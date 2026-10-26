@@ -426,7 +426,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var remove = UiKit.Button("Remove from Cache", () => ConfirmRemoveCacheRepository(repository, item != null), "hf-button--danger");
             remove.SetEnabled(!isSyncing);
-            remove.tooltip = isSyncing ? "Wait until the import finishes." : "Delete this repository with all its revisions from the cache.";
+            remove.tooltip = isSyncing ? "Wait until the setup finishes." : "Delete this repository with all its revisions from the cache.";
             actions.Add(remove);
             _cacheCard.Add(actions);
         }
@@ -438,7 +438,7 @@ namespace Doji.AI.ModelHub.Editor
                 "All its revisions and partial downloads are deleted. Other Unity projects and Python tools that use this cache must download it again.";
             if (isUsedByProject)
             {
-                message += "\n\nThis project uses this model. Its imported files stay usable; AI Model Hub downloads the model again when it needs to update or re-import it.";
+                message += "\n\nThis project uses this model. Its imported files stay usable; AI Model Hub asks to download the model again when it needs to update or convert it.";
             }
 
             if (!EditorUtility.DisplayDialog("Remove from Cache", message, "Delete", "Cancel"))

@@ -6,7 +6,8 @@ namespace Doji.AI.ModelHub.Editor
     {
         Ready,
         DownloadNeeded,
-        ImportNeeded,
+        ConversionNeeded,
+        Preparing,
         UpdateNeeded,
         RepairNeeded,
         ChooseFiles,
@@ -59,7 +60,6 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var hasCache = !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath);
-            var hasRuntimeFiles = item.RuntimeFiles.Count > 0;
 
             if (item.HasRevisionConflict)
             {
@@ -78,8 +78,8 @@ namespace Doji.AI.ModelHub.Editor
                     ModelStatusKind.Ready,
                     "Ready",
                     hasCache
-                        ? "Downloaded and imported into this project."
-                        : "Imported into this project. The downloaded files were removed from the cache on this machine.",
+                        ? "Ready to use."
+                        : "Ready to use. The downloaded files were removed from the cache on this machine.",
                     UiTone.Success,
                     ModelActionKind.None,
                     null);
@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor
                 return new ModelStatus(
                     ModelStatusKind.ChooseFiles,
                     "Choose files",
-                    "This model has optional files. Choose at least one model file to import.",
+                    "This model has optional files. Choose at least one model file to use.",
                     UiTone.Warning,
                     ModelActionKind.ChooseFiles,
                     "Choose Files");
@@ -112,23 +112,10 @@ namespace Doji.AI.ModelHub.Editor
                 return new ModelStatus(
                     ModelStatusKind.DownloadNeeded,
                     "Not downloaded",
-                    "Download the model from Hugging Face and import it into this project.",
+                    "Download the model from Hugging Face to use it in this project.",
                     UiTone.Info,
                     ModelActionKind.Sync,
-                    "Download & Import");
-            }
-
-            if (item.State == ModelHubItemState.Error)
-            {
-                return new ModelStatus(
-                    ModelStatusKind.Error,
-                    "Error",
-                    hasRuntimeFiles
-                        ? "The imported files are broken or incomplete. Import the model again to repair them."
-                        : "The model is downloaded, but the import failed.",
-                    UiTone.Error,
-                    ModelActionKind.Sync,
-                    "Retry Import");
+                    "Download");
             }
 
             if (item.HasMissingCacheFiles)
@@ -136,27 +123,86 @@ namespace Doji.AI.ModelHub.Editor
                 return new ModelStatus(
                     ModelStatusKind.UpdateNeeded,
                     "Update needed",
-                    "More files are selected than were downloaded. Download them and import the model again.",
+                    "More files are selected than were downloaded. Download the missing files to use them.",
                     UiTone.Info,
                     ModelActionKind.Sync,
                     "Update");
             }
 
-            return hasRuntimeFiles
-                ? new ModelStatus(
-                    ModelStatusKind.UpdateNeeded,
-                    "Update needed",
-                    "The imported files are out of date. Import the model again to update them.",
+            if (item.State == ModelHubItemState.Error)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.Error,
+                    "Error",
+                    "The model is downloaded, but setting it up for this project failed.",
+                    UiTone.Error,
+                    ModelActionKind.Sync,
+                    "Try Again");
+            }
+
+            if (item.NeedsConversion)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.ConversionNeeded,
+                    "Needs conversion",
+                    BuildConversionDescription(item),
                     UiTone.Info,
                     ModelActionKind.Sync,
-                    "Update")
-                : new ModelStatus(
-                    ModelStatusKind.ImportNeeded,
-                    "Not imported",
-                    "The model is downloaded, but not imported into this project yet.",
+                    "Convert");
+            }
+
+            if (item.IsImportPending)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.Preparing,
+                    "Setting up",
+                    "The model is downloaded. AI Model Hub sets it up for this project automatically.",
                     UiTone.Info,
                     ModelActionKind.Sync,
-                    "Import");
+                    "Finish");
+            }
+
+            return new ModelStatus(
+                ModelStatusKind.UpdateNeeded,
+                "Update needed",
+                "The model is out of date in this project. Update it to use it.",
+                UiTone.Info,
+                ModelActionKind.Sync,
+                "Update");
+        }
+
+        /// <summary>
+        /// Names the toolbar action that runs every pending model: downloads win over conversions, which win over setup.
+        /// </summary>
+        public static string BuildBulkActionLabel(System.Collections.Generic.IReadOnlyCollection<ModelStatus> statuses)
+        {
+            if (statuses.Any(status => status.Kind is ModelStatusKind.DownloadNeeded or ModelStatusKind.UpdateNeeded or ModelStatusKind.RepairNeeded))
+            {
+                return "Download All";
+            }
+
+            return statuses.Any(status => status.Kind is ModelStatusKind.ConversionNeeded or ModelStatusKind.Error)
+                ? "Convert All"
+                : "Set Up All";
+        }
+
+        /// <summary>
+        /// Explains why ONNX files of a downloaded model need converting, and what converting costs.
+        /// </summary>
+        public static string BuildConversionDescription(ModelHubItem item)
+        {
+            var count = item?.PendingConversions.Count ?? 0;
+            var files = count == 1 ? "1 ONNX file needs" : $"{count} ONNX files need";
+            const string cost = "Converting takes CPU, memory, and time for large models.";
+            return (item?.ConversionCause ?? ConversionCause.None) switch
+            {
+                ConversionCause.FormatChanged =>
+                    $"The model is downloaded. Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format, so {files} converting again. {cost}",
+                ConversionCause.SettingsChanged =>
+                    $"The model is downloaded. The import settings changed, so {files} converting again. {cost}",
+                _ =>
+                    $"The model is downloaded. {files} converting to Sentis before use. {cost}"
+            };
         }
 
         /// <summary>

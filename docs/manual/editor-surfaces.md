@@ -4,8 +4,8 @@ AI Model Hub has four places in the Editor:
 
 | Surface | Open with | Use it to |
 |---|---|---|
-| Model Hub | `Window > AI Model Hub` | See every model the project needs, download and import them, choose optional files, change conversion settings, and choose how builds deliver each model. |
-| Setup prompt | Opens by itself | Get the models that installed packages need, in one click. |
+| Model Hub | `Window > AI Model Hub` | See every model the project needs, download and convert them, choose optional files, change conversion settings, and choose how builds deliver each model. |
+| Setup prompt | Opens by itself | Download and convert the models that installed packages need, in one click. |
 | Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and choose the download cache folder. |
 | Manifest Inspector | Select an `model-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
@@ -16,10 +16,10 @@ AI Model Hub has four places in the Editor:
 The list on the left shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
 
 - **Manifest errors**: manifests that AI Model Hub could not read. Their models are skipped until the manifest is fixed.
-- **Needs action**: models to download, import, update, or fix. Errors are listed first.
+- **Needs action**: models to download, convert, update, or fix. Errors are listed first.
 - **Ready**: models this project can load.
 
-Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not imported yet, and the size of the Sentis models for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
+Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not ready yet, and the size of the Sentis models for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
 
 ### Status and actions
 
@@ -27,18 +27,21 @@ The details pane shows the status and the next action for the selected model.
 
 | Status | Meaning | Action |
 |---|---|---|
-| Not downloaded | The selected files are not in the download cache. | **Download & Import** downloads them and imports the model. The button shows the download size when it is known. |
-| Not imported | The files are downloaded, but the ONNX files are not converted for this project yet. | **Import** |
-| Update needed | More files are selected than were downloaded, the imported files are out of date, or AI Model Hub needs the repository's file list to check a download made by another tool. | **Update** downloads missing files and imports the model again. |
-| Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again and imports the model. The button shows the download size when it is known. |
+| Ready | Ready to use. A dependency on `.sentis` files is ready as soon as it is downloaded. If some ONNX files could not be converted, a warning lists them; the other files are converted. | None |
+| Not downloaded | The selected files are not in the download cache. | **Download** downloads them, then converts the ONNX files. The button shows the download size when it is known. |
+| Needs conversion | The files are downloaded, but ONNX files need converting to Sentis for this project: for the first time, after a change of their import settings, or after a Sentis update with a new model format. The details say which. | **Convert** |
+| Setting up | The files are downloaded and every converted model exists. AI Model Hub finishes the setup by itself; the status shows only for a moment. | **Finish** does it now. |
+| Update needed | More files are selected than were downloaded, or AI Model Hub needs the repository's file list to check a download made by another tool. | **Update** downloads the missing files, then converts the ONNX files. |
+| Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again. The button shows the download size when it is known. |
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
-| Error | The import failed, the converted models are missing, or the file selection is invalid, for example a whole-repository dependency on a repository with both ONNX and Sentis files. The details explain why. | **Retry Import** |
+| Error | The setup failed, or the file selection is invalid, for example a whole-repository dependency on a repository with both ONNX and Sentis files. The details explain why. | **Try Again** |
 | Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
-| Ready | The model can load. A dependency on `.sentis` files is ready as soon as it is downloaded. If some ONNX files could not be converted, a warning lists them; the other files are converted. | None |
 
-**Import All** in the toolbar runs every pending download and import. It is hidden when nothing is pending. AI Model Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
+Converting a large ONNX file takes CPU, memory, and time, so AI Model Hub converts only when you ask: with **Convert**, the setup prompt, **Apply & Convert** in the Files tab, or a build. Everything else it does by itself. When a model's files are downloaded and its converted models already exist, for example because another project on this machine converted them with the same settings, the model is ready without a prompt.
 
-While a download or import runs, a bar under the toolbar shows the current file and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
+The toolbar button runs every pending model. It says **Download All** when a model needs a download, **Convert All** when the models only need converting, and **Set Up All** otherwise. It is hidden when nothing is pending. AI Model Hub never starts a download on its own; every download starts from one of these buttons or the setup prompt.
+
+While a download or conversion runs, a bar under the toolbar shows the current model and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
 
 Under the model name, the header shows the repository id and the requested revision, then three links:
 
@@ -51,7 +54,7 @@ More actions:
 - **Show Manifest** selects the manifest that declares the model. When several manifests use the model, a menu lists them.
 - The `⋮` menu next to it has **Open on Hugging Face**, **Copy Model ID**, **Pull into Project**, **Remove from Project**, and **Remove from Cache**.
   - **Pull into Project** copies the model's Sentis files into `Assets/StreamingAssets/model-hub/models/<owner>/<name>/`. Builds and Play mode then use the copies. When copies exist, the item is **Remove Pulled Copies**. See [Pull into project](import-cache-runtime.md#pull-into-project).
-  - **Remove from Project** deletes this project's import records and pulled copies. Downloaded files and converted models stay in the shared folders, so importing again is fast.
+  - **Remove from Project** deletes this project's records and pulled copies. Downloaded files and converted models stay in the shared folders, so the model is ready again without a conversion.
   - **Remove from Cache** deletes the downloaded files from the shared Hugging Face cache on this machine. Other Unity projects and Python tools that use this cache must download the model again. Files that another revision of the model still uses are kept.
 - **+ Add Model** in the toolbar adds a Hugging Face model to the project manifest or to the manifest of a local package. See [Add a model](#add-a-model).
 
@@ -63,30 +66,30 @@ The **Optional files** section appears when a manifest marks files as optional. 
 Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
 ```
 
-The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, imported, or counted in status.
+The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, converted, or counted in status.
 
 **Details** shows the repository, the revision and resolved commit, how many repository files are selected, the download size, and:
 
 - **Format**: **Sentis, used as downloaded**, **ONNX, converted to Sentis**, or **ONNX and Sentis files**, from the selected model files.
-- **Imported**: how many Sentis models the project can load.
+- **In this project**: how many Sentis models the project can load.
 - **In builds**: how builds deliver this model. **Project default** follows Project Settings. **Bundle in the build** adds the Sentis model to the build. **Download at runtime** makes players download it on first use, at the commit tested in this project. For ONNX files, download at runtime needs the `tools.doji.onnx-model-loader` package; the field says so when it is missing. See [Builds](import-cache-runtime.md#builds).
 
 **Used by** lists every manifest that declares the model, with its scope (all files, or the number of required and optional files) and its revision. **Manifest** selects that manifest. When the model has a revision conflict, each row also says how to fix it for that kind of manifest.
 
 ### Files tab
 
-![Files tab with the MiDaS ONNX file expanded. It shows the quantization setting, the input shape 1 × 3 × 256 × 256, where the settings come from, and the downloaded file and imported asset.](../images/manual/model-hub-files.png)
+![Files tab with the MiDaS ONNX file expanded. It shows the quantization setting, the input shape 1 × 3 × 256 × 256, where the settings come from, and the downloaded file and converted model.](../images/manual/model-hub-files.png)
 
 The **Files** tab lists the files the project uses from the repository. **Show unused** also lists files that no manifest selects.
 
 Expand an ONNX file to change how AI Model Hub converts it. `.sentis` files have no conversion settings.
 
 - **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the converted model smaller and can reduce accuracy.
-- **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at import, or `-1` to keep it dynamic. Dimensions with the same name share one value.
+- **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at conversion, or `-1` to keep it dynamic. Dimensions with the same name share one value.
 - **Settings from**: whether the settings come from the package or from a project override.
 - **Location**: the downloaded file and the converted Sentis model.
 
-After a change, a bar at the bottom offers **Revert** and **Apply & Import**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, AI Model Hub asks whether to apply or discard them.
+After a change, a bar at the bottom offers **Revert** and **Apply & Convert**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, AI Model Hub asks whether to apply or discard them.
 
 ### Storage tab
 
@@ -117,7 +120,7 @@ Select a tile to see its size, partial downloads, and revisions. Actions:
 - **Delete Partial Downloads** deletes the partial files only.
 - **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 
-Removing is not possible while AI Model Hub imports models, or while another program downloads a file of that repository.
+Removing is not possible while AI Model Hub downloads or converts models, or while another program downloads a file of that repository.
 
 ### Add a model
 
@@ -132,15 +135,17 @@ Removing is not possible while AI Model Hub imports models, or while another pro
 
 ## Setup prompt
 
-![Setup prompt that lists five models the project needs, with the total download size on the Download & Import All button.](../images/manual/setup-prompt.png)
+![Setup prompt that lists four models the project needs. Two show their download size, two are already downloaded and show Convert. The primary button says Download & Convert All with the total download size.](../images/manual/setup-prompt.png)
 
-When packages need models that are not imported yet, AI Model Hub opens this prompt once per Editor session. It lists each model with the packages that need it and, when known, its download size. Each model has a **Model card** link and a **License** link that names the license the model card declares, as in Model Hub. Check the licenses before you download.
+When packages need models that must be downloaded or converted, AI Model Hub opens this prompt once per Editor session. It lists each model with the packages that need it, and its download size when known, or **Convert** when the files are already downloaded. Each model has a **Model card** link and a **License** link that names the license the model card declares, as in Model Hub. Check the licenses before you download.
 
-- **Download & Import** (or **Import** when the files are already downloaded) starts the work and opens Model Hub to show progress. With several models the button says **Download & Import All**. The button shows the total download size when every size is known.
+The text above the list says what the button costs: the download into the shared cache, the conversion to Sentis, which takes CPU, memory, and time for large models, and why a downloaded model converts again, such as a Sentis update with a new model format.
+
+- The primary button starts the work and opens Model Hub to show progress. It says **Download**, **Convert**, or **Download & Convert**, with **All** for several models, and shows the total download size when every size is known.
 - **Open Model Hub** opens Model Hub without starting anything.
 - **Later** closes the prompt.
 
-Models that only have optional files and none turned on do not open the prompt. When the only problem is a revision conflict, the prompt offers **Open Model Hub** instead.
+Models whose files are downloaded and whose converted models exist do not open the prompt: AI Model Hub sets them up by itself. Models that only have optional files and none turned on do not open it either. When the only problem is a revision conflict, the prompt offers **Open Model Hub** instead.
 
 ## Project Settings
 

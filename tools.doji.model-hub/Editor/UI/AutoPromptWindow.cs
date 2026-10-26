@@ -8,7 +8,8 @@ using UnityEngine.UIElements;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// First-run prompt: lists the models that packages need and offers to download and import them.
+    /// Setup prompt: lists the models that need a download or a new conversion, says what each costs, and starts the
+    /// work on one click. Models that only need this project's records are set up without it, by <see cref="AutoImport"/>.
     /// </summary>
     internal sealed class AutoPromptWindow : EditorWindow
     {
@@ -30,7 +31,7 @@ namespace Doji.AI.ModelHub.Editor
             var window = CreateInstance<AutoPromptWindow>();
             window.titleContent = new GUIContent(ModelHubWindow.Title);
             var items = GetHubItems();
-            window._viewModel = BuildViewModel(report, GetDownloadSizes(items), GetLicenseLinks(items));
+            window._viewModel = BuildViewModel(report, GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items));
             window.EnsureModelCards(report, items);
             var height = Mathf.Min(220f + (window._viewModel.Models.Count * 64f), 560f);
             var main = EditorGUIUtility.GetMainWindowPosition();
@@ -76,6 +77,20 @@ namespace Doji.AI.ModelHub.Editor
             return items.ToDictionary(pair => pair.Key, pair => pair.Value.SourceSizeBytes, StringComparer.Ordinal);
         }
 
+        /// <summary>
+        /// Whether each repository selects ONNX files, which convert after the download. Repositories whose file list is
+        /// unknown are left out, and the prompt assumes they convert.
+        /// </summary>
+        private static IReadOnlyDictionary<string, bool> GetOnnxSelections(IReadOnlyDictionary<string, ModelHubItem> items)
+        {
+            return items
+                .Where(pair => pair.Value.Files.Count > 0)
+                .ToDictionary(
+                    pair => pair.Key,
+                    pair => pair.Value.Files.Any(file => file.IsDependencySelected && ModelFiles.GetFormat(file.RepoPath) == ModelFileFormat.Onnx),
+                    StringComparer.Ordinal);
+        }
+
         private static IReadOnlyDictionary<string, ModelLink> GetLicenseLinks(IReadOnlyDictionary<string, ModelHubItem> items)
         {
             return items.ToDictionary(
@@ -111,7 +126,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
 
                     var refreshed = GetHubItems();
-                    _viewModel = BuildViewModel(report, GetDownloadSizes(refreshed), GetLicenseLinks(refreshed));
+                    _viewModel = BuildViewModel(report, GetDownloadSizes(refreshed), GetLicenseLinks(refreshed), GetOnnxSelections(refreshed));
                     rootVisualElement.Clear();
                     CreateGUI();
                 });
@@ -123,7 +138,7 @@ namespace Doji.AI.ModelHub.Editor
             if (_viewModel == null)
             {
                 var items = GetHubItems();
-                _viewModel = BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes(items), GetLicenseLinks(items));
+                _viewModel = BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items));
             }
 
             var root = rootVisualElement;
@@ -205,6 +220,12 @@ namespace Doji.AI.ModelHub.Editor
             {
                 row.Add(UiKit.Text(size, "sp-model__size"));
             }
+            else if (!model.NeedsDownload && model.WillConvert)
+            {
+                var convert = UiKit.Text("Convert", "sp-model__size");
+                convert.tooltip = "The files are downloaded. They need converting to Sentis models.";
+                row.Add(convert);
+            }
 
             return row;
         }
@@ -226,7 +247,8 @@ namespace Doji.AI.ModelHub.Editor
         internal static PromptViewModel BuildViewModel(
             StatusReport report,
             IReadOnlyDictionary<string, long?> downloadSizes = null,
-            IReadOnlyDictionary<string, ModelLink> licenseLinks = null)
+            IReadOnlyDictionary<string, ModelLink> licenseLinks = null,
+            IReadOnlyDictionary<string, bool> onnxSelections = null)
         {
             var attention = (report?.DependencyStatuses ?? Array.Empty<DependencyStatus>())
                 .Where(status => status.NeedsStartupPrompt)
@@ -245,14 +267,28 @@ namespace Doji.AI.ModelHub.Editor
                         licenseLink = ModelLinks.GetLicenseLink(group.Key, null, null, null);
                     }
 
+                    var needsDownload = group.Any(status => !status.IsImportPending && (!HasRawCache(status) || status.ReasonCode == DependencyReasonCode.RawCacheFilesMissing || status.HasDamagedCache));
+                    var selectsOnnx = true;
+                    onnxSelections?.TryGetValue(group.Key, out selectsOnnx);
+                    var willConvert = needsDownload
+                        ? onnxSelections == null || !onnxSelections.ContainsKey(group.Key) || selectsOnnx
+                        : group.Any(status => status.NeedsConversion);
+                    var cause = group
+                        .Where(status => status.NeedsConversion)
+                        .Select(status => status.ConversionCause)
+                        .DefaultIfEmpty(ConversionCause.None)
+                        .Max();
+
                     return new PromptModelEntry(
                         group.Key,
                         group.Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
                         group.Select(status => status.Dependency.ManifestPath).Distinct().ToArray(),
                         group.Any(status => status.ReasonCode == DependencyReasonCode.RevisionConflict),
-                        group.Any(status => !HasRawCache(status) || status.ReasonCode == DependencyReasonCode.RawCacheFilesMissing || status.HasDamagedCache),
+                        needsDownload,
                         size,
-                        licenseLink);
+                        licenseLink,
+                        willConvert,
+                        cause);
                 })
                 .OrderBy(model => ModelStatus.GetModelName(model.Repository), StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -282,9 +318,7 @@ namespace Doji.AI.ModelHub.Editor
                 headline = models.Length == 1
                     ? $"{subject} needs an AI model"
                     : $"{subject} needs {models.Length} AI models";
-                body = models.Length == 1
-                    ? "AI Model Hub downloads it from Hugging Face once and imports it into this project."
-                    : "AI Model Hub downloads them from Hugging Face once and imports them into this project.";
+                body = BuildBody(models.Where(model => !model.IsConflict).ToArray());
             }
 
             var (label, tooltip, action) = BuildPrimaryAction(models);
@@ -299,21 +333,56 @@ namespace Doji.AI.ModelHub.Editor
                 return ("Open Model Hub", "See the details in Model Hub.", PromptPrimaryAction.OpenModelHub);
             }
 
-            if (syncable.All(model => !model.NeedsDownload))
-            {
-                return (syncable.Length == 1 ? "Import" : "Import All",
-                    "Import from the files already downloaded on this machine.",
-                    PromptPrimaryAction.StartSync);
-            }
-
-            var label = syncable.Length == 1 ? "Download & Import" : "Download & Import All";
             var downloads = syncable.Where(model => model.NeedsDownload).ToArray();
-            if (downloads.All(model => model.DownloadSizeBytes.HasValue))
+            var converts = syncable.Any(model => model.WillConvert);
+            var verb = downloads.Length == 0 ? "Convert" : converts ? "Download & Convert" : "Download";
+            var label = syncable.Length == 1 ? verb : $"{verb} All";
+            if (downloads.Length > 0 && downloads.All(model => model.DownloadSizeBytes.HasValue))
             {
                 label = $"{label}  ·  {UiKit.FormatBytes(downloads.Sum(model => model.DownloadSizeBytes.GetValueOrDefault()))}";
             }
 
-            return (label, "Download from Hugging Face and import into this project.", PromptPrimaryAction.StartSync);
+            var tooltip = downloads.Length == 0
+                ? $"Convert the downloaded files to Sentis models. {ConversionCost}"
+                : converts
+                    ? $"Download from Hugging Face into the shared cache, then convert the ONNX files to Sentis models. {ConversionCost}"
+                    : "Download from Hugging Face into the shared cache.";
+            return (label, tooltip, PromptPrimaryAction.StartSync);
+        }
+
+        private const string ConversionCost = "Converting takes CPU, memory, and time for large models.";
+
+        /// <summary>
+        /// Says what the primary action does: which models download, which convert, and why a downloaded model converts.
+        /// </summary>
+        private static string BuildBody(IReadOnlyList<PromptModelEntry> models)
+        {
+            var downloads = models.Count(model => model.NeedsDownload);
+            var converts = models.Count(model => model.WillConvert);
+            if (downloads == 0)
+            {
+                var causes = models.Select(model => model.ConversionCause).Distinct().ToArray();
+                var subject = models.Count == 1 ? "The model is" : "The models are";
+                var reason = causes.Length == 1 && causes[0] == ConversionCause.FormatChanged
+                    ? $"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format, so {(models.Count == 1 ? "it needs" : "they need")} converting again."
+                    : causes.Length == 1 && causes[0] == ConversionCause.SettingsChanged
+                        ? $"The import settings changed, so {(models.Count == 1 ? "it needs" : "they need")} converting again."
+                        : $"{(models.Count == 1 ? "It needs" : "They need")} converting to Sentis models for this project.";
+                return $"{subject} already downloaded on this machine. {reason} {ConversionCost}";
+            }
+
+            var download = models.Count == 1
+                ? "AI Model Hub downloads it from Hugging Face once, into a cache that your Unity projects share."
+                : "AI Model Hub downloads them from Hugging Face once, into a cache that your Unity projects share.";
+            if (converts == 0)
+            {
+                return download;
+            }
+
+            var convert = converts == models.Count
+                ? models.Count == 1 ? "Then it converts the model to Sentis." : "Then it converts the models to Sentis."
+                : "Then it converts the ONNX models to Sentis.";
+            return $"{download} {convert} {ConversionCost}";
         }
 
         private static bool HasRawCache(DependencyStatus status)
@@ -364,9 +433,13 @@ namespace Doji.AI.ModelHub.Editor
                 bool isConflict,
                 bool needsDownload,
                 long? downloadSizeBytes,
-                ModelLink licenseLink)
+                ModelLink licenseLink,
+                bool willConvert = false,
+                ConversionCause conversionCause = ConversionCause.None)
             {
                 LicenseLink = licenseLink;
+                WillConvert = willConvert;
+                ConversionCause = conversionCause;
                 Repository = repository;
                 Owners = owners ?? Array.Empty<string>();
                 ManifestPaths = manifestPaths ?? Array.Empty<string>();
@@ -381,6 +454,17 @@ namespace Doji.AI.ModelHub.Editor
             public bool IsConflict { get; }
             public bool NeedsDownload { get; }
             public long? DownloadSizeBytes { get; }
+
+            /// <summary>
+            /// The model converts ONNX files after this action: after the download, or because the converted store
+            /// has no model for this project's settings and Sentis format.
+            /// </summary>
+            public bool WillConvert { get; }
+
+            /// <summary>
+            /// Why a downloaded model converts again. <see cref="ConversionCause.None"/> while it still downloads.
+            /// </summary>
+            public ConversionCause ConversionCause { get; }
 
             /// <summary>
             /// The license the model card declares, and where to read it.

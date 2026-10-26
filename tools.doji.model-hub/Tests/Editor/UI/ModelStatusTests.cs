@@ -19,28 +19,28 @@ namespace Doji.AI.ModelHub.Editor.Tests
         };
 
         /// <summary>
-        /// A failed import with downloaded files shows an error and offers Retry Import.
+        /// A failed setup with downloaded files shows an error and offers Try Again.
         /// </summary>
         [Test]
-        public void Error_WithCache_OffersRetryWithErrorTone()
+        public void Error_WithCache_OffersTryAgainWithErrorTone()
         {
             var status = ModelStatus.From(CreateItem(
                 ModelHubItemState.Error,
-                DependencyReasonCode.SharedImportMetadataInvalid,
+                DependencyReasonCode.InvalidSelection,
                 rawSnapshotRootPath: "/cache/doji/test-model/abc123",
                 runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>()));
 
             Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.Error));
             Assert.That(status.Tone, Is.EqualTo(UiTone.Error));
             Assert.That(status.Action, Is.EqualTo(ModelActionKind.Sync));
-            Assert.That(status.ActionLabel, Is.EqualTo("Retry Import"));
+            Assert.That(status.ActionLabel, Is.EqualTo("Try Again"));
         }
 
         /// <summary>
-        /// A model that is not downloaded offers Download & Import.
+        /// A model that is not downloaded offers Download.
         /// </summary>
         [Test]
-        public void MissingCache_OffersDownloadAndImport()
+        public void MissingCache_OffersDownload()
         {
             var status = ModelStatus.From(CreateItem(
                 ModelHubItemState.ActionRequired,
@@ -51,23 +51,92 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.DownloadNeeded));
             Assert.That(status.Label, Is.EqualTo("Not downloaded"));
             Assert.That(status.Tone, Is.EqualTo(UiTone.Info));
-            Assert.That(status.ActionLabel, Is.EqualTo("Download & Import"));
+            Assert.That(status.ActionLabel, Is.EqualTo("Download"));
         }
 
         /// <summary>
-        /// A downloaded but not imported model offers Import.
+        /// A downloaded model whose converted models are all in the store is set up automatically, so it shows Setting
+        /// up and offers Finish instead of a conversion.
+        /// </summary>
+        [TestCase(DependencyReasonCode.ImportBindingMissing)]
+        [TestCase(DependencyReasonCode.ImportBindingInvalid)]
+        [TestCase(DependencyReasonCode.SharedImportMetadataInvalid)]
+        [TestCase(DependencyReasonCode.SharedImportMetadataStale)]
+        public void CachedWithStoreHits_IsSettingUp(DependencyReasonCode reasonCode)
+        {
+            var status = ModelStatus.From(CreateItem(
+                ModelHubItemState.ActionRequired,
+                reasonCode,
+                rawSnapshotRootPath: "/cache/doji/test-model/abc123",
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>()));
+
+            Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.Preparing));
+            Assert.That(status.Label, Is.EqualTo("Setting up"));
+            Assert.That(status.ActionLabel, Is.EqualTo("Finish"));
+        }
+
+        /// <summary>
+        /// A downloaded model with ONNX files to convert asks for a conversion and says what it costs.
         /// </summary>
         [Test]
-        public void CachedWithoutImport_OffersImport()
+        public void CachedWithPendingConversion_OffersConvert()
         {
             var status = ModelStatus.From(CreateItem(
                 ModelHubItemState.ActionRequired,
                 DependencyReasonCode.ImportBindingMissing,
                 rawSnapshotRootPath: "/cache/doji/test-model/abc123",
-                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>()));
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>(),
+                pendingConversions: new[] { "model.onnx" },
+                conversionCause: ConversionCause.FirstConversion));
 
-            Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.ImportNeeded));
-            Assert.That(status.ActionLabel, Is.EqualTo("Import"));
+            Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.ConversionNeeded));
+            Assert.That(status.Label, Is.EqualTo("Needs conversion"));
+            Assert.That(status.Action, Is.EqualTo(ModelActionKind.Sync));
+            Assert.That(status.ActionLabel, Is.EqualTo("Convert"));
+            Assert.That(status.Description, Does.Contain("1 ONNX file needs converting"));
+            Assert.That(status.Description, Does.Contain("CPU, memory"));
+        }
+
+        /// <summary>
+        /// The conversion description names the cause: a new Sentis model format, or changed import settings.
+        /// </summary>
+        [Test]
+        public void ConversionDescription_NamesTheCause()
+        {
+            var formatChanged = ModelStatus.From(CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.ImportBindingStale,
+                "/cache/doji/test-model/abc123",
+                ImportedFiles,
+                new[] { "a.onnx", "b.onnx" },
+                ConversionCause.FormatChanged));
+            var settingsChanged = ModelStatus.From(CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.SharedImportMetadataStale,
+                "/cache/doji/test-model/abc123",
+                ImportedFiles,
+                new[] { "a.onnx" },
+                ConversionCause.SettingsChanged));
+
+            Assert.That(formatChanged.Kind, Is.EqualTo(ModelStatusKind.ConversionNeeded));
+            Assert.That(formatChanged.Description, Does.Contain($"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format"));
+            Assert.That(formatChanged.Description, Does.Contain("2 ONNX files need converting again"));
+            Assert.That(settingsChanged.Description, Does.Contain("import settings changed"));
+        }
+
+        /// <summary>
+        /// The toolbar names the most expensive pending work: downloads, then conversions, then setup.
+        /// </summary>
+        [Test]
+        public void BuildBulkActionLabel_NamesTheMostExpensiveWork()
+        {
+            var download = ModelStatus.From(CreateItem(ModelHubItemState.ActionRequired, DependencyReasonCode.RawCacheRevisionRefMissing, null, System.Array.Empty<ImportedRuntimeFileMetadata>()));
+            var convert = ModelStatus.From(CreateItem(ModelHubItemState.ActionRequired, DependencyReasonCode.ImportBindingMissing, "/cache/doji/test-model/abc123", System.Array.Empty<ImportedRuntimeFileMetadata>(), new[] { "model.onnx" }, ConversionCause.FirstConversion));
+            var setUp = ModelStatus.From(CreateItem(ModelHubItemState.ActionRequired, DependencyReasonCode.ImportBindingMissing, "/cache/doji/test-model/abc123", System.Array.Empty<ImportedRuntimeFileMetadata>()));
+
+            Assert.That(ModelStatus.BuildBulkActionLabel(new[] { setUp, convert, download }), Is.EqualTo("Download All"));
+            Assert.That(ModelStatus.BuildBulkActionLabel(new[] { setUp, convert }), Is.EqualTo("Convert All"));
+            Assert.That(ModelStatus.BuildBulkActionLabel(new[] { setUp }), Is.EqualTo("Set Up All"));
         }
 
         /// <summary>
@@ -150,6 +219,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 runtimeFiles: ImportedFiles));
 
             Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.Ready));
+            Assert.That(status.Description, Is.EqualTo("Ready to use."));
             Assert.That(status.NeedsAction, Is.False);
             Assert.That(status.Tone, Is.EqualTo(UiTone.Success));
         }
@@ -168,7 +238,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             ModelHubItemState state,
             DependencyReasonCode reasonCode,
             string rawSnapshotRootPath,
-            ImportedRuntimeFileMetadata[] runtimeFiles)
+            ImportedRuntimeFileMetadata[] runtimeFiles,
+            string[] pendingConversions = null,
+            ConversionCause conversionCause = ConversionCause.None)
         {
             var dependency = new DiscoveredModelDependency(
                 "tools.doji.test",
@@ -194,7 +266,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     new DependencyStatus(
                         dependency,
-                        state == ModelHubItemState.Error ? DependencyState.Failed : DependencyState.Ready,
+                        state switch
+                        {
+                            ModelHubItemState.Error => DependencyState.Failed,
+                            ModelHubItemState.ActionRequired => DependencyState.Missing,
+                            _ => DependencyState.Ready
+                        },
                         reasonCode,
                         "Status message.",
                         "/cache/doji/test-model/refs/main",
@@ -203,7 +280,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null,
                         null,
                         null,
-                        null)
+                        null,
+                        pendingConversions,
+                        conversionCause)
                 },
                 System.Array.Empty<ModelHubDiagnostic>(),
                 runtimeFiles,

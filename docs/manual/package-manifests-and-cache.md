@@ -15,4 +15,4 @@ Reference pages:
 
 - [Manifest Schema](manifest-reference.md)
 - [Editor Surfaces](editor-surfaces.md)
-- [Import, Cache, and Runtime Loading](import-cache-runtime.md)
+- [Setup, Cache, and Runtime Loading](import-cache-runtime.md)

@@ -48,14 +48,14 @@ Use this path when a Unity project consumes a package with model dependencies or
 
 Unity project users work in Project Settings and Model Hub. AI Model Hub discovers package and project manifests, shows model status, downloads files into the shared Hugging Face cache, and converts ONNX files into a shared folder. Builds bundle the models or download them at runtime.
 
-This workflow is project-scoped. Optional-file selections, conversion settings, delivery modes, and import records belong to the current project, even when the model dependency came from an installed package.
+This workflow is project-scoped. Optional-file selections, conversion settings, delivery modes, and setup records belong to the current project, even when the model dependency came from an installed package.
 
 Typical Unity project user tasks:
 
 - inspect discovered package and project manifests
 - add project-owned model dependencies
 - enable optional model files for this project
-- run `Download & Import`, `Import`, or `Import All`
+- run `Download`, `Convert`, or `Download All`
 - choose whether builds bundle each model or download it at runtime
 
 Continue with [For Unity Project Users](getting-started-project-users.md).
@@ -64,4 +64,4 @@ Continue with [For Unity Project Users](getting-started-project-users.md).
 
 - [Manifest Schema](manifest-reference.md) documents manifest types, fields, validation, whole-repo scope, selected files, and per-file `optional` flags.
 - [Editor Surfaces](editor-surfaces.md) documents Model Hub, the setup prompt, Project Settings, and manifest Inspectors.
-- [Import, Cache, and Runtime Loading](import-cache-runtime.md) documents the sync flow, the cache and converted-model folders, builds, players, and the runtime API.
+- [Setup, Cache, and Runtime Loading](import-cache-runtime.md) documents the sync flow, the cache and converted-model folders, builds, players, and the runtime API.

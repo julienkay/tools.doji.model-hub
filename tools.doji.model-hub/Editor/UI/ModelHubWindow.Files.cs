@@ -331,13 +331,13 @@ namespace Doji.AI.ModelHub.Editor
         private VisualElement BuildApplyBar(ModelHubItem item, RepoFileEditSession session)
         {
             var bar = UiKit.Element("mh-apply-bar", "hf-hidden");
-            bar.Add(UiKit.Text("Import settings changed. Apply them to import the model again.", "hf-grow", "hf-wrap"));
+            bar.Add(UiKit.Text("Import settings changed. Apply them to convert the model again.", "hf-grow", "hf-wrap"));
             bar.Add(UiKit.Button("Revert", () =>
             {
                 _fileEditSessions.Remove(GetFileEditSessionKey(item));
                 RebuildDetails();
             }));
-            var apply = UiKit.PrimaryButton("Apply & Import", () => ApplyFileEdits(item, session));
+            var apply = UiKit.PrimaryButton("Apply & Convert", () => ApplyFileEdits(item, session));
             apply.name = "apply";
             bar.Add(apply);
             return bar;
@@ -359,8 +359,8 @@ namespace Doji.AI.ModelHub.Editor
                 apply.tooltip = session.HasValidationErrors
                     ? "Fix the highlighted settings first."
                     : BackgroundSyncManager.IsRunning
-                        ? "Wait for the running import to finish."
-                        : "Save the settings and import the model again.";
+                        ? "Wait for the running setup to finish."
+                        : "Save the settings and convert the model again. Converting takes CPU, memory, and time for large models.";
             }
         }
 

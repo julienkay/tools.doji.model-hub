@@ -102,7 +102,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new[]
                 {
                     CreateDependencyStatus("tools.doji.pkg-a", "Package A", "model-a", DependencyState.Ready),
-                    CreateDependencyStatus("tools.doji.pkg-b", "Package B", "model-b", DependencyState.Missing)
+                    CreateDependencyStatus("tools.doji.pkg-b", "Package B", "model-b", DependencyState.Missing, reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing)
                 });
 
             var hubReport = new ModelHubService().BuildReport(report);
@@ -111,7 +111,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.ActionRequired));
             Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("Model needs import into this project."));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Download this model to use it."));
+        }
+
+        /// <summary>
+        /// Verifies a model whose files are all cached gets no diagnostic for its missing setup: the status explains
+        /// setup and conversion, and the records are rewritten from the cache.
+        /// </summary>
+        [Test]
+        public void BuildReport_AddsNoDiagnosticWhenOnlyTheSetupIsPending()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[]
+                {
+                    CreateDependencyStatus("tools.doji.pkg-a", "Package A", "model-a", DependencyState.Missing, reasonCode: DependencyReasonCode.ImportBindingMissing),
+                    CreateDependencyStatus("tools.doji.pkg-b", "Package B", "model-b", DependencyState.Stale, reasonCode: DependencyReasonCode.SharedImportMetadataStale)
+                });
+
+            var item = new ModelHubService().BuildReport(report).Items.Single();
+
+            Assert.That(item.State, Is.EqualTo(ModelHubItemState.ActionRequired));
+            Assert.That(item.IsImportPending, Is.True);
+            Assert.That(item.NeedsConversion, Is.False);
+            Assert.That(item.Diagnostics, Is.Empty);
         }
 
         /// <summary>
@@ -145,7 +168,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.ActionRequired));
             Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional model file for this manifest owner before downloading or importing."));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional model file for this manifest owner."));
         }
 
         /// <summary>
@@ -190,7 +213,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(item.ImportedFileCount, Is.EqualTo(1));
             Assert.That(item.SelectedFileCount, Is.EqualTo(2));
             Assert.That(item.RepositoryFileCount, Is.EqualTo(2));
-            Assert.That(item.Diagnostics.Any(diagnostic => diagnostic.Severity == "info" && diagnostic.Message.Contains("Update the model cache.")), Is.True);
+            Assert.That(item.Diagnostics.Any(diagnostic => diagnostic.Severity == "info" && diagnostic.Message.Contains("Update the model.")), Is.True);
 
             var firstFile = item.Files.Single(file => file.RepoPath == "model.onnx");
             Assert.That(firstFile.IsDependencySelected, Is.True);

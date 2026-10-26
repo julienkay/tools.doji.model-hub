@@ -172,7 +172,7 @@ namespace Doji.AI.ModelHub.Editor
                 if (status.Action == ModelActionKind.Sync)
                 {
                     primary.SetEnabled(!isSyncRunning);
-                    primary.tooltip = isSyncRunning ? "Wait for the running import to finish." : status.Description;
+                    primary.tooltip = isSyncRunning ? "Wait for the running setup to finish." : status.Description;
                 }
 
                 actions.Add(primary);
@@ -501,7 +501,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             card.Add(UiKit.KeyValue(
-                "Imported",
+                "In this project",
                 item.ImportedFileCount == 0
                     ? "Nothing yet"
                     : item.ImportedFileCount == 1 ? "1 Sentis model" : $"{item.ImportedFileCount} Sentis models"));

@@ -98,14 +98,15 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Contract for importing cached raw files into project-owned `.sentis` artifacts.
+    /// Contract for preparing the runtime models of cached files and recording them for this project.
     /// </summary>
     internal interface IProjectImportService
     {
         Task<ImportedModelArtifact> ImportAsync(
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
-            CancellationToken cancellationToken);
+            CancellationToken cancellationToken,
+            bool allowConversion = true);
     }
 
     /// <summary>

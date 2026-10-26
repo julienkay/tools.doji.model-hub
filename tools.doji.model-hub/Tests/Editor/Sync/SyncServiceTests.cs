@@ -212,7 +212,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             public Task<ImportedModelArtifact> ImportAsync(
                 DiscoveredModelDependency dependency,
                 CachedSnapshot cachedSnapshot,
-                CancellationToken cancellationToken)
+                CancellationToken cancellationToken,
+                bool allowConversion = true)
             {
                 CallCount++;
                 if (dependency.ModelId == _failingModelId)

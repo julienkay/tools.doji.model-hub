@@ -160,7 +160,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new DependencyStatus(
                 CreateDependency(packageId, packageDisplayName),
                 state,
-                reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing),
+                reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.RawCacheRevisionRefMissing),
                 maintainerMessage,
                 null,
                 null,

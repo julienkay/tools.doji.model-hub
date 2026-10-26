@@ -205,7 +205,7 @@ namespace Doji.AI.ModelHub
                 if (path == null)
                 {
                     throw new FileNotFoundException(
-                        $"AI Model Hub model '{model.repoId}:{file.repoPath}' is not imported in this project. Import it in Window > AI Model Hub.",
+                        $"AI Model Hub model '{model.repoId}:{file.repoPath}' is not set up in this project. Download or convert it in Window > AI Model Hub.",
                         file.localPath);
                 }
 

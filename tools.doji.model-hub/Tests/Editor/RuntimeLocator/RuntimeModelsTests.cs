@@ -104,7 +104,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             UseRegistry(Model("bundle", new RuntimeModelFile { repoPath = "a.onnx", format = "onnx", localPath = Path.Combine(_rootDirectory, "missing.sentis") }));
             var exception = Assert.Throws<FileNotFoundException>(() => Hub.LoadModel(Repo, "a.onnx"));
-            Assert.That(exception.Message, Does.Contain("not imported"));
+            Assert.That(exception.Message, Does.Contain("not set up"));
         }
 
         /// <summary>

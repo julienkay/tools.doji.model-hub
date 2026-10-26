@@ -28,7 +28,7 @@ namespace Doji.AI.ModelHub.Editor
                 item.RuntimeSizeOnDiskBytes,
                 item.RuntimeSizeOnDiskBytes.HasValue
                     ? "Sentis models converted from ONNX, shared by all projects"
-                    : item.RuntimeFiles.Count > 0 ? "Uses the downloaded Sentis files as they are" : "Not imported yet",
+                    : item.RuntimeFiles.Count > 0 && !item.NeedsConversion ? "Uses the downloaded Sentis files as they are" : "Not converted yet",
                 item.RuntimeModelFolder,
                 UiKit.RevealInFileBrowserLabel,
                 () => ProjectSettingsLinks.RevealPath(item.RuntimeModelFolder),

@@ -93,8 +93,8 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var discoveryReport = EditorManifestDiscovery.DiscoverInstalledManifests();
-            var pendingKeys = BuildPendingDependencyKeys(discoveryReport, dependencyFilter);
-            if (pendingKeys.Length == 0)
+            var pendingItems = BuildPendingItems(discoveryReport, dependencyFilter, mode);
+            if (pendingItems.Length == 0)
             {
                 return;
             }
@@ -106,7 +106,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             Runner.StartOrResume(
-                () => PersistentItemQueueState.Create(pendingKeys.Select(key => BuildStateKey(mode, key))),
+                () => PersistentItemQueueState.Create(pendingItems.Select(item => BuildStateKey(item.Mode, item.Key))),
                 RunAsync,
                 exception => UnityEngine.Debug.LogError($"AI Model Hub background sync failed: {exception.Message}"),
                 OnCanceled);
@@ -116,14 +116,32 @@ namespace Doji.AI.ModelHub.Editor
             DiscoveryReport discoveryReport,
             Func<DiscoveredModelDependency, bool> dependencyFilter)
         {
+            return BuildPendingItems(discoveryReport, dependencyFilter, SyncOperationMode.Full)
+                .Select(item => item.Key)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Dependencies a sync works on, with the mode for each: models that are ready, unknown on the Hub, or waiting
+        /// for a file selection are left out. A full sync of a model whose files are all cached only imports it, so
+        /// converting needs no network.
+        /// </summary>
+        internal static (string Key, SyncOperationMode Mode)[] BuildPendingItems(
+            DiscoveryReport discoveryReport,
+            Func<DiscoveredModelDependency, bool> dependencyFilter,
+            SyncOperationMode mode)
+        {
             var statusReport = new StatusService().BuildStatusReport(discoveryReport);
+            var filter = dependencyFilter ?? (_ => true);
             return statusReport.DependencyStatuses
                 .Where(status =>
+                    status.State != DependencyState.Ready &&
                     status.ReasonCode != DependencyReasonCode.InvalidRepository &&
-                    status.ReasonCode != DependencyReasonCode.SelectionRequired)
-                .Select(status => status.Dependency)
-                .Where(dependencyFilter ?? (_ => true))
-                .Select(GetDependencyKey)
+                    status.ReasonCode != DependencyReasonCode.SelectionRequired &&
+                    filter(status.Dependency))
+                .Select(status => (
+                    GetDependencyKey(status.Dependency),
+                    mode == SyncOperationMode.Full && status.IsImportPending ? SyncOperationMode.MaterializeOnly : mode))
                 .ToArray();
         }
 
@@ -225,6 +243,7 @@ namespace Doji.AI.ModelHub.Editor
                                     operationContext.CancellationToken);
                                 break;
                             case SyncOperationMode.MaterializeOnly:
+                                operationContext.ReportProgress(baseProgress, $"Converting {GetDependencyDisplayLabel(dependency)}");
                                 cachedFile = rawCacheService.GetCachedOrThrow(dependency);
                                 importedArtifact = await importService.ImportAsync(
                                     dependency,
@@ -236,6 +255,9 @@ namespace Doji.AI.ModelHub.Editor
                                     dependency,
                                     downloadProgress,
                                     operationContext.CancellationToken);
+                                operationContext.ReportProgress(
+                                    totalCount == 0 ? 1f : (index + 1f) / totalCount,
+                                    $"Setting up {GetDependencyDisplayLabel(dependency)}");
                                 importedArtifact = await importService.ImportAsync(
                                     dependency,
                                     cachedFile,
@@ -364,7 +386,7 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Uses a stable package/model key so persisted job state can be matched back onto newly discovered dependencies.
         /// </summary>
-        private static string GetDependencyKey(DiscoveredModelDependency dependency)
+        internal static string GetDependencyKey(DiscoveredModelDependency dependency)
         {
             return $"{dependency.PackageId}:{dependency.ModelId}";
         }
@@ -399,6 +421,14 @@ namespace Doji.AI.ModelHub.Editor
             return dependency != null &&
                 string.Equals(dependency.Repository, repository, StringComparison.Ordinal) &&
                 string.Equals(dependency.Revision, revision, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Tells listeners that model status changed outside a sync, for example after an automatic import.
+        /// </summary>
+        internal static void NotifyStateChanged()
+        {
+            NotifySyncStateChanged();
         }
 
         private static void NotifySyncStateChanged()

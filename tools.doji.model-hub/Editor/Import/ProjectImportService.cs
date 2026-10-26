@@ -38,12 +38,57 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Key of the converted model of one cached ONNX file with this project's conversion settings.
+        /// </summary>
+        internal static string GetConversionKey(
+            string repository,
+            RawCacheFileMetadata file,
+            IProjectModelRecipeSource recipeSource,
+            string converterId = null)
+        {
+            var recipe = recipeSource.GetEffectiveRecipe(repository, file.RepoPath).Recipe;
+            return ConvertedModelStore.ComputeKey(
+                SourceFileIdentity.GetEtag(file),
+                converterId ?? GetEditorConverterId(),
+                OnnxImportMetadataUtility.ComputeRecipeHash(recipe));
+        }
+
+        /// <summary>
+        /// Selected ONNX files whose converted model is not in the shared converted store, so importing them means
+        /// converting. Files that are not cached are left out: they need a download first.
+        /// </summary>
+        internal static string[] GetPendingConversions(
+            string repository,
+            IEnumerable<RawCacheFileMetadata> cachedFiles,
+            IEnumerable<string> selectedOnnxRepoPaths,
+            IProjectModelRecipeSource recipeSource)
+        {
+            var selected = new HashSet<string>(selectedOnnxRepoPaths ?? Array.Empty<string>(), StringComparer.Ordinal);
+            if (selected.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var converterId = GetEditorConverterId();
+            return (cachedFiles ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => file != null && selected.Contains(file.RepoPath))
+                .Where(file => !ConvertedModelStore.TryGet(repository, GetConversionKey(repository, file, recipeSource, converterId), out _))
+                .Select(file => file.RepoPath)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
         /// Returns the recorded import when it is current, otherwise prepares the runtime models of the selected files.
+        /// With <paramref name="allowConversion"/> false, an import that would convert an ONNX file throws
+        /// <see cref="ConversionRequiredException"/> before it writes anything.
         /// </summary>
         public Task<ImportedModelArtifact> ImportAsync(
             DiscoveredModelDependency dependency,
             CachedSnapshot cachedSnapshot,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool allowConversion = true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -98,6 +143,19 @@ namespace Doji.AI.ModelHub.Editor
                     sharedMetadataFilePath));
             }
 
+            if (!allowConversion)
+            {
+                var pendingConversions = GetPendingConversions(
+                    dependency.Repository,
+                    cachedSnapshot.Metadata?.Files,
+                    selectedModelRepoPaths.Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx),
+                    _recipeSource);
+                if (pendingConversions.Length > 0)
+                {
+                    throw new ConversionRequiredException(dependency.Repository, pendingConversions);
+                }
+            }
+
             var runtimeFiles = new List<ImportedRuntimeFileMetadata>();
             var onnxFileCount = 0;
             var conversionFailures = new List<string>();
@@ -132,7 +190,7 @@ namespace Doji.AI.ModelHub.Editor
                 var recipe = _recipeSource.GetEffectiveRecipe(dependency.Repository, snapshotFile.RepoPath).Recipe;
                 var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(recipe);
                 var sourceEtag = SourceFileIdentity.GetEtag(snapshotFile);
-                var conversionKey = ConvertedModelStore.ComputeKey(sourceEtag, converterId, recipeHash);
+                var conversionKey = GetConversionKey(dependency.Repository, snapshotFile, _recipeSource, converterId);
                 if (!ConvertedModelStore.TryGet(dependency.Repository, conversionKey, out var convertedPath))
                 {
                     try

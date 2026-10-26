@@ -1,4 +1,4 @@
-# Import, Cache, and Runtime Loading
+# Setup, Cache, and Runtime Loading
 
 AI Model Hub downloads model files into the shared Hugging Face cache, turns them into Sentis models in a shared folder outside the project, and adds them to builds. Nothing is written into `Assets` unless you pull a model into the project.
 
@@ -6,7 +6,7 @@ AI Model Hub downloads model files into the shared Hugging Face cache, turns the
 |---|---|---|
 | Downloaded files | Hugging Face cache, for example `~/.cache/huggingface/hub` | All Unity projects and Python tools on this machine |
 | Converted Sentis models | AI Model Hub data folder, `converted/` | All Unity projects on this machine |
-| Import records | `Library/Doji/ModelHub/imports/` | This project only |
+| Setup records | `Library/Doji/ModelHub/imports/` | This project only |
 | Models in a build | The build's StreamingAssets, added at build time | That build only |
 
 ## Model files
@@ -15,30 +15,39 @@ The file extension decides how AI Model Hub uses a file:
 
 | Extension | What AI Model Hub does | Conversion settings |
 |---|---|---|
-| `.onnx` | Converts it to a Sentis model on import. | Quantization and input shapes apply. |
-| `.sentis` | Uses the downloaded file as it is. There is no import step. | Do not apply. |
+| `.onnx` | Converts it to a Sentis model. | Quantization and input shapes apply. |
+| `.sentis` | Uses the downloaded file as it is. There is no conversion. | Do not apply. |
 | anything else | Downloads it when selected, for example a config or tokenizer file. It is not a model. | — |
 
 Selecting an `.onnx` file also selects its external weight files, such as `model.onnx_data` or `model.onnx.data`, when the repository has them.
 
 A whole-repository dependency works when the repository has only one model format. A repository with both `.onnx` and `.sentis` files needs a file list, so AI Model Hub never picks a format for you. See [Manifest Schema](manifest-reference.md#model-files).
 
-## Import All
+## Setting up models
 
-Use **Import All** in Model Hub or `Tools > Doji > AI Model Hub > Import All`. Sync runs as a background task, and the Editor stays usable while files download.
+A model is ready when its selected files are downloaded, its ONNX files are converted, and this project has a record of both. AI Model Hub splits that work by cost:
+
+| Work | When it runs |
+|---|---|
+| Write this project's records, and reuse converted models that exist | By itself: when the Editor starts, after project changes, after a download, and before Play mode. |
+| Download files | After you confirm: the setup prompt, a Model Hub button, or the menu. |
+| Convert ONNX files | After you confirm, because large models take CPU, memory, and time. A build or **Apply & Convert** counts as confirmation. |
+
+So a model that another project on this machine already downloaded and converted with the same settings is ready without a prompt. A model needs a new conversion the first time, after its conversion settings change, and after a Sentis update that starts a new format generation. Model Hub then shows **Needs conversion** with the reason.
+
+Use the setup prompt, the action button of a model in Model Hub, the toolbar button (**Download All**, **Convert All**, or **Set Up All**), or `Tools > Doji > AI Model Hub > Set Up All Models`. The work runs as a background task with progress and **Cancel**, and the Editor stays usable:
 
 1. Find every manifest: installed packages, `ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`, and project manifest assets.
-2. Validate them.
-3. Resolve each dependency to one commit, and read the repository's file list at that commit.
-4. Download the selected files that are not in the cache yet.
-5. Convert each selected `.onnx` file with the Unity Inference Engine importer, unless a conversion with the same source file, Inference Engine version, and conversion settings already exists.
-6. Write import records to `Library/Doji/ModelHub/imports/`.
+2. Validate them, and skip models that are ready.
+3. For models with missing files: resolve the dependency to one commit, read the repository's file list at that commit, and download the selected files that are not in the cache yet. Models whose files are all cached skip this step and need no network.
+4. Convert each selected `.onnx` file with the Unity Inference Engine importer, unless a conversion with the same source file, format generation, and conversion settings already exists.
+5. Write the records to `Library/Doji/ModelHub/imports/`.
 
 A dependency that selects only `.sentis` files is **Ready** as soon as its files are downloaded.
 
-If a project declares the same repository at different revisions, AI Model Hub marks each of those rows as **Conflict** and does not download or import that repository. Other repositories still sync.
+If a project declares the same repository at different revisions, AI Model Hub marks each of those rows as **Conflict** and does not download or convert that repository. Other repositories still sync.
 
-If one ONNX file of a repository cannot be converted, AI Model Hub keeps the other converted files. The model is **Ready**, with a warning that lists the skipped files. AI Model Hub does not try again until the model, its file selection, its conversion settings, or the Inference Engine version changes. The import fails only when no ONNX file converts.
+If one ONNX file of a repository cannot be converted, AI Model Hub keeps the other converted files. The model is **Ready**, with a warning that lists the skipped files. AI Model Hub does not try again until the model, its file selection, its conversion settings, or the Inference Engine version changes. The setup fails only when no ONNX file converts.
 
 ## Download cache
 
@@ -80,7 +89,7 @@ A converted model is found by what produced it: the source file's etag, the conv
 
 Most Inference Engine updates keep the `.sentis` format: older files are upgraded when they load. So an update reuses existing conversions. AI Model Hub converts again only when the update starts a new format generation, which AI Model Hub's own compatibility table decides. Project Settings shows the installed version and its generation.
 
-**Remove from Project** deletes this project's import records. Downloaded files and converted models stay, so a later import is fast.
+**Remove from Project** deletes this project's records. Downloaded files and converted models stay, so the model is ready again without a conversion.
 
 ### Clean up converted models
 
@@ -120,7 +129,8 @@ For example, `onnx/model.onnx` of `onnx-community/tiny-clip-test-ONNX` is bundle
 Rules:
 
 - A build never contains `.onnx` files. An ONNX model is always bundled as its converted Sentis model, made with the conversion settings tested in the Editor.
-- The build fails, with a list, when a model is not imported. Import it in Model Hub first. A build never ships without a model silently.
+- Starting a build counts as confirmation: the build converts every downloaded model that needs it, with a progress bar, before it adds the models.
+- A build never downloads. It fails, with a list, when a model is not downloaded. Download it in Model Hub first. A build never ships without a model silently.
 - The registry stores the commit that the Editor resolved. Players download exactly that commit and do not ask Hugging Face for the latest revision.
 - **Download at runtime** for an `.onnx` file needs the `tools.doji.onnx-model-loader` package, which converts ONNX models on the device. Without it, the build fails for that model.
 - Only public repositories can download at runtime. A build cannot contain an access token. A gated or private file fails with an `IOException` that names the repository and file.
@@ -192,7 +202,7 @@ PretrainedRepository repo = await Hub.FromPretrainedAsync("onnx-community/tiny-c
 Model model = await repo.LoadModelAsync("onnx/model.onnx");
 ```
 
-`repo.Files` lists the model files the project imported, and `repo.Commit` is the commit the build uses.
+`repo.Files` lists the model files the project uses, and `repo.Commit` is the commit the build uses.
 
 ### Synchronous loading
 
@@ -210,7 +220,7 @@ Model model = await Hub.LoadModelAsync("com.example.depth", "julienkay/sentis-Mi
 
 | Message starts with | Cause |
 |---|---|
-| `AI Model Hub has no model '<repo>'` | No manifest declares the model, or it is not imported. In a player, the build did not include it. |
+| `AI Model Hub has no model '<repo>'` | No manifest declares the model, or it is not ready in this project. In a player, the build did not include it. |
 | `AI Model Hub model '<repo>' has no file '<path>'` | The manifest does not select that file. The message lists the files it does select. |
 | `... is downloaded on first use. Use Hub.LoadModelAsync` | A synchronous call for a model that is not on the device yet. |
 | `... needs an ONNX converter` | A player downloads an `.onnx` file but `tools.doji.onnx-model-loader` is not installed. |

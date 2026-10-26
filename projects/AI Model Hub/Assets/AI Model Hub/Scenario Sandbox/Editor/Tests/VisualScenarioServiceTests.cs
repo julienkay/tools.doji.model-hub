@@ -57,7 +57,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
         /// Verifies import-needed scenario writes cache artifacts but no import metadata yet.
         /// </summary>
         [Test]
-        public void ApplyScenario_CreatesImportNeededArtifactsWithoutImportMetadata()
+        public void ApplyScenario_CreatesConversionNeededArtifactsWithoutImportMetadata()
         {
             var scenario = CreateScenario(
                 new VisualScenarioEntry
@@ -65,7 +65,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                     Repository = "sandbox/import-needed-test",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-import-needed-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 });
 
             VisualScenarioService.ApplyScenario(scenario);
@@ -104,7 +104,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                         "models/model_large.onnx",
                         "models/model_small.onnx"
                     },
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 });
 
             VisualScenarioService.ApplyScenario(scenario);
@@ -192,14 +192,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                     Repository = "sandbox/shared-repo-test",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-shared-repo-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
                     Repository = "sandbox/shared-repo-test",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-shared-repo-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 });
 
             VisualScenarioService.ApplyScenario(scenario);
@@ -232,14 +232,14 @@ namespace Doji.AI.ModelHub.Sandbox.Editor.Tests
                     Repository = "sandbox/revision-ambiguity-test",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-ambiguity-main-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
                     Repository = "sandbox/revision-ambiguity-test",
                     Revision = "refs/pr/42",
                     ResolvedCommitHash = "sandbox-ambiguity-pr42-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 });
 
             VisualScenarioService.ApplyScenario(scenario);

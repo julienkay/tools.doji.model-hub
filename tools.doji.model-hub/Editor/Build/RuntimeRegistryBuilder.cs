@@ -69,7 +69,9 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         if (!forEditor)
                         {
-                            plan.Problems.Add($"{label}: not imported. Import it in Window > AI Model Hub. ({status.MaintainerMessage})");
+                            plan.Problems.Add(status.IsImportPending || status.State == DependencyState.Failed
+                                ? $"{label}: could not be set up from the downloaded files. See Window > AI Model Hub. ({status.MaintainerMessage})"
+                                : $"{label}: not downloaded. Download it in Window > AI Model Hub. ({status.MaintainerMessage})");
                         }
 
                         continue;

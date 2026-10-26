@@ -227,9 +227,25 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.Repository,
                 selectedOnnxRepoPaths);
 
+            // From here on every selected file is cached; what is left is this project's import. It is cheap unless
+            // ONNX files have no converted model in the shared store yet.
+            ImportBindingMetadata knownBinding = null;
+            SharedImportMetadata knownShared = null;
+            DependencyStatus Pending(DependencyStatus status)
+            {
+                var pending = ProjectImportService.GetPendingConversions(
+                    dependency.Repository,
+                    rawMetadata.Files,
+                    selectedOnnxRepoPaths,
+                    _recipeSource);
+                return pending.Length == 0
+                    ? status
+                    : WithPendingConversions(status, pending, GetConversionCause(dependency, knownBinding, knownShared, pending));
+            }
+
             if (!File.Exists(bindingMetadataAbsolutePath))
             {
-                return Missing(
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.ImportBindingMissing,
                     "Import binding metadata file is missing.",
@@ -238,12 +254,13 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
-                    bindingMetadataAssetPath);
+                    bindingMetadataAssetPath));
             }
 
             if (!ProjectImportService.TryReadBindingMetadata(bindingMetadataAbsolutePath, out var bindingMetadata))
             {
-                return Failed(
+                // The record is a hint: an unreadable one is rewritten like a missing one.
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.ImportBindingInvalid,
                     "Import binding metadata is invalid.",
@@ -252,8 +269,10 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
-                    bindingMetadataAssetPath);
+                    bindingMetadataAssetPath));
             }
+
+            knownBinding = bindingMetadata;
 
             var expectedSharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(
                 dependency.Repository,
@@ -262,7 +281,7 @@ namespace Doji.AI.ModelHub.Editor
                 expectedRecipeSetHash);
             if (!IsBindingCurrent(bindingMetadata, dependency, rawMetadata, expectedSharedMetadataPath, expectedRecipeSetHash))
             {
-                return Stale(
+                return Pending(Stale(
                     dependency,
                     DependencyReasonCode.ImportBindingStale,
                     BuildBindingMismatchMessage(dependency, rawMetadata, bindingMetadata, expectedSharedMetadataPath, expectedRecipeSetHash),
@@ -272,12 +291,12 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
             if (string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
             {
-                return Failed(
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.ImportBindingInvalid,
                     "Import binding metadata is invalid.",
@@ -286,13 +305,13 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
-                    bindingMetadataAssetPath);
+                    bindingMetadataAssetPath));
             }
 
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
             if (!File.Exists(sharedMetadataAbsolutePath))
             {
-                return Missing(
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataMissing,
                     "Shared import metadata file is missing.",
@@ -302,12 +321,12 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
             if (!ProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
             {
-                return Failed(
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataInvalid,
                     "Shared import metadata is invalid.",
@@ -317,12 +336,13 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null));
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
+            knownShared = sharedMetadata;
             if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash, selectedModelRepoPaths))
             {
-                return Stale(
+                return Pending(Stale(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataStale,
                     BuildSharedMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, sharedMetadata, expectedRecipeSetHash),
@@ -332,14 +352,14 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata));
+                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata)));
             }
 
             var importedMetadata = BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
-                return Missing(
+                return Pending(Missing(
                     dependency,
                     DependencyReasonCode.RuntimeFilesMissing,
                     "Generated runtime files are missing.",
@@ -349,14 +369,14 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    importedMetadata);
+                    importedMetadata));
             }
 
             foreach (var runtimeFile in runtimeFiles)
             {
                 if (string.IsNullOrWhiteSpace(runtimeFile.FilePath) || !File.Exists(runtimeFile.FilePath))
                 {
-                    return Missing(
+                    return Pending(Missing(
                         dependency,
                         DependencyReasonCode.RuntimeFileMissing,
                         $"Runtime model is missing: {runtimeFile.RepoPath} ({runtimeFile.FilePath}).",
@@ -366,7 +386,7 @@ namespace Doji.AI.ModelHub.Editor
                         rawMetadata,
                         runtimePreviewAssetPath,
                         bindingMetadataAssetPath,
-                        importedMetadata);
+                        importedMetadata));
                 }
             }
 
@@ -383,6 +403,62 @@ namespace Doji.AI.ModelHub.Editor
                 runtimePreviewAssetPath,
                 bindingMetadataAssetPath,
                 importedMetadata);
+        }
+
+        private static DependencyStatus WithPendingConversions(
+            DependencyStatus status,
+            IReadOnlyList<string> pendingConversions,
+            ConversionCause cause)
+        {
+            return new DependencyStatus(
+                status.Dependency,
+                status.State,
+                status.ReasonCode,
+                status.MaintainerMessage,
+                status.RevisionRefPath,
+                status.RawFilePath,
+                status.RawMetadataPath,
+                status.RawMetadata,
+                status.SentisAssetPath,
+                status.BindingMetadataPath,
+                status.ImportedMetadata,
+                pendingConversions,
+                cause);
+        }
+
+        /// <summary>
+        /// Explains why files need conversion: a new Inference Engine format, changed conversion settings, or a first
+        /// conversion. Reads the shared record through the binding when status stopped before reading it.
+        /// </summary>
+        private ConversionCause GetConversionCause(
+            DiscoveredModelDependency dependency,
+            ImportBindingMetadata binding,
+            SharedImportMetadata shared,
+            IReadOnlyList<string> pendingConversions)
+        {
+            if (shared == null &&
+                !string.IsNullOrWhiteSpace(binding?.SharedImportMetadataPath) &&
+                ProjectImportService.TryReadSharedMetadata(ProjectPaths.ToProjectAbsolutePath(binding.SharedImportMetadataPath), out var readShared))
+            {
+                shared = readShared;
+            }
+
+            var currentVersion = GetCurrentSentisVersion();
+            var recordedVersion = shared?.SentisVersion ?? binding?.SentisVersion;
+            if (!string.IsNullOrWhiteSpace(recordedVersion) && !SentisCompatibility.AreCompatible(recordedVersion, currentVersion))
+            {
+                return ConversionCause.FormatChanged;
+            }
+
+            var settingsChanged = pendingConversions.Any(repoPath =>
+                (shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).Any(file =>
+                    string.Equals(file?.RepoPath, repoPath, StringComparison.Ordinal) &&
+                    !string.IsNullOrWhiteSpace(file.RecipeHash) &&
+                    !string.Equals(
+                        file.RecipeHash,
+                        OnnxImportMetadataUtility.ComputeRecipeHash(_recipeSource.GetEffectiveRecipe(dependency.Repository, repoPath).Recipe),
+                        StringComparison.Ordinal)));
+            return settingsChanged ? ConversionCause.SettingsChanged : ConversionCause.FirstConversion;
         }
 
         internal static string GetCurrentSentisVersion()

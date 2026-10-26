@@ -56,7 +56,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         "models/model_large.onnx",
                         "models/model_small.onnx"
                     },
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
@@ -105,28 +105,28 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                     Repository = "sandbox/shared-repo",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-shared-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
                     Repository = "sandbox/shared-repo",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-shared-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
                     Repository = "sandbox/revision-ambiguity",
                     Revision = "main",
                     ResolvedCommitHash = "sandbox-ambiguity-main-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 },
                 new VisualScenarioEntry
                 {
                     Repository = "sandbox/revision-ambiguity",
                     Revision = "refs/pr/42",
                     ResolvedCommitHash = "sandbox-ambiguity-pr42-001",
-                    State = VisualScenarioState.ImportNeeded
+                    State = VisualScenarioState.ConversionNeeded
                 }
             };
 

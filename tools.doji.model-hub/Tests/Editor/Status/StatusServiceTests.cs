@@ -326,8 +326,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Shared import metadata file is missing."));
         }
 
+        /// <summary>
+        /// Verifies an unreadable shared record counts as missing: AI Model Hub rewrites it from the cache.
+        /// </summary>
         [Test]
-        public void BuildStatusReport_ReturnsFailedWhenSharedImportMetadataIsInvalid()
+        public void BuildStatusReport_ReturnsMissingWhenSharedImportMetadataIsInvalid()
         {
             var dependency = CreateDependency();
             WriteRawCache(dependency);
@@ -336,7 +339,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var report = BuildStatusReport(dependency);
 
-            Assert.That(report.FailedCount, Is.EqualTo(1));
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].IsImportPending, Is.True);
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SharedImportMetadataInvalid));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Shared import metadata is invalid."));
         }
@@ -358,8 +362,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RuntimeFileMissing));
         }
 
+        /// <summary>
+        /// Verifies an unreadable binding record counts as missing: AI Model Hub rewrites it from the cache.
+        /// </summary>
         [Test]
-        public void BuildStatusReport_ReturnsFailedWhenBindingMetadataIsInvalid()
+        public void BuildStatusReport_ReturnsMissingWhenBindingMetadataIsInvalid()
         {
             var dependency = CreateDependency();
             WriteRawCache(dependency);
@@ -372,7 +379,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var report = BuildStatusReport(dependency);
 
-            Assert.That(report.FailedCount, Is.EqualTo(1));
+            Assert.That(report.MissingCount, Is.EqualTo(1));
+            Assert.That(report.DependencyStatuses[0].IsImportPending, Is.True);
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingInvalid));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import binding metadata is invalid."));
         }
@@ -449,6 +457,159 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(status.State, Is.EqualTo(DependencyState.Failed));
             Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.InvalidSelection));
             Assert.That(status.MaintainerMessage, Does.Contain("both ONNX and Sentis files"));
+        }
+
+        /// <summary>
+        /// Verifies a downloaded model without a converted model in the store needs a first conversion, which the
+        /// setup prompt asks for.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_NeedsConversionWhenTheStoreHasNoConvertedModel()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+
+            var report = BuildStatusReport(dependency);
+            var status = report.DependencyStatuses[0];
+
+            Assert.That(status.IsImportPending, Is.True);
+            Assert.That(status.NeedsConversion, Is.True);
+            Assert.That(status.CanImportAutomatically, Is.False);
+            Assert.That(status.PendingConversions, Is.EqualTo(new[] { "models/model.onnx" }));
+            Assert.That(status.ConversionCause, Is.EqualTo(ConversionCause.FirstConversion));
+            Assert.That(status.NeedsStartupPrompt, Is.True);
+            Assert.That(report.NeedsStartupPrompt, Is.True);
+        }
+
+        /// <summary>
+        /// Verifies a downloaded model whose converted model is in the store, for example from another project, is
+        /// set up without a prompt.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_CanImportAutomaticallyWhenTheStoreHasTheConvertedModel()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteStoreHit(dependency);
+
+            var report = BuildStatusReport(dependency);
+            var status = report.DependencyStatuses[0];
+
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingMissing));
+            Assert.That(status.CanImportAutomatically, Is.True);
+            Assert.That(status.NeedsConversion, Is.False);
+            Assert.That(status.PendingConversions, Is.Empty);
+            Assert.That(status.ConversionCause, Is.EqualTo(ConversionCause.None));
+            Assert.That(status.NeedsStartupPrompt, Is.False);
+            Assert.That(report.NeedsStartupPrompt, Is.False);
+        }
+
+        /// <summary>
+        /// Verifies broken or missing records with intact converted models are cheap: only the records are rewritten.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_CanImportAutomaticallyWhenOnlyRecordsAreMissing()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency);
+            WriteStoreHit(dependency);
+            DeleteSharedMetadata(dependency);
+
+            var status = BuildStatusReport(dependency).DependencyStatuses[0];
+
+            Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.SharedImportMetadataMissing));
+            Assert.That(status.CanImportAutomatically, Is.True);
+        }
+
+        /// <summary>
+        /// Verifies an import from an older Sentis format generation needs a conversion and names the format change.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_NamesTheFormatChangeAsTheConversionCause()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency, sentisVersion: "2.1.0");
+
+            var status = BuildStatusReport(dependency).DependencyStatuses[0];
+
+            Assert.That(status.State, Is.EqualTo(DependencyState.Stale));
+            Assert.That(status.NeedsConversion, Is.True);
+            Assert.That(status.ConversionCause, Is.EqualTo(ConversionCause.FormatChanged));
+            Assert.That(status.NeedsStartupPrompt, Is.True);
+        }
+
+        /// <summary>
+        /// Verifies changed conversion settings need a conversion and name the settings change.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_NamesTheSettingsChangeAsTheConversionCause()
+        {
+            var dependency = CreateDependency();
+            WriteRawCache(dependency);
+            WriteGeneratedArtifacts(dependency, bindingRecipeSetHash: "old-recipe-set", runtimeRecipeHash: "old-recipe");
+
+            var status = BuildStatusReport(dependency).DependencyStatuses[0];
+
+            Assert.That(status.State, Is.EqualTo(DependencyState.Stale));
+            Assert.That(status.NeedsConversion, Is.True);
+            Assert.That(status.ConversionCause, Is.EqualTo(ConversionCause.SettingsChanged));
+        }
+
+        /// <summary>
+        /// Verifies a model that still needs a download is never set up automatically and never lists conversions.
+        /// </summary>
+        [Test]
+        public void BuildStatusReport_ListsNoConversionsBeforeTheDownload()
+        {
+            var dependency = CreateDependency();
+
+            var status = BuildStatusReport(dependency).DependencyStatuses[0];
+
+            Assert.That(status.IsImportPending, Is.False);
+            Assert.That(status.CanImportAutomatically, Is.False);
+            Assert.That(status.PendingConversions, Is.Empty);
+            Assert.That(status.NeedsStartupPrompt, Is.True);
+        }
+
+        /// <summary>
+        /// Verifies a sync leaves ready models alone and sets up downloaded models from the cache, so converting needs
+        /// no network.
+        /// </summary>
+        [Test]
+        public void BackgroundSync_SkipsReadyModelsAndConvertsCachedModelsWithoutDownloading()
+        {
+            var ready = CreateDependency(packageId: "tools.doji.ready", repository: "doji/ready-model");
+            var cached = CreateDependency(packageId: "tools.doji.cached", repository: "doji/cached-model");
+            var missing = CreateDependency(packageId: "tools.doji.missing", repository: "doji/missing-model");
+            WriteRawCache(ready);
+            WriteGeneratedArtifacts(ready);
+            WriteRawCache(cached);
+            var discovery = new DiscoveryReport(new[] { ready, cached, missing }, Array.Empty<ManifestDiscoveryIssue>());
+
+            var items = BackgroundSyncManager.BuildPendingItems(discovery, null, SyncOperationMode.Full);
+            var downloadOnly = BackgroundSyncManager.BuildPendingItems(discovery, null, SyncOperationMode.DownloadOnly);
+
+            Assert.That(items, Is.EquivalentTo(new[]
+            {
+                (BackgroundSyncManager.GetDependencyKey(cached), SyncOperationMode.MaterializeOnly),
+                (BackgroundSyncManager.GetDependencyKey(missing), SyncOperationMode.Full)
+            }));
+            Assert.That(downloadOnly.Select(item => item.Mode), Is.All.EqualTo(SyncOperationMode.DownloadOnly), "Only a full sync is downgraded.");
+        }
+
+        private static void WriteStoreHit(DiscoveredModelDependency dependency, string commitHash = "abc123")
+        {
+            var file = new RawCacheFileMetadata
+            {
+                RepoPath = "models/model.onnx",
+                CachedFilePath = CachePaths.GetSnapshotFilePath(dependency.Repository, commitHash, "models/model.onnx")
+            };
+            var key = ProjectImportService.GetConversionKey(dependency.Repository, file, new ProjectModelRecipeSource());
+            var modelPath = ConvertedModelStore.GetModelPath(dependency.Repository, key);
+            Directory.CreateDirectory(Path.GetDirectoryName(modelPath) ?? throw new InvalidOperationException());
+            File.WriteAllText(modelPath, "sentis");
         }
 
         private static void WriteMixedFormatCache(DiscoveredModelDependency dependency, string commitHash = "abc123")
@@ -580,9 +741,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string commitHash = "abc123",
             string bindingManifestHash = null,
             string bindingRecipeSetHash = null,
-            string sentisVersion = null)
+            string sentisVersion = null,
+            string runtimeRecipeHash = null)
         {
             var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
+            if (runtimeRecipeHash != null)
+            {
+                foreach (var runtimeFile in runtimeFiles)
+                {
+                    runtimeFile.RecipeHash = runtimeRecipeHash;
+                }
+            }
+
             sentisVersion ??= StatusService.GetCurrentSentisVersion();
             var recipeSetHash = bindingRecipeSetHash ?? OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" });
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);

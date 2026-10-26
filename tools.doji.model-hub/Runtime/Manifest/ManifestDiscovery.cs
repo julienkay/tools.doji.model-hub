@@ -441,7 +441,7 @@ namespace Doji.AI.ModelHub
     {
         private static readonly string[] RootProperties = { "version", "models" };
         private static readonly string[] ModelProperties = { "id", "revision", "files" };
-        private static readonly string[] FileProperties = { "path", "optional" };
+        private static readonly string[] FileProperties = { "path", "optional", "label" };
 
         /// <summary>
         /// Parses one manifest JSON document into immutable runtime manifest model.
@@ -686,7 +686,19 @@ namespace Doji.AI.ModelHub
                     optional = optionalToken.Value<bool>();
                 }
 
-                values.Add(new ModelDependencyFileDefinition(path, optional));
+                string label = null;
+                if (fileObject.TryGetValue("label", StringComparison.Ordinal, out var labelToken))
+                {
+                    if (labelToken.Type != JTokenType.String)
+                    {
+                        errorMessage = $"Manifest model at index {modelIndex} must define `{propertyName}[{fileIndex}].label` as a string when present.";
+                        return null;
+                    }
+
+                    label = labelToken.Value<string>();
+                }
+
+                values.Add(new ModelDependencyFileDefinition(path, optional, label));
                 fileIndex++;
             }
 
@@ -818,7 +830,7 @@ namespace Doji.AI.ModelHub
                     return null;
                 }
 
-                validatedFiles.Add(new ModelDependencyFileDefinition(filePath, files[fileIndex].Optional));
+                validatedFiles.Add(new ModelDependencyFileDefinition(filePath, files[fileIndex].Optional, files[fileIndex].Label));
             }
 
             if (validatedFiles.Count == 0)

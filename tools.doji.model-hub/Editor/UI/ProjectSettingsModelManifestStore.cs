@@ -36,6 +36,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string path;
             public bool optional;
+            public string label;
         }
 
         public static string GetManifestPath(string projectRoot = null)
@@ -200,12 +201,12 @@ namespace Doji.AI.ModelHub.Editor
                             ? null
                             : model.Revision,
                         files = (model.FileEntries?.Count ?? 0) > 0
-                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional }).ToArray()
+                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label }).ToArray()
                             : null
                     })
                     .ToArray()
             };
-            return JsonUtility.ToJson(document, true);
+            return ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
         }
 
         private static ModelDependencyFileDefinition[] ToRequiredFileEntries(IReadOnlyList<string> files)

@@ -114,10 +114,11 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string path;
             public bool optional;
+            public string label;
 
             public ModelDependencyFileDefinition ToDefinition()
             {
-                return new ModelDependencyFileDefinition(path, optional);
+                return new ModelDependencyFileDefinition(path, optional, label);
             }
         }
 
@@ -246,7 +247,7 @@ namespace Doji.AI.ModelHub.Editor
                     .ToArray()
             };
 
-            serializedJson = JsonUtility.ToJson(document, true);
+            serializedJson = ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
             return true;
         }
 
@@ -310,7 +311,8 @@ namespace Doji.AI.ModelHub.Editor
                                         return new ManifestFileDocument
                                         {
                                             path = fileProperty.FindPropertyRelative("<Path>k__BackingField")?.stringValue,
-                                            optional = fileProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true
+                                            optional = fileProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true,
+                                            label = fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue
                                         };
                                     })
                                     .ToArray()
@@ -370,6 +372,7 @@ namespace Doji.AI.ModelHub.Editor
                     var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
                     fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex]?.path;
                     fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex]?.optional == true;
+                    fileProperty.FindPropertyRelative("<Label>k__BackingField").stringValue = files[fileIndex]?.label ?? string.Empty;
                 }
             }
 
@@ -407,7 +410,7 @@ namespace Doji.AI.ModelHub.Editor
         private static ManifestFileDocument[] ToFileDocuments(IReadOnlyList<ModelDependencyFileDefinition> files)
         {
             return (files ?? Array.Empty<ModelDependencyFileDefinition>())
-                .Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional })
+                .Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label })
                 .ToArray();
         }
 

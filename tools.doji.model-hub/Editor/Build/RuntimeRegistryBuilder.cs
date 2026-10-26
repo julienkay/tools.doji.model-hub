@@ -138,6 +138,7 @@ namespace Doji.AI.ModelHub.Editor
             var file = new RuntimeModelFile
             {
                 repoPath = runtimeFile.RepoPath,
+                label = dependency.FileEntries.FirstOrDefault(entry => string.Equals(entry.Path, runtimeFile.RepoPath, StringComparison.Ordinal))?.Label,
                 format = isOnnx ? "onnx" : "sentis",
                 relativePath = relativePath,
                 source = new RuntimeSourceFile

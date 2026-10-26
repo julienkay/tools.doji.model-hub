@@ -35,6 +35,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string path;
             public bool optional;
+            public string label;
         }
 
         internal readonly struct LocalPackageOption
@@ -195,12 +196,12 @@ namespace Doji.AI.ModelHub.Editor
                         id = model.Id,
                         revision = string.IsNullOrWhiteSpace(model.Revision) ? null : model.Revision,
                         files = (model.FileEntries?.Count ?? 0) > 0
-                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional }).ToArray()
+                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label }).ToArray()
                             : null
                     })
                     .ToArray()
             };
-            return JsonUtility.ToJson(document, true);
+            return ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
         }
 
         private static string NormalizePath(string path)

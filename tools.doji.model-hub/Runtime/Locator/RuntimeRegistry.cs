@@ -54,6 +54,11 @@ namespace Doji.AI.ModelHub
         public string repoPath;
 
         /// <summary>
+        /// Name the package manifest gives the file for model pickers. Empty when it sets none.
+        /// </summary>
+        public string label;
+
+        /// <summary>
         /// Format of the source file: <c>onnx</c> or <c>sentis</c>.
         /// </summary>
         public string format;

@@ -66,9 +66,12 @@ namespace Doji.AI.ModelHub
         [field: SerializeField]
         public bool Optional { get; set; }
 
+        [field: SerializeField]
+        public string Label { get; set; }
+
         internal ModelDependencyFileDefinition ToDefinition()
         {
-            return new ModelDependencyFileDefinition(Path, Optional);
+            return new ModelDependencyFileDefinition(Path, Optional, Label);
         }
     }
 

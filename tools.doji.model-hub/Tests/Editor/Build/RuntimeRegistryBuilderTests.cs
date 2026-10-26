@@ -198,6 +198,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(model.cacheRepoId, Is.EqualTo("doji/Test-Model"));
         }
 
+        /// <summary>
+        /// Verifies the label a manifest gives a file reaches the registry, so players can show it in pickers.
+        /// </summary>
+        [Test]
+        public void Build_CopiesFileLabelsFromTheManifest()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.a",
+                "tools.doji.a",
+                "1.0.0",
+                "/tmp/tools.doji.a",
+                "/tmp/tools.doji.a/model-hub-manifest.json",
+                "hash",
+                new ModelDependencyDefinition("doji/test-model", "main", new[]
+                {
+                    new ModelDependencyFileDefinition("onnx/model.onnx", label: "Small"),
+                    new ModelDependencyFileDefinition("sentis/model.sentis")
+                }));
+            var ready = Ready("tools.doji.a", OnnxFile("onnx/model.onnx"));
+            ready.ImportedMetadata.RuntimeFiles = new[] { OnnxFile("onnx/model.onnx"), SentisFile("sentis/model.sentis") };
+            var status = new DependencyStatus(
+                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, ready.ImportedMetadata);
+
+            var files = Plan(ModelDelivery.Bundle, status).Registry.packages.Single().models.Single().files;
+
+            Assert.That(files.Select(file => file.label), Is.EqualTo(new[] { "Small", null }));
+        }
+
         private RuntimeRegistryBuilder.Plan Plan(ModelDelivery delivery, params DependencyStatus[] statuses)
         {
             return Run(delivery, statuses, false, null, null);

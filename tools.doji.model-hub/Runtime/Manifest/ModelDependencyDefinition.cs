@@ -12,10 +12,11 @@ namespace Doji.AI.ModelHub
     [Serializable]
     public sealed class ModelDependencyFileDefinition
     {
-        public ModelDependencyFileDefinition(string path, bool optional = false)
+        public ModelDependencyFileDefinition(string path, bool optional = false, string label = null)
         {
             Path = NormalizePath(path);
             Optional = optional;
+            Label = NormalizeLabel(label);
         }
 
         /// <summary>
@@ -28,9 +29,19 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public bool Optional { get; }
 
+        /// <summary>
+        /// Name to show for the file in model pickers, for example <c>Small (63 MB)</c>. Null when the manifest sets none.
+        /// </summary>
+        public string Label { get; }
+
         internal static string NormalizePath(string path)
         {
             return ModelDependencyDefinition.NormalizeRepoPath(path);
+        }
+
+        internal static string NormalizeLabel(string label)
+        {
+            return string.IsNullOrWhiteSpace(label) ? null : label.Trim();
         }
     }
 
@@ -97,7 +108,7 @@ namespace Doji.AI.ModelHub
         {
             return (files ?? Array.Empty<ModelDependencyFileDefinition>())
                 .Where(file => !string.IsNullOrWhiteSpace(file?.Path))
-                .Select(file => new ModelDependencyFileDefinition(file.Path, file.Optional))
+                .Select(file => new ModelDependencyFileDefinition(file.Path, file.Optional, file.Label))
                 .GroupBy(file => file.Path, StringComparer.Ordinal)
                 .Select(group => group.Last())
                 .OrderBy(file => file.Path, StringComparer.Ordinal)

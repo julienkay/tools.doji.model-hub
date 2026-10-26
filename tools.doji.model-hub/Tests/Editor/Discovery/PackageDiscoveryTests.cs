@@ -283,6 +283,52 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies file labels are read and trimmed, and an empty label counts as no label.
+        /// </summary>
+        [Test]
+        public void TryParse_ReadsFileLabels()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""a/b"",
+      ""files"": [
+        { ""path"": ""onnx/small.onnx"", ""label"": "" Small (63 MB) "" },
+        { ""path"": ""onnx/large.onnx"", ""optional"": true, ""label"": """" },
+        { ""path"": ""config.json"" }
+      ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.True, errorMessage);
+            var labels = manifest.Models[0].FileEntries.ToDictionary(file => file.Path, file => file.Label);
+            Assert.That(labels["onnx/small.onnx"], Is.EqualTo("Small (63 MB)"));
+            Assert.That(labels["onnx/large.onnx"], Is.Null);
+            Assert.That(labels["config.json"], Is.Null);
+        }
+
+        /// <summary>
+        /// Verifies a label that is not a string fails with the field name.
+        /// </summary>
+        [Test]
+        public void TryParse_RejectsNonStringLabel()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [ { ""id"": ""a/b"", ""files"": [ { ""path"": ""m.onnx"", ""label"": 3 } ] } ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out _, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(errorMessage, Does.Contain("`files[0].label` as a string"));
+        }
+
+        /// <summary>
         /// Verifies a non-boolean optional flag fails instead of silently meaning required.
         /// </summary>
         [Test]

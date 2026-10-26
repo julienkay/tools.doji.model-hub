@@ -294,6 +294,11 @@
     color: var(--hf-text-muted);
 }
 
+.fp-row__label {
+    width: 150px;
+    margin: 0 4px;
+}
+
 .fp-invisible {
     visibility: hidden;
 }

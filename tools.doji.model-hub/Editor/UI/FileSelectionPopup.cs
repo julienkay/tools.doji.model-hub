@@ -27,6 +27,7 @@ namespace Doji.AI.ModelHub.Editor
         private readonly bool _allowOptional;
         private readonly Action<ModelDependencyFileDefinition[]> _onApply;
         private readonly Dictionary<string, bool> _selection;
+        private readonly Dictionary<string, string> _labels;
         private readonly IHttpClient _httpClient = new HttpClient();
         private readonly CancellationTokenSource _cancellation = new();
 
@@ -48,13 +49,14 @@ namespace Doji.AI.ModelHub.Editor
             _revision = string.IsNullOrWhiteSpace(revision) ? "main" : revision.Trim();
             _allowOptional = allowOptional;
             _onApply = onApply ?? throw new ArgumentNullException(nameof(onApply));
-            _selection = ModelDependencyDefinition.NormalizeFileEntries(selectedFiles)
-                .ToDictionary(file => file.Path, file => file.Optional, StringComparer.Ordinal);
+            var entries = ModelDependencyDefinition.NormalizeFileEntries(selectedFiles);
+            _selection = entries.ToDictionary(file => file.Path, file => file.Optional, StringComparer.Ordinal);
+            _labels = entries.Where(file => file.Label != null).ToDictionary(file => file.Path, file => file.Label, StringComparer.Ordinal);
         }
 
         public override Vector2 GetWindowSize()
         {
-            return new Vector2(560f, 460f);
+            return new Vector2(680f, 460f);
         }
 
         public override void OnGUI(Rect rect)
@@ -238,6 +240,29 @@ namespace Doji.AI.ModelHub.Editor
                 row.Add(optional);
             }
 
+            TextField label = null;
+            if (_allowOptional && ModelFiles.IsModelFile(path))
+            {
+                label = new TextField { value = _labels.TryGetValue(path, out var text) ? text : string.Empty };
+                label.textEdition.placeholder = "Label";
+                label.AddToClassList("fp-row__label");
+                label.tooltip = "Name that model pickers show for this file, for example \"Small (63 MB)\". Leave empty to show the file name.";
+                label.EnableInClassList("fp-invisible", !isSelected);
+                label.RegisterValueChangedCallback(evt =>
+                {
+                    var value = ModelDependencyFileDefinition.NormalizeLabel(evt.newValue);
+                    if (value == null)
+                    {
+                        _labels.Remove(path);
+                    }
+                    else
+                    {
+                        _labels[path] = value;
+                    }
+                });
+                row.Add(label);
+            }
+
             row.Add(UiKit.Text(UiKit.FormatBytes(file.SizeInBytes) ?? string.Empty, "fp-row__size"));
 
             toggle.RegisterValueChangedCallback(evt =>
@@ -257,6 +282,8 @@ namespace Doji.AI.ModelHub.Editor
                     optional.SetValueWithoutNotify(false);
                     optional.EnableInClassList("fp-invisible", !evt.newValue);
                 }
+
+                label?.EnableInClassList("fp-invisible", !evt.newValue);
 
                 UpdateSummary();
             });
@@ -302,7 +329,7 @@ namespace Doji.AI.ModelHub.Editor
             _onApply(_selection.Count > 0
                 ? _selection
                     .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => new ModelDependencyFileDefinition(pair.Key, pair.Value))
+                    .Select(pair => new ModelDependencyFileDefinition(pair.Key, pair.Value, _labels.TryGetValue(pair.Key, out var label) ? label : null))
                     .ToArray()
                 : null);
             editorWindow?.Close();

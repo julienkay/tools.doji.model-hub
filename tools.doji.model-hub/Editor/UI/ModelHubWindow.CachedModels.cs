@@ -75,7 +75,6 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             _selectedCacheFolder = GetCacheFolder(_rowsByKey.Keys.FirstOrDefault());
-            _selectedCacheFilePath = null;
         }
 
         // ---------------------------------------------------------------- Details
@@ -89,7 +88,7 @@ namespace Doji.AI.ModelHub.Editor
                     "Folder Icon",
                     "No cached models",
                     "Models that this machine downloaded, for any Unity project or Python tool, appear here. Add one to this project without downloading it again.",
-                    UiKit.Button("Show Disk Usage", () => SwitchView(ModelHubView.DiskUsage))));
+                    UiKit.Button("Open Disk Usage", () => CacheDiskUsageWindow.Open(null))));
                 return;
             }
 
@@ -230,13 +229,18 @@ namespace Doji.AI.ModelHub.Editor
 
             var actions = UiKit.Element("mh-actions");
             actions.Add(UiKit.Button(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(repository.FolderPath), "hf-button--first"));
-            actions.Add(UiKit.Button("Show Disk Usage", () =>
-            {
-                SwitchView(ModelHubView.DiskUsage);
-                SelectCacheEntry(repository.FolderName, null);
-            }));
+            var diskUsage = UiKit.Button("Open Disk Usage", () => CacheDiskUsageWindow.Open(repository.FolderName));
+            diskUsage.tooltip = "Open a map of the space every repository in the cache takes.";
+            actions.Add(diskUsage);
             actions.Add(UiKit.Spacer());
-            var remove = UiKit.Button("Remove from Cache", () => ConfirmRemoveCacheRepository(repository, isUsed), "hf-button--danger");
+            var remove = UiKit.Button("Remove from Cache", () =>
+            {
+                if (CacheDiskUsageWindow.ConfirmRemoveRepository(repository, isUsed))
+                {
+                    Refresh();
+                    CacheDiskUsageWindow.RefreshOpenWindows();
+                }
+            }, "hf-button--danger");
             remove.SetEnabled(!BackgroundSyncManager.IsRunning);
             remove.tooltip = BackgroundSyncManager.IsRunning ? "Wait until the setup finishes." : "Delete this repository with all its revisions from the cache.";
             actions.Add(remove);

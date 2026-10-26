@@ -28,7 +28,8 @@ All files live in `Editor/UI/`.
 | `ModelHubWindow.Files.cs` | Files tab, per-file import settings, apply bar, unsaved-settings prompt |
 | `ModelHubWindow.Storage.cs` | Storage tab |
 | `ModelHubWindow.CachedModels.cs` | Model Cache view: cached model list and details, Add to Project |
-| `ModelHubWindow.Cache.cs` | Disk Usage view: repository list, legend, treemap, selection card, removal dialogs |
+| `ModelHubWindow.Cache.cs` | Cache scan, `cache:` row keys, cached-model list rows, cache selection |
+| `CacheDiskUsageWindow.cs` | Model Cache Disk Usage window: legend, treemap, selection card, removal dialogs |
 | `TreemapLayout.cs` | Squarified treemap layout (no UI) |
 | `ModelHubFileEditing.cs` | Edit-session and recipe state models for the Files tab (no UI) |
 | `AutoPromptWindow.cs` | Setup prompt and its view model (`BuildViewModel`) |
@@ -65,11 +66,11 @@ The default folder is the Hugging Face cache (`HF_HUB_CACHE`, `HF_HOME/hub`, `~/
 
 Primary item key is `repository` plus requested `revision`. Each row aggregates all manifest dependents of that unit.
 
-The nav column (`mh-nav`) switches `ModelHubView`, serialized with the window: `Project` (In Project), `Cache` (Model Cache), and `DiskUsage`, which has no nav entry and highlights Model Cache. It opens from the Model Cache context menu or a details button. `SwitchView` asks about unsaved Files-tab edits before it leaves `Project`, then rebuilds list and details. `OpenWindow(repository, revision)` switches to `Project`.
+The nav column (`mh-nav`) switches `ModelHubView`, serialized with the window: `Project` (In Project) and `Cache` (Model Cache). Every view has a nav entry, so the highlighted entry always says what the list shows. The disk usage map is a separate window, so it is not a view. `SwitchView` asks about unsaved Files-tab edits before it leaves `Project`, then rebuilds list and details. `OpenWindow(repository, revision)` switches to `Project`.
 
 In `Project`, list sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`. Keys are `model:{repo}@{rev}` and `issue:…`.
 
-In `Cache` and `DiskUsage`, rows have key `cache:{folder}` and select `_selectedCacheFolder`; search filters by repository id. `Cache` lists model repositories with a snapshot, `Not in this project` first, then `In this project`. `DiskUsage` lists every repository, grouped like the treemap legend.
+In `Cache`, rows have key `cache:{folder}` and select `_selectedCacheFolder`; search filters by repository id. The list shows model repositories with a snapshot, `Not in this project` first, then `In this project`. `OpenCachedModel(folder)` opens Model Hub in `Cache` with one repository selected.
 
 Model Cache details: header, Add to Project card, In the Cache card. Add to Project targets the project manifest (`ProjectSettingsModelManifestStore.TryAddModelId`) or a local package (`LocalPackageManifestStore.TryAddModelId`), with a cached ref as revision. Default files are `CacheOverviewService.GetCachedModelFiles` of `GetSnapshotFiles(folder, ref)`: the cached `.onnx` and `.sentis` files, so the new dependency needs no download. **Choose…** opens `FileSelectionPopup` on the remote inventory. After adding, the window refreshes, switches to `Project`, and selects the new item. Adding to the project manifest is disabled when the project uses the model already.
 
@@ -84,9 +85,13 @@ Details pane:
 Size labels:
 
 - `Download size` in Overview and the list size of pending rows is the remote size of the selected files (`SourceSizeBytes`)
-- `Storage` describes one model's local disk usage; the `Disk Usage` view describes the whole cache
+- `Storage` describes one model's local disk usage; the Disk Usage window describes the whole cache
 
-Disk Usage view:
+Model Cache Disk Usage window (`CacheDiskUsageWindow`):
+
+- opens from `Tools/Doji/AI Model Hub/Model Cache Disk Usage`, the Model Cache context menu, and `Open Disk Usage` in Model Cache details; `Open(folder)` selects a repository
+- it builds its own `ModelHubReport` for "used by this project", rescans on focus, and after a removal refreshes itself and every open Model Hub window (`ModelHubWindow.RefreshOpenWindows`). Removal from Model Hub refreshes open Disk Usage windows the same way
+- `Show in Model Hub` opens a used model in In Project; `Show in Model Cache` opens another cached model in Model Cache
 
 - data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete`, `.downloading`, and `.downloading.segment` (the body of the current request) files are partial downloads; deleting a partial download also deletes its resume state and segment. Tiles are named by the snapshot path that links to the blob, else by AI Model Hub's index, else by the etag
 - "used by this project" means a model repository that the current report lists, compared without letter case

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Model Hub has a sidebar like Package Manager: **In Project** lists this project's models, and **Model Cache** lists the models downloaded on this machine. **Add to Project** lists a cached model in the project manifest or in a package in development, with the cached files, so it needs no download. The cache map moved to **Show Disk Usage** in the Model Cache context menu.
+- Model Hub has a sidebar like Package Manager: **In Project** lists this project's models, and **Model Cache** lists the models downloaded on this machine. **Add to Project** lists a cached model in the project manifest or in a package in development, with the cached files, so it needs no download. The cache map moved to its own window, **Model Cache Disk Usage**, opened from `Tools > Doji > AI Model Hub`, the Model Cache context menu, or a cached model's details.
 - `.sentis` files on Hugging Face are used as downloaded, without an import step. The file extension decides the format of each file.
 - ONNX external weight files (`.onnx_data`, `.onnx.data`) are selected with their `.onnx` file.
 - Builds add models to StreamingAssets at build time. Project Settings chooses the default delivery, **Bundle in the build** or **Download at runtime**, and Model Hub overrides it per model.

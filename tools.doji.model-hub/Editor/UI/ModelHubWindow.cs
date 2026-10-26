@@ -27,12 +27,7 @@ namespace Doji.AI.ModelHub.Editor
             /// <summary>
             /// The models downloaded on this machine, to add to this project or to a package in development.
             /// </summary>
-            Cache,
-
-            /// <summary>
-            /// A map of everything in the shared Hugging Face cache, to free disk space.
-            /// </summary>
-            DiskUsage
+            Cache
         }
 
         private enum DetailTab
@@ -95,6 +90,28 @@ namespace Doji.AI.ModelHub.Editor
             window.Select(BuildItemKey(repository, revision));
         }
 
+        /// <summary>
+        /// Opens the window in Model Cache with one cached repository selected, by its cache folder name.
+        /// </summary>
+        internal static void OpenCachedModel(string folderName)
+        {
+            OpenWindow();
+            var window = GetWindow<ModelHubWindow>();
+            window.SwitchView(ModelHubView.Cache);
+            window.SelectCacheEntry(folderName);
+        }
+
+        /// <summary>
+        /// Refreshes every open Model Hub window, for example after another window changed the cache.
+        /// </summary>
+        internal static void RefreshOpenWindows()
+        {
+            foreach (var window in Resources.FindObjectsOfTypeAll<ModelHubWindow>())
+            {
+                window.Refresh();
+            }
+        }
+
         private void OnEnable()
         {
             BackgroundSyncManager.SyncStateChanged += HandleSyncStateChanged;
@@ -147,11 +164,11 @@ namespace Doji.AI.ModelHub.Editor
             (_navCache, _navCacheMeta) = BuildNavItem(
                 "Folder Icon",
                 "Model Cache",
-                "Models downloaded on this machine, for any project or Python tool. Add them to this project without downloading them again. Right-click for disk usage.",
+                "Models downloaded on this machine, for any project or Python tool. Add them to this project without downloading them again.",
                 ModelHubView.Cache);
             _navCache.AddManipulator(new ContextualMenuManipulator(evt =>
             {
-                evt.menu.AppendAction("Show Disk Usage", _ => SwitchView(ModelHubView.DiskUsage));
+                evt.menu.AppendAction("Open Disk Usage", _ => CacheDiskUsageWindow.Open(null));
                 evt.menu.AppendAction(UiKit.RevealInFileBrowserLabel, _ => ProjectSettingsLinks.RevealPath(_cacheOverview?.CacheRoot ?? CachePaths.GetCacheRoot()));
             }));
             nav.Add(_navCache);
@@ -174,7 +191,7 @@ namespace Doji.AI.ModelHub.Editor
         private void UpdateNav()
         {
             _navProject?.EnableInClassList("mh-item--selected", _view == ModelHubView.Project);
-            _navCache?.EnableInClassList("mh-item--selected", _view != ModelHubView.Project);
+            _navCache?.EnableInClassList("mh-item--selected", _view == ModelHubView.Cache);
             if (_navProjectMeta != null)
             {
                 _navProjectMeta.text = _report == null ? string.Empty : _report.Items.Count.ToString();
@@ -439,18 +456,10 @@ namespace Doji.AI.ModelHub.Editor
 
             _list.Clear();
             _rowsByKey.Clear();
-            if (_view != ModelHubView.Project)
+            if (_view == ModelHubView.Cache)
             {
-                if (_view == ModelHubView.Cache)
-                {
-                    RebuildCachedModelList();
-                    EnsureCacheSelection();
-                }
-                else
-                {
-                    RebuildCacheList();
-                }
-
+                RebuildCachedModelList();
+                EnsureCacheSelection();
                 UpdateRowSelection();
                 UpdateListFooter();
                 return;
@@ -587,14 +596,6 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            if (_view == ModelHubView.DiskUsage)
-            {
-                var repositories = _cacheOverview?.Repositories.Count ?? 0;
-                var size = UiKit.FormatBytes(_cacheOverview?.TotalSizeInBytes);
-                _listFooter.text = $"{repositories} {(repositories == 1 ? "repository" : "repositories")}{(size == null ? string.Empty : $" · {size}")} · Updated {_lastRefreshTime:HH:mm}";
-                return;
-            }
-
             var count = _report.Items.Count;
             var modelsLabel = count == 1 ? "1 model" : $"{count} models";
             _listFooter.text = $"{modelsLabel} · Updated {_lastRefreshTime:HH:mm}";
@@ -623,7 +624,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (_view != ModelHubView.Project)
             {
-                SelectCacheEntry(GetCacheFolder(key), null);
+                SelectCacheEntry(GetCacheFolder(key));
                 return;
             }
 

@@ -123,13 +123,13 @@ After **Add to Project**, Model Hub switches to **In Project** and selects the m
 
 For a model this project uses already, **Show in Project** selects it in **In Project**, and **Add to** can still list it in a package.
 
-**In the Cache** shows the size and revisions, with **Show in Explorer** (or Finder) and **Remove from Cache**.
+**In the Cache** shows the size and revisions, with **Show in Explorer** (or Finder), **Open Disk Usage**, and **Remove from Cache**.
 
-### Disk usage
+### Model Cache Disk Usage
 
-![Disk Usage view with a treemap. Models this project uses are blue, and a model it does not use is gray. The selected model shows its size, revisions, and Remove from Cache.](../images/manual/model-hub-disk-usage.png)
+![Model Cache Disk Usage window with a treemap. Models this project uses are blue, and a model it does not use is gray. The selected model shows its size, revisions, and Remove from Cache.](../images/manual/model-hub-disk-usage.png)
 
-Right-click **Model Cache** and choose **Show Disk Usage**, or use **Show Disk Usage** in a cached model's details. The view lists every repository in the cache, including datasets and spaces, and draws a map of the space they take. **Back to Model Cache** returns.
+The **Model Cache Disk Usage** window draws a map of the space every repository in the cache takes, including datasets and spaces. Open it with `Tools > Doji > AI Model Hub > Model Cache Disk Usage`, with **Open Disk Usage** in a cached model's details, or by right-clicking **Model Cache** in Model Hub. The window rescans the cache when it gets focus; the refresh button scans it again.
 
 The map draws one tile per repository, sized by disk usage. **Files** splits each repository into one tile per file. Colors:
 
@@ -139,7 +139,7 @@ The map draws one tile per repository, sized by disk usage. **Files** splits eac
 
 Select a tile to see its size, partial downloads, and revisions. Actions:
 
-- **Show in Project** selects the model in **In Project**, for models this project uses.
+- **Show in Model Hub** selects the model in **In Project**, for models this project uses. For other models, **Show in Model Cache** selects it in **Model Cache**, to add it to the project.
 - **Delete Partial Downloads** deletes the partial files only.
 - **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 

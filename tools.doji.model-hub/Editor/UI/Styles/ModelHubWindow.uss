@@ -81,6 +81,29 @@
     margin-right: 10px;
 }
 
+.du-root {
+    flex-grow: 1;
+}
+
+.du-content {
+    flex-grow: 1;
+    padding: 16px 20px;
+}
+
+.du-map {
+    flex-grow: 1;
+}
+
+.du-treemap {
+    flex-grow: 1;
+    height: auto;
+    min-height: 160px;
+}
+
+.du-content > .mh-cache-card {
+    flex-shrink: 0;
+}
+
 .mh-add-card__field {
     margin: 0;
     min-width: 180px;

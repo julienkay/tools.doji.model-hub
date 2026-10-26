@@ -8,6 +8,7 @@ AI Model Hub is not affiliated with Hugging Face.
 
 - [Getting Started](manual/getting-started.md)
 - [For Package Maintainers](manual/getting-started-package-maintainers.md)
+- [Design Your Package's Model API](manual/package-model-api.md)
 - [For Unity Project Users](manual/getting-started-project-users.md)
 - [Manifest Schema](manual/manifest-reference.md)
 - [Editor Surfaces](manual/editor-surfaces.md)

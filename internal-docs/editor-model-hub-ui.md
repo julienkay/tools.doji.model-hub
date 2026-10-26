@@ -248,6 +248,7 @@ Those features should reuse the repo-level item model instead of reintroducing d
 - one `Model ID` field per row; `ManifestModelEntry.TryParseModelId` accepts `owner/name` or a Hugging Face URL
 - revision field with a `main` placeholder; authored text is preserved (see Revision Semantics)
 - `Files` opens `FileSelectionPopup`, enabled only when the row's model id and revision are known to exist
+- `FileSelectionPopup` keeps each file's `optional` flag and `label`; the label field shows on checked model files only
 - `Apply` and `Revert`; inspectors ask about unapplied edits when they close (`ManifestInspectorUnsavedChanges`)
 - read-only stores show labels, a `Read-only` tag, and an embed hint
 

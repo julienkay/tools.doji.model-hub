@@ -41,13 +41,14 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 - `version`: manifest schema version. Current value is `1`.
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The model must be public: AI Model Hub sends no access token, so gated and private models fail to download with a message that says so.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
-- `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path` and optional `optional`.
+- `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path`, and optionally `optional` and `label`.
 - `files[].path`: exact repo-relative file path.
 - `files[].optional`: `true` when the project owner may enable that file before download or import. Omitted or `false` means the file is always required once the manifest entry is present.
+- `files[].label`: optional name for a model file in model pickers, such as the `[HubModel]` Inspector dropdown and `HubModelFile.DisplayName`. For example `"Small (63 MB)"`. Leading and trailing spaces are removed, and an empty label counts as none.
 
 Model ids must be unique inside one manifest. File paths must be unique inside one model entry after trimming whitespace and converting `\` to `/`.
 
-AI Model Hub rejects a manifest that contains any other property, or an `optional` value that is not `true` or `false`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
+AI Model Hub rejects a manifest that contains any other property, an `optional` value that is not `true` or `false`, or a `label` that is not a string. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
 
 ## All Files
 

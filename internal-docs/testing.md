@@ -45,7 +45,7 @@ Manifest and discovery:
 - `tools.doji.model-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
   - manifest parse and normalization
   - duplicate id validation
-  - selected-file and optional-file preservation
+  - selected-file and optional-file preservation, file labels
   - owner-scoped optional file override application
   - project settings manifest serialization inputs
 
@@ -143,6 +143,7 @@ Runtime loading and builds:
   - `EnsureAvailableAsync` downloads every file
   - unknown models and package-scoped lookup
   - registry round trip drops Editor paths and refuses newer versions
+  - `Hub.GetModelFiles` per package, display-name fallback, `HubModelReference` loading, `Hub.LoadModelFromFile`
 - `tools.doji.model-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
   - runtime path mapping matches the build layout
 - `tools.doji.model-hub/Tests/Editor/Build/RuntimeRegistryBuilderTests.cs`
@@ -150,9 +151,13 @@ Runtime loading and builds:
   - download entries carry commit, etags, companions, and recipe
   - models a build cannot deliver are reported, with different text for not downloaded and not set up
   - delivery per repository, cache spelling of the repository id
+  - manifest file labels reach the registry
 
 Editor UI and manifest editing:
 
+- `tools.doji.model-hub/Tests/Editor/UI/HubModelPickerTests.cs`
+  - Inspector picker lists declared model files with labels and included / not turned on / not set up state
+  - manifest JSON from the Inspector keeps labels and omits empty ones
 - `tools.doji.model-hub/Tests/Editor/UI/AddModelPopupTests.cs`
   - mixed and model-less repositories need a file selection; an unknown format does not block adding
 - `tools.doji.model-hub/Tests/Editor/UI/ManifestModelEntryTests.cs`

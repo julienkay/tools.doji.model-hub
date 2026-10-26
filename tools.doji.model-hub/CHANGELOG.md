@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - **Pull into Project** copies a model's Sentis files into `Assets/StreamingAssets/model-hub/models`.
 - Model Hub and Add Model show the model format.
 - Converted models are reused across Inference Engine updates of the same format generation (`SentisCompatibility`).
+- Manifest files can set a `label`, the name model pickers show. The file picker in the manifest Inspector edits it.
+- `HubModelReference` and `[HubModel("package.id")]`: an Inspector dropdown of a package's model files, with **Include** for optional files, or a model asset of your own. `Hub.GetModelFiles(Async)` lists a package's model files at runtime, and `Hub.LoadModelFromFile` loads a `.sentis` or `.onnx` file of your own.
 - `HubStorage` lists and deletes converted models and old Android copies of bundled models. AI Model Hub never deletes them on its own.
 
 ### Changed

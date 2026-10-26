@@ -85,6 +85,8 @@ The `optional` flag does not mean "download if present." It means "show this sel
 
 If every model file in a dependency is optional, Model Hub shows `Choose files` until the project turns on at least one.
 
+Give model files a `label` to name them in model pickers, for example `"label": "MiDaS v2.1 Small (63 MB)"`. See [Let users pick a model in the Inspector](package-model-api.md#let-users-pick-a-model-in-the-inspector).
+
 ## Authoring In Unity
 
 Select a writable `model-hub-manifest.json` package asset in Unity to use the focused manifest Inspector. Installed package cache entries are read-only until the package source is embedded or otherwise made local and writable.
@@ -108,5 +110,7 @@ Model model = await Hub.LoadModelAsync("onnx-community/tiny-clip-test-ONNX", "on
 ```
 
 Use `LoadModelAsync`: it works on every platform and for both delivery modes. If another package uses the same model, pass your package id as the first argument. See [Load models at runtime](import-cache-runtime.md#load-models-at-runtime).
+
+[Design Your Package's Model API](package-model-api.md) shows which constructors and methods to offer, so users can load your package's models, pick a variant in the Inspector, or bring their own model.
 
 Use [Manifest Schema](manifest-reference.md) for field-level rules and validation details.

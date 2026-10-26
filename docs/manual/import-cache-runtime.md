@@ -204,6 +204,16 @@ Model model = await repo.LoadModelAsync("onnx/model.onnx");
 
 `repo.Files` lists the model files the project uses, and `repo.Commit` is the commit the build uses.
 
+### List a package's models
+
+`Hub.GetModelFilesAsync(packageId)` lists the model files of one package that the project includes, for example for a model picker. Each `HubModelFile` has `RepoId`, `RepoPath`, `DisplayName` (the manifest `label`, else the path), and `ToReference()`. Optional files the project did not turn on are not listed.
+
+A `HubModelReference` stores one choice, either a package's file or a `ModelAsset` of your own, and loads it with `LoadAsync`. Add `[HubModel("package.id")]` to a `HubModelReference` field to show a dropdown in the Inspector. See [Design Your Package's Model API](package-model-api.md).
+
+### Load a file of your own
+
+`Hub.LoadModelFromFile(path)` loads a model file that did not come through AI Model Hub, for example one your app downloaded. `.sentis` files load directly. `.onnx` files are converted in the Editor, and in players with `tools.doji.onnx-model-loader` or the converter set with `Hub.RegisterOnnxConverter`.
+
 ### Synchronous loading
 
 `Hub.LoadModel(repoId, repoPath)` and `Hub.FromPretrained(repoId)` do not wait. They work in the Editor, for bundled models on Windows, macOS, Linux, and iOS, and for downloaded models that are already on the device. On Android and the Web, and for models that are not downloaded yet, they throw an error that points to the async method.
@@ -224,3 +234,4 @@ Model model = await Hub.LoadModelAsync("com.example.depth", "julienkay/sentis-Mi
 | `AI Model Hub model '<repo>' has no file '<path>'` | The manifest does not select that file. The message lists the files it does select. |
 | `... is downloaded on first use. Use Hub.LoadModelAsync` | A synchronous call for a model that is not on the device yet. |
 | `... needs an ONNX converter` | A player downloads an `.onnx` file but `tools.doji.onnx-model-loader` is not installed. |
+| `'<path>' is an ONNX file, and this player has no ONNX converter` | `Hub.LoadModelFromFile` got an `.onnx` file in a player without a converter. |

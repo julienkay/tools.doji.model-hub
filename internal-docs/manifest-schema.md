@@ -58,6 +58,7 @@ Field intent:
 - `files`: optional list of exact repo-relative file objects. Omit or leave empty for whole-repository scope.
 - `files[].path`: exact repo-relative file path selected by this dependency owner
 - `files[].optional`: whether the path is project-selectable instead of always required; default/omitted means `false`
+- `files[].label`: display name for model pickers; trimmed, empty means none. It does not change the selection or its hash. Editor writers emit it last and drop empty labels (`ManifestJson.StripEmptyLabels`), because `JsonUtility` writes every field
 
 Canonical HuggingFace model id definition:
 
@@ -71,7 +72,7 @@ Manifest meaning:
 - one entry resolves one upstream repo revision to one concrete commit
 - one entry owns one canonical repo id for one manifest owner
 - duplicate `id` values inside one manifest are invalid
-- unknown properties at root, model, or file level are invalid, and a non-boolean `optional` is invalid; a silently ignored key can widen a file-selective entry into a whole-repo download. The legacy `optionalFiles` key gets an error with a migration hint
+- unknown properties at root, model, or file level are invalid, a non-boolean `optional` and a non-string `label` are invalid; a silently ignored key can widen a file-selective entry into a whole-repo download. The legacy `optionalFiles` key gets an error with a migration hint
 - optional model variants must not be modeled as duplicate manifest rows with same `id`
 - one entry may depend on whole repo, on explicit always-required files, or on required files plus optional files inside that repo
 - the extension decides each selected file's format: `.onnx` is converted, `.sentis` is used as downloaded; see [import-and-generated-assets.md](import-and-generated-assets.md)

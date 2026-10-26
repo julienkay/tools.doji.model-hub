@@ -17,7 +17,7 @@ The package writes the loading code once. The project decides delivery (bundle o
 RuntimeRegistry   version, onnxConverterId, packages[]
 RuntimePackageEntry   packageId, packageVersion, models[]
 RuntimeModelEntry   repoId, cacheRepoId, revision, commit, delivery ("bundle" | "download"), files[]
-RuntimeModelFile   repoPath, format ("onnx" | "sentis"), relativePath,
+RuntimeModelFile   repoPath, label, format ("onnx" | "sentis"), relativePath,
                    source {repoPath, etag, size}, companions[], recipeHash, quantization, inputShapes[]
 ```
 
@@ -27,6 +27,7 @@ RuntimeModelFile   repoPath, format ("onnx" | "sentis"), relativePath,
 - `source` and `companions` hold etags and sizes, so players name blobs like the Editor does.
 - `quantization`, `inputShapes`, and `recipeHash` let a player convert an ONNX file with the settings tested in the Editor.
 - `localPath` is `[NonSerialized]`: the Editor catalog sets it, builds never write it.
+- `label` is the manifest's `files[].label`, for `Hub.GetModelFiles` and pickers in players.
 
 A package entry lists only its own owner's selection. The shared import may hold more files for other owners.
 
@@ -45,6 +46,13 @@ A package entry lists only its own owner's selection. The shared import may hold
 - With a package id, only that package's entry counts.
 - Without one, the first package (ordered by id) whose entry has the repository and the file wins. Two packages that select different files of one repository both work without a package id. Pass one only when the same path must resolve to a specific owner.
 - A miss throws `FileNotFoundException`. With no entry: "has no model". With an entry: "has no file", listing the known files.
+
+## Pickers and files of your own
+
+- `Hub.GetModelFiles(Async)(packageId)` maps the catalog's files to `HubModelFile` (`HubModelFile.FromRegistry`). It lists only what the catalog has: included and set-up files.
+- `HubModelReference` serializes `_packageId`, `_repoId`, `_repoPath`, and `_modelAsset`. A model asset wins over the file fields.
+- The Inspector drawer ([HubModelReferenceDrawer.cs](../tools.doji.model-hub/Editor/UI/HubModelReferenceDrawer.cs)) lists more than the catalog: `HubModelPicker.Build` takes every declared model file from the status report and marks it `Included` (in the catalog), `NotTurnedOn` (optional, not enabled), or `NotSetUp`. Whole-repository dependencies list their imported runtime files. **Include** writes the optional-file selection and starts a background sync.
+- `Hub.LoadModelFromFile` bypasses the registry. ONNX files use `RuntimeModels.OnnxConverter`, else in the Editor `EditorOnnxConverter` (set by `EditorRuntimeCatalog`), and are not cached.
 
 ## Build
 

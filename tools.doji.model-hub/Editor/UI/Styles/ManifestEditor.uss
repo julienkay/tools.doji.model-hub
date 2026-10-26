@@ -295,7 +295,7 @@
 }
 
 .fp-row__label {
-    width: 150px;
+    width: 180px;
     margin: 0 4px;
 }
 

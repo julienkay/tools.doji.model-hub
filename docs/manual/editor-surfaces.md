@@ -210,12 +210,13 @@ If AI Model Hub already knows that a model id does not exist on Hugging Face, Mo
 
 ### File picker
 
-![File picker for julienkay/sentis-MiDaS. Two ONNX files are checked; one of them is marked Optional. The footer shows 2 files, 1 optional, and the total size.](../images/manual/file-picker.png)
+![File picker for julienkay/sentis-MiDaS. Two ONNX files are checked, each with a label; one of them is marked Optional. The footer shows 2 files, 1 optional, and the total size.](../images/manual/file-picker.png)
 
 The file picker lists the model's files at the selected revision, with their sizes:
 
 - Check the files the manifest needs. With nothing checked, the manifest uses every file of the model.
 - **Optional** appears on checked files. Optional files are off until a project turns them on in Model Hub.
+- **Label** appears on checked model files. Model pickers show it instead of the path, for example `MiDaS v2.1 Small (63 MB)`.
 - Filter with the search field, or show **All**, **Models** (`.onnx` and `.sentis` files), or **Selected** files.
 - The footer shows the number of files, how many are optional, and their total size. **Use All Files** clears the selection.
 - If a selected file does not exist at the revision, the picker warns about it.

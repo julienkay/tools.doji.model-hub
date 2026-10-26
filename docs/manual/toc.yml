@@ -5,6 +5,8 @@
   items:
   - name: For Package Maintainers
     href: getting-started-package-maintainers.md
+  - name: Design Your Package's Model API
+    href: package-model-api.md
   - name: For Unity Project Users
     href: getting-started-project-users.md
 - name: Reference

@@ -56,7 +56,7 @@ namespace Doji.AI.ModelHub.Editor
 
         public override Vector2 GetWindowSize()
         {
-            return new Vector2(680f, 460f);
+            return new Vector2(700f, 460f);
         }
 
         public override void OnGUI(Rect rect)

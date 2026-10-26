@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converted models are reused across Inference Engine updates of the same format generation (`SentisCompatibility`).
 - Manifest files can set a `label`, the name model pickers show. The file picker in the manifest Inspector edits it.
 - `HubModelReference` and `[HubModel("package.id")]`: an Inspector dropdown of a package's model files, with **Include** for optional files, or a model asset of your own. `Hub.GetModelFiles(Async)` lists a package's model files at runtime, and `Hub.LoadModelFromFile` loads a `.sentis` or `.onnx` file of your own.
+- `PretrainedModel<T>` and `[PretrainedModel(packageId, repoId, defaultRepoPath)]`: a base class that gives a package's model class `FromPretrained(Async)` for the default model, a manifest file, a file path, or a `HubModelReference`, plus `DefaultModel` and `Backend`. `HubModelLoader` does the same loading for classes that run several models. `[HubModel(typeof(T))]` takes the package id from the attribute.
 - `HubStorage` lists and deletes converted models and old Android copies of bundled models. AI Model Hub never deletes them on its own.
 
 ### Changed

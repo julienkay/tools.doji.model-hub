@@ -127,6 +127,15 @@ namespace Doji.AI.ModelHub
             PackageId = packageId;
         }
 
+        /// <summary>
+        /// Lists the model files of the package that a <see cref="PretrainedModelAttribute"/> on
+        /// <paramref name="modelType"/> names, for example <c>[HubModel(typeof(Midas))]</c>.
+        /// </summary>
+        public HubModelAttribute(Type modelType)
+        {
+            PackageId = PretrainedModelAttribute.Get(modelType)?.PackageId;
+        }
+
         public string PackageId { get; }
     }
 }

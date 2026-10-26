@@ -208,7 +208,9 @@ Model model = await repo.LoadModelAsync("onnx/model.onnx");
 
 `Hub.GetModelFilesAsync(packageId)` lists the model files of one package that the project includes, for example for a model picker. Each `HubModelFile` has `RepoId`, `RepoPath`, `DisplayName` (the manifest `label`, else the path), and `ToReference()`. Optional files the project did not turn on are not listed.
 
-A `HubModelReference` stores one choice, either a package's file or a `ModelAsset` of your own, and loads it with `LoadAsync`. Add `[HubModel("package.id")]` to a `HubModelReference` field to show a dropdown in the Inspector. See [Design Your Package's Model API](package-model-api.md).
+A `HubModelReference` stores one choice, either a package's file or a `ModelAsset` of your own, and loads it with `LoadAsync`. Add `[HubModel("package.id")]` to a `HubModelReference` field to show a dropdown in the Inspector.
+
+Package authors get `FromPretrained` methods for their model class by deriving from `PretrainedModel<T>`, or load several models with `HubModelLoader`. See [Design Your Package's Model API](package-model-api.md).
 
 ### Load a file of your own
 

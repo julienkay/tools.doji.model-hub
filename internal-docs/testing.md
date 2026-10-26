@@ -144,6 +144,7 @@ Runtime loading and builds:
   - unknown models and package-scoped lookup
   - registry round trip drops Editor paths and refuses newer versions
   - `Hub.GetModelFiles` per package, display-name fallback, `HubModelReference` loading, `Hub.LoadModelFromFile`
+  - `HubModelLoader` string resolution and error text, `PretrainedModel<T>` factories, naming, backend changes, and errors for a missing attribute or constructor
 - `tools.doji.model-hub/Tests/Editor/RuntimeLocator/RuntimeLocatorPathTests.cs`
   - runtime path mapping matches the build layout
 - `tools.doji.model-hub/Tests/Editor/Build/RuntimeRegistryBuilderTests.cs`

@@ -402,6 +402,124 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(exception.Message, Does.Contain(missing));
         }
 
+        /// <summary>
+        /// Verifies a package's loader reads every way to name a model: nothing for the default, a repository path,
+        /// <c>owner/name:path</c> for another repository, and a file of your own. A file the manifest does not
+        /// declare fails with the package, the model, and where to include it.
+        /// </summary>
+        [Test]
+        public async Task HubModelLoader_ResolvesTheDefaultRepoPathsAndFiles()
+        {
+            UseRegistry(Model("bundle", new RuntimeModelFile { repoPath = "onnx/a.onnx", format = "onnx", localPath = _sentisPath }));
+            var loader = new HubModelLoader("tools.doji.test", Repo, "onnx/a.onnx");
+
+            var byDefault = await loader.LoadAsync();
+            Assert.That(byDefault.Model, Is.Not.Null);
+            Assert.That(byDefault.Name, Is.EqualTo("a"));
+            Assert.That(byDefault.Source.ToString(), Is.EqualTo($"{Repo}:onnx/a.onnx"));
+            Assert.That(loader.Load("onnx/a.onnx").Source.RepoPath, Is.EqualTo("onnx/a.onnx"));
+
+            var own = loader.Load(_sentisPath);
+            Assert.That(own.Model, Is.Not.Null);
+            Assert.That(own.Name, Is.EqualTo("sample"));
+            Assert.That(own.Source, Is.Null);
+
+            var other = loader.ToReference("other/repo:sentis/b.sentis");
+            Assert.That(other.RepoId, Is.EqualTo("other/repo"));
+            Assert.That(other.RepoPath, Is.EqualTo("sentis/b.sentis"));
+
+            var exception = Assert.Throws<InvalidOperationException>(() => loader.Load("onnx/missing.onnx"));
+            Assert.That(exception.Message, Does.StartWith($"tools.doji.test could not load model '{Repo}:onnx/missing.onnx'. Include the file in Window > AI Model Hub."));
+        }
+
+        /// <summary>
+        /// Verifies the base class creates instances from the attribute's default model or a file of your own, names
+        /// them, and sets them up again when the backend changes.
+        /// </summary>
+        [Test]
+        public async Task PretrainedModel_CreatesInstancesAndRecreatesThemForANewBackend()
+        {
+            UseRegistry(Model("bundle", new RuntimeModelFile { repoPath = "onnx/a.onnx", format = "onnx", localPath = _sentisPath }));
+
+            Assert.That(TestModel.PackageId, Is.EqualTo("tools.doji.test"));
+            Assert.That(TestModel.DefaultModel.ToString(), Is.EqualTo($"{Repo}:onnx/a.onnx"));
+            Assert.That(new HubModelAttribute(typeof(TestModel)).PackageId, Is.EqualTo("tools.doji.test"));
+
+            using var model = TestModel.FromPretrained(backend: BackendType.CPU);
+            Assert.That(model.Name, Is.EqualTo("a"));
+            Assert.That(model.Model, Is.Not.Null);
+            Assert.That((model.Initialized, model.Released), Is.EqualTo((1, 0)));
+
+            model.Backend = BackendType.CPU;
+            Assert.That((model.Initialized, model.Released), Is.EqualTo((1, 0)), "The same backend changes nothing.");
+            model.Backend = BackendType.GPUCompute;
+            Assert.That((model.Initialized, model.Released), Is.EqualTo((2, 1)));
+            Assert.That(model.BackendInInitialize, Is.EqualTo(BackendType.GPUCompute));
+
+            using var fromFile = await TestModel.FromPretrainedAsync(_sentisPath);
+            Assert.That(fromFile.Name, Is.EqualTo("sample"));
+
+            using var loaded = new TestModel(Hub.LoadModelFromFile(_sentisPath));
+            Assert.That(loaded.Name, Is.EqualTo("testmodel"));
+            Assert.That(loaded.Initialized, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// Verifies a class that misses the attribute or the parameterless constructor fails with what to add.
+        /// </summary>
+        [Test]
+        public void PretrainedModel_ExplainsAMissingAttributeOrConstructor()
+        {
+            UseRegistry(Model("bundle", new RuntimeModelFile { repoPath = "onnx/a.onnx", format = "onnx", localPath = _sentisPath }));
+
+            Assert.That(() => UnmarkedModel.DefaultModel,
+                Throws.InvalidOperationException.With.Message.EqualTo("UnmarkedModel needs a [PretrainedModel(packageId, repoId, defaultRepoPath)] attribute."));
+            Assert.That(() => NoConstructorModel.FromPretrained(),
+                Throws.InvalidOperationException.With.Message.Contains("private NoConstructorModel() { }"));
+        }
+
+        [PretrainedModel("tools.doji.test", Repo, "onnx/a.onnx")]
+        private sealed class TestModel : PretrainedModel<TestModel>
+        {
+            private TestModel() { }
+
+            public TestModel(Model model) : base(model, BackendType.CPU) { }
+
+            public int Initialized { get; private set; }
+
+            public int Released { get; private set; }
+
+            public BackendType BackendInInitialize { get; private set; }
+
+            protected override void Initialize()
+            {
+                Initialized++;
+                BackendInInitialize = Backend;
+            }
+
+            protected override void Release()
+            {
+                Released++;
+            }
+        }
+
+        private sealed class UnmarkedModel : PretrainedModel<UnmarkedModel>
+        {
+            protected override void Initialize() { }
+
+            protected override void Release() { }
+        }
+
+        [PretrainedModel("tools.doji.test", Repo, "onnx/a.onnx")]
+        private sealed class NoConstructorModel : PretrainedModel<NoConstructorModel>
+        {
+            public NoConstructorModel(Model model) : base(model, BackendType.CPU) { }
+
+            protected override void Initialize() { }
+
+            protected override void Release() { }
+        }
+
         private RuntimeRegistry UseRegistry(RuntimeModelEntry model)
         {
             var registry = new RuntimeRegistry { packages = new[] { Package("tools.doji.test", model) } };

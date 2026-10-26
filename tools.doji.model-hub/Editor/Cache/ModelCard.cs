@@ -28,6 +28,89 @@ namespace Doji.AI.ModelHub.Editor
         private static readonly Regex BlankLines = new(@"\n[ \t]*\n(?:[ \t]*\n)+");
 
         /// <summary>
+        /// Reads the license fields from the YAML metadata at the top of a model card, the same fields Hugging Face
+        /// returns as <c>cardData</c>. Returns null without a card, and an empty instance for a card that declares no
+        /// license.
+        /// </summary>
+        public static ModelCardMetadata ReadMetadata(string markdown)
+        {
+            if (markdown == null)
+            {
+                return null;
+            }
+
+            var metadata = new ModelCardMetadata();
+            var match = FrontMatter.Match(markdown.Replace("\r\n", "\n"));
+            if (!match.Success)
+            {
+                return metadata;
+            }
+
+            var values = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            List<string> current = null;
+            foreach (var line in match.Value.Split('\n').Skip(1))
+            {
+                if (line.StartsWith("---", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                var item = Regex.Match(line, @"^[ \t]*-[ \t]+(.*)$");
+                if (item.Success)
+                {
+                    current?.Add(Unquote(item.Groups[1].Value));
+                    continue;
+                }
+
+                var pair = Regex.Match(line, @"^([A-Za-z0-9_\-]+):[ \t]*(.*)$");
+                if (!pair.Success)
+                {
+                    current = null;
+                    continue;
+                }
+
+                current = new List<string>();
+                values[pair.Groups[1].Value] = current;
+                var value = pair.Groups[2].Value.Trim();
+                if (value.StartsWith("[", StringComparison.Ordinal) && value.EndsWith("]", StringComparison.Ordinal))
+                {
+                    current.AddRange(value.Substring(1, value.Length - 2).Split(',').Select(Unquote));
+                }
+                else if (value.Length > 0)
+                {
+                    current.Add(Unquote(value));
+                }
+            }
+
+            metadata.License = Join(values, "license");
+            metadata.LicenseName = Join(values, "license_name");
+            metadata.LicenseLink = Join(values, "license_link");
+            return metadata;
+        }
+
+        private static string Unquote(string value)
+        {
+            value = Regex.Replace(value ?? string.Empty, @"[ \t]+#.*$", string.Empty).Trim();
+            if (value.Length >= 2 && (value[0] == '"' || value[0] == '\'') && value[value.Length - 1] == value[0])
+            {
+                value = value.Substring(1, value.Length - 2);
+            }
+
+            return value.Trim();
+        }
+
+        private static string Join(Dictionary<string, List<string>> values, string key)
+        {
+            if (!values.TryGetValue(key, out var list))
+            {
+                return null;
+            }
+
+            var text = string.Join(", ", list.Where(value => value.Length > 0));
+            return text.Length == 0 ? null : text;
+        }
+
+        /// <summary>
         /// Returns the readable text of a model card, or an empty string when it has none.
         /// </summary>
         public static string ToPlainText(string markdown)

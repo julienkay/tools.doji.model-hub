@@ -99,6 +99,7 @@ namespace Doji.AI.ModelHub.Editor
             var item = _report?.Items.FirstOrDefault(entry =>
                 string.Equals(entry.Repository, repository.Repository, StringComparison.OrdinalIgnoreCase));
             var revision = repository.Refs.Contains("main") ? "main" : repository.Refs.FirstOrDefault();
+            var cardState = LoadModelCard(repository, revision, out var markdown);
 
             var header = UiKit.Element("mh-header");
             var headerText = UiKit.Element("mh-header__text");
@@ -114,7 +115,11 @@ namespace Doji.AI.ModelHub.Editor
 
             headerText.Add(subtitle);
             headerText.Add(UiKit.Links(
-                new[] { new ModelLink("Model card", ModelLinks.GetModelCardUrl(repository.Repository), "Open the model card on Hugging Face.") },
+                ModelLinks.Build(
+                    repository.Repository,
+                    revision ?? "main",
+                    ModelCardText.ReadMetadata(markdown),
+                    revision == null ? Array.Empty<string>() : CacheOverviewService.GetSnapshotFiles(repository.FolderPath, revision)),
                 "mh-header__links"));
             header.Add(headerText);
             header.Add(item != null
@@ -122,7 +127,7 @@ namespace Doji.AI.ModelHub.Editor
                 : UiKit.Pill(UiTone.Neutral, "Not in this project"));
             content.Add(header);
             content.Add(BuildCachedModelActions(repository, item));
-            content.Add(BuildModelCardSection(repository, revision));
+            content.Add(BuildModelCardSection(repository, cardState, markdown));
             content.Add(BuildCachedModelStorageSection(repository, item != null, revision));
         }
 
@@ -162,29 +167,34 @@ namespace Doji.AI.ModelHub.Editor
             return actions;
         }
 
-        private VisualElement BuildModelCardSection(CacheRepositoryEntry repository, string revision)
+        private enum ModelCardState
         {
-            var section = UiKit.Section("Model card");
-            var card = UiKit.Element("hf-card", "mh-model-card");
-            section.Add(card);
+            Loaded,
+            Loading,
+            Failed,
+            NotCached
+        }
 
-            var cached = revision == null ? null : ModelCardService.ReadCached(repository.FolderPath, revision);
-            if (cached != null)
+        /// <summary>
+        /// Gets the model card of a cached model: from the snapshot, else from Hugging Face. While the request runs,
+        /// the details are rebuilt when it finishes. <paramref name="markdown"/> is null without a card.
+        /// </summary>
+        private ModelCardState LoadModelCard(CacheRepositoryEntry repository, string revision, out string markdown)
+        {
+            markdown = revision == null ? null : ModelCardService.ReadCached(repository.FolderPath, revision);
+            if (markdown != null)
             {
-                AddModelCardText(card, repository, cached);
-                return section;
+                return ModelCardState.Loaded;
             }
 
             if (revision == null)
             {
-                card.Add(UiKit.Text("No model card is cached.", "hf-muted"));
-                return section;
+                return ModelCardState.NotCached;
             }
 
             var task = ModelCardService.FetchAsync(repository.Repository, revision);
             if (!task.IsCompleted)
             {
-                card.Add(UiKit.Text("Loading the model card from Hugging Face…", "hf-muted"));
                 var folder = repository.FolderName;
                 task.ContinueWith(
                     _ => EditorApplication.delayCall += () =>
@@ -194,16 +204,37 @@ namespace Doji.AI.ModelHub.Editor
                             RebuildDetails();
                         }
                     });
-                return section;
+                return ModelCardState.Loading;
             }
 
             if (task.IsFaulted)
             {
-                card.Add(UiKit.Text("Could not load the model card from Hugging Face.", "hf-muted"));
+                return ModelCardState.Failed;
             }
-            else
+
+            markdown = task.Result;
+            return ModelCardState.Loaded;
+        }
+
+        private VisualElement BuildModelCardSection(CacheRepositoryEntry repository, ModelCardState state, string markdown)
+        {
+            var section = UiKit.Section("Model card");
+            var card = UiKit.Element("hf-card", "mh-model-card");
+            section.Add(card);
+            switch (state)
             {
-                AddModelCardText(card, repository, task.Result);
+                case ModelCardState.Loading:
+                    card.Add(UiKit.Text("Loading the model card from Hugging Face…", "hf-muted"));
+                    break;
+                case ModelCardState.Failed:
+                    card.Add(UiKit.Text("Could not load the model card from Hugging Face.", "hf-muted"));
+                    break;
+                case ModelCardState.NotCached:
+                    card.Add(UiKit.Text("No model card is cached.", "hf-muted"));
+                    break;
+                default:
+                    AddModelCardText(card, repository, markdown);
+                    break;
             }
 
             return section;

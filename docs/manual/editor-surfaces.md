@@ -113,7 +113,7 @@ The **Storage** tab shows disk usage in two places:
 
 **Model Cache** lists the models in the Hugging Face cache on this machine: models from this project, from other Unity projects, and from Python tools. Models this project does not use come first.
 
-The details show the start of the model card (`README.md`) as plain text. **Show more** shows the whole card. AI Model Hub reads the card from the cache when it was downloaded, else from Hugging Face.
+The header shows the same **Model card**, **Files**, and **License** links as in **In Project**. The license comes from the model card's metadata. The details show the start of the model card (`README.md`) as plain text. **Show more** shows the whole card. AI Model Hub reads the card from the cache when it was downloaded, else from Hugging Face.
 
 ![Add to Project popup with Add to set to This project, Revision set to main, and one cached model file.](../images/manual/model-hub-add-cached-model.png)
 

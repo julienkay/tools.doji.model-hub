@@ -27,6 +27,44 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies the license fields are read from the YAML metadata: scalars, quoted values, comments, and lists.
+        /// </summary>
+        [Test]
+        public void ReadMetadata_ReadsLicenseFields()
+        {
+            const string markdown =
+                "---\r\nlicense: other # custom\r\nlicense_name: \"my-license\"\r\nlicense_link: LICENSE.md\r\n" +
+                "tags:\r\n- depth\r\n---\r\n# Title\r\n";
+
+            var metadata = ModelCardText.ReadMetadata(markdown);
+
+            Assert.That(metadata.License, Is.EqualTo("other"));
+            Assert.That(metadata.LicenseName, Is.EqualTo("my-license"));
+            Assert.That(metadata.LicenseLink, Is.EqualTo("LICENSE.md"));
+        }
+
+        /// <summary>
+        /// Verifies several licenses, as a block list or a flow list, are joined like Hugging Face card data.
+        /// </summary>
+        [TestCase("---\nlicense:\n  - mit\n  - 'apache-2.0'\n---\n")]
+        [TestCase("---\nlicense: [mit, apache-2.0]\n---\n")]
+        public void ReadMetadata_JoinsLicenseLists(string markdown)
+        {
+            Assert.That(ModelCardText.ReadMetadata(markdown).License, Is.EqualTo("mit, apache-2.0"));
+        }
+
+        /// <summary>
+        /// Verifies a card without metadata declares no license, and no card gives no metadata.
+        /// </summary>
+        [Test]
+        public void ReadMetadata_WithoutLicense()
+        {
+            Assert.That(ModelCardText.ReadMetadata("# Title\n").License, Is.Null);
+            Assert.That(ModelCardText.ReadMetadata("---\ntags:\n- a\n---\n").License, Is.Null);
+            Assert.That(ModelCardText.ReadMetadata(null), Is.Null);
+        }
+
+        /// <summary>
         /// Verifies an empty card, and a card with only metadata, have no text.
         /// </summary>
         [TestCase(null)]

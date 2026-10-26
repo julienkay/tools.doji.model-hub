@@ -21,11 +21,6 @@ namespace Doji.AI.ModelHub
         public const string ManifestFileName = "model-hub-manifest.json";
 
         /// <summary>
-        /// Copyable example manifest filename that package authors can use as a starting point.
-        /// </summary>
-        public const string ManifestTemplateFileName = "model-hub-manifest.template.json";
-
-        /// <summary>
         /// Folder inside StreamingAssets that holds the registry and bundled models.
         /// </summary>
         public const string RuntimeStreamingRelativeRoot = "model-hub";

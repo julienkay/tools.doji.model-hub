@@ -157,7 +157,8 @@ Runtime loading and builds:
 Editor UI and manifest editing:
 
 - `tools.doji.model-hub/Tests/Editor/UI/HubModelPickerTests.cs`
-  - Inspector picker lists declared model files with labels and included / not turned on / not set up state
+  - Inspector picker lists declared model files with labels and included / not turned on / needs download / needs conversion / needs setup state
+  - the status line under the dropdown names the next step and button for each state, and warns about undeclared files
   - manifest JSON from the Inspector keeps labels and omits empty ones
 - `tools.doji.model-hub/Tests/Editor/UI/AddModelPopupTests.cs`
   - mixed and model-less repositories need a file selection; an unknown format does not block adding

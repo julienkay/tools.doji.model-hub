@@ -11,7 +11,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     {
         /// <summary>
         /// Verifies the picker lists only model files, with their labels, and marks each as included, not turned on, or
-        /// not set up.
+        /// not downloaded.
         /// </summary>
         [Test]
         public void Build_ListsModelFilesWithTheirState()
@@ -54,8 +54,70 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(byPath["onnx/small.onnx"].State, Is.EqualTo(HubModelPicker.FileState.Included), "Repository ids match without case.");
             Assert.That(byPath["onnx/small.onnx"].DisplayName, Is.EqualTo("Small"));
             Assert.That(byPath["onnx/large.onnx"].State, Is.EqualTo(HubModelPicker.FileState.NotTurnedOn));
-            Assert.That(byPath["onnx/tiny.onnx"].State, Is.EqualTo(HubModelPicker.FileState.NotSetUp));
+            Assert.That(byPath["onnx/tiny.onnx"].State, Is.EqualTo(HubModelPicker.FileState.NeedsDownload));
             Assert.That(byPath["onnx/small.onnx"].OwnerName, Is.EqualTo("MiDaS"));
+        }
+
+        /// <summary>
+        /// Verifies a downloaded file whose ONNX model waits for a conversion asks to convert, with the reason, and a
+        /// downloaded file that needs only the import step asks to set up.
+        /// </summary>
+        [Test]
+        public void Build_TellsConversionFromSetup()
+        {
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.midas", "MiDaS", "1.0.0", "/tmp/midas", "/tmp/midas/model-hub-manifest.json", "hash",
+                new ModelDependencyDefinition("julienkay/sentis-MiDaS", "main", new[]
+                {
+                    new ModelDependencyFileDefinition("onnx/small.onnx"),
+                    new ModelDependencyFileDefinition("sentis/small.sentis")
+                }),
+                Array.Empty<string>());
+            var status = new DependencyStatus(
+                dependency, DependencyState.Missing, DependencyReasonCode.ImportBindingMissing, "Not imported.",
+                null, null, null, null, null, null, null,
+                new[] { "onnx/small.onnx" }, ConversionCause.SettingsChanged);
+
+            var byPath = HubModelPicker.Build(new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), new[] { status }), null)
+                .ToDictionary(entry => entry.RepoPath);
+
+            Assert.That(byPath["onnx/small.onnx"].State, Is.EqualTo(HubModelPicker.FileState.NeedsConversion));
+            Assert.That(byPath["onnx/small.onnx"].ConversionCause, Is.EqualTo(ConversionCause.SettingsChanged));
+            Assert.That(byPath["sentis/small.sentis"].State, Is.EqualTo(HubModelPicker.FileState.NeedsSetup));
+        }
+
+        /// <summary>
+        /// Verifies the status line under the dropdown names the next step for each state, shows progress while AI
+        /// Model Hub works, and shows nothing for a file that loads.
+        /// </summary>
+        [TestCase(HubModelPicker.FileState.Included, false, null, null)]
+        [TestCase(HubModelPicker.FileState.NotTurnedOn, false, "Optional model, not included in this project", "Include")]
+        [TestCase(HubModelPicker.FileState.NeedsDownload, false, "Not downloaded yet", "Download")]
+        [TestCase(HubModelPicker.FileState.NeedsDownload, true, "Downloading… 42%", "Details")]
+        [TestCase(HubModelPicker.FileState.NeedsConversion, false, "Downloaded, needs a conversion to Sentis", "Convert")]
+        [TestCase(HubModelPicker.FileState.NeedsConversion, true, "Converting… 42%", "Details")]
+        [TestCase(HubModelPicker.FileState.NeedsSetup, false, "Downloaded, not set up for this project yet", "Set up")]
+        public void GetStatus_NamesTheNextStep(HubModelPicker.FileState state, bool syncing, string text, string action)
+        {
+            var entry = new HubModelPicker.Entry { RepoId = "julienkay/sentis-MiDaS", RepoPath = "onnx/small.onnx", State = state };
+
+            var status = HubModelReferenceDrawer.GetStatus(entry, entry.RepoPath, syncing, 0.42f);
+
+            Assert.That(status.Text, Is.EqualTo(text));
+            Assert.That(status.Action, Is.EqualTo(action));
+        }
+
+        /// <summary>
+        /// Verifies a file that no manifest declares shows a warning without an action, and None shows nothing.
+        /// </summary>
+        [Test]
+        public void GetStatus_WarnsAboutAFileNoManifestDeclares()
+        {
+            var status = HubModelReferenceDrawer.GetStatus(null, "onnx/gone.onnx", false, 0f);
+
+            Assert.That(status.Kind, Is.EqualTo(HubModelReferenceDrawer.StatusKind.NotDeclared));
+            Assert.That(status.Action, Is.Null);
+            Assert.That(HubModelReferenceDrawer.GetStatus(null, null, false, 0f).Kind, Is.EqualTo(HubModelReferenceDrawer.StatusKind.None));
         }
 
         /// <summary>

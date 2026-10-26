@@ -23,8 +23,14 @@ namespace Doji.AI.ModelHub.Editor
             /// <summary>An optional file the project did not turn on.</summary>
             NotTurnedOn,
 
-            /// <summary>The project uses the file, but it is not downloaded or set up yet.</summary>
-            NotSetUp
+            /// <summary>The project uses the file, but it is not in the cache yet.</summary>
+            NeedsDownload,
+
+            /// <summary>The file is downloaded, but its ONNX model waits for a conversion to Sentis.</summary>
+            NeedsConversion,
+
+            /// <summary>The file is downloaded; only this project's quick import step is missing.</summary>
+            NeedsSetup
         }
 
         internal sealed class Entry
@@ -36,6 +42,7 @@ namespace Doji.AI.ModelHub.Editor
             public string RepoPath;
             public string Label;
             public FileState State;
+            public ConversionCause ConversionCause;
             public DiscoveredModelDependency Dependency;
 
             public string DisplayName => HubModelFile.GetDisplayName(Label, RepoPath);
@@ -88,6 +95,10 @@ namespace Doji.AI.ModelHub.Editor
                         .ToArray();
                 foreach (var file in files)
                 {
+                    var state = included.Contains(Key(dependency.PackageId, dependency.Repository, file.Path))
+                        ? FileState.Included
+                        : file.Optional && !selected.Contains(file.Path) ? FileState.NotTurnedOn
+                        : GetSetupState(status, file.Path);
                     entries.Add(new Entry
                     {
                         PackageId = dependency.PackageId,
@@ -97,14 +108,34 @@ namespace Doji.AI.ModelHub.Editor
                         RepoPath = file.Path,
                         Label = file.Label,
                         Dependency = dependency,
-                        State = included.Contains(Key(dependency.PackageId, dependency.Repository, file.Path))
-                            ? FileState.Included
-                            : file.Optional && !selected.Contains(file.Path) ? FileState.NotTurnedOn : FileState.NotSetUp
+                        State = state,
+                        ConversionCause = state == FileState.NeedsConversion ? status.ConversionCause : ConversionCause.None
                     });
                 }
             }
 
             return entries.ToArray();
+        }
+
+        private static FileState GetSetupState(DependencyStatus status, string repoPath)
+        {
+            if (!status.IsImportPending)
+            {
+                return FileState.NeedsDownload;
+            }
+
+            return status.PendingConversions.Contains(repoPath, StringComparer.Ordinal)
+                ? FileState.NeedsConversion
+                : FileState.NeedsSetup;
+        }
+
+        /// <summary>
+        /// Downloads, converts, and sets up the file's repository, like the button in AI Model Hub.
+        /// </summary>
+        public static void SetUp(Entry entry)
+        {
+            BackgroundSyncManager.StartForRepository(entry.RepoId, entry.Revision, SyncOperationMode.Full);
+            Invalidate();
         }
 
         /// <summary>
@@ -121,7 +152,7 @@ namespace Doji.AI.ModelHub.Editor
             new ProjectOptionalFileSelectionSource().SetEnabledOptionalFiles(entry.PackageId, entry.Dependency.ModelId, enabled);
             Invalidate();
             ModelHubWindow.RefreshOpenWindows();
-            EditorOperations.StartBackgroundSync();
+            BackgroundSyncManager.StartForRepository(entry.RepoId, entry.Revision, SyncOperationMode.Full);
         }
 
         private static string Key(string packageId, string repoId, string repoPath)
@@ -132,7 +163,8 @@ namespace Doji.AI.ModelHub.Editor
 
     /// <summary>
     /// Inspector picker for <see cref="HubModelReference"/> fields: a dropdown of the package's model files, plus a
-    /// choice for a model asset of your own.
+    /// choice for a model asset of your own. A status line under the dropdown says when the chosen file does not
+    /// load yet, and offers the fix.
     /// </summary>
     [CustomPropertyDrawer(typeof(HubModelReference))]
     [CustomPropertyDrawer(typeof(HubModelAttribute))]
@@ -140,10 +172,49 @@ namespace Doji.AI.ModelHub.Editor
     {
         internal const string NoneChoice = "None";
         internal const string AssetChoice = "Model asset of your own…";
+        private const string StyleSheetPath = UiKit.StylesFolder + "HubModelField.uss";
+
+        internal enum StatusKind
+        {
+            None,
+            NotIncluded,
+            NeedsDownload,
+            NeedsConversion,
+            NeedsSetup,
+            Working,
+            NotDeclared
+        }
+
+        /// <summary>
+        /// What the status line under the dropdown shows.
+        /// </summary>
+        internal readonly struct StatusInfo
+        {
+            public StatusInfo(StatusKind kind, string text, string tooltip, string action)
+            {
+                Kind = kind;
+                Text = text;
+                Tooltip = tooltip;
+                Action = action;
+            }
+
+            public StatusKind Kind { get; }
+            public string Text { get; }
+            public string Tooltip { get; }
+            public string Action { get; }
+        }
 
         public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
             var root = new VisualElement();
+            root.AddToClassList("hm-field");
+            root.AddToClassList(EditorGUIUtility.isProSkin ? "hm-field--dark" : "hm-field--light");
+            var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(StyleSheetPath);
+            if (styleSheet != null)
+            {
+                root.styleSheets.Add(styleSheet);
+            }
+
             var packageId = (attribute as HubModelAttribute)?.PackageId;
             var packageProperty = property.FindPropertyRelative("_packageId");
             var repoProperty = property.FindPropertyRelative("_repoId");
@@ -162,16 +233,52 @@ namespace Doji.AI.ModelHub.Editor
             var assetField = new ObjectField("Model Asset") { objectType = typeof(ModelAsset), allowSceneObjects = false };
             assetField.AddToClassList(BaseField<UnityEngine.Object>.alignedFieldUssClassName);
             assetField.BindProperty(assetProperty);
+
             var status = new VisualElement();
+            status.AddToClassList("hm-status");
+            var statusText = new Label();
+            statusText.AddToClassList("hm-status__text");
+            var track = new VisualElement();
+            track.AddToClassList("hm-status__track");
+            var fill = new VisualElement();
+            fill.AddToClassList("hm-status__fill");
+            track.Add(fill);
+            HubModelPicker.Entry current = null;
+            var statusButton = new Button();
+            statusButton.AddToClassList("hm-status__button");
+            status.Add(statusText);
+            status.Add(track);
+            status.Add(statusButton);
+
             root.Add(dropdown);
             root.Add(assetField);
             root.Add(status);
 
+            // Line the status up with the dropdown's input, the way Unity indents a field's value.
+            // Unity sizes aligned labels after the first layout, so follow the input whenever it moves.
+            var input = dropdown.Q(className: BaseField<string>.inputUssClassName) ?? dropdown;
+            void Align()
+            {
+                var offset = input.worldBound.xMin - root.worldBound.xMin;
+                if (!float.IsNaN(offset) && offset > 0f)
+                {
+                    status.style.marginLeft = offset;
+                }
+            }
+
+            input.RegisterCallback<GeometryChangedEvent>(_ => Align());
+            root.RegisterCallback<GeometryChangedEvent>(_ => Align());
+
+            var wasSyncing = BackgroundSyncManager.IsRunning;
+
             void Refresh()
             {
                 property.serializedObject.UpdateIfRequiredOrScript();
+                entries = HubModelPicker.GetEntries(packageId);
+                choices = BuildChoices(entries, packageId == null);
                 var isAsset = assetProperty.objectReferenceValue != null || dropdown.value == AssetChoice;
-                var current = isAsset ? null : entries.FirstOrDefault(entry => entry.Matches(repoProperty.stringValue, pathProperty.stringValue));
+                current = isAsset ? null : entries.FirstOrDefault(entry => entry.Matches(repoProperty.stringValue, pathProperty.stringValue));
+                var choiceTexts = choices.Select(choice => choice.Text).ToList();
                 string text;
                 if (isAsset)
                 {
@@ -188,18 +295,57 @@ namespace Doji.AI.ModelHub.Editor
                 else
                 {
                     text = $"{HubModelFile.GetDisplayName(null, pathProperty.stringValue)} (not in the manifest)";
-                    if (!dropdown.choices.Contains(text))
-                    {
-                        dropdown.choices = choices.Select(choice => choice.Text).Append(text).ToList();
-                    }
+                    choiceTexts.Add(text);
                 }
 
+                dropdown.choices = choiceTexts;
                 dropdown.SetValueWithoutNotify(text);
                 dropdown.tooltip = isAsset || string.IsNullOrWhiteSpace(pathProperty.stringValue)
                     ? null
                     : $"{repoProperty.stringValue}:{pathProperty.stringValue}";
                 assetField.style.display = isAsset ? DisplayStyle.Flex : DisplayStyle.None;
-                BuildStatus(status, isAsset, current, pathProperty.stringValue, Refresh);
+                UpdateStatus();
+            }
+
+            void UpdateStatus()
+            {
+                var isAsset = assetField.style.display == DisplayStyle.Flex;
+                BackgroundSyncManager.TryGetProgress(out var progress, out _);
+                var info = GetStatus(isAsset ? null : current, isAsset ? null : pathProperty.stringValue, BackgroundSyncManager.IsRunning, progress);
+                status.style.display = info.Kind == StatusKind.None ? DisplayStyle.None : DisplayStyle.Flex;
+                status.EnableInClassList("hm-status--warning", info.Kind == StatusKind.NotDeclared);
+                status.EnableInClassList("hm-status--info", info.Kind != StatusKind.NotDeclared);
+                status.tooltip = info.Tooltip;
+                statusText.text = info.Text;
+                track.style.display = info.Kind == StatusKind.Working ? DisplayStyle.Flex : DisplayStyle.None;
+                fill.style.width = Length.Percent(Mathf.Clamp01(progress) * 100f);
+                statusButton.text = info.Action;
+                statusButton.style.display = info.Action == null ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+
+            void RunAction(HubModelPicker.Entry entry)
+            {
+                if (entry == null)
+                {
+                    return;
+                }
+
+                switch (GetStatus(entry, entry.RepoPath, BackgroundSyncManager.IsRunning, 0f).Kind)
+                {
+                    case StatusKind.NotIncluded:
+                        HubModelPicker.TurnOn(entry);
+                        break;
+                    case StatusKind.NeedsDownload:
+                    case StatusKind.NeedsConversion:
+                    case StatusKind.NeedsSetup:
+                        HubModelPicker.SetUp(entry);
+                        break;
+                    case StatusKind.Working:
+                        ModelHubWindow.OpenWindow(entry.RepoId, entry.Revision);
+                        break;
+                }
+
+                Refresh();
             }
 
             dropdown.RegisterValueChangedCallback(evt =>
@@ -218,8 +364,89 @@ namespace Doji.AI.ModelHub.Editor
                 Refresh();
             });
             assetField.RegisterValueChangedCallback(_ => Refresh());
+            statusButton.clicked += () => RunAction(current);
+
+            // Follow a download that the status line started, and show the file as ready when it ends.
+            root.schedule.Execute(() =>
+            {
+                var syncing = BackgroundSyncManager.IsRunning;
+                if (syncing != wasSyncing)
+                {
+                    wasSyncing = syncing;
+                    Refresh();
+                }
+                else if (syncing && status.style.display == DisplayStyle.Flex)
+                {
+                    UpdateStatus();
+                }
+            }).Every(250);
+
             Refresh();
             return root;
+        }
+
+        /// <summary>
+        /// Chooses the status line for the selected file. Nothing shows for a file that loads, a model asset, or None.
+        /// </summary>
+        internal static StatusInfo GetStatus(HubModelPicker.Entry entry, string repoPath, bool syncing, float progress)
+        {
+            if (entry == null)
+            {
+                return string.IsNullOrWhiteSpace(repoPath)
+                    ? default
+                    : new StatusInfo(
+                        StatusKind.NotDeclared,
+                        "No package manifest in this project lists this file",
+                        $"'{repoPath}' does not load. Choose another model, or add the file to a package manifest.",
+                        null);
+            }
+
+            var percent = progress > 0f ? $" {Mathf.RoundToInt(Mathf.Clamp01(progress) * 100f)}%" : string.Empty;
+            switch (entry.State)
+            {
+                case HubModelPicker.FileState.NotTurnedOn:
+                    return new StatusInfo(
+                        StatusKind.NotIncluded,
+                        "Optional model, not included in this project",
+                        "Include adds the model to this project and downloads it. It then loads here and ships with builds.",
+                        "Include");
+                case HubModelPicker.FileState.NeedsDownload when syncing:
+                    return Working($"Downloading…{percent}");
+                case HubModelPicker.FileState.NeedsDownload:
+                    return new StatusInfo(
+                        StatusKind.NeedsDownload,
+                        "Not downloaded yet",
+                        "Download fetches the model from Hugging Face and sets it up for this project.",
+                        "Download");
+                case HubModelPicker.FileState.NeedsConversion when syncing:
+                    return Working($"Converting…{percent}");
+                case HubModelPicker.FileState.NeedsConversion:
+                    return new StatusInfo(
+                        StatusKind.NeedsConversion,
+                        entry.ConversionCause switch
+                        {
+                            ConversionCause.SettingsChanged => "Import settings changed, convert it again",
+                            ConversionCause.FormatChanged => "New Sentis model format, convert it again",
+                            _ => "Downloaded, needs a conversion to Sentis",
+                        },
+                        "Convert turns the ONNX model into a Sentis model for this project. It takes CPU, memory, and time for large models.",
+                        "Convert");
+                case HubModelPicker.FileState.NeedsSetup when syncing:
+                    return Working($"Setting up…{percent}");
+                case HubModelPicker.FileState.NeedsSetup:
+                    return new StatusInfo(
+                        StatusKind.NeedsSetup,
+                        "Downloaded, not set up for this project yet",
+                        "Set up adds the downloaded model to this project. It takes a moment.",
+                        "Set up");
+                default:
+                    return default;
+            }
+        }
+
+        private static StatusInfo Working(string text)
+        {
+            return new StatusInfo(StatusKind.Working, text, "AI Model Hub works on the model in the background.", "Details");
         }
 
         private sealed class Choice
@@ -272,43 +499,6 @@ namespace Doji.AI.ModelHub.Editor
             property.FindPropertyRelative("_repoId").stringValue = repoId ?? string.Empty;
             property.FindPropertyRelative("_repoPath").stringValue = repoPath ?? string.Empty;
             property.serializedObject.ApplyModifiedProperties();
-        }
-
-        private static void BuildStatus(VisualElement status, bool isAsset, HubModelPicker.Entry entry, string repoPath, Action refresh)
-        {
-            status.Clear();
-            if (isAsset)
-            {
-                return;
-            }
-
-            if (entry == null)
-            {
-                if (!string.IsNullOrWhiteSpace(repoPath))
-                {
-                    status.Add(new HelpBox($"No package manifest in this project declares '{repoPath}'.", HelpBoxMessageType.Warning));
-                }
-
-                return;
-            }
-
-            switch (entry.State)
-            {
-                case HubModelPicker.FileState.NotTurnedOn:
-                    var help = new HelpBox("This optional file is not included in this project, so it does not load.", HelpBoxMessageType.Info);
-                    help.Add(new Button(() =>
-                    {
-                        HubModelPicker.TurnOn(entry);
-                        refresh();
-                    }) { text = "Include" });
-                    status.Add(help);
-                    break;
-                case HubModelPicker.FileState.NotSetUp:
-                    var setup = new HelpBox("This file is not downloaded and set up yet.", HelpBoxMessageType.Info);
-                    setup.Add(new Button(() => ModelHubWindow.OpenWindow(entry.RepoId, entry.Revision)) { text = "Open AI Model Hub" });
-                    status.Add(setup);
-                    break;
-            }
         }
     }
 }

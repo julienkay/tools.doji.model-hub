@@ -1,0 +1,72 @@
+/* Status line under a [HubModel] dropdown in the Inspector. */
+
+.hm-field {
+    --hm-warning: #E6AF4B;
+    --hm-warning-bg: rgba(230, 175, 75, 0.12);
+    --hm-info: #6AA6F0;
+    --hm-info-bg: rgba(106, 166, 240, 0.12);
+    --hm-text: #C8C8C8;
+    --hm-track: rgba(255, 255, 255, 0.10);
+}
+
+.hm-field--light {
+    --hm-warning: #A86A08;
+    --hm-warning-bg: rgba(200, 130, 10, 0.12);
+    --hm-info: #2563B4;
+    --hm-info-bg: rgba(37, 99, 180, 0.10);
+    --hm-text: #303030;
+    --hm-track: rgba(0, 0, 0, 0.12);
+}
+
+.hm-status {
+    flex-direction: row;
+    align-items: center;
+    min-height: 22px;
+    margin: 1px 3px 3px 3px;
+    padding: 0 2px 0 7px;
+    border-radius: 3px;
+    border-left-width: 2px;
+}
+
+.hm-status--warning {
+    background-color: var(--hm-warning-bg);
+    border-left-color: var(--hm-warning);
+}
+
+.hm-status--info {
+    background-color: var(--hm-info-bg);
+    border-left-color: var(--hm-info);
+}
+
+.hm-status__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--hm-text);
+    font-size: 11px;
+    padding: 0;
+    margin: 0 6px 0 0;
+}
+
+.hm-status__track {
+    width: 64px;
+    height: 4px;
+    margin-right: 6px;
+    border-radius: 2px;
+    background-color: var(--hm-track);
+    overflow: hidden;
+}
+
+.hm-status__fill {
+    height: 100%;
+    background-color: var(--hm-info);
+}
+
+.hm-status__button {
+    height: 18px;
+    margin: 2px 0 2px 2px;
+    padding: 0 8px;
+    font-size: 11px;
+}

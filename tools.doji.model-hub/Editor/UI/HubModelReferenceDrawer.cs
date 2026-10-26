@@ -172,6 +172,9 @@ namespace Doji.AI.ModelHub.Editor
     {
         internal const string NoneChoice = "None";
         internal const string AssetChoice = "Model asset of your own…";
+        private const string NotDownloadedText = "Not downloaded yet";
+        private const string DownloadTooltip =
+            "Download fetches the model from Hugging Face and sets it up for this project. Builds then include it.";
         private const string StyleSheetPath = UiKit.StylesFolder + "HubModelField.uss";
 
         internal enum StatusKind
@@ -404,20 +407,14 @@ namespace Doji.AI.ModelHub.Editor
             var percent = progress > 0f ? $" {Mathf.RoundToInt(Mathf.Clamp01(progress) * 100f)}%" : string.Empty;
             switch (entry.State)
             {
+                // To the user an optional file that is not turned on is a model that is not downloaded yet.
+                // Its Download button turns the file on first.
                 case HubModelPicker.FileState.NotTurnedOn:
-                    return new StatusInfo(
-                        StatusKind.NotIncluded,
-                        "Optional model, not included in this project",
-                        "Include adds the model to this project and downloads it. It then loads here and ships with builds.",
-                        "Include");
+                    return new StatusInfo(StatusKind.NotIncluded, NotDownloadedText, DownloadTooltip, "Download");
                 case HubModelPicker.FileState.NeedsDownload when syncing:
                     return Working($"Downloading…{percent}");
                 case HubModelPicker.FileState.NeedsDownload:
-                    return new StatusInfo(
-                        StatusKind.NeedsDownload,
-                        "Not downloaded yet",
-                        "Download fetches the model from Hugging Face and sets it up for this project.",
-                        "Download");
+                    return new StatusInfo(StatusKind.NeedsDownload, NotDownloadedText, DownloadTooltip, "Download");
                 case HubModelPicker.FileState.NeedsConversion when syncing:
                     return Working($"Converting…{percent}");
                 case HubModelPicker.FileState.NeedsConversion:
@@ -475,9 +472,9 @@ namespace Doji.AI.ModelHub.Editor
                 parts.Add(entry.DisplayName);
                 var text = string.Join(" · ", parts);
 
-                if (entry.State == HubModelPicker.FileState.NotTurnedOn)
+                if (entry.State is HubModelPicker.FileState.NotTurnedOn or HubModelPicker.FileState.NeedsDownload)
                 {
-                    text += " (not included)";
+                    text += " (not downloaded)";
                 }
 
                 // Dropdown choices must be unique; two files with one label fall back to their paths.

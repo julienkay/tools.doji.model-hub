@@ -88,10 +88,11 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         /// <summary>
         /// Verifies the status line under the dropdown names the next step for each state, shows progress while AI
-        /// Model Hub works, and shows nothing for a file that loads.
+        /// Model Hub works, and shows nothing for a file that loads. An optional file that is not turned on reads as
+        /// not downloaded, like any other file that is not in the cache.
         /// </summary>
         [TestCase(HubModelPicker.FileState.Included, false, null, null)]
-        [TestCase(HubModelPicker.FileState.NotTurnedOn, false, "Optional model, not included in this project", "Include")]
+        [TestCase(HubModelPicker.FileState.NotTurnedOn, false, "Not downloaded yet", "Download")]
         [TestCase(HubModelPicker.FileState.NeedsDownload, false, "Not downloaded yet", "Download")]
         [TestCase(HubModelPicker.FileState.NeedsDownload, true, "Downloading… 42%", "Details")]
         [TestCase(HubModelPicker.FileState.NeedsConversion, false, "Downloaded, needs a conversion to Sentis", "Convert")]

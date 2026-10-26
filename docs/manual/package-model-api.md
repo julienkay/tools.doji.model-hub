@@ -123,12 +123,11 @@ public class DepthEstimation : MonoBehaviour
 
 When the chosen file does not load yet, a status line under the dropdown names the next step:
 
-![Status lines under the dropdown for a file that is not included, not downloaded, needs a conversion, or is not in a manifest](../images/manual/model-hub-model-picker-status.png)
+![Status lines under the dropdown for a file that is not downloaded, needs a conversion, or is not in a manifest](../images/manual/model-hub-model-picker-status.png)
 
 | Status | Button | Does |
 | --- | --- | --- |
-| Optional model, not included in this project | **Include** | Turns the optional file on for the project and starts the download. The dropdown marks these files **(not included)**. |
-| Not downloaded yet | **Download** | Downloads and sets up the model's repository. |
+| Not downloaded yet | **Download** | Downloads and sets up the model. For an optional file, it also turns the file on for the project, so builds include it. The dropdown marks these files **(not downloaded)**. |
 | Downloaded, needs a conversion to Sentis | **Convert** | Converts the ONNX file. When import settings or the Sentis model format changed, the line says so. |
 | Downloaded, not set up for this project yet | **Set up** | Finishes the quick import step. |
 | Downloading…, Converting…, Setting up… | **Details** | Shows progress while AI Model Hub works; **Details** opens the model in AI Model Hub. |

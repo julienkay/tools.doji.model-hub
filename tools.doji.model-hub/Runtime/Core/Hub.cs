@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -117,6 +118,52 @@ namespace Doji.AI.ModelHub
             var catalog = await RuntimeModels.GetCatalogAsync();
             var (package, model, _) = RuntimeModels.Find(catalog, packageId, repoId, null);
             return new PretrainedRepository(package, model);
+        }
+
+        /// <summary>
+        /// Lists the model files of one package that this project includes, for model pickers. Optional files that the
+        /// project did not turn on are not listed. On Android and the Web use <see cref="GetModelFilesAsync"/>.
+        /// </summary>
+        public static IReadOnlyList<HubModelFile> GetModelFiles(string packageId)
+        {
+            return HubModelFile.FromRegistry(RuntimeModels.GetCatalog(), packageId);
+        }
+
+        public static async Task<IReadOnlyList<HubModelFile>> GetModelFilesAsync(string packageId)
+        {
+            return HubModelFile.FromRegistry(await RuntimeModels.GetCatalogAsync(), packageId);
+        }
+
+        /// <summary>
+        /// Loads a model file that you got without AI Model Hub, for example one your app downloaded. Loads
+        /// <c>.sentis</c> files directly. Converts <c>.onnx</c> files in the Editor, and in players with the converter
+        /// that <see cref="RegisterOnnxConverter"/> sets (<c>tools.doji.onnx-model-loader</c> when it is installed).
+        /// </summary>
+        public static Model LoadModelFromFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException("A file path is required.", nameof(path));
+            }
+
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException($"Model file '{path}' does not exist.", path);
+            }
+
+            if (!string.Equals(Path.GetExtension(path), ".onnx", StringComparison.OrdinalIgnoreCase))
+            {
+                return ModelLoader.Load(path);
+            }
+
+            var converter = RuntimeModels.OnnxConverter ?? (Application.isEditor ? RuntimeModels.EditorOnnxConverter : null);
+            if (converter == null)
+            {
+                throw new InvalidOperationException(
+                    $"'{path}' is an ONNX file, and this player has no ONNX converter. Install the tools.doji.onnx-model-loader package, or load a .sentis file.");
+            }
+
+            return converter.Convert(new OnnxConversionRequest(path)).Model;
         }
 
         /// <summary>

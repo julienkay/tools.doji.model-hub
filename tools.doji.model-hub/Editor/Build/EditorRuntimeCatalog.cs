@@ -16,6 +16,7 @@ namespace Doji.AI.ModelHub.Editor
         static EditorRuntimeCatalog()
         {
             RuntimeModels.EditorCatalog = Get;
+            RuntimeModels.EditorOnnxConverter = new EditorOnnxModelConverter();
             BackgroundSyncManager.SyncStateChanged += Invalidate;
             EditorApplication.projectChanged += Invalidate;
         }

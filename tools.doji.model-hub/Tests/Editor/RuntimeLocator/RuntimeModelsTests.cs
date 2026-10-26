@@ -321,6 +321,87 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Is.EqualTo("https://huggingface.co/owner/name/resolve/abc/onnx/my%20model%2b1.onnx").IgnoreCase);
         }
 
+        /// <summary>
+        /// Verifies a package's model list has its included files with display names, and no other package's files.
+        /// </summary>
+        [Test]
+        public void GetModelFiles_ListsTheFilesOfOnePackage()
+        {
+            var registry = UseRegistry(Model("download",
+                new RuntimeModelFile { repoPath = "onnx/small.onnx", label = "Small (63 MB)" },
+                new RuntimeModelFile { repoPath = "unet/model.onnx" }));
+            registry.packages = registry.packages
+                .Append(Package("tools.doji.other", new RuntimeModelEntry { repoId = "doji/other", files = new[] { new RuntimeModelFile { repoPath = "a.sentis" } } }))
+                .ToArray();
+
+            var files = Hub.GetModelFiles("tools.doji.test");
+
+            Assert.That(files.Select(file => file.DisplayName), Is.EqualTo(new[] { "Small (63 MB)", "unet/model" }));
+            Assert.That(files.Select(file => file.RepoId).Distinct(), Is.EqualTo(new[] { Repo }));
+            Assert.That(files[0].Delivery, Is.EqualTo(ModelDelivery.Download));
+            Assert.That(Hub.GetModelFiles(null).Count, Is.EqualTo(3));
+        }
+
+        /// <summary>
+        /// Verifies the name a picker shows without a label: the path without its extension and its onnx/ or sentis/
+        /// folder.
+        /// </summary>
+        [TestCase("onnx/midas_v21_small_256.onnx", null, "midas_v21_small_256")]
+        [TestCase("sentis/model.sentis", null, "model")]
+        [TestCase("unet/model.onnx", null, "unet/model")]
+        [TestCase("model.onnx", " ", "model")]
+        [TestCase("onnx/model.onnx", "Fast", "Fast")]
+        public void DisplayName_FallsBackToThePath(string repoPath, string label, string expected)
+        {
+            Assert.That(HubModelFile.GetDisplayName(label, repoPath), Is.EqualTo(expected));
+        }
+
+        /// <summary>
+        /// Verifies a model reference loads a package's file through the registry, and that a model asset replaces the file.
+        /// </summary>
+        [Test]
+        public async Task HubModelReference_LoadsAPackageFileOrAModelAsset()
+        {
+            UseRegistry(Model("bundle", new RuntimeModelFile { repoPath = "a.onnx", format = "onnx", localPath = _sentisPath }));
+            var file = Hub.GetModelFiles("tools.doji.test").Single().ToReference();
+
+            Assert.That(file.ToString(), Is.EqualTo($"{Repo}:a.onnx"));
+            Assert.That(await file.LoadAsync(), Is.Not.Null);
+            Assert.That(file.Load(), Is.Not.Null);
+
+            var empty = new HubModelReference();
+            Assert.That(empty.IsEmpty, Is.True);
+            Assert.That(() => empty.Load(), Throws.InvalidOperationException.With.Message.Contains("names no model"));
+
+            var asset = UnityEngine.ScriptableObject.CreateInstance<ModelAsset>();
+            try
+            {
+                var own = new HubModelReference(asset);
+                Assert.That(own.IsEmpty, Is.False);
+                Assert.That(own.ModelAsset, Is.SameAs(asset));
+                Assert.That(own.RepoId, Is.Null, "A model asset wins over a file.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(asset);
+            }
+        }
+
+        /// <summary>
+        /// Verifies a file you got yourself loads: a Sentis file directly, an ONNX file through the Editor converter,
+        /// and a missing file fails with its path.
+        /// </summary>
+        [Test]
+        public void LoadModelFromFile_LoadsSentisAndOnnxFiles()
+        {
+            Assert.That(Hub.LoadModelFromFile(_sentisPath), Is.Not.Null);
+            Assert.That(Hub.LoadModelFromFile(GetSampleOnnxPath()).inputs, Is.Not.Empty);
+
+            var missing = Path.Combine(_rootDirectory, "missing.onnx");
+            var exception = Assert.Throws<FileNotFoundException>(() => Hub.LoadModelFromFile(missing));
+            Assert.That(exception.Message, Does.Contain(missing));
+        }
+
         private RuntimeRegistry UseRegistry(RuntimeModelEntry model)
         {
             var registry = new RuntimeRegistry { packages = new[] { Package("tools.doji.test", model) } };

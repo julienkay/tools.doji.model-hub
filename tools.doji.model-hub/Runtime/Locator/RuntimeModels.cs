@@ -38,6 +38,11 @@ namespace Doji.AI.ModelHub
         internal static string OnnxConverterId { get; set; }
 
         /// <summary>
+        /// Editor hook: the Editor's ONNX converter, for <see cref="Hub.LoadModelFromFile"/>. Set by the Editor assembly.
+        /// </summary>
+        internal static IOnnxModelConverter EditorOnnxConverter { get; set; }
+
+        /// <summary>
         /// The registered converter's id, else the id the build recorded for the converter it shipped.
         /// </summary>
         private static string CurrentConverterId => !string.IsNullOrWhiteSpace(OnnxConverterId)

@@ -118,6 +118,17 @@ namespace Doji.AI.ModelHub.Editor
                     "Download");
             }
 
+            if (item.HasUnknownFileList)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.UpdateNeeded,
+                    "Update needed",
+                    "The files are downloaded, but AI Model Hub does not know this model's file list on this machine, so it cannot tell whether every file is there. Update to check and download what is missing.",
+                    UiTone.Info,
+                    ModelActionKind.Sync,
+                    "Update");
+            }
+
             if (item.HasMissingCacheFiles)
             {
                 return new ModelStatus(

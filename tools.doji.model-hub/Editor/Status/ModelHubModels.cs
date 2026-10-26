@@ -156,6 +156,15 @@ namespace Doji.AI.ModelHub.Editor
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
         public bool HasSelectionRequired => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.SelectionRequired);
         public bool HasMissingCacheFiles => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing);
+
+        /// <summary>
+        /// A whole-repository dependency whose file list is not in the index, for example after another tool downloaded
+        /// it. The files may all be there; AI Model Hub needs the list to tell.
+        /// </summary>
+        public bool HasUnknownFileList => _dependents.Any(item =>
+            item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing &&
+            item.Dependency.SelectsWholeRepository &&
+            (item.RawMetadata?.RepositoryFiles == null || item.RawMetadata.RepositoryFiles.Length == 0));
         public bool HasDamagedCache => _dependents.Any(item => item.HasDamagedCache);
 
         /// <summary>

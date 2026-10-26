@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 
 namespace Doji.AI.ModelHub.Editor.Tests
@@ -149,10 +150,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ModelHubItemState.ActionRequired,
                 DependencyReasonCode.RawCacheFilesMissing,
                 rawSnapshotRootPath: "/cache/doji/test-model/abc123",
-                runtimeFiles: ImportedFiles));
+                runtimeFiles: ImportedFiles,
+                selectedFiles: new[] { "model.onnx", "model_q4.onnx" }));
 
             Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.UpdateNeeded));
             Assert.That(status.ActionLabel, Is.EqualTo("Update"));
+            Assert.That(status.Description, Does.Contain("More files are selected"));
+        }
+
+        /// <summary>
+        /// A whole-repository model downloaded without a known file list asks to update, and says that the list is
+        /// unknown instead of claiming files are missing.
+        /// </summary>
+        [Test]
+        public void UnknownFileList_ExplainsTheMissingList()
+        {
+            var status = ModelStatus.From(CreateItem(
+                ModelHubItemState.ActionRequired,
+                DependencyReasonCode.RawCacheFilesMissing,
+                rawSnapshotRootPath: "/cache/doji/test-model/abc123",
+                runtimeFiles: System.Array.Empty<ImportedRuntimeFileMetadata>()));
+
+            Assert.That(status.Kind, Is.EqualTo(ModelStatusKind.UpdateNeeded));
+            Assert.That(status.Description, Does.Contain("file list"));
+            Assert.That(status.Description, Does.Not.Contain("More files are selected"));
         }
 
         /// <summary>
@@ -240,7 +261,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string rawSnapshotRootPath,
             ImportedRuntimeFileMetadata[] runtimeFiles,
             string[] pendingConversions = null,
-            ConversionCause conversionCause = ConversionCause.None)
+            ConversionCause conversionCause = ConversionCause.None,
+            string[] selectedFiles = null)
         {
             var dependency = new DiscoveredModelDependency(
                 "tools.doji.test",
@@ -249,7 +271,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "/tmp/tools.doji.test",
                 "/tmp/tools.doji.test/model-hub-manifest.json",
                 "manifesthash",
-                new ModelDependencyDefinition("doji/test-model", "main"));
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    (selectedFiles ?? System.Array.Empty<string>()).Select(file => new ModelDependencyFileDefinition(file)).ToArray()));
 
             return new ModelHubItem(
                 "doji/test-model",

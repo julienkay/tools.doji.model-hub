@@ -56,6 +56,49 @@
 
 /* Panes */
 
+.mh-body {
+    flex-direction: row;
+    flex-grow: 1;
+}
+
+.mh-nav {
+    width: 168px;
+    flex-shrink: 0;
+    background-color: var(--hf-bg);
+    border-right-width: 1px;
+    border-right-color: var(--hf-border);
+}
+
+.mh-nav__item {
+    padding: 4px 8px;
+}
+
+.mh-nav__label {
+    flex-grow: 1;
+}
+
+.mh-item__swatch {
+    margin-right: 10px;
+}
+
+.mh-add-card__field {
+    margin: 0;
+    min-width: 180px;
+}
+
+.mh-add-card__files {
+    flex-direction: row;
+    align-items: center;
+}
+
+.mh-add-card__files > Label {
+    margin-right: 8px;
+}
+
+.mh-add-card > .am-problem {
+    margin-top: 6px;
+}
+
 .mh-split {
     flex-grow: 1;
 }
@@ -589,13 +632,6 @@
 }
 
 /* Download cache */
-
-.mh-cache-row-container {
-    padding: 4px 0;
-    border-top-width: 1px;
-    border-top-color: var(--hf-border-subtle);
-    flex-shrink: 0;
-}
 
 .mh-cache-hint {
     margin-top: 10px;

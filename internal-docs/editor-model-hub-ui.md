@@ -23,11 +23,12 @@ All files live in `Editor/UI/`.
 | `Styles/ModelHubWindow.uss`, `Styles/SetupPrompt.uss`, `Styles/Settings.uss`, `Styles/ManifestEditor.uss` | Layout for one surface each. `ManifestEditor.uss` also styles the Add Model popup and the file picker |
 | `UiKit.cs` | Element factories that apply the shared classes, `ApplyTheme`, icon loading, `FormatBytes` |
 | `ModelStatus.cs` | The single mapping from `ModelHubItem` to status label, description, tone, and next action |
-| `ModelHubWindow.cs` | Window lifecycle, toolbar, sync progress banner, list, selection, keyboard navigation |
+| `ModelHubWindow.cs` | Window lifecycle, toolbar, sync progress banner, view switcher (`ModelHubView`), list, selection, keyboard navigation |
 | `ModelHubWindow.Details.cs` | Header, actions, status callouts, tabs, Overview tab, manifest-error details, empty state |
 | `ModelHubWindow.Files.cs` | Files tab, per-file import settings, apply bar, unsaved-settings prompt |
 | `ModelHubWindow.Storage.cs` | Storage tab |
-| `ModelHubWindow.Cache.cs` | Download cache row and view: legend, treemap, selection card, removal dialogs |
+| `ModelHubWindow.CachedModels.cs` | Model Cache view: cached model list and details, Add to Project |
+| `ModelHubWindow.Cache.cs` | Disk Usage view: repository list, legend, treemap, selection card, removal dialogs |
 | `TreemapLayout.cs` | Squarified treemap layout (no UI) |
 | `ModelHubFileEditing.cs` | Edit-session and recipe state models for the Files tab (no UI) |
 | `AutoPromptWindow.cs` | Setup prompt and its view model (`BuildViewModel`) |
@@ -64,7 +65,13 @@ The default folder is the Hugging Face cache (`HF_HUB_CACHE`, `HF_HOME/hub`, `~/
 
 Primary item key is `repository` plus requested `revision`. Each row aggregates all manifest dependents of that unit.
 
-List sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`. The `Download cache` row is pinned below the list, outside the search filter, with key `cache`.
+The nav column (`mh-nav`) switches `ModelHubView`, serialized with the window: `Project` (In Project), `Cache` (Model Cache), and `DiskUsage`, which has no nav entry and highlights Model Cache. It opens from the Model Cache context menu or a details button. `SwitchView` asks about unsaved Files-tab edits before it leaves `Project`, then rebuilds list and details. `OpenWindow(repository, revision)` switches to `Project`.
+
+In `Project`, list sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`. Keys are `model:{repo}@{rev}` and `issue:…`.
+
+In `Cache` and `DiskUsage`, rows have key `cache:{folder}` and select `_selectedCacheFolder`; search filters by repository id. `Cache` lists model repositories with a snapshot, `Not in this project` first, then `In this project`. `DiskUsage` lists every repository, grouped like the treemap legend.
+
+Model Cache details: header, Add to Project card, In the Cache card. Add to Project targets the project manifest (`ProjectSettingsModelManifestStore.TryAddModelId`) or a local package (`LocalPackageManifestStore.TryAddModelId`), with a cached ref as revision. Default files are `CacheOverviewService.GetCachedModelFiles` of `GetSnapshotFiles(folder, ref)`: the cached `.onnx` and `.sentis` files, so the new dependency needs no download. **Choose…** opens `FileSelectionPopup` on the remote inventory. After adding, the window refreshes, switches to `Project`, and selects the new item. Adding to the project manifest is disabled when the project uses the model already.
 
 Details pane:
 
@@ -77,9 +84,9 @@ Details pane:
 Size labels:
 
 - `Download size` in Overview and the list size of pending rows is the remote size of the selected files (`SourceSizeBytes`)
-- `Storage` describes one model's local disk usage; the `Download cache` view describes the whole cache
+- `Storage` describes one model's local disk usage; the `Disk Usage` view describes the whole cache
 
-Download cache view:
+Disk Usage view:
 
 - data comes from `CacheOverviewService.Scan`, which reads every `models--`, `datasets--`, and `spaces--` folder from disk, like `scan_cache_dir`. Each blob counts once; plain snapshot files (no symlinks) count separately; `.incomplete`, `.downloading`, and `.downloading.segment` (the body of the current request) files are partial downloads; deleting a partial download also deletes its resume state and segment. Tiles are named by the snapshot path that links to the blob, else by AI Model Hub's index, else by the etag
 - "used by this project" means a model repository that the current report lists, compared without letter case

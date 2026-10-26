@@ -13,7 +13,12 @@ AI Model Hub has four places in the Editor:
 
 ![Model Hub with the MiDaS model selected. The details on the right show the status, the format ONNX and Sentis files, the In builds field set to Download at runtime, and the two manifests that use the model.](../images/manual/model-hub-overview.png)
 
-The list on the left shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
+The narrow column on the left switches what the list shows, like the sidebar in Package Manager:
+
+- **In Project**: the models this project's manifests list. The number is the model count.
+- **Model Cache**: the models downloaded on this machine, to add to this project. The number is the cached model count. See [Model Cache](#model-cache).
+
+In **In Project**, the list shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
 
 - **Manifest errors**: manifests that AI Model Hub could not read. Their models are skipped until the manifest is fixed.
 - **Needs action**: models to download, convert, update, or fix. Errors are listed first.
@@ -102,11 +107,29 @@ The **Storage** tab shows disk usage in two places:
 
 **By file** compares the size of each downloaded file with the size of its Sentis model.
 
-### Download cache
+### Model Cache
 
-![Download cache view with a treemap. Models this project uses are blue, a model it does not use is gray, and a partial download is a yellow strip. The selected model shows its size, partial downloads, revisions, and Remove from Cache.](../images/manual/model-hub-download-cache.png)
+![Model Cache view. The list shows Sharp-onnx under Not in this project and four models under In this project. The details show Add to Project with the target This project, the revision main, and the cached model file.](../images/manual/model-hub-model-cache.png)
 
-**Download cache**, below the model list, shows everything in the Hugging Face cache on this machine: models from this project, from other Unity projects, and from Python tools. The row shows the total size.
+**Model Cache** lists the models in the Hugging Face cache on this machine: models from this project, from other Unity projects, and from Python tools. Models this project does not use come first.
+
+**Add to Project** lists the selected model in a manifest, without downloading it again:
+
+- **Add to**: **This project** writes the project manifest in `ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`. A package in this project's `Packages` folder, for example a package in development, writes that package's `model-hub-manifest.json`.
+- **Revision**: the cached branches and tags. The manifest pins this revision.
+- **Files**: the cached `.onnx` and `.sentis` files of that revision. **Choose…** picks other files from the model's file list on Hugging Face; files that are not cached are downloaded.
+
+After **Add to Project**, Model Hub switches to **In Project** and selects the model. A model whose files are all cached and whose converted models exist is ready at once; ONNX files that were never converted for these settings show **Needs conversion**.
+
+For a model this project uses already, **Show in Project** selects it in **In Project**, and **Add to** can still list it in a package.
+
+**In the Cache** shows the size and revisions, with **Show in Explorer** (or Finder) and **Remove from Cache**.
+
+### Disk usage
+
+![Disk Usage view with a treemap. Models this project uses are blue, and a model it does not use is gray. The selected model shows its size, revisions, and Remove from Cache.](../images/manual/model-hub-disk-usage.png)
+
+Right-click **Model Cache** and choose **Show Disk Usage**, or use **Show Disk Usage** in a cached model's details. The view lists every repository in the cache, including datasets and spaces, and draws a map of the space they take. **Back to Model Cache** returns.
 
 The map draws one tile per repository, sized by disk usage. **Files** splits each repository into one tile per file. Colors:
 
@@ -116,7 +139,7 @@ The map draws one tile per repository, sized by disk usage. **Files** splits eac
 
 Select a tile to see its size, partial downloads, and revisions. Actions:
 
-- **Show in Model Hub** selects the model in the list, for models this project uses.
+- **Show in Project** selects the model in **In Project**, for models this project uses.
 - **Delete Partial Downloads** deletes the partial files only.
 - **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 

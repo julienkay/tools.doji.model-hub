@@ -29,7 +29,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var item = GetSelectedItem();
             var issue = item == null ? GetSelectedIssue() : null;
-            var showsCache = string.Equals(_selectedKey, CacheKey, StringComparison.Ordinal);
+            var showsCache = _view != ModelHubView.Project;
             _cacheTreemap = null;
             _cacheCard = null;
             if (item == null && issue == null && !showsCache)
@@ -42,7 +42,11 @@ namespace Doji.AI.ModelHub.Editor
             _detailsScroll.AddToClassList("mh-details-scroll");
             _detailsPane.Add(_detailsScroll);
 
-            if (showsCache)
+            if (_view == ModelHubView.Cache)
+            {
+                BuildCachedModelDetails(_detailsScroll);
+            }
+            else if (_view == ModelHubView.DiskUsage)
             {
                 BuildCacheDetails(_detailsScroll);
             }

@@ -9,12 +9,13 @@ using UnityEngine.UIElements;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Cache overview: a treemap of the whole shared Hugging Face cache, per repository or per file, with the
-    /// models this project uses, models it does not use, and partial downloads, plus Remove from Cache.
+    /// Disk Usage view, opened from Model Cache: every cached repository in the list, and a treemap of the whole
+    /// shared Hugging Face cache, per repository or per file, with the models this project uses, models it does not
+    /// use, and partial downloads, plus Remove from Cache.
     /// </summary>
     internal sealed partial class ModelHubWindow
     {
-        private const string CacheKey = "cache";
+        private const string CacheRowKeyPrefix = "cache:";
         private const float TileLabelMinWidth = 56f;
         private const float TileLabelMinHeight = 30f;
         private const float TileSizeLabelMinHeight = 44f;
@@ -25,8 +26,6 @@ namespace Doji.AI.ModelHub.Editor
         [SerializeField] private string _selectedCacheFilePath;
 
         private CacheOverview _cacheOverview;
-        private VisualElement _cacheRow;
-        private Label _cacheRowMeta;
         private VisualElement _cacheTreemap;
         private VisualElement _cacheCard;
 
@@ -43,11 +42,18 @@ namespace Doji.AI.ModelHub.Editor
                 Debug.LogWarning($"AI Model Hub could not read the download cache: {exception.Message}");
                 _cacheOverview = new CacheOverview { CacheRoot = CachePaths.GetCacheRoot() };
             }
+        }
 
-            if (_cacheRowMeta != null)
-            {
-                _cacheRowMeta.text = UiKit.FormatBytes(_cacheOverview.TotalSizeInBytes) ?? string.Empty;
-            }
+        private static string BuildCacheRowKey(string folderName)
+        {
+            return string.IsNullOrEmpty(folderName) ? null : CacheRowKeyPrefix + folderName;
+        }
+
+        private static string GetCacheFolder(string key)
+        {
+            return key != null && key.StartsWith(CacheRowKeyPrefix, StringComparison.Ordinal)
+                ? key.Substring(CacheRowKeyPrefix.Length)
+                : null;
         }
 
         private HashSet<string> GetProjectRepositories()
@@ -67,23 +73,71 @@ namespace Doji.AI.ModelHub.Editor
                 string.Equals(repository.FolderName, _selectedCacheFolder, StringComparison.Ordinal));
         }
 
-        // ---------------------------------------------------------------- List row
+        // ---------------------------------------------------------------- List
 
-        private VisualElement BuildCacheRow()
+        /// <summary>
+        /// Lists the cached repositories, largest first, grouped like the treemap legend.
+        /// </summary>
+        private void RebuildCacheList()
         {
-            var container = UiKit.Element("mh-cache-row-container");
-            _cacheRow = UiKit.Element("mh-item");
-            _cacheRow.tooltip = "Everything in the Hugging Face cache on this machine";
-            _cacheRow.Add(UiKit.Icon("Folder Icon", "mh-item__icon"));
+            var projectRepositories = GetProjectRepositories();
+            IEnumerable<CacheRepositoryEntry> repositories = _cacheOverview?.Repositories ?? Array.Empty<CacheRepositoryEntry>();
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                repositories = repositories.Where(repository => Contains(repository.Repository, _searchText));
+            }
+
+            var groups = repositories
+                .OrderByDescending(repository => repository.TotalSizeInBytes)
+                .GroupBy(repository => CacheTiles.Classify(repository, projectRepositories))
+                .ToDictionary(group => group.Key, group => group.ToArray());
+            foreach (var kind in new[] { CacheTileKind.Used, CacheTileKind.Unused, CacheTileKind.Partial })
+            {
+                if (!groups.TryGetValue(kind, out var entries))
+                {
+                    continue;
+                }
+
+                _list.Add(BuildListSection(CacheTiles.GetStatusLabel(kind), entries.Length));
+                foreach (var repository in entries)
+                {
+                    _list.Add(BuildCacheListRow(repository, kind));
+                }
+            }
+
+            if (_rowsByKey.Count == 0)
+            {
+                _list.Add(UiKit.Text(
+                    string.IsNullOrWhiteSpace(_searchText) ? "The cache is empty." : $"No cached models match “{_searchText}”.",
+                    "mh-list-empty"));
+            }
+        }
+
+        private VisualElement BuildCacheListRow(CacheRepositoryEntry repository, CacheTileKind kind)
+        {
+            var key = BuildCacheRowKey(repository.FolderName);
+            var row = UiKit.Element("mh-item");
+            row.tooltip = BuildRepositoryTooltip(repository, kind);
+            row.Add(UiKit.Element("mh-legend__swatch", "mh-item__swatch", CacheTiles.GetKindClass(kind)));
             var text = UiKit.Element("mh-item__text");
-            text.Add(UiKit.Text("Download cache", "mh-item__name"));
-            text.Add(UiKit.Text("Shared with Python and other projects", "mh-item__subtitle"));
-            _cacheRow.Add(text);
-            _cacheRowMeta = UiKit.Text(UiKit.FormatBytes(_cacheOverview?.TotalSizeInBytes) ?? string.Empty, "mh-item__meta");
-            _cacheRow.Add(_cacheRowMeta);
-            _cacheRow.RegisterCallback<ClickEvent>(_ => Select(CacheKey));
-            container.Add(_cacheRow);
-            return container;
+            text.Add(UiKit.Text(GetDisplayName(repository), "mh-item__name"));
+            var owner = repository.Repository?.Contains("/") == true
+                ? repository.Repository.Substring(0, repository.Repository.IndexOf('/'))
+                : null;
+            var partial = repository.HasPartialDownloads && kind != CacheTileKind.Partial ? "partial downloads" : null;
+            text.Add(UiKit.Text(
+                string.Join(" · ", new[] { owner, partial }.Where(part => !string.IsNullOrWhiteSpace(part))),
+                "mh-item__subtitle"));
+            row.Add(text);
+            var size = UiKit.FormatBytes(repository.TotalSizeInBytes);
+            if (!string.IsNullOrWhiteSpace(size))
+            {
+                row.Add(UiKit.Text(size, "mh-item__meta"));
+            }
+
+            row.RegisterCallback<ClickEvent>(_ => SelectCacheEntry(repository.FolderName, null));
+            _rowsByKey[key] = row;
+            return row;
         }
 
         // ---------------------------------------------------------------- Details
@@ -95,13 +149,14 @@ namespace Doji.AI.ModelHub.Editor
 
             var header = UiKit.Element("mh-header");
             var headerText = UiKit.Element("mh-header__text");
-            headerText.Add(UiKit.Text("Download cache", "hf-title"));
+            headerText.Add(UiKit.Text("Disk Usage", "hf-title"));
             var subtitle = UiKit.Element("mh-header__subtitle");
             var count = overview.Repositories.Count;
             subtitle.Add(UiKit.Text($"{UiKit.FormatBytes(overview.TotalSizeInBytes)} · {count} {(count == 1 ? "repository" : "repositories")}"));
             subtitle.Add(UiKit.LinkButton(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(overview.CacheRoot), overview.CacheRoot));
             headerText.Add(subtitle);
             header.Add(headerText);
+            header.Add(UiKit.Button("Back to Model Cache", () => SwitchView(ModelHubView.Cache)));
             content.Add(header);
             content.Add(UiKit.Text(
                 "The Hugging Face cache on this machine. Other Unity projects and Python tools that use huggingface_hub share these downloads.",
@@ -331,8 +386,22 @@ namespace Doji.AI.ModelHub.Editor
         {
             _selectedCacheFolder = folderName;
             _selectedCacheFilePath = filePath;
-            LayoutCacheTreemap();
-            RebuildCacheCard();
+            if (_view == ModelHubView.Cache)
+            {
+                RebuildDetails();
+            }
+            else
+            {
+                LayoutCacheTreemap();
+                RebuildCacheCard();
+            }
+
+            UpdateRowSelection();
+            var key = BuildCacheRowKey(folderName);
+            if (key != null && _rowsByKey.TryGetValue(key, out var row) && _list.contentContainer.Contains(row))
+            {
+                _list.ScrollTo(row);
+            }
         }
 
         // ---------------------------------------------------------------- Selection card
@@ -407,7 +476,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (item != null)
             {
-                AddAction(UiKit.Button("Show in Model Hub", () => Select(BuildItemKey(item))));
+                AddAction(UiKit.Button("Show in Project", () => ShowInProject(item.Repository, item.RequestedRevision)));
             }
 
             AddAction(UiKit.Button(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(file?.Path ?? repository.FolderPath)));

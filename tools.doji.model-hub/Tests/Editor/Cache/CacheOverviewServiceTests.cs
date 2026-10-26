@@ -66,6 +66,37 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies a ref resolves to its snapshot and lists repository paths, a commit hash works directly, and an
+        /// unknown revision lists nothing.
+        /// </summary>
+        [Test]
+        public void GetSnapshotFiles_ResolvesRefsAndCommits()
+        {
+            var model = CreateRepository("models--doji--test-model");
+            WriteFile(Path.Combine(model, "snapshots", Commit, "onnx", "model.onnx"), 10);
+            WriteFile(Path.Combine(model, "snapshots", Commit, "README.md"), 1);
+
+            Assert.That(CacheOverviewService.GetSnapshotFiles(model, "main"), Is.EqualTo(new[] { "README.md", "onnx/model.onnx" }));
+            Assert.That(CacheOverviewService.GetSnapshotFiles(model, Commit), Is.EqualTo(new[] { "README.md", "onnx/model.onnx" }));
+            Assert.That(CacheOverviewService.GetSnapshotFiles(model, "v2"), Is.Empty);
+            Assert.That(CacheOverviewService.GetSnapshotFiles(Path.Combine(_cacheRoot, "missing"), "main"), Is.Empty);
+        }
+
+        /// <summary>
+        /// Verifies only ONNX and Sentis files are picked for a manifest; external weights and other files are not.
+        /// </summary>
+        [Test]
+        public void GetCachedModelFiles_PicksModelFilesOnly()
+        {
+            var files = CacheOverviewService.GetCachedModelFiles(new[]
+            {
+                "README.md", "onnx/model.onnx", "onnx/model.onnx_data", "model.sentis", "config.json"
+            });
+
+            Assert.That(files, Is.EqualTo(new[] { "model.sentis", "onnx/model.onnx" }));
+        }
+
+        /// <summary>
         /// Verifies a blob that a snapshot links to is counted once and named by the linking repository path.
         /// </summary>
         [Test]

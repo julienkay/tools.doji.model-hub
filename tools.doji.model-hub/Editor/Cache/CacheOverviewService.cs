@@ -88,6 +88,50 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Lists the repository paths of one cached revision: a ref such as <c>main</c>, or a commit hash. Returns an
+        /// empty list when the revision is not in the cache.
+        /// </summary>
+        public static IReadOnlyList<string> GetSnapshotFiles(string repositoryFolder, string revision)
+        {
+            if (string.IsNullOrWhiteSpace(repositoryFolder) || string.IsNullOrWhiteSpace(revision))
+            {
+                return Array.Empty<string>();
+            }
+
+            var commit = revision.Trim();
+            var refPath = Path.Combine(repositoryFolder, "refs", commit.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(refPath))
+            {
+                commit = File.ReadAllText(refPath).Trim();
+            }
+
+            var snapshot = Path.Combine(repositoryFolder, "snapshots", commit);
+            if (commit.Length == 0 || !Directory.Exists(snapshot))
+            {
+                return Array.Empty<string>();
+            }
+
+            var prefix = Path.GetFullPath(snapshot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return Directory.EnumerateFiles(snapshot, "*", SearchOption.AllDirectories)
+                .Select(file => Path.GetFullPath(file).Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/'))
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// The model files of a cached revision, for adding the model to a manifest: every cached <c>.onnx</c> and
+        /// <c>.sentis</c> file. ONNX external weights are selected with their <c>.onnx</c> file, so they are not listed.
+        /// </summary>
+        public static IReadOnlyList<string> GetCachedModelFiles(IEnumerable<string> snapshotFiles)
+        {
+            return (snapshotFiles ?? Array.Empty<string>())
+                .Where(ModelFiles.IsModelFile)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
         /// Parses <c>models--owner--name</c> into its type and id, as <c>huggingface_hub</c> does.
         /// </summary>
         internal static bool TryParseFolderName(string folderName, out string repoType, out string repository)

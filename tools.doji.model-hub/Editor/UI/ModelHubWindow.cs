@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -8,13 +8,32 @@ using UnityEngine.UIElements;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Main Model Hub window: a searchable model list on the left and details for the selected model on the right.
+    /// Main Model Hub window: a narrow view switcher on the left (In Project, Model Cache), a searchable list in the
+    /// middle, and details for the selected entry on the right, like Package Manager.
     /// </summary>
     internal sealed partial class ModelHubWindow : EditorWindow
     {
         internal const string Title = "AI Model Hub";
         private const string DocumentationUrl = "https://docs.doji-tech.com/tools.doji.model-hub";
         private const string StyleSheet = "ModelHubWindow.uss";
+
+        internal enum ModelHubView
+        {
+            /// <summary>
+            /// The models this project's manifests list.
+            /// </summary>
+            Project,
+
+            /// <summary>
+            /// The models downloaded on this machine, to add to this project or to a package in development.
+            /// </summary>
+            Cache,
+
+            /// <summary>
+            /// A map of everything in the shared Hugging Face cache, to free disk space.
+            /// </summary>
+            DiskUsage
+        }
 
         private enum DetailTab
         {
@@ -26,6 +45,7 @@ namespace Doji.AI.ModelHub.Editor
         [SerializeField] private string _selectedKey;
         [SerializeField] private string _searchText = string.Empty;
         [SerializeField] private DetailTab _selectedTab = DetailTab.Overview;
+        [SerializeField] private ModelHubView _view = ModelHubView.Project;
 
         private ModelHubReport _report;
         private DateTime _lastRefreshTime;
@@ -38,6 +58,10 @@ namespace Doji.AI.ModelHub.Editor
         private ScrollView _list;
         private Label _listFooter;
         private VisualElement _detailsPane;
+        private VisualElement _navProject;
+        private VisualElement _navCache;
+        private Label _navProjectMeta;
+        private Label _navCacheMeta;
         private readonly Dictionary<string, VisualElement> _rowsByKey = new(StringComparer.Ordinal);
 
         [MenuItem("Window/AI Model Hub")]
@@ -67,6 +91,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             OpenWindow();
             var window = GetWindow<ModelHubWindow>();
+            window.SwitchView(ModelHubView.Project);
             window.Select(BuildItemKey(repository, revision));
         }
 
@@ -89,6 +114,8 @@ namespace Doji.AI.ModelHub.Editor
             root.Add(BuildToolbar());
             root.Add(BuildSyncBanner());
 
+            var body = UiKit.Element("mh-body");
+            body.Add(BuildNav());
             var split = new TwoPaneSplitView(0, 300f, TwoPaneSplitViewOrientation.Horizontal)
             {
                 viewDataKey = "model-hub-model-hub-split"
@@ -97,11 +124,96 @@ namespace Doji.AI.ModelHub.Editor
             split.Add(BuildListPane());
             _detailsPane = UiKit.Element("mh-details-pane");
             split.Add(_detailsPane);
-            root.Add(split);
+            body.Add(split);
+            root.Add(body);
 
             root.schedule.Execute(UpdateSyncBanner).Every(250);
             Refresh();
         }
+
+        // ---------------------------------------------------------------- Views
+
+        private VisualElement BuildNav()
+        {
+            var nav = UiKit.Element("mh-nav");
+            nav.Add(BuildListSection("Project", null));
+            (_navProject, _navProjectMeta) = BuildNavItem(
+                "Package Manager",
+                "In Project",
+                "The models this project's manifests list",
+                ModelHubView.Project);
+            nav.Add(_navProject);
+            nav.Add(BuildListSection("This machine", null));
+            (_navCache, _navCacheMeta) = BuildNavItem(
+                "Folder Icon",
+                "Model Cache",
+                "Models downloaded on this machine, for any project or Python tool. Add them to this project without downloading them again. Right-click for disk usage.",
+                ModelHubView.Cache);
+            _navCache.AddManipulator(new ContextualMenuManipulator(evt =>
+            {
+                evt.menu.AppendAction("Show Disk Usage", _ => SwitchView(ModelHubView.DiskUsage));
+                evt.menu.AppendAction(UiKit.RevealInFileBrowserLabel, _ => ProjectSettingsLinks.RevealPath(_cacheOverview?.CacheRoot ?? CachePaths.GetCacheRoot()));
+            }));
+            nav.Add(_navCache);
+            UpdateNav();
+            return nav;
+        }
+
+        private (VisualElement Item, Label Meta) BuildNavItem(string icon, string label, string tooltip, ModelHubView view)
+        {
+            var item = UiKit.Element("mh-item", "mh-nav__item");
+            item.tooltip = tooltip;
+            item.Add(UiKit.Icon(icon, "mh-item__icon"));
+            item.Add(UiKit.Text(label, "mh-item__name", "mh-nav__label"));
+            var meta = UiKit.Text(string.Empty, "mh-item__meta");
+            item.Add(meta);
+            item.RegisterCallback<ClickEvent>(_ => SwitchView(view));
+            return (item, meta);
+        }
+
+        private void UpdateNav()
+        {
+            _navProject?.EnableInClassList("mh-item--selected", _view == ModelHubView.Project);
+            _navCache?.EnableInClassList("mh-item--selected", _view != ModelHubView.Project);
+            if (_navProjectMeta != null)
+            {
+                _navProjectMeta.text = _report == null ? string.Empty : _report.Items.Count.ToString();
+            }
+
+            if (_navCacheMeta != null)
+            {
+                _navCacheMeta.text = _cacheOverview == null
+                    ? string.Empty
+                    : _cacheOverview.Repositories.Count(repository => repository.IsModel && repository.SnapshotCount > 0).ToString();
+            }
+        }
+
+        /// <summary>
+        /// Shows the project's models or the shared cache in the list and details.
+        /// </summary>
+        internal void SwitchView(ModelHubView view)
+        {
+            if (_view == view)
+            {
+                return;
+            }
+
+            if (_view == ModelHubView.Project && !TryResolvePendingFileEdits(GetSelectedItem()))
+            {
+                return;
+            }
+
+            _view = view;
+            UpdateNav();
+            RebuildList();
+            RebuildDetails();
+        }
+
+        internal ModelHubView CurrentView => _view;
+
+        private string CurrentSelectionKey => _view != ModelHubView.Project
+            ? BuildCacheRowKey(_selectedCacheFolder)
+            : _selectedKey;
 
         // ---------------------------------------------------------------- Toolbar
 
@@ -231,6 +343,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             UpdateToolbar();
+            UpdateNav();
             RebuildList();
             RebuildDetails();
         }
@@ -309,7 +422,6 @@ namespace Doji.AI.ModelHub.Editor
             _list.focusable = true;
             _list.RegisterCallback<KeyDownEvent>(HandleListKeyDown);
             pane.Add(_list);
-            pane.Add(BuildCacheRow());
 
             var footer = UiKit.Element("mh-list-footer");
             _listFooter = UiKit.Text(string.Empty, "hf-small", "hf-faint");
@@ -327,6 +439,22 @@ namespace Doji.AI.ModelHub.Editor
 
             _list.Clear();
             _rowsByKey.Clear();
+            if (_view != ModelHubView.Project)
+            {
+                if (_view == ModelHubView.Cache)
+                {
+                    RebuildCachedModelList();
+                    EnsureCacheSelection();
+                }
+                else
+                {
+                    RebuildCacheList();
+                }
+
+                UpdateRowSelection();
+                UpdateListFooter();
+                return;
+            }
 
             var items = GetFilteredItems();
             var issues = GetFilteredIssues();
@@ -368,11 +496,6 @@ namespace Doji.AI.ModelHub.Editor
                 _list.Add(UiKit.Text($"No models match “{_searchText}”.", "mh-list-empty"));
             }
 
-            if (_cacheRow != null)
-            {
-                _rowsByKey[CacheKey] = _cacheRow;
-            }
-
             EnsureSelection();
             UpdateRowSelection();
             UpdateListFooter();
@@ -391,11 +514,15 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
-        private static VisualElement BuildListSection(string title, int count)
+        private static VisualElement BuildListSection(string title, int? count)
         {
             var header = UiKit.Element("mh-list-section");
             header.Add(UiKit.Text(title.ToUpperInvariant(), "hf-overline"));
-            header.Add(UiKit.Text(count.ToString(), "mh-list-section__count"));
+            if (count.HasValue)
+            {
+                header.Add(UiKit.Text(count.Value.ToString(), "mh-list-section__count"));
+            }
+
             return header;
         }
 
@@ -453,6 +580,21 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (_view == ModelHubView.Cache)
+            {
+                var models = _cacheOverview?.Repositories.Count(repository => repository.IsModel && repository.SnapshotCount > 0) ?? 0;
+                _listFooter.text = $"{models} cached {(models == 1 ? "model" : "models")} · Updated {_lastRefreshTime:HH:mm}";
+                return;
+            }
+
+            if (_view == ModelHubView.DiskUsage)
+            {
+                var repositories = _cacheOverview?.Repositories.Count ?? 0;
+                var size = UiKit.FormatBytes(_cacheOverview?.TotalSizeInBytes);
+                _listFooter.text = $"{repositories} {(repositories == 1 ? "repository" : "repositories")}{(size == null ? string.Empty : $" · {size}")} · Updated {_lastRefreshTime:HH:mm}";
+                return;
+            }
+
             var count = _report.Items.Count;
             var modelsLabel = count == 1 ? "1 model" : $"{count} models";
             _listFooter.text = $"{modelsLabel} · Updated {_lastRefreshTime:HH:mm}";
@@ -470,14 +612,21 @@ namespace Doji.AI.ModelHub.Editor
 
         private void UpdateRowSelection()
         {
+            var selectedKey = CurrentSelectionKey;
             foreach (var pair in _rowsByKey)
             {
-                pair.Value.EnableInClassList("mh-item--selected", string.Equals(pair.Key, _selectedKey, StringComparison.Ordinal));
+                pair.Value.EnableInClassList("mh-item--selected", string.Equals(pair.Key, selectedKey, StringComparison.Ordinal));
             }
         }
 
         private void Select(string key)
         {
+            if (_view != ModelHubView.Project)
+            {
+                SelectCacheEntry(GetCacheFolder(key), null);
+                return;
+            }
+
             if (string.Equals(key, _selectedKey, StringComparison.Ordinal))
             {
                 return;
@@ -510,7 +659,7 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
-            var index = keys.IndexOf(_selectedKey);
+            var index = keys.IndexOf(CurrentSelectionKey);
             index = evt.keyCode == KeyCode.UpArrow
                 ? Mathf.Max(0, index - 1)
                 : Mathf.Min(keys.Count - 1, index + 1);
@@ -520,12 +669,22 @@ namespace Doji.AI.ModelHub.Editor
 
         private ModelHubItem GetSelectedItem()
         {
+            if (_view != ModelHubView.Project)
+            {
+                return null;
+            }
+
             return _report?.Items.FirstOrDefault(item =>
                 string.Equals(BuildItemKey(item), _selectedKey, StringComparison.Ordinal));
         }
 
         private ManifestDiscoveryIssue GetSelectedIssue()
         {
+            if (_view != ModelHubView.Project)
+            {
+                return null;
+            }
+
             return _report?.DiscoveryIssues.FirstOrDefault(issue =>
                 string.Equals(BuildIssueKey(issue), _selectedKey, StringComparison.Ordinal));
         }

@@ -243,7 +243,7 @@ namespace Doji.AI.ModelHub.Editor
             addButton.tooltip = "Add a Hugging Face model to this project or to a local package.";
             toolbar.Add(addButton);
 
-            var search = UiKit.SearchField("Search models and packages", value =>
+            var search = UiKit.SearchField("Search models", value =>
             {
                 _searchText = value ?? string.Empty;
                 RebuildList();

@@ -2,7 +2,7 @@
 
 AI Model Hub separates model declaration from model materialization.
 
-Package maintainers describe which HuggingFace repositories and files a package needs. Unity project users decide which project-scoped optional files to include, then import the selected sources into generated runtime assets.
+Package maintainers describe which Hugging Face models and files a package needs. Unity project users decide which project-scoped optional files to include, then import the selected sources into generated runtime assets.
 
 ## Installation
 
@@ -31,12 +31,12 @@ Package maintainers add `tools.doji.model-hub` to the `dependencies` of their ow
 
 Use this path when you publish or maintain a Unity package that needs AI model files.
 
-Package maintainers create `model-hub-manifest.json` at package root. The manifest names HuggingFace repositories, requested revisions, and optional file scope. The package can stay small because source ONNX files and generated `.sentis` files are not shipped inside the package.
+Package maintainers create `model-hub-manifest.json` at package root. The manifest names Hugging Face models, requested revisions, and optional file scope. The package can stay small because source ONNX files and generated `.sentis` files are not shipped inside the package.
 
 Typical package maintainer tasks:
 
 - declare one or more model dependencies by HuggingFace `repo_id`
-- choose whole-repository scope or exact selected files
+- use every file of a model, or exact selected files
 - mark selected files as optional when the project should choose variants before import
 - keep the package manifest local and writable while authoring
 

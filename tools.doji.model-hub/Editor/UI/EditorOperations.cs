@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -55,7 +55,7 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot import '{item.Repository}' because the project declares multiple requested revisions for that repository. Resolve manifests to one revision first.");
+                    $"AI Model Hub cannot import '{item.Repository}' because the project declares it at multiple revisions. Resolve manifests to one revision first.");
                 return;
             }
 
@@ -82,7 +82,7 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot remove imported artifacts for '{item.Repository}' while the project declares multiple requested revisions for that repository.");
+                    $"AI Model Hub cannot remove imported artifacts for '{item.Repository}' while the project declares it at multiple revisions.");
                 return;
             }
 
@@ -102,7 +102,7 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot remove raw cache for '{item.Repository}' while the project declares multiple requested revisions for that repository.");
+                    $"AI Model Hub cannot remove raw cache for '{item.Repository}' while the project declares it at multiple revisions.");
                 return;
             }
 

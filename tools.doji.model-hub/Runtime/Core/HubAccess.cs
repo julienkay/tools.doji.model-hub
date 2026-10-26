@@ -31,8 +31,8 @@ namespace Doji.AI.ModelHub
         public static IOException RepositoryDenied(string repository, string revision, WebRequestException inner = null)
         {
             return new IOException(
-                $"Hugging Face has no public repository '{repository}' at revision '{revision}'. Check the id and revision. " +
-                "Private repositories are not supported yet.",
+                $"Hugging Face has no public model '{repository}' at revision '{revision}'. Check the id and revision. " +
+                "Private models are not supported yet.",
                 inner);
         }
     }

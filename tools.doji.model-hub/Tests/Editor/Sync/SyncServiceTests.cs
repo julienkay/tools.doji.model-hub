@@ -73,8 +73,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.SuccessCount, Is.EqualTo(0));
             Assert.That(report.FailureCount, Is.EqualTo(2));
-            Assert.That(report.ModelResults[0].ErrorMessage, Does.Contain("multiple requested revisions"));
-            Assert.That(report.ModelResults[1].ErrorMessage, Does.Contain("multiple requested revisions"));
+            Assert.That(report.ModelResults[0].ErrorMessage, Does.Contain("multiple revisions"));
+            Assert.That(report.ModelResults[1].ErrorMessage, Does.Contain("multiple revisions"));
             Assert.That(rawCacheService.CallCount, Is.EqualTo(0));
             Assert.That(importService.CallCount, Is.EqualTo(0));
         }

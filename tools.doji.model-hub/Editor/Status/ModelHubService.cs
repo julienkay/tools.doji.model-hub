@@ -215,7 +215,7 @@ namespace Doji.AI.ModelHub.Editor
 
             return status.ReasonCode switch
             {
-                DependencyReasonCode.InvalidRepository => "Repository was not found on Hugging Face.",
+                DependencyReasonCode.InvalidRepository => "Model was not found on Hugging Face.",
                 DependencyReasonCode.RawCacheRevisionRefMissing => "Download this model to use it.",
                 DependencyReasonCode.RawSnapshotRootMissing => "The downloaded files are missing. Download this model again.",
                 DependencyReasonCode.RawCacheFilesMissing => "Some selected files are not downloaded yet. Update the model.",
@@ -250,7 +250,7 @@ namespace Doji.AI.ModelHub.Editor
                     .OrderBy(label => label, StringComparer.Ordinal)
                     .ToArray();
                 var errorMessage =
-                    $"Repository revision conflict: '{repositoryGroup.Key}' is declared at multiple requested revisions ({string.Join(", ", revisions)}). AI Model Hub supports only one revision per repository per project. Resolve manifests to one revision before importing or removing files. Conflicting dependents: {string.Join(", ", owners)}.";
+                    $"Revision conflict: '{repositoryGroup.Key}' is declared at multiple revisions ({string.Join(", ", revisions)}). AI Model Hub supports only one revision per model per project. Resolve manifests to one revision before importing or removing files. Conflicting dependents: {string.Join(", ", owners)}.";
                 foreach (var item in repositoryGroup)
                 {
                     item.AddDiagnostic(new ModelHubDiagnostic("error", errorMessage));

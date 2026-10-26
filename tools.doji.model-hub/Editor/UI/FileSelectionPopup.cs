@@ -109,7 +109,7 @@ namespace Doji.AI.ModelHub.Editor
                 _selection.Clear();
                 RebuildList();
             });
-            allFiles.tooltip = "Clear the selection so the manifest uses the whole repository.";
+            allFiles.tooltip = "Clear the selection so the manifest uses every file of the model.";
             footer.Add(allFiles);
             footer.Add(UiKit.Button("Cancel", () => editorWindow?.Close()));
             footer.Add(UiKit.PrimaryButton("Apply", Apply));
@@ -180,7 +180,7 @@ namespace Doji.AI.ModelHub.Editor
             var visible = _files.Where(IsVisible).ToArray();
             if (visible.Length == 0)
             {
-                _content.Add(UiKit.Text(_files.Length == 0 ? "This repository has no files." : "No files match the filter.", "fp-message"));
+                _content.Add(UiKit.Text(_files.Length == 0 ? "This model has no files." : "No files match the filter.", "fp-message"));
             }
 
             foreach (var file in visible)

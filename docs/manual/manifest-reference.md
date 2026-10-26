@@ -1,6 +1,6 @@
 # Manifest Schema
 
-AI Model Hub manifest entries describe Hugging Face repositories and the files a package or project uses from each resolved repository snapshot.
+AI Model Hub manifest entries describe Hugging Face models and the files a package or project uses from each model at a resolved commit.
 
 ## Manifest Types
 
@@ -39,9 +39,9 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 ## Fields
 
 - `version`: manifest schema version. Current value is `1`.
-- `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The repository must be public: AI Model Hub sends no access token, so gated and private models fail to download with a message that says so.
+- `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The model must be public: AI Model Hub sends no access token, so gated and private models fail to download with a message that says so.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
-- `files`: optional exact repo-relative file objects. Omit this field to require the whole repository. If present, each entry has `path` and optional `optional`.
+- `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path` and optional `optional`.
 - `files[].path`: exact repo-relative file path.
 - `files[].optional`: `true` when the project owner may enable that file before download or import. Omitted or `false` means the file is always required once the manifest entry is present.
 
@@ -49,9 +49,9 @@ Model ids must be unique inside one manifest. File paths must be unique inside o
 
 AI Model Hub rejects a manifest that contains any other property, or an `optional` value that is not `true` or `false`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
 
-## Whole-Repository Scope
+## All Files
 
-Omit `files` to require the whole repository file inventory for the resolved revision.
+Omit `files` to require every file of the model at the resolved revision.
 
 ```json
 {
@@ -64,7 +64,7 @@ Omit `files` to require the whole repository file inventory for the resolved rev
 }
 ```
 
-Whole-repository dependencies download every repository file for that revision. The repository's model files must all have one format; see [Model files](#model-files).
+Dependencies without `files` download every file of the model at that revision. The model's `.onnx` and `.sentis` files must all have one format; see [Model files](#model-files).
 
 ## Explicit File Scope
 
@@ -103,9 +103,9 @@ The extension of a selected file decides how AI Model Hub uses it:
 - `.sentis`: loaded as downloaded. There is no import step and no conversion setting.
 - any other extension: downloaded, not loaded as a model.
 
-Selecting an `.onnx` file also selects its external weight files when the repository has them: `<file>.onnx_data`, `<file>.onnx.data`, and numbered parts such as `<file>.onnx_data_1`. Do not list them yourself.
+Selecting an `.onnx` file also selects its external weight files when the model has them: `<file>.onnx_data`, `<file>.onnx.data`, and numbered parts such as `<file>.onnx_data_1`. Do not list them yourself.
 
-A repository can contain both formats. `julienkay/sentis-MiDaS`, for example, has ONNX files under `onnx/` and Sentis files under `sentis/`. List the files you use, and each one loads by its own format:
+A model can contain both formats. `julienkay/sentis-MiDaS`, for example, has ONNX files under `onnx/` and Sentis files under `sentis/`. List the files you use, and each one loads by its own format:
 
 ```json
 {
@@ -125,7 +125,7 @@ Validation fails in two cases. Model Hub shows the dependency as **Error** with 
 
 | Case | Message |
 |---|---|
-| A whole-repository dependency on a repository with both `.onnx` and `.sentis` files | ``Repository `<id>` has both ONNX and Sentis files. List the files you use in the manifest.`` |
+| A dependency without `files` on a model with both `.onnx` and `.sentis` files | ``Model `<id>` has both ONNX and Sentis files. List the files you use in the manifest.`` |
 | The selection has no `.onnx` or `.sentis` file | ``Dependency `<id>` does not select any model file. Select at least one `.onnx` or `.sentis` file.`` |
 
 AI Model Hub never picks a format for you. Package code loads a file by the path the manifest lists, for example `Hub.LoadModelAsync("julienkay/sentis-MiDaS", "sentis/midas_v21_small_256.sentis")`.
@@ -162,4 +162,4 @@ Required and optional are both part of the manifest's explicit file scope. The `
 
 Until the project enables an optional file, AI Model Hub ignores that file for status, download, import, builds, and startup prompts. After the project enables it, the file behaves like any other selected file, and a missing download or conversion requires action.
 
-If a dependency declares only optional model files and none are enabled yet, AI Model Hub shows `Choose files` in Model Hub instead of downloading the whole repository. That state does not open the startup auto prompt by itself.
+If a dependency declares only optional model files and none are enabled yet, AI Model Hub shows `Choose files` in Model Hub instead of downloading every file of the model. That state does not open the startup auto prompt by itself.

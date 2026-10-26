@@ -1,6 +1,6 @@
 # For Package Maintainers
 
-Package maintainers declare model dependencies without shipping large model files in the Unity package. Package code then loads the models by repository id and file path; the project that uses the package decides whether builds bundle them or download them at runtime.
+Package maintainers declare model dependencies without shipping large model files in the Unity package. Package code then loads the models by model id and file path; the project that uses the package decides whether builds bundle them or download them at runtime.
 
 Create `model-hub-manifest.json` at the package root. AI Model Hub discovers that file when the package is installed in a Unity project.
 
@@ -10,7 +10,7 @@ Packages/com.example.my-package/model-hub-manifest.json
 
 ## Minimal Manifest
 
-This manifest requires the full repository inventory for `hf-internal-testing/tiny-random-bert` at `main`.
+This manifest requires every file of `hf-internal-testing/tiny-random-bert` at `main`.
 
 ```json
 {
@@ -23,11 +23,11 @@ This manifest requires the full repository inventory for `hf-internal-testing/ti
 }
 ```
 
-Omitting `files` means whole-repository scope. AI Model Hub downloads every repository file for the resolved revision. `.onnx` files are converted to Sentis models, and `.sentis` files are used as downloaded. A repository with both formats needs a `files` list.
+Omitting `files` means the package uses every file of the model. AI Model Hub downloads every file for the resolved revision. `.onnx` files are converted to Sentis models, and `.sentis` files are used as downloaded. A repository with both formats needs a `files` list.
 
 ## Selected Files
 
-Use `files` when the package needs only a known subset of repository files.
+Use `files` when the package needs only some files of the model.
 
 ```json
 {
@@ -89,16 +89,16 @@ If every model file in a dependency is optional, Model Hub shows `Choose files` 
 
 Select a writable `model-hub-manifest.json` package asset in Unity to use the focused manifest Inspector. Installed package cache entries are read-only until the package source is embedded or otherwise made local and writable.
 
-The file picker uses one repository file list:
+The file picker uses the model's file list:
 
 - checked rows are selected by the manifest
 - unchecked rows stay visible but greyed out
 - `Optional` is available only on selected rows
-- leaving every row unchecked keeps whole-repository scope
+- leaving every row unchecked uses every file of the model
 
 ## Load Models In Package Code
 
-Load a model by the repository id and the path the manifest lists:
+Load a model by the model id and the path the manifest lists:
 
 ```csharp
 using Doji.AI.ModelHub;
@@ -107,6 +107,6 @@ using Unity.InferenceEngine;
 Model model = await Hub.LoadModelAsync("onnx-community/tiny-clip-test-ONNX", "onnx/model.onnx");
 ```
 
-Use `LoadModelAsync`: it works on every platform and for both delivery modes. If another package uses the same repository, pass your package id as the first argument. See [Load models at runtime](import-cache-runtime.md#load-models-at-runtime).
+Use `LoadModelAsync`: it works on every platform and for both delivery modes. If another package uses the same model, pass your package id as the first argument. See [Load models at runtime](import-cache-runtime.md#load-models-at-runtime).
 
 Use [Manifest Schema](manifest-reference.md) for field-level rules and validation details.

@@ -341,7 +341,7 @@ namespace Doji.AI.ModelHub.Editor
                     var canOpen = ManifestModelEntry.CanOpenFileSelection(entry, state, hasValidationProvider: true);
                     filesButton.SetEnabled(canOpen);
                     filesButton.tooltip = canOpen
-                        ? "Choose which files to download. Leave empty to use the whole repository."
+                        ? "Choose which files to download. Leave empty to use every file of the model."
                         : state?.Status == ManifestModelValidationStatus.Invalid
                             ? state.Message ?? "This model was not found on Hugging Face."
                             : "Enter a model id that exists on Hugging Face first.";

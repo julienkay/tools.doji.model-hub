@@ -76,6 +76,16 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
   import work on domain reload.
 - Use `huggingface_hub` (checked out at `references/huggingface_hub`) as the
   reference for Hub API, download, and cache behavior.
+- In user-facing text (UI labels, tooltips, dialogs, status and error
+  messages, user docs), a Hugging Face model repository is a **model**, not a
+  repository. Hugging Face asks authors to put each model variant in its own
+  repository with its own `hf.co/org/model-name` URL
+  ([Model release checklist](https://github.com/huggingface/hub-docs/blob/main/docs/hub/model-release-checklist.md)),
+  so one repository is one model in the normal case. A repository that holds
+  several model files, for example ONNX and Sentis variants, is still one
+  model with several files. Say "repository" only where the Hub concept
+  matters: `repo_id`, datasets and spaces in the cache, and code. Code keeps
+  `Repository` names, because they match the Hub API.
 
 ## Known limits
 

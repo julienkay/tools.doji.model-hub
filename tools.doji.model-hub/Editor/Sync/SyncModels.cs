@@ -55,7 +55,7 @@ namespace Doji.AI.ModelHub.Editor
                 dependency,
                 null,
                 null,
-                revisionConflict?.BuildMaintainerMessage() ?? "Repository revision conflict blocked sync.");
+                revisionConflict?.BuildMaintainerMessage() ?? "A revision conflict blocked sync.");
         }
     }
 

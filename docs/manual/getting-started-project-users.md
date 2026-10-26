@@ -2,7 +2,7 @@
 
 Unity project users resolve model dependencies for the current Unity project.
 
-AI Model Hub discovers model manifests from installed packages, project settings, and project manifest assets. Model Hub then shows which repositories need a download, a conversion, optional-file configuration, repair, or revision conflict resolution.
+AI Model Hub discovers model manifests from installed packages, project settings, and project manifest assets. Model Hub then shows which models need a download, a conversion, optional-file configuration, repair, or revision conflict resolution.
 
 ## Add Or Discover Dependencies
 
@@ -62,7 +62,7 @@ Set the default in `Project Settings > Doji > AI > AI Model Hub > In builds`, an
 
 ## Load Models
 
-Runtime code loads a model by repository id and file path. The same call works in Play mode and in players, for bundled and downloaded models:
+Runtime code loads a model by model id and file path. The same call works in Play mode and in players, for bundled and downloaded models:
 
 ```csharp
 Model model = await Hub.LoadModelAsync("onnx-community/tiny-clip-test-ONNX", "onnx/model.onnx");

@@ -88,6 +88,29 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Counts the cache entries as models, with datasets and spaces named apart, for example "5 models · 1 dataset".
+        /// </summary>
+        public static string DescribeCount(CacheOverview overview)
+        {
+            var repositories = overview?.Repositories ?? System.Array.Empty<CacheRepositoryEntry>();
+            var models = repositories.Count(repository => repository.IsModel);
+            var datasets = repositories.Count(repository => repository.RepoType == "dataset");
+            var spaces = repositories.Count(repository => repository.RepoType == "space");
+            var parts = new List<string> { models == 1 ? "1 model" : $"{models} models" };
+            if (datasets > 0)
+            {
+                parts.Add(datasets == 1 ? "1 dataset" : $"{datasets} datasets");
+            }
+
+            if (spaces > 0)
+            {
+                parts.Add(spaces == 1 ? "1 space" : $"{spaces} spaces");
+            }
+
+            return string.Join(" · ", parts);
+        }
+
+        /// <summary>
         /// Size text for a repository tile, with the partial share when it also has complete files.
         /// </summary>
         public static string BuildSizeText(CacheRepositoryEntry repository)

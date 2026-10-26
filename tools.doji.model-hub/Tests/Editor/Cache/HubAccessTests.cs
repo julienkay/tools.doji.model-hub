@@ -72,7 +72,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var exception = await CatchAsync(() => service.GetOrDownloadAsync(CreateDependency("doji/missing-model"), null, CancellationToken.None));
 
-            Assert.That(exception.Message, Does.Contain("no public repository 'doji/missing-model' at revision 'main'"));
+            Assert.That(exception.Message, Does.Contain("no public model 'doji/missing-model' at revision 'main'"));
         }
 
         /// <summary>

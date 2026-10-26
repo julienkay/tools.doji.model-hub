@@ -44,7 +44,7 @@ namespace Doji.AI.ModelHub.Editor
             return new[]
             {
                 new ModelLink("Model card", GetModelCardUrl(repository), "Open the model card on Hugging Face."),
-                new ModelLink("Files", $"{GetModelCardUrl(repository)}/tree/{EscapeRevision(revision)}", "Browse the repository files on Hugging Face."),
+                new ModelLink("Files", $"{GetModelCardUrl(repository)}/tree/{EscapeRevision(revision)}", "Browse the model's files on Hugging Face."),
                 GetLicenseLink(repository, revision, modelCard, repoPaths)
             };
         }

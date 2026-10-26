@@ -47,7 +47,7 @@ namespace Doji.AI.ModelHub.Editor
             toolbar.Add(UiKit.Text(
                 item.Files.Any(file => file.SupportsImportRecipeEditing)
                     ? "Expand a model file to change how it is imported."
-                    : "Files this project uses from the repository.",
+                    : "Files this project uses from the model.",
                 "hf-muted"));
             toolbar.Add(UiKit.Spacer());
             if (unusedCount > 0)

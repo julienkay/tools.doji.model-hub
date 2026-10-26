@@ -231,7 +231,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
                     catch (Exception exception)
                     {
-                        var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' from repository '{dependency.Repository}'. {exception.Message}";
+                        var failureMessage = $"Failed to convert ONNX file '{snapshotFile.RepoPath}' of model '{dependency.Repository}'. {exception.Message}";
                         conversionFailures.Add(failureMessage);
                         skippedRepoPaths.Add(snapshotFile.RepoPath);
                         diagnostics.Add(new ImportDiagnostic
@@ -265,7 +265,7 @@ namespace Doji.AI.ModelHub.Editor
                 throw new InvalidOperationException(
                     conversionFailures.Count > 0
                         ? conversionFailures[0]
-                        : $"Failed to convert ONNX files from repository '{dependency.Repository}'.");
+                        : $"Failed to convert the ONNX files of model '{dependency.Repository}'.");
             }
 
             var sharedMetadata = CreateSharedMetadata(dependency, cachedSnapshot, runtimeFiles, skippedRepoPaths, diagnostics, sentisVersion, recipeSetHash);

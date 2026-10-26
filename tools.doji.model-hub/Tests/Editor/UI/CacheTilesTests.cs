@@ -90,6 +90,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(CacheTiles.BuildSizeText(CreateRepository("model", "doji/model", Partial(1024))), Is.EqualTo("1 KB"));
         }
 
+        /// <summary>
+        /// Verifies the cache is counted in models, with datasets and spaces named apart only when there are any.
+        /// </summary>
+        [Test]
+        public void DescribeCount_CountsModelsAndNamesOtherTypes()
+        {
+            var overview = new CacheOverview
+            {
+                Repositories = new[]
+                {
+                    CreateRepository("model", "doji/a", Complete(1)),
+                    CreateRepository("model", "doji/b", Complete(1)),
+                    CreateRepository("dataset", "doji/c", Complete(1)),
+                    CreateRepository("space", "doji/d", Complete(1)),
+                    CreateRepository("space", "doji/e", Complete(1))
+                }
+            };
+
+            Assert.That(CacheTiles.DescribeCount(overview), Is.EqualTo("2 models · 1 dataset · 2 spaces"));
+            Assert.That(CacheTiles.DescribeCount(new CacheOverview { Repositories = new[] { CreateRepository("model", "doji/a", Complete(1)) } }), Is.EqualTo("1 model"));
+            Assert.That(CacheTiles.DescribeCount(null), Is.EqualTo("0 models"));
+        }
+
         private static CacheRepositoryEntry CreateRepository(string repoType, string repository, params CacheFileEntry[] files)
         {
             return new CacheRepositoryEntry

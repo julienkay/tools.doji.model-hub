@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -374,7 +374,7 @@ namespace Doji.AI.ModelHub.Editor
                     modelId,
                     "main",
                     cachedExists ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
-                    cachedExists ? null : "Repository was not found on Hugging Face.");
+                    cachedExists ? null : "Model was not found on Hugging Face.");
             }
 
             try
@@ -397,7 +397,7 @@ namespace Doji.AI.ModelHub.Editor
                     modelId,
                     "main",
                     success ? ManifestModelValidationStatus.Valid : ManifestModelValidationStatus.Invalid,
-                    success ? null : "Repository was not found on Hugging Face.");
+                    success ? null : "Model was not found on Hugging Face.");
             }
             catch (Exception exception)
             {

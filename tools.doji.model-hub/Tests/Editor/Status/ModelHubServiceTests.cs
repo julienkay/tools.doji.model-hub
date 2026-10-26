@@ -422,7 +422,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[1].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("error"));
             Assert.That(hubReport.Items[1].Diagnostics[0].Severity, Is.EqualTo("error"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("revision conflict"));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("Revision conflict"));
             Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("main"));
             Assert.That(hubReport.Items[0].Diagnostics[0].Message, Does.Contain("refs/pr/7"));
             Assert.That(hubReport.Items[1].Diagnostics[0].Message, Is.EqualTo(hubReport.Items[0].Diagnostics[0].Message));

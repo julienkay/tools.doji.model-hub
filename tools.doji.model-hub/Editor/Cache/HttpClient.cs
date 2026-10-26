@@ -230,7 +230,7 @@ namespace Doji.AI.ModelHub.Editor
             if (missingSelectedFiles.Length > 0)
             {
                 throw new InvalidOperationException(
-                    $"Repository `{dependency.Repository}@{dependency.Revision}` does not contain selected file(s): {string.Join(", ", missingSelectedFiles)}.");
+                    $"Model `{dependency.Repository}@{dependency.Revision}` does not contain selected file(s): {string.Join(", ", missingSelectedFiles)}.");
             }
 
             var files = new List<ResolvedRepoFile>();

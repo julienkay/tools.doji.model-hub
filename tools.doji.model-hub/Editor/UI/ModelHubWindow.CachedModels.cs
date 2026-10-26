@@ -230,7 +230,7 @@ namespace Doji.AI.ModelHub.Editor
             var actions = UiKit.Element("mh-actions");
             actions.Add(UiKit.Button(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(repository.FolderPath), "hf-button--first"));
             var diskUsage = UiKit.Button("Open Disk Usage", () => CacheDiskUsageWindow.Open(repository.FolderName));
-            diskUsage.tooltip = "Open a map of the space every repository in the cache takes.";
+            diskUsage.tooltip = "Open a map of the space every model in the cache takes.";
             actions.Add(diskUsage);
             actions.Add(UiKit.Spacer());
             var remove = UiKit.Button("Remove from Cache", () =>
@@ -242,7 +242,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }, "hf-button--danger");
             remove.SetEnabled(!BackgroundSyncManager.IsRunning);
-            remove.tooltip = BackgroundSyncManager.IsRunning ? "Wait until the setup finishes." : "Delete this repository with all its revisions from the cache.";
+            remove.tooltip = BackgroundSyncManager.IsRunning ? "Wait until the setup finishes." : "Delete this model with all its revisions from the cache.";
             actions.Add(remove);
             card.Add(actions);
             section.Add(card);

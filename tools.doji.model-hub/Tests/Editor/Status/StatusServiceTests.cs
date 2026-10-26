@@ -65,7 +65,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.FailedCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.InvalidRepository));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Repository was not found on Hugging Face."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Model was not found on Hugging Face."));
         }
 
         [Test]
@@ -273,7 +273,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.FailedCount, Is.EqualTo(2));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RevisionConflict));
             Assert.That(report.DependencyStatuses[1].ReasonCode, Is.EqualTo(DependencyReasonCode.RevisionConflict));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("multiple requested revisions"));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("multiple revisions"));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("main"));
             Assert.That(report.DependencyStatuses[0].MaintainerMessage, Does.Contain("refs/tags/v1"));
         }

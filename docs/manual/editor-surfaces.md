@@ -18,13 +18,13 @@ The narrow column on the left switches what the list shows, like the sidebar in 
 - **In Project**: the models this project's manifests list. The number is the model count.
 - **Model Cache**: the models downloaded on this machine, to add to this project. The number is the cached model count. See [Model Cache](#model-cache).
 
-In **In Project**, the list shows one row per Hugging Face repository and revision. A repository appears once, even when several packages or project manifests use it. Rows are grouped:
+In **In Project**, the list shows one row per Hugging Face model and revision. A model appears once, even when several packages or project manifests use it. Rows are grouped:
 
 - **Manifest errors**: manifests that AI Model Hub could not read. Their models are skipped until the manifest is fixed.
 - **Needs action**: models to download, convert, update, or fix. Errors are listed first.
 - **Ready**: models this project can load.
 
-Each row shows the model name, the repository owner, the manifests that use it, and a size. The size is the download size for models that are not ready yet, and the size of the Sentis models for ready models. Use the search field to filter by model, repository, or package name. The arrow keys move the selection.
+Each row shows the model name, its owner on Hugging Face, the manifests that use it, and a size. The size is the download size for models that are not ready yet, and the size of the Sentis models for ready models. Use **Search models** to filter by model name, model id, or package name. The arrow keys move the selection.
 
 ### Status and actions
 
@@ -36,11 +36,11 @@ The details pane shows the status and the next action for the selected model.
 | Not downloaded | The selected files are not in the download cache. | **Download** downloads them, then converts the ONNX files. The button shows the download size when it is known. |
 | Needs conversion | The files are downloaded, but ONNX files need converting to Sentis for this project: for the first time, after a change of their import settings, or after a Sentis update with a new model format. The details say which. | **Convert** |
 | Setting up | The files are downloaded and every converted model exists. AI Model Hub finishes the setup by itself; the status shows only for a moment. | **Finish** does it now. |
-| Update needed | More files are selected than were downloaded, or AI Model Hub needs the repository's file list to check a download made by another tool. | **Update** downloads the missing files, then converts the ONNX files. |
+| Update needed | More files are selected than were downloaded, or AI Model Hub needs the model's file list to check a download made by another tool. | **Update** downloads the missing files, then converts the ONNX files. |
 | Needs repair | The download cache on disk is damaged, for example a revision file that cannot be read. | **Repair** downloads the files again. The button shows the download size when it is known. |
 | Choose files | All model files of this dependency are optional, and none is turned on. | **Choose Files** points to the optional files list. |
-| Error | The setup failed, or the file selection is invalid, for example a whole-repository dependency on a repository with both ONNX and Sentis files. The details explain why. | **Try Again** |
-| Conflict | Manifests request different revisions of the same repository. | None. Change the manifests so they use one revision. |
+| Error | The setup failed, or the file selection is invalid, for example a dependency on all files of a model with both ONNX and Sentis files. The details explain why. | **Try Again** |
+| Conflict | Manifests request different revisions of the same model. | None. Change the manifests so they use one revision. |
 
 Converting a large ONNX file takes CPU, memory, and time, so AI Model Hub converts only when you ask: with **Convert**, the setup prompt, **Apply & Convert** in the Files tab, or a build. Everything else it does by itself. When a model's files are downloaded and its converted models already exist, for example because another project on this machine converted them with the same settings, the model is ready without a prompt.
 
@@ -48,11 +48,11 @@ The toolbar button runs every pending model. It says **Download All** when a mod
 
 While a download or conversion runs, a bar under the toolbar shows the current model and progress. **Cancel** stops it. Files that finished downloading stay in the cache.
 
-Under the model name, the header shows the repository id and the requested revision, then three links:
+Under the model name, the header shows the model id and the requested revision, then three links:
 
-- **Model card** opens the repository page on Hugging Face.
-- **Files** opens the repository files at the resolved commit.
-- **License** names the license that the model card declares, for example **License: mit**. It opens the license text: the link the model card gives, else a `LICENSE` file at the top of the repository, else the model card. **No license** means the model card declares none. Check the model card before you use or ship such a model. The license is read from Hugging Face with the file list, so it can show **License** without a name until that lookup is done.
+- **Model card** opens the model page on Hugging Face.
+- **Files** opens the model's files at the resolved commit.
+- **License** names the license that the model card declares, for example **License: mit**. It opens the license text: the link the model card gives, else a `LICENSE` file at the top of the model, else the model card. **No license** means the model card declares none. Check the model card before you use or ship such a model. The license is read from Hugging Face with the file list, so it can show **License** without a name until that lookup is done.
 
 More actions:
 
@@ -71,9 +71,9 @@ The **Optional files** section appears when a manifest marks files as optional. 
 Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
 ```
 
-The choice is stored per manifest and model, so different packages can turn on different files of the same repository. Files that are off are not downloaded, converted, or counted in status.
+The choice is stored per manifest and model, so different packages can turn on different files of the same model. Files that are off are not downloaded, converted, or counted in status.
 
-**Details** shows the repository, the revision and resolved commit, how many repository files are selected, the download size, and:
+**Details** shows the model id, the revision and resolved commit, how many of the model's files are selected, the download size, and:
 
 - **Format**: **Sentis, used as downloaded**, **ONNX, converted to Sentis**, or **ONNX and Sentis files**, from the selected model files.
 - **In this project**: how many Sentis models the project can load.
@@ -85,7 +85,7 @@ The choice is stored per manifest and model, so different packages can turn on d
 
 ![Files tab with the MiDaS ONNX file expanded. It shows the quantization setting, the input shape 1 × 3 × 256 × 256, where the settings come from, and the downloaded file and converted model.](../images/manual/model-hub-files.png)
 
-The **Files** tab lists the files the project uses from the repository. **Show unused** also lists files that no manifest selects.
+The **Files** tab lists the files the project uses from the model. **Show unused** also lists files that no manifest selects.
 
 Expand an ONNX file to change how AI Model Hub converts it. `.sentis` files have no conversion settings.
 
@@ -129,9 +129,9 @@ For a model this project uses already, **Show in Project** selects it in **In Pr
 
 ![Model Cache Disk Usage window with a treemap. Models this project uses are blue, and a model it does not use is gray. The selected model shows its size, revisions, and Remove from Cache.](../images/manual/model-hub-disk-usage.png)
 
-The **Model Cache Disk Usage** window draws a map of the space every repository in the cache takes, including datasets and spaces. Open it with `Tools > Doji > AI Model Hub > Model Cache Disk Usage`, with **Open Disk Usage** in a cached model's details, or by right-clicking **Model Cache** in Model Hub. The window rescans the cache when it gets focus; the refresh button scans it again.
+The **Model Cache Disk Usage** window draws a map of the space every model in the cache takes. Datasets and spaces in the cache show too, marked as such. Open it with `Tools > Doji > AI Model Hub > Model Cache Disk Usage`, with **Open Disk Usage** in a cached model's details, or by right-clicking **Model Cache** in Model Hub. The window rescans the cache when it gets focus; the refresh button scans it again.
 
-The map draws one tile per repository, sized by disk usage. **Files** splits each repository into one tile per file. Colors:
+The map draws one tile per model, sized by disk usage. **Files** splits each model into one tile per file. Colors:
 
 - **Used by this project** (blue): a model one of this project's manifests lists.
 - **Not used by this project** (gray): anything else in the cache, including datasets and spaces.
@@ -141,9 +141,9 @@ Select a tile to see its size, partial downloads, and revisions. Actions:
 
 - **Show in Model Hub** selects the model in **In Project**, for models this project uses. For other models, **Show in Model Cache** selects it in **Model Cache**, to add it to the project.
 - **Delete Partial Downloads** deletes the partial files only.
-- **Remove from Cache** deletes the repository with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
+- **Remove from Cache** deletes the model with all its revisions and partial downloads. Other Unity projects and Python tools that use the cache must download it again. Converted models stay usable.
 
-Removing is not possible while AI Model Hub downloads or converts models, or while another program downloads a file of that repository.
+Removing is not possible while AI Model Hub downloads or converts models, or while another program downloads a file of that model.
 
 ### Add a model
 
@@ -154,7 +154,7 @@ Removing is not possible while AI Model Hub downloads or converts models, or whi
 1. Enter a model id such as `julienkay/sentis-MiDaS`, or paste the model's Hugging Face URL.
 2. AI Model Hub checks that the model exists on Hugging Face and shows its format: **ONNX**, **Sentis**, **ONNX + Sentis**, or **No model files**. **Add** stays disabled until the check passes.
 3. In **Add to**, choose **This project** or a package in the project's `Packages` folder.
-4. Optionally use **Choose…** to select files. The default is all files. A repository with both ONNX and Sentis files needs a file selection. A repository without model files cannot be added with all files.
+4. Optionally use **Choose…** to select files. The default is all files. A model with both ONNX and Sentis files needs a file selection. A model without `.onnx` or `.sentis` files cannot be added with all files.
 
 ## Setup prompt
 
@@ -208,9 +208,9 @@ If AI Model Hub already knows that a model id does not exist on Hugging Face, Mo
 
 ![File picker for julienkay/sentis-MiDaS. Two ONNX files are checked; one of them is marked Optional. The footer shows 2 files, 1 optional, and the total size.](../images/manual/file-picker.png)
 
-The file picker lists the repository's files at the selected revision, with their sizes:
+The file picker lists the model's files at the selected revision, with their sizes:
 
-- Check the files the manifest needs. With nothing checked, the manifest uses the whole repository.
+- Check the files the manifest needs. With nothing checked, the manifest uses every file of the model.
 - **Optional** appears on checked files. Optional files are off until a project turns them on in Model Hub.
 - Filter with the search field, or show **All**, **Models** (`.onnx` and `.sentis` files), or **Selected** files.
 - The footer shows the number of files, how many are optional, and their total size. **Use All Files** clears the selection.

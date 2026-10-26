@@ -120,8 +120,8 @@ namespace Doji.AI.ModelHub.Editor
 
             return format switch
             {
-                RepositoryModelFormat.Mixed => "This repository has ONNX and Sentis files. Choose the files you use.",
-                RepositoryModelFormat.None => "This repository has no .onnx or .sentis files.",
+                RepositoryModelFormat.Mixed => "This model has ONNX and Sentis files. Choose the files you use.",
+                RepositoryModelFormat.None => "This model has no .onnx or .sentis files.",
                 _ => null
             };
         }

@@ -129,7 +129,7 @@ namespace Doji.AI.ModelHub.Editor
             headerText.Add(UiKit.Text("Model Cache Disk Usage", "hf-title"));
             var subtitle = UiKit.Element("mh-header__subtitle");
             var count = overview.Repositories.Count;
-            subtitle.Add(UiKit.Text($"{UiKit.FormatBytes(overview.TotalSizeInBytes) ?? "0 B"} · {count} {(count == 1 ? "repository" : "repositories")}"));
+            subtitle.Add(UiKit.Text($"{UiKit.FormatBytes(overview.TotalSizeInBytes) ?? "0 B"} · {CacheTiles.DescribeCount(overview)}"));
             subtitle.Add(UiKit.LinkButton(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(overview.CacheRoot), overview.CacheRoot));
             headerText.Add(subtitle);
             header.Add(headerText);
@@ -176,7 +176,7 @@ namespace Doji.AI.ModelHub.Editor
             })
             {
                 text = text,
-                tooltip = showsFiles ? "One tile per file, grouped by repository" : "One tile per repository"
+                tooltip = showsFiles ? "One tile per file, grouped by model" : "One tile per model"
             };
             button.AddToClassList("mh-segment__button");
             button.AddToClassList(edgeClass);
@@ -481,7 +481,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }, "hf-button--danger");
             remove.SetEnabled(!isSyncing);
-            remove.tooltip = isSyncing ? "Wait until the setup finishes." : "Delete this repository with all its revisions from the cache.";
+            remove.tooltip = isSyncing ? "Wait until the setup finishes." : "Delete this model with all its revisions from the cache.";
             actions.Add(remove);
             _card.Add(actions);
         }

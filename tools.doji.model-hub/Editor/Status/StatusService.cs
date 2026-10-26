@@ -51,7 +51,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Failed(
                     dependency,
                     DependencyReasonCode.InvalidRepository,
-                    "Repository was not found on Hugging Face.",
+                    "Model was not found on Hugging Face.",
                     revisionRefPath,
                     null,
                     null,
@@ -167,7 +167,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.RawCacheFilesMissing,
-                    "The repository file list is not known on this machine, so AI Model Hub cannot tell whether every file is downloaded. Update to check.",
+                    "The model's file list is not known on this machine, so AI Model Hub cannot tell whether every file is downloaded. Update to check.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,

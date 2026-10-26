@@ -338,7 +338,7 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
             var builder = new StringBuilder();
             builder.AppendLine("AI Model Hub revision conflict");
-            builder.AppendLine($"Repository: {item.Repository}");
+            builder.AppendLine($"Model: {item.Repository}");
             builder.AppendLine($"Requested revisions: {string.Join(", ", revisions)}");
             builder.AppendLine("Owners:");
 
@@ -359,7 +359,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.AppendLine($"  resolve: {resolutionInfo.ResolutionHint}");
             }
 
-            builder.Append("AI Model Hub blocks import/remove until one requested revision remains for this repository.");
+            builder.Append("AI Model Hub blocks import/remove until one requested revision remains for this model.");
             return builder.ToString();
         }
 

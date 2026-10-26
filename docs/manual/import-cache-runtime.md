@@ -19,9 +19,9 @@ The file extension decides how AI Model Hub uses a file:
 | `.sentis` | Uses the downloaded file as it is. There is no conversion. | Do not apply. |
 | anything else | Downloads it when selected, for example a config or tokenizer file. It is not a model. | — |
 
-Selecting an `.onnx` file also selects its external weight files, such as `model.onnx_data` or `model.onnx.data`, when the repository has them.
+Selecting an `.onnx` file also selects its external weight files, such as `model.onnx_data` or `model.onnx.data`, when the model has them.
 
-A whole-repository dependency works when the repository has only one model format. A repository with both `.onnx` and `.sentis` files needs a file list, so AI Model Hub never picks a format for you. See [Manifest Schema](manifest-reference.md#model-files).
+A dependency without a file list works when the model has only one format. A model with both `.onnx` and `.sentis` files needs a file list, so AI Model Hub never picks a format for you. See [Manifest Schema](manifest-reference.md#model-files).
 
 ## Setting up models
 
@@ -39,15 +39,15 @@ Use the setup prompt, the action button of a model in Model Hub, the toolbar but
 
 1. Find every manifest: installed packages, `ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`, and project manifest assets.
 2. Validate them, and skip models that are ready.
-3. For models with missing files: resolve the dependency to one commit, read the repository's file list at that commit, and download the selected files that are not in the cache yet. Models whose files are all cached skip this step and need no network.
+3. For models with missing files: resolve the dependency to one commit, read the model's file list at that commit, and download the selected files that are not in the cache yet. Models whose files are all cached skip this step and need no network.
 4. Convert each selected `.onnx` file with the Unity Inference Engine importer, unless a conversion with the same source file, format generation, and conversion settings already exists.
 5. Write the records to `Library/Doji/ModelHub/imports/`.
 
 A dependency that selects only `.sentis` files is **Ready** as soon as its files are downloaded.
 
-If a project declares the same repository at different revisions, AI Model Hub marks each of those rows as **Conflict** and does not download or convert that repository. Other repositories still sync.
+If a project declares the same model at different revisions, AI Model Hub marks each of those rows as **Conflict** and does not download or convert that model. Other models still sync.
 
-If one ONNX file of a repository cannot be converted, AI Model Hub keeps the other converted files. The model is **Ready**, with a warning that lists the skipped files. AI Model Hub does not try again until the model, its file selection, its conversion settings, or the Inference Engine version changes. The setup fails only when no ONNX file converts.
+If one ONNX file of a model cannot be converted, AI Model Hub keeps the other converted files. The model is **Ready**, with a warning that lists the skipped files. AI Model Hub does not try again until the model, its file selection, its conversion settings, or the Inference Engine version changes. The setup fails only when no ONNX file converts.
 
 ## Download cache
 
@@ -133,7 +133,7 @@ Rules:
 - A build never downloads. It fails, with a list, when a model is not downloaded. Download it in Model Hub first. A build never ships without a model silently.
 - The registry stores the commit that the Editor resolved. Players download exactly that commit and do not ask Hugging Face for the latest revision.
 - **Download at runtime** for an `.onnx` file needs the `tools.doji.onnx-model-loader` package, which converts ONNX models on the device. Without it, the build fails for that model.
-- Only public repositories can download at runtime. A build cannot contain an access token. A gated or private file fails with an `IOException` that names the repository and file.
+- Only public models can download at runtime. A build cannot contain an access token. A gated or private file fails with an `IOException` that names the model and file.
 
 ### Pull into project
 
@@ -168,7 +168,7 @@ Bundled models make the app larger. Google Play limits the base APK to 150 MB, a
 
 ## Load models at runtime
 
-Load a model by its repository id and the repository path the manifest declares. The same code works for bundled and downloaded models, in Play mode and in players:
+Load a model by its model id and the file path the manifest declares. The same code works for bundled and downloaded models, in Play mode and in players:
 
 ```csharp
 using Doji.AI.ModelHub;
@@ -208,9 +208,9 @@ Model model = await repo.LoadModelAsync("onnx/model.onnx");
 
 `Hub.LoadModel(repoId, repoPath)` and `Hub.FromPretrained(repoId)` do not wait. They work in the Editor, for bundled models on Windows, macOS, Linux, and iOS, and for downloaded models that are already on the device. On Android and the Web, and for models that are not downloaded yet, they throw an error that points to the async method.
 
-### Several packages, one repository
+### Several packages, one model
 
-When two packages use the same repository, each sees only the files its own manifest selects. Pass the package id to load the files of one package:
+When two packages use the same model, each sees only the files its own manifest selects. Pass the package id to load the files of one package:
 
 ```csharp
 Model model = await Hub.LoadModelAsync("com.example.depth", "julienkay/sentis-MiDaS", "sentis/midas_v21_small_256.sentis");

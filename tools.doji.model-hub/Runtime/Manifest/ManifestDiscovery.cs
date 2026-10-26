@@ -222,7 +222,7 @@ namespace Doji.AI.ModelHub
             var selected = GetSelectedRepoPaths(repositoryFiles, fallbackFiles);
             if (SelectsWholeRepository && ModelFiles.Describe(selected) == RepositoryModelFormat.Mixed)
             {
-                return $"Repository `{Repository}` has both ONNX and Sentis files. List the files you use in the manifest.";
+                return $"Model `{Repository}` has both ONNX and Sentis files. List the files you use in the manifest.";
             }
 
             return selected.Any(ModelFiles.IsModelFile)

@@ -9,8 +9,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
     /// <summary>
     /// Remembers which files exist in the project's generated AI Model Hub folders before a test, and on dispose deletes
     /// only the files and folders the test added. Models a maintainer imported into the companion project survive
-    /// test runs. Isolated files, such as the project's optional-file selections, are moved aside for the test and
-    /// restored afterwards, so the test starts without them and real settings come back.
+    /// test runs. Use <see cref="ProjectSettings.PushEmptyProjectOverrides"/> to isolate optional-file selections and
+    /// conversion overrides.
     /// </summary>
     public sealed class TestProjectStateScope : IDisposable
     {
@@ -25,30 +25,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private readonly string[] _roots;
         private readonly HashSet<string> _existingEntries;
-        private readonly List<(string Path, byte[] Content)> _savedFiles = new();
-        private readonly string[] _isolatedFiles;
 
         public TestProjectStateScope(params string[] projectRelativeRoots)
-            : this(projectRelativeRoots, Array.Empty<string>())
         {
-        }
-
-        public TestProjectStateScope(string[] projectRelativeRoots, string[] isolatedProjectFiles)
-        {
-            _isolatedFiles = (isolatedProjectFiles ?? Array.Empty<string>())
-                .SelectMany(file => new[] { ToAbsolutePath(file), ToAbsolutePath(file) + ".meta" })
-                .ToArray();
-            foreach (var file in _isolatedFiles.Where(File.Exists))
-            {
-                _savedFiles.Add((file, File.ReadAllBytes(file)));
-                File.Delete(file);
-            }
-
-            if (_savedFiles.Count > 0)
-            {
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            }
-
             _roots = (projectRelativeRoots == null || projectRelativeRoots.Length == 0 ? DefaultRoots : projectRelativeRoots)
                 .Select(ToAbsolutePath)
                 .ToArray();
@@ -101,17 +80,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         File.Delete(meta);
                     }
                 }
-            }
-
-            foreach (var file in _isolatedFiles.Where(File.Exists))
-            {
-                File.Delete(file);
-            }
-
-            foreach (var (filePath, content) in _savedFiles)
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-                File.WriteAllBytes(filePath, content);
             }
 
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);

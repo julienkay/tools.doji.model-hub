@@ -17,6 +17,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
     {
         private ProjectImportService _service;
         private TestProjectStateScope _projectScope;
+        private IDisposable _projectOverridesScope;
         private TestCacheScope _cacheScope;
         private string _rootDirectory;
 
@@ -27,14 +28,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Directory.CreateDirectory(_rootDirectory);
             _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
             _service = new ProjectImportService();
-            _projectScope = new TestProjectStateScope(
-                TestProjectStateScope.DefaultRoots.Append("Assets/Doji").ToArray(),
-                new[] { ProjectModelRecipeSource.DefaultAssetPath, ProjectOptionalFileSelectionSource.DefaultAssetPath });
+            _projectScope = new TestProjectStateScope();
+            _projectOverridesScope = ProjectSettings.PushEmptyProjectOverrides();
         }
 
         [TearDown]
         public void TearDown()
         {
+            _projectOverridesScope?.Dispose();
+            _projectOverridesScope = null;
             _projectScope?.Dispose();
             _projectScope = null;
             _cacheScope?.Dispose();
@@ -345,48 +347,35 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Is.EqualTo("tools-doji-bad-name"));
         }
 
-        [Test]
-        public void ProjectModelRecipeSource_EnsureProjectOverride_CreatesAssetAndEntry()
-        {
-            var source = new ProjectModelRecipeSource();
-
-            var assetPath = source.EnsureProjectOverride("doji/test-model", "model.onnx");
-
-            Assert.That(assetPath, Is.EqualTo(ProjectModelRecipeSource.DefaultAssetPath));
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(assetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Overrides, Has.Length.EqualTo(1));
-            Assert.That(asset.Overrides[0].Repository, Is.EqualTo("doji/test-model"));
-            Assert.That(asset.Overrides[0].RepoPath, Is.EqualTo("model.onnx"));
-            Assert.That(asset.Overrides[0].Recipe, Is.Not.Null);
-            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("none"));
-        }
-
+        /// <summary>
+        /// Verifies a project override is stored in Project Settings and removed again on request.
+        /// </summary>
         [Test]
         public void ProjectModelRecipeSource_RemoveProjectOverride_RemovesMatchingEntry()
         {
             var source = new ProjectModelRecipeSource();
-            source.EnsureProjectOverride("doji/test-model", "model.onnx");
+            source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe { QuantizationMode = "uint8" });
+            Assert.That(ProjectSettings.instance.GetConversionOverride("doji/test-model", "model.onnx")?.QuantizationMode, Is.EqualTo("uint8"));
 
             var removed = source.RemoveProjectOverride("doji/test-model", "model.onnx");
 
             Assert.That(removed, Is.True);
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Overrides, Is.Empty);
+            Assert.That(ProjectSettings.instance.GetConversionOverride("doji/test-model", "model.onnx"), Is.Null);
+            Assert.That(source.RemoveProjectOverride("doji/test-model", "model.onnx"), Is.False);
         }
 
+        /// <summary>
+        /// Verifies setting the default recipe clears the override instead of storing a copy of the default.
+        /// </summary>
         [Test]
         public void ProjectModelRecipeSource_SetProjectOverride_RemovesEntryWhenRecipeMatchesDefault()
         {
             var source = new ProjectModelRecipeSource();
-            source.EnsureProjectOverride("doji/test-model", "model.onnx");
+            source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe { QuantizationMode = "uint8" });
 
             source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe());
 
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Overrides, Is.Empty);
+            Assert.That(ProjectSettings.instance.GetConversionOverride("doji/test-model", "model.onnx"), Is.Null);
         }
 
         [Test]
@@ -437,17 +426,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(source.GetEffectiveRecipe("doji/test-model", "model.onnx").HasProjectOverride, Is.False, "An override equal to the manifest default is removed.");
         }
 
-        [Test]
-        public void ProjectModelRecipeSource_EnsureProjectOverride_StartsFromManifestDefault()
-        {
-            var source = new ProjectModelRecipeSource(new[] { CreateManifestDependency("com.example.a", "model.onnx", "uint8") });
-
-            source.EnsureProjectOverride("doji/test-model", "model.onnx");
-
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
-            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("uint8"));
-        }
-
         private static DiscoveredModelDependency CreateManifestDependency(string packageId, string repoPath, string quantization)
         {
             return new DiscoveredModelDependency(
@@ -489,20 +467,45 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     }
                 });
 
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Overrides, Has.Length.EqualTo(1));
-            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("int8"));
-            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides, Has.Length.EqualTo(1));
-            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides[0].InputName, Is.EqualTo("input_ids"));
-            Assert.That(asset.Overrides[0].Recipe.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 128 }));
+            var stored = ProjectSettings.instance.GetConversionOverride("doji/test-model", "model.onnx");
+            Assert.That(stored, Is.Not.Null);
+            Assert.That(stored.QuantizationMode, Is.EqualTo("int8"));
+            Assert.That(stored.StaticInputShapeOverrides, Has.Length.EqualTo(1));
+            Assert.That(stored.StaticInputShapeOverrides[0].InputName, Is.EqualTo("input_ids"));
+            Assert.That(stored.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 128 }));
         }
 
         /// <summary>
-        /// Verifies project optional selection source creates a project-owned asset and owner-scoped entry.
+        /// Verifies a conversion override survives serialization, so it is still there after a domain reload and in
+        /// the settings file other team members check out.
         /// </summary>
         [Test]
-        public void ProjectOptionalFileSelectionSource_SetEnabledOptionalFiles_CreatesAssetAndEntry()
+        public void ProjectSettings_ConversionOverride_SurvivesSerialization()
+        {
+            ProjectSettings.instance.SetConversionOverride(
+                "doji/test-model",
+                "model.onnx",
+                new OnnxConversionRecipe
+                {
+                    QuantizationMode = "float16",
+                    StaticInputShapeOverrides = new[] { new OnnxStaticInputShapeOverride { InputName = "pixel_values", Dimensions = new[] { 1, 3, 224, 224 } } }
+                });
+
+            // A second ProjectSettings instance would log a ScriptableSingleton error, so check the serialized form.
+            var json = EditorJsonUtility.ToJson(ProjectSettings.instance);
+
+            Assert.That(json, Does.Contain("\"repoPath\":\"model.onnx\""));
+            Assert.That(json, Does.Contain("\"quantization\":\"float16\""));
+            Assert.That(json, Does.Contain("\"input\":\"pixel_values\""));
+            Assert.That(json, Does.Contain("\"dimensions\":[1,3,224,224]"));
+        }
+
+        /// <summary>
+        /// Verifies project optional selection source stores an owner-scoped entry in Project Settings and returns only
+        /// files the manifest still declares.
+        /// </summary>
+        [Test]
+        public void ProjectOptionalFileSelectionSource_SetEnabledOptionalFiles_StoresEntry()
         {
             var source = new ProjectOptionalFileSelectionSource();
 
@@ -511,12 +514,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "doji/test-model",
                 new[] { "model_q4.onnx" });
 
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectOptionalFileSelectionsAsset>(ProjectOptionalFileSelectionSource.DefaultAssetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Selections, Has.Length.EqualTo(1));
-            Assert.That(asset.Selections[0].OwnerId, Is.EqualTo("tools.doji.test"));
-            Assert.That(asset.Selections[0].ModelId, Is.EqualTo("doji/test-model"));
-            Assert.That(asset.Selections[0].EnabledOptionalFiles, Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(
+                ProjectSettings.instance.GetEnabledOptionalFiles("tools.doji.test", "doji/test-model"),
+                Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(
+                source.GetEnabledOptionalFiles("tools.doji.test", "doji/test-model", new[] { "model_q4.onnx", "model_fp16.onnx" }),
+                Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(
+                source.GetEnabledOptionalFiles("tools.doji.test", "doji/test-model", new[] { "model_fp16.onnx" }),
+                Is.Empty);
         }
 
         /// <summary>
@@ -536,9 +542,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "doji/test-model",
                 Array.Empty<string>());
 
-            var asset = AssetDatabase.LoadAssetAtPath<ProjectOptionalFileSelectionsAsset>(ProjectOptionalFileSelectionSource.DefaultAssetPath);
-            Assert.That(asset, Is.Not.Null);
-            Assert.That(asset.Selections, Is.Empty);
+            Assert.That(ProjectSettings.instance.GetEnabledOptionalFiles("tools.doji.test", "doji/test-model"), Is.Empty);
         }
 
         /// <summary>
@@ -751,7 +755,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             public EffectiveOnnxConversionRecipe GetEffectiveRecipe(string repository, string repoPath)
             {
-                return new EffectiveOnnxConversionRecipe(_recipe, "Test", null, true);
+                return new EffectiveOnnxConversionRecipe(_recipe, "Test", true);
             }
 
             public string ComputeRecipeSetHash(string repository, System.Collections.Generic.IEnumerable<string> repoPaths)
@@ -760,7 +764,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
 
             public void SetProjectOverride(string repository, string repoPath, OnnxConversionRecipe recipe) => _inner.SetProjectOverride(repository, repoPath, recipe);
-            public string EnsureProjectOverride(string repository, string repoPath) => _inner.EnsureProjectOverride(repository, repoPath);
             public bool RemoveProjectOverride(string repository, string repoPath) => _inner.RemoveProjectOverride(repository, repoPath);
         }
 

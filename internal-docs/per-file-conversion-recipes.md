@@ -223,22 +223,13 @@ It should additionally record:
 
 That lets multiple owners reuse one generated repo artifact only when they agree on effective recipe for same files.
 
-## Project Override Asset
+## Project Override Storage
 
-Project overrides should live in project-owned versioned data, not in `Library/` and not in machine cache.
+Project overrides live in `ProjectSettings` (`ProjectSettings/Doji.AI.ModelHubSettings.asset`), next to build delivery overrides and optional-file selections. The file is versioned with the project; nothing is stored in `Library/` or the machine cache.
 
-Target shape:
-
-- one project asset or JSON document under versioned project content
 - keyed by `repository + repoPath`
-- stores recipe fields plus provenance and update timestamp
-
-Recommended location direction:
-
-- dedicated AI Model Hub project asset under `Assets/Doji/ModelHub/`
-- or extend existing project manifest asset system with explicit override asset
-
-Keep it separate from package manifest parsing so package-owned declaration and project-owned override remain distinct.
+- stores the quantization mode and static input shapes
+- `ProjectModelRecipeSource` reads and writes it; package manifest parsing never sees it, so package-owned declarations and project-owned overrides stay apart
 
 ## Converter Contract
 
@@ -502,7 +493,3 @@ Mixed-precision sources cannot be told apart after import, because the importer 
 - recipe-specific runtime public API
 - turning project overrides into hidden machine-local preferences
 - treating optional-bundle selection as machine-local cache preference instead of project-owned state
-
-## Open Questions
-
-- should project overrides live in one dedicated asset or inside expanded project manifest asset schema

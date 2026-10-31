@@ -110,38 +110,6 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Ensures one file-level override entry exists and selects the owning asset for editing in Inspector.
-        /// </summary>
-        public static void EnsureProjectOverride(ModelHubItem item, ModelHubFileItem file)
-        {
-            if (item == null || file == null)
-            {
-                return;
-            }
-
-            var assetPath = RecipeSource.EnsureProjectOverride(item.Repository, file.RepoPath);
-            var asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
-            if (asset != null)
-            {
-                Selection.activeObject = asset;
-                EditorGUIUtility.PingObject(asset);
-            }
-        }
-
-        /// <summary>
-        /// Removes one file-level override entry from the project-owned override asset.
-        /// </summary>
-        public static void RemoveProjectOverride(ModelHubItem item, ModelHubFileItem file)
-        {
-            if (item == null || file == null)
-            {
-                return;
-            }
-
-            RecipeSource.RemoveProjectOverride(item.Repository, file.RepoPath);
-        }
-
-        /// <summary>
         /// Persists repo file recipe edits and starts background sync so generated artifacts match new settings.
         /// </summary>
         public static void ApplyProjectOverridesAndReimport(ModelHubItem item, System.Collections.Generic.IReadOnlyDictionary<string, OnnxConversionRecipe> recipesByRepoPath)

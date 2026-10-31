@@ -111,26 +111,6 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Selects one Unity asset and pings it in Project view.
-        /// </summary>
-        public static void PingAsset(string assetPath)
-        {
-            if (string.IsNullOrWhiteSpace(assetPath))
-            {
-                return;
-            }
-
-            var asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
-            if (asset == null)
-            {
-                return;
-            }
-
-            Selection.activeObject = asset;
-            EditorGUIUtility.PingObject(asset);
-        }
-
-        /// <summary>
         /// Pings one manifest asset when Unity can resolve it, otherwise reveals backing file.
         /// </summary>
         public static void LocateManifest(string manifestPath)

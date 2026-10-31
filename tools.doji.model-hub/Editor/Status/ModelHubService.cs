@@ -184,7 +184,6 @@ namespace Doji.AI.ModelHub.Editor
                         GetRuntimeFileSizeOnDisk(runtimeFile),
                         effectiveRecipe?.Recipe,
                         effectiveRecipe?.SourceLabel,
-                        effectiveRecipe?.OverrideAssetPath,
                         effectiveRecipe?.HasProjectOverride == true);
                 })
                 .ToArray();

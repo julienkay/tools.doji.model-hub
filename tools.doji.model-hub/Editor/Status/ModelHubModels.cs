@@ -45,7 +45,6 @@ namespace Doji.AI.ModelHub.Editor
             long? runtimeSizeOnDiskBytes,
             OnnxConversionRecipe recipe,
             string recipeSourceLabel,
-            string overrideAssetPath,
             bool hasProjectOverride)
         {
             RepoPath = repoPath;
@@ -58,7 +57,6 @@ namespace Doji.AI.ModelHub.Editor
             RuntimeSizeOnDiskBytes = runtimeSizeOnDiskBytes;
             Recipe = recipe;
             RecipeSourceLabel = recipeSourceLabel;
-            OverrideAssetPath = overrideAssetPath;
             HasProjectOverride = hasProjectOverride;
         }
 
@@ -72,7 +70,6 @@ namespace Doji.AI.ModelHub.Editor
         public long? RuntimeSizeOnDiskBytes { get; }
         public OnnxConversionRecipe Recipe { get; }
         public string RecipeSourceLabel { get; }
-        public string OverrideAssetPath { get; }
         public bool HasProjectOverride { get; }
         public bool IsOnnxFile => ModelDependencyDefinition.IsOnnxFile(RepoPath);
         public bool SupportsImportRecipeEditing => IsDependencySelected && IsOnnxFile;

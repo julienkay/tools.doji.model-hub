@@ -18,3 +18,5 @@ MonoBehaviour:
   _deliveryOverrides:
   - repository: julienkay/sentis-midas
     delivery: 1
+  _optionalFileSelections: []
+  _conversionOverrides: []

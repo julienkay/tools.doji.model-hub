@@ -168,13 +168,6 @@ namespace Doji.AI.ModelHub.Editor
                     var source = UiKit.Row("mh-field-row");
                     source.Add(UiKit.Text("Settings from", "hf-kv__key"));
                     source.Add(UiKit.Text(file.RecipeSourceLabel));
-                    if (!string.IsNullOrWhiteSpace(file.OverrideAssetPath))
-                    {
-                        var overridePath = file.OverrideAssetPath;
-                        source.Add(UiKit.Spacer());
-                        source.Add(UiKit.LinkButton("Select asset", () => ProjectSettingsLinks.PingAsset(overridePath), overridePath));
-                    }
-
                     body.Add(source);
                 }
 

@@ -111,7 +111,7 @@ Project-owned selection overrides must stay outside package manifest so installe
 Selection storage rule:
 
 - package manifest declares available selected files and which selected files are optional
-- project-owned override data records enabled optional file paths per owner dependency
+- `ProjectSettings` (`ProjectSettings/Doji.AI.ModelHubSettings.asset`) records enabled optional file paths per owner id and model id
 - status, download, import, and runtime registry logic all reason over effective selection, not raw manifest text alone
 
 If the effective selection is empty because every model file is optional and none is enabled, status is `SelectionRequired` (**Choose files**), not an error, and AI Model Hub downloads nothing. A selection without any `.onnx` or `.sentis` file is `InvalidSelection`.

@@ -28,11 +28,7 @@ Open `Window > AI Model Hub`.
 
 Select the model. When its manifest marks files as optional, the **Optional files** section of the **Overview** tab lists them with their sizes. Turning on a file includes it in this project only.
 
-AI Model Hub stores project-owned optional-file choices in:
-
-```text
-Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
-```
+AI Model Hub stores optional-file choices and changed import settings in `ProjectSettings/Doji.AI.ModelHubSettings.asset`. Commit that file so your team gets the same files and the same converted models.
 
 Optional files that are off do not count for status, download, conversion, builds, or startup prompts. Optional files that are on count like any other selected file.
 

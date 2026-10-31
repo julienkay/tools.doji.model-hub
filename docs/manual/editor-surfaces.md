@@ -67,11 +67,7 @@ More actions:
 
 ### Overview tab
 
-The **Optional files** section appears when a manifest marks files as optional. Turn on the files this project needs. AI Model Hub stores the choice in this project only, in:
-
-```text
-Assets/Doji/ModelHub/AI Model Hub Optional File Selections.asset
-```
+The **Optional files** section appears when a manifest marks files as optional. Turn on the files this project needs. AI Model Hub stores the choice in this project only, in `ProjectSettings/Doji.AI.ModelHubSettings.asset`. Commit that file so your team gets the same files.
 
 The choice is stored per manifest and model, so different packages can turn on different files of the same model. Files that are off are not downloaded, converted, or counted in status.
 

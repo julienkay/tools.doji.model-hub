@@ -198,8 +198,6 @@ Editor UI and manifest editing:
   - TearDown deletes the folder even when a reset throws, and the fixture's OneTimeSetUp deletes folders left by runs that stopped mid-test
 - `tools.doji.model-hub/Tests/Editor/Cache/BlobLockTests.cs`
   - blob lock exclusion, waiting, and cancellation; waits run on the thread pool because the main thread is blocked during a test
-- `tools.doji.model-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`
-  - optional-file selections asset resolves its script, so choices survive asset refresh
 - `tools.doji.model-hub/Tests/Editor/UI/ModelHubFileEditingTests.cs`
   - inspected static ONNX input shapes become read-only Files tab display rows
 - `tools.doji.model-hub/Tests/Editor/UI/ModelHubFileIconTests.cs`

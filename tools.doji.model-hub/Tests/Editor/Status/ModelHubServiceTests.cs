@@ -763,7 +763,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     QuantizationMode = "int8"
                 },
                 "Project Override",
-                "Assets/Doji/ModelHub/AI Model Hub Conversion Overrides.asset",
                 true);
         }
 
@@ -774,11 +773,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         public void SetProjectOverride(string repository, string repoPath, OnnxConversionRecipe recipe)
         {
-        }
-
-        public string EnsureProjectOverride(string repository, string repoPath)
-        {
-            return "Assets/Doji/ModelHub/AI Model Hub Conversion Overrides.asset";
         }
 
         public bool RemoveProjectOverride(string repository, string repoPath)

@@ -191,13 +191,23 @@ namespace Doji.AI.ModelHub.Editor
                 var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(recipe);
                 var sourceEtag = SourceFileIdentity.GetEtag(snapshotFile);
                 var conversionKey = GetConversionKey(dependency.Repository, snapshotFile, _recipeSource, converterId);
+                long? importedWeightBytes = null;
+                long? convertedWeightBytes = null;
                 if (!ConvertedModelStore.TryGet(dependency.Repository, conversionKey, out var convertedPath))
                 {
                     try
                     {
+                        var unsupported = OnnxModelInspector.Inspect(snapshotFile.CachedFilePath)?.DescribeUnsupportedOperators();
+                        if (unsupported != null)
+                        {
+                            throw new InvalidOperationException(unsupported);
+                        }
+
                         var conversionResult = _onnxModelConverter.Convert(new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe));
                         var settingWarnings = new List<string>();
+                        importedWeightBytes = OnnxConversionSettings.GetWeightBytes(conversionResult.Model);
                         var convertedModel = OnnxConversionSettings.Apply(conversionResult.Model, recipe, settingWarnings);
+                        convertedWeightBytes = OnnxConversionSettings.GetWeightBytes(convertedModel);
                         foreach (var warning in settingWarnings)
                         {
                             diagnostics.Add(new ImportDiagnostic { Severity = "warning", Message = $"{snapshotFile.RepoPath}: {warning}" });
@@ -226,7 +236,9 @@ namespace Doji.AI.ModelHub.Editor
                                 sourceEtag = sourceEtag,
                                 converterId = converterId,
                                 formatGeneration = SentisCompatibility.GetGeneration(sentisVersion),
-                                recipeHash = recipeHash
+                                recipeHash = recipeHash,
+                                importedWeightBytes = importedWeightBytes ?? 0,
+                                convertedWeightBytes = convertedWeightBytes ?? 0
                             });
                     }
                     catch (Exception exception)
@@ -243,6 +255,24 @@ namespace Doji.AI.ModelHub.Editor
                         continue;
                     }
                 }
+                else
+                {
+                    // Another project or an earlier run converted it: report the recorded effect again.
+                    var record = ConvertedModelStore.TryReadRecord(dependency.Repository, conversionKey);
+                    if (record != null)
+                    {
+                        importedWeightBytes = record.importedWeightBytes;
+                        convertedWeightBytes = record.convertedWeightBytes;
+                        var warning = OnnxConversionSettings.DescribeQuantizationEffect(
+                            recipe.QuantizationMode,
+                            record.importedWeightBytes,
+                            record.convertedWeightBytes);
+                        if (warning != null)
+                        {
+                            diagnostics.Add(new ImportDiagnostic { Severity = "warning", Message = $"{snapshotFile.RepoPath}: {warning}" });
+                        }
+                    }
+                }
 
                 runtimeFiles.Add(new ImportedRuntimeFileMetadata
                 {
@@ -256,7 +286,9 @@ namespace Doji.AI.ModelHub.Editor
                     ConversionKey = conversionKey,
                     SizeInBytes = new FileInfo(convertedPath).Length,
                     RecipeHash = recipeHash,
-                    ConversionPipelineVersion = converterId
+                    ConversionPipelineVersion = converterId,
+                    ImportedWeightBytes = importedWeightBytes,
+                    ConvertedWeightBytes = convertedWeightBytes
                 });
             }
 

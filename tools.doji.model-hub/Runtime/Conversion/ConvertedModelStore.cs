@@ -21,6 +21,16 @@ namespace Doji.AI.ModelHub
         public string formatGeneration;
         public string recipeHash;
         public string createdAtUtc;
+
+        /// <summary>
+        /// Constant bytes after import, before quantization. Zero in records written before it was measured.
+        /// </summary>
+        public long importedWeightBytes;
+
+        /// <summary>
+        /// Constant bytes of the saved model.
+        /// </summary>
+        public long convertedWeightBytes;
     }
 
     /// <summary>
@@ -71,6 +81,22 @@ namespace Doji.AI.ModelHub
         {
             modelPath = GetModelPath(repository, key);
             return File.Exists(modelPath);
+        }
+
+        /// <summary>
+        /// Reads the record of a converted model, or null when there is none or it cannot be read.
+        /// </summary>
+        public static ConvertedModelRecord TryReadRecord(string repository, string key)
+        {
+            var recordPath = GetRecordPath(repository, key);
+            try
+            {
+                return File.Exists(recordPath) ? JsonUtility.FromJson<ConvertedModelRecord>(File.ReadAllText(recordPath)) : null;
+            }
+            catch (Exception exception) when (exception is IOException || exception is ArgumentException || exception is UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         /// <summary>

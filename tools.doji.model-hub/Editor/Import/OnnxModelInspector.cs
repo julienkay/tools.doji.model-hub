@@ -9,10 +9,33 @@ using LoaderOnnxModelInputSignature = Doji.ONNX.OnnxModelInputSignature;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Reads lightweight ONNX input metadata needed for importer-style shape configuration UI.
+    /// Reads lightweight ONNX metadata: inputs for the shape settings, and weight types and operators to check the
+    /// source before conversion. It never reads weight data.
     /// </summary>
     internal static class OnnxModelInspector
     {
+        /// <summary>
+        /// Quantization operators the Inference Engine ONNX importer cannot import (2.6). A graph with any of them
+        /// fails to convert, whatever the conversion settings.
+        /// </summary>
+        internal static readonly string[] UnsupportedQuantizationOperators =
+        {
+            "ConvInteger",
+            "DequantizeLinear",
+            "DynamicQuantizeLinear",
+            "GatherBlockQuantized",
+            "MatMulInteger",
+            "MatMulIntegerToFloat",
+            "MatMulNBits",
+            "QAttention",
+            "QGemm",
+            "QLinearAdd",
+            "QLinearConv",
+            "QLinearMatMul",
+            "QLinearMul",
+            "QuantizeLinear"
+        };
+
         public static OnnxInspectedModel Inspect(string onnxFilePath)
         {
             if (string.IsNullOrWhiteSpace(onnxFilePath) || !File.Exists(onnxFilePath))
@@ -31,7 +54,15 @@ namespace Doji.AI.ModelHub.Editor
                             .Select(dimension => CreateDimension(input.Name, dimension))
                             .ToArray()))
                     .ToArray();
-                return new OnnxInspectedModel(inputs);
+                return new OnnxInspectedModel(
+                    inputs,
+                    (signature.WeightBytes ?? Array.Empty<Doji.ONNX.OnnxWeightBytes>())
+                        .Where(weight => weight != null && weight.Bytes > 0)
+                        .Select(weight => new OnnxInspectedWeights(weight.DataType.ToString(), weight.Bytes))
+                        .ToArray(),
+                    (signature.OperatorTypes ?? Array.Empty<string>())
+                        .Where(op => UnsupportedQuantizationOperators.Contains(op, StringComparer.Ordinal))
+                        .ToArray());
             }
             catch
             {
@@ -62,14 +93,72 @@ namespace Doji.AI.ModelHub.Editor
     internal sealed class OnnxInspectedModel
     {
         private readonly OnnxInspectedInput[] _inputs;
+        private readonly OnnxInspectedWeights[] _weights;
+        private readonly string[] _unsupportedOperators;
 
-        public OnnxInspectedModel(IReadOnlyList<OnnxInspectedInput> inputs)
+        public OnnxInspectedModel(
+            IReadOnlyList<OnnxInspectedInput> inputs,
+            IReadOnlyList<OnnxInspectedWeights> weights = null,
+            IReadOnlyList<string> unsupportedOperators = null)
         {
             _inputs = inputs?.ToArray() ?? Array.Empty<OnnxInspectedInput>();
+            _weights = weights?.OrderByDescending(weight => weight.Bytes).ToArray() ?? Array.Empty<OnnxInspectedWeights>();
+            _unsupportedOperators = unsupportedOperators?.ToArray() ?? Array.Empty<string>();
         }
 
         public IReadOnlyList<OnnxInspectedInput> Inputs => _inputs;
+
+        /// <summary>
+        /// Initializer bytes per ONNX data type, largest first.
+        /// </summary>
+        public IReadOnlyList<OnnxInspectedWeights> Weights => _weights;
+
+        /// <summary>
+        /// Operators of the graph that Inference Engine cannot import, from <see cref="OnnxModelInspector.UnsupportedQuantizationOperators"/>.
+        /// </summary>
+        public IReadOnlyList<string> UnsupportedOperators => _unsupportedOperators;
+
+        /// <summary>
+        /// True when float16 holds most initializer bytes. The importer expands float16 to float32, so such a model
+        /// converts to about twice its size unless it is quantized to float16.
+        /// </summary>
+        public bool IsMostlyFloat16
+        {
+            get
+            {
+                var total = _weights.Sum(weight => weight.Bytes);
+                var float16 = _weights.Where(weight => weight.DataType == "Float16").Sum(weight => weight.Bytes);
+                return total > 0 && float16 * 2 > total;
+            }
+        }
+
+        /// <summary>
+        /// Message for a graph that cannot be converted because of quantized operators, or null.
+        /// </summary>
+        public string DescribeUnsupportedOperators()
+        {
+            return _unsupportedOperators.Length == 0
+                ? null
+                : "it uses quantized ONNX operators that Inference Engine cannot import " +
+                    $"({string.Join(", ", _unsupportedOperators.Select(op => $"`{op}`"))}). " +
+                    "Select the float model of the repository, or a `.sentis` file.";
+        }
         public int DynamicDimensionCount => _inputs.Sum(input => input.Dimensions.Count(dimension => dimension.IsDynamicByDefault));
+    }
+
+    /// <summary>
+    /// Initializer bytes of one ONNX data type, for example <c>Float16</c>.
+    /// </summary>
+    internal sealed class OnnxInspectedWeights
+    {
+        public OnnxInspectedWeights(string dataType, long bytes)
+        {
+            DataType = dataType;
+            Bytes = bytes;
+        }
+
+        public string DataType { get; }
+        public long Bytes { get; }
     }
 
     /// <summary>

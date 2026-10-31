@@ -89,9 +89,12 @@ The **Files** tab lists the files the project uses from the model. **Show unused
 
 Expand an ONNX file to change how AI Model Hub converts it. `.sentis` files have no conversion settings.
 
-- **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the converted model smaller and can reduce accuracy.
+- **Quantization**: `None`, `Float16`, or `UInt8`. Lower precision makes the converted model smaller and can reduce accuracy. See [Choosing Quantization](manifest-reference.md#choosing-quantization).
 - **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at conversion, or `-1` to keep it dynamic. Dimensions with the same name share one value.
 - **Settings from**: `Project Override`, `Manifest: <owner>` when a manifest sets `conversion` for the file, or `Built-in Default`. When manifests set different settings, it shows `Built-in Default (manifests disagree: ...)`. See [Conversion Settings](manifest-reference.md#conversion-settings).
+- **Source weights**: the weight size of the downloaded ONNX file per data type, for example `120 MB Float16`.
+- **Converted weights**: the weight size after import and after quantization, for example `240 MB → 120 MB`.
+- A note when the setting does not fit the file: an error when the file uses quantized ONNX operators that cannot be converted, or advice to choose `Float16` when the source weights are float16 and quantization is `None`.
 - **Location**: the downloaded file and the converted Sentis model.
 
 After a change, a bar at the bottom offers **Revert** and **Apply & Convert**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, AI Model Hub asks whether to apply or discard them.

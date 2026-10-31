@@ -195,6 +195,14 @@ Set `files[].conversion` on an `.onnx` file to choose how AI Model Hub converts 
 
 `conversion` must set at least one of the two keys. Other keys, other quantization names, and `conversion` on a file that is not `.onnx` fail validation.
 
+### Choosing Quantization
+
+Quantization stores float32 weights at lower precision. It does not fit every source file:
+
+- Inference Engine converts float16 ONNX weights to float32, so an fp16 ONNX file converts to about twice its size with `none`. Set `float16` to keep the source size without losing precision. The **Files** tab shows this advice when most weights of the downloaded file are float16.
+- Inference Engine quantizes only the weights of `Conv`, `ConvTranspose`, `Gather`, `Dense`, and `MatMul` layers. When quantization changes no weight, import reports a warning. The **Files** tab shows the weight size before and after conversion.
+- Inference Engine cannot import quantized ONNX operators, such as `MatMulNBits`, `QLinearMatMul`, or `DequantizeLinear`. int8 and int4 ONNX variants (often named `_q4`, `_int8`, `_bnb4`, or `_quantized`) fail before conversion, whatever `conversion` sets. Select the float model and set `quantization` instead, or a `.sentis` file.
+
 The manifest settings are defaults. A project can override them per file in the Model Hub **Files** tab. AI Model Hub uses, in order:
 
 1. the project override

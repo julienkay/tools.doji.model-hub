@@ -47,6 +47,7 @@ Rules:
 - `conversion` needs at least one key. To quantize, set it in the manifest, not in a project override: a project override is per project and does not ship with the package.
 - Order of effect: project override (Model Hub **Files** tab), then the manifest `conversion`, then the built-in default. Manifests that set different `conversion` for the same file fall back to the built-in default until the project overrides it.
 - Use the selected `.sentis` file instead of `conversion` when the repo already ships a converted model.
+- Match quantization to the source. Inference Engine expands fp16 ONNX weights to float32: for an fp16 file, set `float16` to keep its size. Quantized ONNX files (`MatMulNBits`, `QLinear*`, `DequantizeLinear`; often `_q4`, `_int8`, `_bnb4`) cannot be converted: select the float file and set `quantization`. Import warns when quantization changes no weight; the Files tab shows weight sizes before and after.
 
 Load a model in package code by id and the exact listed path:
 

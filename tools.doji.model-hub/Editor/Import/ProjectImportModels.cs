@@ -70,6 +70,16 @@ namespace Doji.AI.ModelHub.Editor
         public string RecipeHash { get; set; }
         public string ConversionPipelineVersion { get; set; }
         public string InputSignatureHash { get; set; }
+
+        /// <summary>
+        /// Constant bytes after import, before quantization, for converted files. Null when not measured.
+        /// </summary>
+        public long? ImportedWeightBytes { get; set; }
+
+        /// <summary>
+        /// Constant bytes of the converted model. Null when not measured.
+        /// </summary>
+        public long? ConvertedWeightBytes { get; set; }
     }
 
     /// <summary>

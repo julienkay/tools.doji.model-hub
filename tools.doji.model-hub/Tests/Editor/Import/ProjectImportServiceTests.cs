@@ -276,6 +276,49 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies a source with quantized ONNX operators is skipped before conversion, with a message that names
+        /// the operator.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_SkipsSourcesWithUnsupportedQuantizationOperators()
+        {
+            var cachedSnapshot = CreateSnapshot(
+                ("model.onnx", "etag-model", _ => File.ReadAllBytes(GetInferenceSampleOnnxPath())),
+                ("model_q4.onnx", "etag-q4", _ => OnnxModelInspectorTests.BuildQuantizedOnnxModel()));
+
+            var artifact = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+
+            Assert.That(artifact.RuntimeFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "model.onnx" }));
+            Assert.That(artifact.Metadata.SkippedRepoPaths, Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(artifact.Metadata.Diagnostics.Single().Message, Does.Contain("`MatMulNBits`"));
+        }
+
+        /// <summary>
+        /// Verifies the measured weight bytes reach the runtime file, and a reused conversion reports the same
+        /// totals and warnings as the first.
+        /// </summary>
+        [Test]
+        public async Task ImportAsync_RecordsWeightBytesAndRepeatsThemOnReuse()
+        {
+            var cachedSnapshot = CreateCachedSnapshot();
+            var service = new ProjectImportService(recipeSource: new FixedRecipeSource(new OnnxConversionRecipe { QuantizationMode = "uint8" }));
+
+            var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
+            var again = await service.ImportAsync(CreateDependency(packageId: "tools.doji.other"), cachedSnapshot, CancellationToken.None);
+
+            var firstFile = first.RuntimeFiles.Single();
+            var againFile = again.RuntimeFiles.Single();
+            Assert.That(firstFile.ImportedWeightBytes, Is.Not.Null);
+            Assert.That(firstFile.ConvertedWeightBytes, Is.Not.Null);
+            Assert.That(firstFile.ConvertedWeightBytes, Is.LessThanOrEqualTo(firstFile.ImportedWeightBytes));
+            Assert.That(againFile.ImportedWeightBytes, Is.EqualTo(firstFile.ImportedWeightBytes));
+            Assert.That(againFile.ConvertedWeightBytes, Is.EqualTo(firstFile.ConvertedWeightBytes));
+            Assert.That(
+                again.Metadata.Diagnostics.Select(diagnostic => diagnostic.Message),
+                Is.EqualTo(first.Metadata.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        }
+
+        /// <summary>
         /// Verifies a conversion failure names the file and the repository.
         /// </summary>
         [Test]

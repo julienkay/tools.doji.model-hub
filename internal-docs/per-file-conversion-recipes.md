@@ -279,6 +279,7 @@ Current integration boundary:
 - `tools.doji.model-hub` owns recipe state, Model Hub UI, project overrides, conversion orchestration, and stale decisions
 - `tools.doji.formats.onnx` owns lightweight ONNX signature reading (`Doji.ONNX.OnnxModelSignatureReader`)
 - `OnnxModelInspector` adapts the external signature reader into AI Model Hub's internal `OnnxInspectedModel` shape
+- `OnnxModelInspector.UnsupportedQuantizationOperators` lists the ONNX operators Inference Engine cannot import. Check it against the importer when updating `com.unity.ai.inference`
 
 AI Model Hub should extract or receive file-level inspection data such as:
 
@@ -286,6 +287,10 @@ AI Model Hub should extract or receive file-level inspection data such as:
 - rank
 - static versus dynamic dimensions
 - dtype where available
+- weight bytes per data type, from initializer `data_type` and `dims`
+- the operator types of the main graph
+
+Weight bytes come from tensor metadata. The reader seeks past `raw_data` and never opens external data files, so the cost grows with the number of tensors and nodes, not with the file size. `Constant` node values and subgraphs of `If` and `Loop` are not counted.
 
 Inspection data supports:
 
@@ -432,6 +437,36 @@ Why later:
 
 Converted cache key should match file conversion identity exactly so copying into project runtime layout is deterministic and safe.
 
+## Quantization And Source Precision
+
+Quantization is a request: store eligible float32 weights at lower precision. It is never wrong on its own, but it can be ineffective, and the ONNX source can make conversion fail or grow regardless of the setting. AI Model Hub reports this; it does not refuse a recipe because of it.
+
+What Inference Engine does (2.6):
+
+- `ONNXConstantsLoader` expands every float16 tensor to float32, initializers and `Constant` values alike. An fp16 ONNX model converts to about twice its source size.
+- `ModelQuantizer.QuantizeWeights` re-stores only float32 constants that are direct inputs of `Conv`, `ConvTranspose`, `Gather`, `Dense`, `MatMul`, or `MatMul2D`. Other constants stay float32. Constants that are already 16-bit or 8-bit are skipped, so quantizing twice changes nothing.
+- The ONNX importer has no quantization operators: `DequantizeLinear`, `QuantizeLinear`, `DynamicQuantizeLinear`, `QLinearConv`, `QLinearMatMul`, `MatMulInteger`, `ConvInteger`, and `MatMulNBits` fail to import. int8 and int4 ONNX variants cannot be converted, whatever the recipe says.
+- `.sentis` files are not converted. The manifest rejects `conversion` on them.
+
+Rules:
+
+- the built-in default stays `none`: float32, even for an fp16 source. Package maintainers choose `float16` when they want the source size
+- validate what is known when it is known: the extension in the manifest, the source metadata after download, the effect after conversion
+- report the effect by measuring it, not by predicting it
+
+Checks:
+
+| When | Finding | Severity | Effect |
+|---|---|---|---|
+| manifest parse | `conversion` on a non-`.onnx` file | error | manifest invalid |
+| before conversion | the graph uses an unsupported quantization operator | error | the file is not converted; the model is Ready with the other files, or fails when no file converts |
+| before conversion | most weight bytes are float16 and the recipe does not quantize | info | Files tab advises `float16` |
+| after conversion | quantization was requested but no weight changed type | warning | stored with the conversion diagnostics |
+
+`OnnxConversionSettings.Apply` measures weight bytes per data type before and after the recipe, on the model already in memory. The converted model record keeps both totals, and the Files tab shows them, for example `Weights 120 MB → 60 MB`.
+
+Mixed-precision sources cannot be told apart after import, because the importer expands every float16 tensor. The source check uses byte totals: the advice appears when float16 holds most weight bytes.
+
 ## Rollout
 
 ### Phase 1: Recipe Plumbing
@@ -449,11 +484,12 @@ Converted cache key should match file conversion identity exactly so copying int
 - add explicit re-materialize action for selected repo or file
 - split backend download from materialize
 
-### Phase 3: Manifest v2 Defaults
+### Phase 3: Manifest Defaults
 
-- add package-authored file or artifact conversion defaults
+- add package-authored file conversion defaults (`files[].conversion`, in `version: 1`)
 - add owner-default conflict detection
 - add docs and package-author guidance
+- report source precision, unsupported quantized operators, and the measured weight-size effect
 
 ### Phase 4: Converted Cache
 
@@ -470,5 +506,3 @@ Converted cache key should match file conversion identity exactly so copying int
 ## Open Questions
 
 - should project overrides live in one dedicated asset or inside expanded project manifest asset schema
-- should conflict on package-default recipe mismatch be hard error immediately, or warning until manifest v2 ships
-- how much ONNX inspection data can be extracted cheaply without triggering heavy import cost

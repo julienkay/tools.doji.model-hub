@@ -110,6 +110,12 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         public string RepoPath { get; }
+
+        /// <summary>
+        /// ONNX metadata of the downloaded file, or null before download or when it cannot be read.
+        /// </summary>
+        public OnnxInspectedModel InspectedModel => _inspectedModel;
+
         public bool IsExpanded { get; set; }
         public string QuantizationMode { get; set; }
         public List<DynamicDimensionEditState> DynamicDimensions { get; }

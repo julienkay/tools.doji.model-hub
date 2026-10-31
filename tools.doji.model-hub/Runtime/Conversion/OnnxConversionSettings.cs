@@ -71,7 +71,9 @@ namespace Doji.AI.ModelHub
                 model.inputs[index] = input;
             }
 
-            switch (NormalizeQuantizationMode(recipe.QuantizationMode))
+            var mode = NormalizeQuantizationMode(recipe.QuantizationMode);
+            var weightBytesBefore = GetWeightBytes(model);
+            switch (mode)
             {
                 case "float16":
                     ModelQuantizer.QuantizeWeights(QuantizationType.Float16, ref model);
@@ -81,7 +83,38 @@ namespace Doji.AI.ModelHub
                     break;
             }
 
+            var warning = DescribeQuantizationEffect(mode, weightBytesBefore, GetWeightBytes(model));
+            if (warning != null)
+            {
+                warnings.Add(warning);
+            }
+
             return model;
+        }
+
+        /// <summary>
+        /// Returns the bytes of all constants of a converted model, as it is saved.
+        /// </summary>
+        public static long GetWeightBytes(Model model)
+        {
+            return model?.constants?.Sum(constant => (long)constant.lengthBytes) ?? 0;
+        }
+
+        /// <summary>
+        /// Returns a warning when quantization was requested but changed no weight, or null. Inference Engine
+        /// quantizes only float32 weights of <c>Conv</c>, <c>ConvTranspose</c>, <c>Gather</c>, <c>Dense</c>, and
+        /// <c>MatMul</c> layers.
+        /// </summary>
+        public static string DescribeQuantizationEffect(string quantizationMode, long weightBytesBefore, long weightBytesAfter)
+        {
+            var mode = NormalizeQuantizationMode(quantizationMode);
+            if (mode == "none" || weightBytesBefore <= 0 || weightBytesAfter < weightBytesBefore)
+            {
+                return null;
+            }
+
+            return $"Quantization `{mode}` changed no weights: the model has no float32 weights in layers Inference Engine " +
+                "quantizes (Conv, ConvTranspose, Gather, Dense, MatMul).";
         }
     }
 }

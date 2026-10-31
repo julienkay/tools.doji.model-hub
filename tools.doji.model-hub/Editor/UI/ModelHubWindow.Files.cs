@@ -20,7 +20,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             ("none", "None"),
             ("float16", "Float16"),
-            ("int8", "Int8")
+            ("uint8", "UInt8")
         };
 
         private readonly IRemoteSnapshotSizeEstimateService _remoteSnapshotSizeEstimateService = new RemoteSnapshotSizeEstimateService();
@@ -177,6 +177,8 @@ namespace Doji.AI.ModelHub.Editor
 
                     body.Add(source);
                 }
+
+                BuildWeightRows(body, file, state);
             }
 
             if (!string.IsNullOrWhiteSpace(file.RawCachedFilePath) || !string.IsNullOrWhiteSpace(file.RuntimeFile?.FilePath))
@@ -194,6 +196,47 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     body.Add(BuildPathRow("Converted model", runtimePath, UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(runtimePath)));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Shows what the source file stores and what conversion made of it, with a hint when the setting does not fit
+        /// the source.
+        /// </summary>
+        private static void BuildWeightRows(VisualElement body, ModelHubFileItem file, FileRecipeEditState state)
+        {
+            var source = state.InspectedModel;
+            if (source != null && source.Weights.Count > 0)
+            {
+                var row = UiKit.Row("mh-field-row");
+                row.Add(UiKit.Text("Source weights", "hf-kv__key"));
+                row.Add(UiKit.Text(string.Join(" · ", source.Weights.Take(3).Select(weight => $"{UiKit.FormatBytes(weight.Bytes)} {weight.DataType}"))));
+                body.Add(row);
+            }
+
+            var importedBytes = file.RuntimeFile?.ImportedWeightBytes;
+            var convertedBytes = file.RuntimeFile?.ConvertedWeightBytes;
+            if (importedBytes > 0 && convertedBytes > 0)
+            {
+                var row = UiKit.Row("mh-field-row");
+                row.Add(UiKit.Text("Converted weights", "hf-kv__key"));
+                row.Add(UiKit.Text(importedBytes == convertedBytes
+                    ? UiKit.FormatBytes(convertedBytes)
+                    : $"{UiKit.FormatBytes(importedBytes)} → {UiKit.FormatBytes(convertedBytes)}"));
+                body.Add(row);
+            }
+
+            var unsupported = source?.DescribeUnsupportedOperators();
+            if (unsupported != null)
+            {
+                body.Add(UiKit.Text($"This file cannot be converted: {unsupported}", "mh-file-error"));
+            }
+            else if (source?.IsMostlyFloat16 == true && NormalizeQuantizationMode(state.QuantizationMode) == "none")
+            {
+                body.Add(UiKit.Text(
+                    "Source weights are float16. Conversion expands them to float32, about twice the size. " +
+                    "Float16 keeps the source size without losing precision.",
+                    "hf-muted"));
             }
         }
 
@@ -463,7 +506,7 @@ namespace Doji.AI.ModelHub.Editor
 
         internal static string NormalizeQuantizationMode(string quantizationMode)
         {
-            return string.IsNullOrWhiteSpace(quantizationMode) ? "none" : quantizationMode.Trim();
+            return OnnxConversionSettings.NormalizeQuantizationMode(quantizationMode);
         }
 
         internal static OnnxConversionRecipe CloneRecipe(OnnxConversionRecipe recipe)

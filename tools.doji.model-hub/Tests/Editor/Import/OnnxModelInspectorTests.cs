@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using NUnit.Framework;
 
@@ -40,6 +41,43 @@ namespace Doji.AI.ModelHub.Editor.Tests
             }
         }
 
+        /// <summary>
+        /// Verifies weight types and unsupported quantization operators come from metadata, so the Files tab can
+        /// advise and import can refuse before conversion.
+        /// </summary>
+        [Test]
+        public void Inspect_ReportsWeightTypesAndUnsupportedOperators()
+        {
+            var onnxPath = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllBytes(onnxPath, BuildQuantizedOnnxModel());
+
+                var inspectedModel = OnnxModelInspector.Inspect(onnxPath);
+
+                Assert.That(inspectedModel.Weights.Select(weight => (weight.DataType, weight.Bytes)), Is.EqualTo(new[] { ("Float16", 2048L), ("Float", 64L) }));
+                Assert.That(inspectedModel.IsMostlyFloat16, Is.True);
+                Assert.That(inspectedModel.UnsupportedOperators, Is.EqualTo(new[] { "MatMulNBits" }));
+                Assert.That(inspectedModel.DescribeUnsupportedOperators(), Does.Contain("`MatMulNBits`"));
+            }
+            finally
+            {
+                File.Delete(onnxPath);
+            }
+        }
+
+        [Test]
+        public void OnnxInspectedModel_WithoutMostlyFloat16Weights_GivesNoAdvice()
+        {
+            var model = new OnnxInspectedModel(
+                Array.Empty<OnnxInspectedInput>(),
+                new[] { new OnnxInspectedWeights("Float", 100), new OnnxInspectedWeights("Float16", 100) });
+
+            Assert.That(model.IsMostlyFloat16, Is.False);
+            Assert.That(model.DescribeUnsupportedOperators(), Is.Null);
+            Assert.That(new OnnxInspectedModel(Array.Empty<OnnxInspectedInput>()).IsMostlyFloat16, Is.False);
+        }
+
         [Test]
         public void Inspect_WhenInspectionFails_ReturnsNull()
         {
@@ -68,9 +106,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return model.ToArray();
         }
 
-        static void WriteInitializer(Stream graph, string name)
+        /// <summary>
+        /// A graph with 1024 float16 weights, 16 float32 weights, and a <c>MatMulNBits</c> node.
+        /// </summary>
+        internal static byte[] BuildQuantizedOnnxModel()
+        {
+            using var graph = new MemoryStream();
+            using (var node = new MemoryStream())
+            {
+                WriteStringField(node, 4, "MatMulNBits");
+                WriteMessageField(graph, 1, node.ToArray());
+            }
+
+            WriteInitializer(graph, "weight", dataType: 10, dims: new[] { 32L, 32L });
+            WriteInitializer(graph, "bias", dataType: 1, dims: new[] { 16L });
+            WriteGraphInput(graph, "input", DimValue(1), DimValue(32));
+
+            using var model = new MemoryStream();
+            WriteMessageField(model, 7, graph.ToArray());
+            return model.ToArray();
+        }
+
+        static void WriteInitializer(Stream graph, string name, int dataType = 0, long[] dims = null)
         {
             using var tensor = new MemoryStream();
+            foreach (var dim in dims ?? Array.Empty<long>())
+                WriteVarintField(tensor, 1, (ulong)dim);
+            if (dataType != 0)
+                WriteVarintField(tensor, 2, (ulong)dataType);
             WriteStringField(tensor, 8, name);
             WriteMessageField(graph, 5, tensor.ToArray());
         }

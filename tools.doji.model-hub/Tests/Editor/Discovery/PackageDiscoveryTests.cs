@@ -283,6 +283,98 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies a file's conversion settings are read, and a file without them has none.
+        /// </summary>
+        [Test]
+        public void TryParse_ReadsConversion()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""a/b"",
+      ""files"": [
+        { ""path"": ""onnx/model.onnx"", ""conversion"": { ""quantization"": ""float16"", ""inputShapes"": { ""image"": [1, 3, 256, 256] } } },
+        { ""path"": ""onnx/shapes.onnx"", ""conversion"": { ""inputShapes"": { ""x"": [-1, 8] } } },
+        { ""path"": ""onnx/plain.onnx"" }
+      ]
+    }
+  ]
+}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.True, errorMessage);
+            var files = manifest.Models[0].FileEntries.ToDictionary(file => file.Path);
+            Assert.That(files["onnx/model.onnx"].Conversion.QuantizationMode, Is.EqualTo("float16"));
+            Assert.That(files["onnx/model.onnx"].Conversion.StaticInputShapeOverrides[0].InputName, Is.EqualTo("image"));
+            Assert.That(files["onnx/model.onnx"].Conversion.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 3, 256, 256 }));
+            Assert.That(files["onnx/shapes.onnx"].Conversion.QuantizationMode, Is.EqualTo("none"));
+            Assert.That(files["onnx/shapes.onnx"].Conversion.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { -1, 8 }));
+            Assert.That(files["onnx/plain.onnx"].Conversion, Is.Null);
+        }
+
+        /// <summary>
+        /// Verifies invalid conversion settings fail with a message that names the problem.
+        /// </summary>
+        [TestCase(@"{ ""quantize"": ""float16"" }", "m.onnx", "has unknown property `quantize`")]
+        [TestCase(@"{ ""quantization"": ""int8"" }", "m.onnx", "quantization must be one of `none`, `float16`, `uint8`")]
+        [TestCase(@"{ ""quantization"": ""Float16"" }", "m.onnx", "quantization must be one of")]
+        [TestCase(@"{ }", "m.onnx", "must set `quantization` or `inputShapes`")]
+        [TestCase(@"""float16""", "m.onnx", "must be an object")]
+        [TestCase(@"{ ""inputShapes"": { ""x"": [1, -2] } }", "m.onnx", "inputShapes.x must be a non-empty array of integers")]
+        [TestCase(@"{ ""inputShapes"": { ""x"": [] } }", "m.onnx", "inputShapes.x must be a non-empty array of integers")]
+        [TestCase(@"{ ""inputShapes"": [1, 2] }", "m.onnx", "inputShapes must be an object")]
+        [TestCase(@"{ ""quantization"": ""float16"" }", "m.sentis", "Only `.onnx` files are converted")]
+        public void TryParse_RejectsInvalidConversion(string conversion, string path, string expectedMessage)
+        {
+            var manifestContents = $@"{{ ""version"": 1, ""models"": [ {{ ""id"": ""a/b"", ""files"": [ {{ ""path"": ""{path}"", ""conversion"": {conversion} }} ] }} ] }}";
+
+            var success = ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage);
+
+            Assert.That(success, Is.False);
+            Assert.That(manifest, Is.Null);
+            Assert.That(errorMessage, Does.Contain(expectedMessage));
+        }
+
+        /// <summary>
+        /// Verifies written manifests read back with the same files and conversion settings, and leave out defaults.
+        /// </summary>
+        [Test]
+        public void ManifestWriter_RoundTripsConversion()
+        {
+            const string manifestContents = @"{
+  ""version"": 1,
+  ""models"": [
+    {
+      ""id"": ""a/b"",
+      ""files"": [
+        { ""path"": ""onnx/model.onnx"", ""optional"": true, ""label"": ""Small"", ""conversion"": { ""quantization"": ""uint8"", ""inputShapes"": { ""image"": [1, 3, 256, 256] } } },
+        { ""path"": ""onnx/none.onnx"", ""conversion"": { ""quantization"": ""none"" } },
+        { ""path"": ""config.json"" }
+      ]
+    }
+  ]
+}";
+            Assert.That(ManifestParser.TryParse(manifestContents, out var manifest, out var errorMessage), Is.True, errorMessage);
+
+            var json = ManifestWriter.ToJson(
+                manifest.Version,
+                manifest.Models.Select(model => new ManifestModelDraft(model.Id, null, model.FileEntries)));
+
+            Assert.That(ManifestParser.TryParse(json, out var reread, out errorMessage), Is.True, errorMessage);
+            var files = reread.Models[0].FileEntries.ToDictionary(file => file.Path);
+            Assert.That(files["onnx/model.onnx"].Optional, Is.True);
+            Assert.That(files["onnx/model.onnx"].Label, Is.EqualTo("Small"));
+            Assert.That(files["onnx/model.onnx"].Conversion.QuantizationMode, Is.EqualTo("uint8"));
+            Assert.That(files["onnx/model.onnx"].Conversion.StaticInputShapeOverrides[0].Dimensions, Is.EqualTo(new[] { 1, 3, 256, 256 }));
+            Assert.That(files["onnx/none.onnx"].Conversion.QuantizationMode, Is.EqualTo("none"), "An explicit `none` stays a manifest setting.");
+            Assert.That(files["config.json"].Conversion, Is.Null);
+            Assert.That(json, Does.Not.Contain("revision"));
+            Assert.That(json, Does.Not.Contain(@"""optional"": false"));
+        }
+
+        /// <summary>
         /// Verifies file labels are read and trimmed, and an empty label counts as no label.
         /// </summary>
         [Test]
@@ -689,10 +781,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies clearing an explicit `main` revision back to empty preserves the authored empty revision text in project-settings JSON.
+        /// Verifies clearing an explicit `main` revision leaves `revision` out of project-settings JSON, which reads back as `main`.
         /// </summary>
         [Test]
-        public void TryWriteManifest_PreservesEmptyRevisionWhenCleared()
+        public void TryWriteManifest_OmitsEmptyRevisionWhenCleared()
         {
             var projectRoot = Path.Combine(_rootDirectory, "WriteEmptyRevisionProjectRoot");
             var success = ProjectSettingsModelManifestStore.TryWriteManifest(
@@ -709,7 +801,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
-            Assert.That(contents, Does.Contain(@"""revision"": """""));
+            Assert.That(contents, Does.Not.Contain("revision"));
+            Assert.That(ManifestParser.TryParse(contents, out var manifest, out errorMessage), Is.True, errorMessage);
+            Assert.That(manifest.Models[0].Revision, Is.EqualTo("main"));
         }
 
         /// <summary>

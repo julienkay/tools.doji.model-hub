@@ -116,9 +116,16 @@ namespace Doji.AI.ModelHub.Editor
             public bool optional;
             public string label;
 
+            /// <summary>
+            /// Package-default conversion settings. Not part of the JSON form: <c>JsonUtility</c> cannot read the
+            /// <c>conversion</c> object, so loaders copy it from the parsed manifest with <see cref="AttachConversions"/>.
+            /// </summary>
+            [NonSerialized]
+            public OnnxConversionRecipe conversion;
+
             public ModelDependencyFileDefinition ToDefinition()
             {
-                return new ModelDependencyFileDefinition(path, optional, label);
+                return new ModelDependencyFileDefinition(path, optional, label, conversion);
             }
         }
 
@@ -174,7 +181,7 @@ namespace Doji.AI.ModelHub.Editor
             out string errorMessage)
         {
             document = null;
-            if (!TryLoadManifest(assetPath, out _, out var rawJson, out absolutePath, out errorMessage))
+            if (!TryLoadManifest(assetPath, out var manifest, out var rawJson, out absolutePath, out errorMessage))
             {
                 return false;
             }
@@ -187,7 +194,38 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             document.models ??= Array.Empty<ManifestModelDocument>();
+            AttachConversions(document, manifest);
             return true;
+        }
+
+        /// <summary>
+        /// Copies each file's <c>conversion</c> settings from the parsed manifest into a document read with
+        /// <c>JsonUtility</c>, so saving the document keeps them.
+        /// </summary>
+        internal static void AttachConversions(ManifestDocument document, PackageManifest manifest)
+        {
+            if (document?.models == null || manifest == null)
+            {
+                return;
+            }
+
+            foreach (var model in document.models)
+            {
+                var parsedModel = manifest.Models.FirstOrDefault(item =>
+                    string.Equals(item.Id, model?.id?.Trim(), StringComparison.Ordinal));
+                foreach (var file in model?.files ?? Array.Empty<ManifestFileDocument>())
+                {
+                    if (file == null)
+                    {
+                        continue;
+                    }
+
+                    var normalizedPath = ModelDependencyDefinition.NormalizeRepoPath(file.path);
+                    file.conversion = parsedModel?.FileEntries
+                        .FirstOrDefault(entry => string.Equals(entry.Path, normalizedPath, StringComparison.Ordinal))
+                        ?.Conversion;
+                }
+            }
         }
 
         internal static string BuildVirtualPackageManifestAssetPath(string packageId)
@@ -234,20 +272,13 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var document = new ManifestDocument
-            {
-                version = manifest.Version,
-                models = (models ?? Array.Empty<ManifestModelEntry>())
-                    .Select(model => new ManifestModelDocument
-                    {
-                        id = model?.ModelId ?? string.Empty,
-                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                        files = model?.HasExplicitFileSelection == true ? ToFileDocuments(model.FileEntries) : null
-                    })
-                    .ToArray()
-            };
-
-            serializedJson = ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
+            serializedJson = ManifestWriter.ToJson(
+                manifest.Version,
+                (models ?? Array.Empty<ManifestModelEntry>())
+                    .Select(model => new ManifestModelDraft(
+                        model?.ModelId ?? string.Empty,
+                        string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
+                        model?.HasExplicitFileSelection == true ? model.FileEntries : null)));
             return true;
         }
 
@@ -312,7 +343,8 @@ namespace Doji.AI.ModelHub.Editor
                                         {
                                             path = fileProperty.FindPropertyRelative("<Path>k__BackingField")?.stringValue,
                                             optional = fileProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true,
-                                            label = fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue
+                                            label = fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue,
+                                            conversion = ReadConversion(fileProperty)
                                         };
                                     })
                                     .ToArray()
@@ -373,6 +405,7 @@ namespace Doji.AI.ModelHub.Editor
                     fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex]?.path;
                     fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex]?.optional == true;
                     fileProperty.FindPropertyRelative("<Label>k__BackingField").stringValue = files[fileIndex]?.label ?? string.Empty;
+                    WriteConversion(fileProperty, files[fileIndex]?.conversion);
                 }
             }
 
@@ -385,6 +418,53 @@ namespace Doji.AI.ModelHub.Editor
                 AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
             }
             return true;
+        }
+
+        private static OnnxConversionRecipe ReadConversion(SerializedProperty fileProperty)
+        {
+            var quantization = fileProperty.FindPropertyRelative("<Quantization>k__BackingField")?.stringValue;
+            var shapesProperty = fileProperty.FindPropertyRelative("<InputShapes>k__BackingField");
+            var shapes = shapesProperty == null
+                ? Array.Empty<ProjectManifestInputShapeAssetEntry>()
+                : Enumerable.Range(0, shapesProperty.arraySize)
+                    .Select(index =>
+                    {
+                        var shapeProperty = shapesProperty.GetArrayElementAtIndex(index);
+                        var dimensionsProperty = shapeProperty.FindPropertyRelative("<Dimensions>k__BackingField");
+                        return new ProjectManifestInputShapeAssetEntry
+                        {
+                            Name = shapeProperty.FindPropertyRelative("<Name>k__BackingField")?.stringValue,
+                            Dimensions = dimensionsProperty == null
+                                ? Array.Empty<int>()
+                                : Enumerable.Range(0, dimensionsProperty.arraySize)
+                                    .Select(dimension => dimensionsProperty.GetArrayElementAtIndex(dimension).intValue)
+                                    .ToArray()
+                        };
+                    })
+                    .ToArray();
+            return ProjectManifestFileAssetEntry.ToRecipe(quantization, shapes);
+        }
+
+        private static void WriteConversion(SerializedProperty fileProperty, OnnxConversionRecipe recipe)
+        {
+            fileProperty.FindPropertyRelative("<Quantization>k__BackingField").stringValue = recipe == null
+                ? string.Empty
+                : OnnxConversionSettings.NormalizeQuantizationMode(recipe.QuantizationMode);
+            var shapes = recipe?.StaticInputShapeOverrides ?? Array.Empty<OnnxStaticInputShapeOverride>();
+            var shapesProperty = fileProperty.FindPropertyRelative("<InputShapes>k__BackingField");
+            shapesProperty.arraySize = shapes.Length;
+            for (var index = 0; index < shapes.Length; index++)
+            {
+                var shapeProperty = shapesProperty.GetArrayElementAtIndex(index);
+                shapeProperty.FindPropertyRelative("<Name>k__BackingField").stringValue = shapes[index]?.InputName ?? string.Empty;
+                var dimensions = shapes[index]?.Dimensions ?? Array.Empty<int>();
+                var dimensionsProperty = shapeProperty.FindPropertyRelative("<Dimensions>k__BackingField");
+                dimensionsProperty.arraySize = dimensions.Length;
+                for (var dimension = 0; dimension < dimensions.Length; dimension++)
+                {
+                    dimensionsProperty.GetArrayElementAtIndex(dimension).intValue = dimensions[dimension];
+                }
+            }
         }
 
         private static ManifestModelEntry EditableModelEntryFromManifest(ModelDependencyDefinition model)
@@ -410,7 +490,7 @@ namespace Doji.AI.ModelHub.Editor
         private static ManifestFileDocument[] ToFileDocuments(IReadOnlyList<ModelDependencyFileDefinition> files)
         {
             return (files ?? Array.Empty<ModelDependencyFileDefinition>())
-                .Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label })
+                .Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label, conversion = file.Conversion })
                 .ToArray();
         }
 

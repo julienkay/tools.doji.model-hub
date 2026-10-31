@@ -41,14 +41,15 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 - `version`: manifest schema version. Current value is `1`.
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The model must be public: AI Model Hub sends no access token, so gated and private models fail to download with a message that says so.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
-- `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path`, and optionally `optional` and `label`.
+- `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path`, and optionally `optional`, `label`, and `conversion`.
 - `files[].path`: exact repo-relative file path.
 - `files[].optional`: `true` when the project owner may enable that file before download or import. Omitted or `false` means the file is always required once the manifest entry is present.
 - `files[].label`: optional name for a model file in model pickers, such as the `[HubModel]` Inspector dropdown and `HubModelFile.DisplayName`. For example `"Small (63 MB)"`. Leading and trailing spaces are removed, and an empty label counts as none.
+- `files[].conversion`: optional conversion settings for an `.onnx` file. See [Conversion Settings](#conversion-settings).
 
 Model ids must be unique inside one manifest. File paths must be unique inside one model entry after trimming whitespace and converting `\` to `/`.
 
-AI Model Hub rejects a manifest that contains any other property, an `optional` value that is not `true` or `false`, or a `label` that is not a string. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
+AI Model Hub rejects a manifest that contains any other property, an `optional` value that is not `true` or `false`, a `label` that is not a string, or an invalid `conversion`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
 
 ## All Files
 
@@ -164,3 +165,42 @@ Required and optional are both part of the manifest's explicit file scope. The `
 Until the project enables an optional file, AI Model Hub ignores that file for status, download, import, builds, and startup prompts. After the project enables it, the file behaves like any other selected file, and a missing download or conversion requires action.
 
 If a dependency declares only optional model files and none are enabled yet, AI Model Hub shows `Choose files` in Model Hub instead of downloading every file of the model. That state does not open the startup auto prompt by itself.
+
+## Conversion Settings
+
+Set `files[].conversion` on an `.onnx` file to choose how AI Model Hub converts it to Sentis. Use it when the model is known to work well quantized, or needs fixed input dimensions.
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "julienkay/sentis-MiDaS",
+      "files": [
+        {
+          "path": "onnx/midas_v21_small_256.onnx",
+          "conversion": {
+            "quantization": "float16",
+            "inputShapes": { "input": [1, 3, 256, 256] }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `quantization`: `none`, `float16`, or `uint8`. Omitted means `none`. Lower precision makes the converted model smaller and can reduce accuracy.
+- `inputShapes`: maps a model input name to its full dimension list. Each dimension is a size, or `-1` to keep it dynamic. AI Model Hub skips a shape whose input name or rank does not match the model, and reports a warning.
+
+`conversion` must set at least one of the two keys. Other keys, other quantization names, and `conversion` on a file that is not `.onnx` fail validation.
+
+The manifest settings are defaults. A project can override them per file in the Model Hub **Files** tab. AI Model Hub uses, in order:
+
+1. the project override
+2. the manifest's `conversion`
+3. no quantization and the input shapes of the ONNX file
+
+If two manifests set different `conversion` for the same file of the same model, neither wins: AI Model Hub converts with the built-in settings, and the **Files** tab shows `Built-in Default (manifests disagree: ...)` with the manifest owners. A project override settles it. A manifest without `conversion` for that file does not count.
+
+Changing `conversion` converts the file again. Builds and players that download the model use the same settings.

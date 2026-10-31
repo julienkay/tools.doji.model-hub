@@ -105,6 +105,25 @@ namespace Doji.AI.ModelHub
             get => _staticInputShapeOverrides;
             set => _staticInputShapeOverrides = value ?? Array.Empty<OnnxStaticInputShapeOverride>();
         }
+
+        /// <summary>
+        /// Returns a deep copy, so callers cannot change a recipe another object holds.
+        /// </summary>
+        public OnnxConversionRecipe Clone()
+        {
+            return new OnnxConversionRecipe
+            {
+                QuantizationMode = QuantizationMode,
+                StaticInputShapeOverrides = StaticInputShapeOverrides
+                    .Where(item => item != null)
+                    .Select(item => new OnnxStaticInputShapeOverride
+                    {
+                        InputName = item.InputName,
+                        Dimensions = item.Dimensions.ToArray()
+                    })
+                    .ToArray()
+            };
+        }
     }
 
     /// <summary>

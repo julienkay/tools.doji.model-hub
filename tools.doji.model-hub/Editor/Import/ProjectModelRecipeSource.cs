@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -6,7 +7,8 @@ using UnityEditor;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Resolves effective file-level conversion recipes from project-owned override asset plus built-in defaults.
+    /// Resolves effective file-level conversion recipes: a project override, else the manifest default, else the
+    /// built-in default.
     /// </summary>
     internal interface IProjectModelRecipeSource
     {
@@ -41,11 +43,20 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Loads project-owned conversion overrides from one versioned asset under `Assets/`.
+    /// Loads project-owned conversion overrides from one versioned asset under `Assets/`, and manifest defaults from
+    /// the <c>conversion</c> settings of discovered manifests.
     /// </summary>
     internal sealed class ProjectModelRecipeSource : IProjectModelRecipeSource
     {
         public const string DefaultAssetPath = "Assets/Doji/ModelHub/AI Model Hub Conversion Overrides.asset";
+
+        private readonly IReadOnlyList<DiscoveredModelDependency> _dependencies;
+
+        /// <param name="dependencies">Manifest dependencies to read defaults from. Null reads the installed manifests.</param>
+        public ProjectModelRecipeSource(IReadOnlyList<DiscoveredModelDependency> dependencies = null)
+        {
+            _dependencies = dependencies;
+        }
 
         public EffectiveOnnxConversionRecipe GetEffectiveRecipe(string repository, string repoPath)
         {
@@ -58,11 +69,47 @@ namespace Doji.AI.ModelHub.Editor
                     true);
             }
 
+            return GetManifestDefault(repository, repoPath);
+        }
+
+        /// <summary>
+        /// Returns the recipe that applies without a project override. Manifests that set no <c>conversion</c> for the
+        /// file have no say. When manifests set different settings, none of them wins and the built-in default applies,
+        /// until a project override settles it.
+        /// </summary>
+        internal EffectiveOnnxConversionRecipe GetManifestDefault(string repository, string repoPath)
+        {
+            var normalizedPath = ModelDependencyDefinition.NormalizeRepoPath(repoPath);
+            var defaults = (_dependencies ?? DiscoveredDependencyCache.Dependencies)
+                .Where(dependency => string.Equals(dependency?.Repository, repository, StringComparison.Ordinal))
+                .SelectMany(dependency => dependency.FileEntries
+                    .Where(file => file.Conversion != null && string.Equals(file.Path, normalizedPath, StringComparison.Ordinal))
+                    .Select(file => (
+                        Owner: ProjectManifestDiscovery.GetOwnerDisplayName(dependency.PackageId, dependency.PackageDisplayName),
+                        Recipe: file.Conversion)))
+                .GroupBy(item => OnnxImportMetadataUtility.ComputeRecipeHash(item.Recipe), StringComparer.Ordinal)
+                .ToArray();
+            if (defaults.Length == 1)
+            {
+                return new EffectiveOnnxConversionRecipe(
+                    defaults[0].First().Recipe.Clone(),
+                    $"Manifest: {JoinOwners(defaults[0].Select(item => item.Owner))}",
+                    null,
+                    false);
+            }
+
             return new EffectiveOnnxConversionRecipe(
                 OnnxImportMetadataUtility.CreateDefaultRecipe(),
-                "Built-in Default",
+                defaults.Length == 0
+                    ? "Built-in Default"
+                    : $"Built-in Default (manifests disagree: {JoinOwners(defaults.SelectMany(group => group.Select(item => item.Owner)))})",
                 null,
                 false);
+        }
+
+        private static string JoinOwners(IEnumerable<string> owners)
+        {
+            return string.Join(", ", owners.Distinct(StringComparer.Ordinal).OrderBy(owner => owner, StringComparer.Ordinal));
         }
 
         public string ComputeRecipeSetHash(string repository, System.Collections.Generic.IEnumerable<string> repoPaths)
@@ -106,7 +153,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     Repository = repository,
                     RepoPath = repoPath,
-                    Recipe = CloneRecipe(OnnxImportMetadataUtility.CreateDefaultRecipe())
+                    Recipe = CloneRecipe(GetManifestDefault(repository, repoPath).Recipe)
                 });
                 asset.Overrides = entries
                     .OrderBy(item => item.Repository, StringComparer.Ordinal)
@@ -132,7 +179,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var normalizedRecipe = CloneRecipe(recipe);
-            if (IsDefaultRecipe(normalizedRecipe))
+            if (IsSameRecipe(normalizedRecipe, GetManifestDefault(repository, repoPath).Recipe))
             {
                 RemoveProjectOverride(repository, repoPath);
                 return;
@@ -286,11 +333,11 @@ namespace Doji.AI.ModelHub.Editor
             };
         }
 
-        private static bool IsDefaultRecipe(OnnxConversionRecipe recipe)
+        private static bool IsSameRecipe(OnnxConversionRecipe recipe, OnnxConversionRecipe other)
         {
             return string.Equals(
                 OnnxImportMetadataUtility.ComputeRecipeHash(recipe),
-                OnnxImportMetadataUtility.ComputeRecipeHash(OnnxImportMetadataUtility.CreateDefaultRecipe()),
+                OnnxImportMetadataUtility.ComputeRecipeHash(other),
                 StringComparison.Ordinal);
         }
     }

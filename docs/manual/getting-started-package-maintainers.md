@@ -87,6 +87,22 @@ If every model file in a dependency is optional, Model Hub shows `Choose files` 
 
 Give model files a `label` to name them in model pickers, for example `"label": "MiDaS v2.1 Small (63 MB)"`. See [Let users pick a model in the Inspector](package-model-api.md#let-users-pick-a-model-in-the-inspector).
 
+## Conversion Settings
+
+Set `conversion` on an `.onnx` file when the model is known to work well quantized or needs fixed input dimensions. Projects get these settings by default and can override them in Model Hub.
+
+```json
+{
+  "path": "onnx/midas_v21_small_256.onnx",
+  "conversion": {
+    "quantization": "float16",
+    "inputShapes": { "input": [1, 3, 256, 256] }
+  }
+}
+```
+
+See [Conversion Settings](manifest-reference.md#conversion-settings) for the values and how conflicts between manifests resolve.
+
 ## Authoring In Unity
 
 Select a writable `model-hub-manifest.json` package asset in Unity to use the focused manifest Inspector. Installed package cache entries are read-only until the package source is embedded or otherwise made local and writable.
@@ -97,6 +113,8 @@ The file picker uses the model's file list:
 - unchecked rows stay visible but greyed out
 - `Optional` is available only on selected rows
 - leaving every row unchecked uses every file of the model
+
+The Inspector does not edit `conversion` yet. Edit it in the JSON file. The Inspector keeps it when you save.
 
 ## Load Models In Package Code
 

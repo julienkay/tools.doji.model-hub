@@ -441,7 +441,9 @@ namespace Doji.AI.ModelHub
     {
         private static readonly string[] RootProperties = { "version", "models" };
         private static readonly string[] ModelProperties = { "id", "revision", "files" };
-        private static readonly string[] FileProperties = { "path", "optional", "label" };
+        private static readonly string[] FileProperties = { "path", "optional", "label", "conversion" };
+        private static readonly string[] ConversionProperties = { "quantization", "inputShapes" };
+        private static readonly string[] QuantizationValues = { "none", "float16", "uint8" };
 
         /// <summary>
         /// Parses one manifest JSON document into immutable runtime manifest model.
@@ -698,11 +700,99 @@ namespace Doji.AI.ModelHub
                     label = labelToken.Value<string>();
                 }
 
-                values.Add(new ModelDependencyFileDefinition(path, optional, label));
+                OnnxConversionRecipe conversion = null;
+                if (fileObject.TryGetValue("conversion", StringComparison.Ordinal, out var conversionToken))
+                {
+                    conversion = ReadConversion(
+                        conversionToken,
+                        $"Manifest model at index {modelIndex} `{propertyName}[{fileIndex}].conversion`",
+                        out errorMessage);
+                    if (errorMessage != null)
+                    {
+                        return null;
+                    }
+                }
+
+                values.Add(new ModelDependencyFileDefinition(path, optional, label, conversion));
                 fileIndex++;
             }
 
             return values.ToArray();
+        }
+
+        /// <summary>
+        /// Reads <c>{ "quantization": "float16", "inputShapes": { "input": [1, 3, 256, 256] } }</c>. Both keys are optional,
+        /// but the object must set at least one. Omitted quantization means <c>none</c>.
+        /// </summary>
+        private static OnnxConversionRecipe ReadConversion(JToken token, string location, out string errorMessage)
+        {
+            errorMessage = null;
+            if (token.Type != JTokenType.Object)
+            {
+                errorMessage = $"{location} must be an object.";
+                return null;
+            }
+
+            var conversionObject = (JObject)token;
+            if (!TryRejectUnknownProperties(conversionObject, ConversionProperties, location, out errorMessage))
+            {
+                return null;
+            }
+
+            if (!conversionObject.HasValues)
+            {
+                errorMessage = $"{location} must set `quantization` or `inputShapes`.";
+                return null;
+            }
+
+            var recipe = new OnnxConversionRecipe();
+            if (conversionObject.TryGetValue("quantization", StringComparison.Ordinal, out var quantizationToken))
+            {
+                var mode = quantizationToken.Type == JTokenType.String ? quantizationToken.Value<string>() : null;
+                if (!QuantizationValues.Contains(mode, StringComparer.Ordinal))
+                {
+                    errorMessage = $"{location}.quantization must be one of " +
+                        $"{string.Join(", ", QuantizationValues.Select(value => $"`{value}`"))}.";
+                    return null;
+                }
+
+                recipe.QuantizationMode = mode;
+            }
+
+            if (conversionObject.TryGetValue("inputShapes", StringComparison.Ordinal, out var shapesToken))
+            {
+                if (shapesToken.Type != JTokenType.Object)
+                {
+                    errorMessage = $"{location}.inputShapes must be an object that maps input names to dimension arrays.";
+                    return null;
+                }
+
+                var shapes = new List<OnnxStaticInputShapeOverride>();
+                foreach (var shape in ((JObject)shapesToken).Properties())
+                {
+                    var dimensions = shape.Value.Type == JTokenType.Array
+                        ? shape.Value.Children().ToArray()
+                        : null;
+                    if (string.IsNullOrWhiteSpace(shape.Name) ||
+                        dimensions == null ||
+                        dimensions.Length == 0 ||
+                        dimensions.Any(value => value.Type != JTokenType.Integer || value.Value<long>() < -1 || value.Value<long>() > int.MaxValue))
+                    {
+                        errorMessage = $"{location}.inputShapes.{shape.Name} must be a non-empty array of integers, each -1 or larger.";
+                        return null;
+                    }
+
+                    shapes.Add(new OnnxStaticInputShapeOverride
+                    {
+                        InputName = shape.Name,
+                        Dimensions = dimensions.Select(value => value.Value<int>()).ToArray()
+                    });
+                }
+
+                recipe.StaticInputShapeOverrides = shapes.ToArray();
+            }
+
+            return recipe;
         }
     }
 
@@ -830,7 +920,14 @@ namespace Doji.AI.ModelHub
                     return null;
                 }
 
-                validatedFiles.Add(new ModelDependencyFileDefinition(filePath, files[fileIndex].Optional, files[fileIndex].Label));
+                var conversion = files[fileIndex].Conversion;
+                if (conversion != null && ModelFiles.GetFormat(filePath) != ModelFileFormat.Onnx)
+                {
+                    errorMessage = $"Manifest model `{id}` sets `conversion` on `{filePath}`. Only `.onnx` files are converted.";
+                    return null;
+                }
+
+                validatedFiles.Add(new ModelDependencyFileDefinition(filePath, files[fileIndex].Optional, files[fileIndex].Label, conversion));
             }
 
             if (validatedFiles.Count == 0)

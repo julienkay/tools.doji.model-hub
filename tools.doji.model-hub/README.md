@@ -20,6 +20,8 @@ Manifest sources:
 - package manifest: `model-hub-manifest.json` at the package root, edited from the manifest Inspector when the package source is writable
 - ScriptableObject project manifest asset: `Assets > Create > Doji > AI > AI Model Hub Project Manifest`
 
+Agent skill for packages that declare models: `Skills~/model-hub-dependency/SKILL.md`. Unity does not import `Skills~`. Copy the folder into your agent's skill folder, for example `.claude/skills/`, or point your agent at it.
+
 Companion project samples:
 
 - `projects/AI Model Hub/Assets/AI Model Hub/RuntimeLocatorSample.cs` loads a model by repository id and file path

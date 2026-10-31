@@ -91,7 +91,7 @@ Expand an ONNX file to change how AI Model Hub converts it. `.sentis` files have
 
 - **Quantization**: `None`, `Float16`, or `Int8`. Lower precision makes the converted model smaller and can reduce accuracy.
 - **Input shapes**: each model input with its dimensions. Fixed dimensions are shown as values. Dynamic dimensions have a field: enter a size to fix it at conversion, or `-1` to keep it dynamic. Dimensions with the same name share one value.
-- **Settings from**: whether the settings come from the package or from a project override.
+- **Settings from**: `Project Override`, `Manifest: <owner>` when a manifest sets `conversion` for the file, or `Built-in Default`. When manifests set different settings, it shows `Built-in Default (manifests disagree: ...)`. See [Conversion Settings](manifest-reference.md#conversion-settings).
 - **Location**: the downloaded file and the converted Sentis model.
 
 After a change, a bar at the bottom offers **Revert** and **Apply & Convert**. Apply saves the settings as a project override and converts the model again. Bundled builds use the new conversion; players that download the model convert it with the same settings. If you switch to another model or tab with unapplied changes, AI Model Hub asks whether to apply or discard them.

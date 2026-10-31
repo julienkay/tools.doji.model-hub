@@ -16,28 +16,6 @@ namespace Doji.AI.ModelHub.Editor
         private const string ProjectSettingsPackagesFolderName = "Packages";
         private const string PackageId = "tools.doji.model-hub";
 
-        [Serializable]
-        private sealed class ManifestDocument
-        {
-            public int version = 1;
-            public ManifestModelDocument[] models = Array.Empty<ManifestModelDocument>();
-        }
-
-        [Serializable]
-        private sealed class ManifestModelDocument
-        {
-            public string id;
-            public string revision;
-            public ManifestFileDocument[] files;
-        }
-
-        [Serializable]
-        private sealed class ManifestFileDocument
-        {
-            public string path;
-            public bool optional;
-            public string label;
-        }
 
         public static string GetManifestPath(string projectRoot = null)
         {
@@ -156,7 +134,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            if (!ManifestParser.TryParse(contents, out _, out errorMessage))
+            if (!ManifestParser.TryParse(contents, out var manifest, out errorMessage))
             {
                 return false;
             }
@@ -169,6 +147,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             document.models ??= Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>();
+            ModelManifestInspectorUtility.AttachConversions(document, manifest);
             return true;
         }
 
@@ -182,31 +161,11 @@ namespace Doji.AI.ModelHub.Editor
 
             var manifestPath = GetManifestPath(projectRoot);
             Directory.CreateDirectory(Path.GetDirectoryName(manifestPath) ?? string.Empty);
-            File.WriteAllText(manifestPath, BuildManifestJson(manifest.Version, drafts));
+            File.WriteAllText(manifestPath, ManifestWriter.ToJson(manifest.Version, drafts));
+            DiscoveredDependencyCache.Invalidate();
             AssetDatabase.Refresh();
             ProjectSettingsProvider.Refresh();
             return true;
-        }
-
-        private static string BuildManifestJson(int version, IReadOnlyList<ManifestModelDraft> drafts)
-        {
-            var document = new ManifestDocument
-            {
-                version = version,
-                models = (drafts ?? Array.Empty<ManifestModelDraft>())
-                    .Select(model => new ManifestModelDocument
-                    {
-                        id = model.Id,
-                        revision = string.IsNullOrWhiteSpace(model.Revision)
-                            ? null
-                            : model.Revision,
-                        files = (model.FileEntries?.Count ?? 0) > 0
-                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label }).ToArray()
-                            : null
-                    })
-                    .ToArray()
-            };
-            return ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
         }
 
         private static ModelDependencyFileDefinition[] ToRequiredFileEntries(IReadOnlyList<string> files)

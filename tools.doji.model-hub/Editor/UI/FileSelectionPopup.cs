@@ -28,6 +28,9 @@ namespace Doji.AI.ModelHub.Editor
         private readonly Action<ModelDependencyFileDefinition[]> _onApply;
         private readonly Dictionary<string, bool> _selection;
         private readonly Dictionary<string, string> _labels;
+
+        // The popup does not edit conversion settings; it keeps them for files that stay selected.
+        private readonly Dictionary<string, OnnxConversionRecipe> _conversions;
         private readonly IHttpClient _httpClient = new HttpClient();
         private readonly CancellationTokenSource _cancellation = new();
 
@@ -52,6 +55,7 @@ namespace Doji.AI.ModelHub.Editor
             var entries = ModelDependencyDefinition.NormalizeFileEntries(selectedFiles);
             _selection = entries.ToDictionary(file => file.Path, file => file.Optional, StringComparer.Ordinal);
             _labels = entries.Where(file => file.Label != null).ToDictionary(file => file.Path, file => file.Label, StringComparer.Ordinal);
+            _conversions = entries.Where(file => file.Conversion != null).ToDictionary(file => file.Path, file => file.Conversion, StringComparer.Ordinal);
         }
 
         public override Vector2 GetWindowSize()
@@ -329,7 +333,11 @@ namespace Doji.AI.ModelHub.Editor
             _onApply(_selection.Count > 0
                 ? _selection
                     .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => new ModelDependencyFileDefinition(pair.Key, pair.Value, _labels.TryGetValue(pair.Key, out var label) ? label : null))
+                    .Select(pair => new ModelDependencyFileDefinition(
+                        pair.Key,
+                        pair.Value,
+                        _labels.TryGetValue(pair.Key, out var label) ? label : null,
+                        _conversions.TryGetValue(pair.Key, out var conversion) ? conversion : null))
                     .ToArray()
                 : null);
             editorWindow?.Close();

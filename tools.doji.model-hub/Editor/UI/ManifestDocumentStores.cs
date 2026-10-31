@@ -55,6 +55,7 @@ namespace Doji.AI.ModelHub.Editor
             try
             {
                 System.IO.File.WriteAllText(_absolutePath, serializedJson);
+                DiscoveredDependencyCache.Invalidate();
                 AssetDatabase.ImportAsset(_assetPath, ImportAssetOptions.ForceUpdate);
                 return true;
             }
@@ -117,7 +118,13 @@ namespace Doji.AI.ModelHub.Editor
 
         public bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage)
         {
-            return ModelManifestInspectorUtility.TryWriteProjectManifestAssetDocument(_asset, version, models, out errorMessage);
+            if (!ModelManifestInspectorUtility.TryWriteProjectManifestAssetDocument(_asset, version, models, out errorMessage))
+            {
+                return false;
+            }
+
+            DiscoveredDependencyCache.Invalidate();
+            return true;
         }
     }
 }

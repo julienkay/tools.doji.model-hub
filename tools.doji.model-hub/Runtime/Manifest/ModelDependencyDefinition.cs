@@ -12,11 +12,16 @@ namespace Doji.AI.ModelHub
     [Serializable]
     public sealed class ModelDependencyFileDefinition
     {
-        public ModelDependencyFileDefinition(string path, bool optional = false, string label = null)
+        public ModelDependencyFileDefinition(
+            string path,
+            bool optional = false,
+            string label = null,
+            OnnxConversionRecipe conversion = null)
         {
             Path = NormalizePath(path);
             Optional = optional;
             Label = NormalizeLabel(label);
+            Conversion = conversion?.Clone();
         }
 
         /// <summary>
@@ -33,6 +38,12 @@ namespace Doji.AI.ModelHub
         /// Name to show for the file in model pickers, for example <c>Small (63 MB)</c>. Null when the manifest sets none.
         /// </summary>
         public string Label { get; }
+
+        /// <summary>
+        /// Conversion settings the manifest owner recommends for this ONNX file, such as quantization. Null when the
+        /// manifest sets none. A project override replaces them.
+        /// </summary>
+        public OnnxConversionRecipe Conversion { get; }
 
         internal static string NormalizePath(string path)
         {
@@ -108,7 +119,7 @@ namespace Doji.AI.ModelHub
         {
             return (files ?? Array.Empty<ModelDependencyFileDefinition>())
                 .Where(file => !string.IsNullOrWhiteSpace(file?.Path))
-                .Select(file => new ModelDependencyFileDefinition(file.Path, file.Optional, file.Label))
+                .Select(file => new ModelDependencyFileDefinition(file.Path, file.Optional, file.Label, file.Conversion))
                 .GroupBy(file => file.Path, StringComparer.Ordinal)
                 .Select(group => group.Last())
                 .OrderBy(file => file.Path, StringComparer.Ordinal)

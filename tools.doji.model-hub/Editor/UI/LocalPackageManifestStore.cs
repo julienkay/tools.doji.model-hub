@@ -15,29 +15,6 @@ namespace Doji.AI.ModelHub.Editor
     {
         private const string DefaultRevision = "main";
 
-        [Serializable]
-        private sealed class ManifestDocument
-        {
-            public int version = 1;
-            public ManifestModelDocument[] models = Array.Empty<ManifestModelDocument>();
-        }
-
-        [Serializable]
-        private sealed class ManifestModelDocument
-        {
-            public string id;
-            public string revision;
-            public ManifestFileDocument[] files;
-        }
-
-        [Serializable]
-        private sealed class ManifestFileDocument
-        {
-            public string path;
-            public bool optional;
-            public string label;
-        }
-
         internal readonly struct LocalPackageOption
         {
             public LocalPackageOption(string packageId, string displayName, string resolvedPath)
@@ -180,28 +157,10 @@ namespace Doji.AI.ModelHub.Editor
 
             var manifestPath = GetManifestPath(package);
             Directory.CreateDirectory(Path.GetDirectoryName(manifestPath) ?? string.Empty);
-            File.WriteAllText(manifestPath, BuildManifestJson(version, drafts));
+            File.WriteAllText(manifestPath, ManifestWriter.ToJson(version, drafts));
+            DiscoveredDependencyCache.Invalidate();
             AssetDatabase.Refresh();
             return true;
-        }
-
-        private static string BuildManifestJson(int version, IReadOnlyList<ManifestModelDraft> drafts)
-        {
-            var document = new ManifestDocument
-            {
-                version = version,
-                models = (drafts ?? Array.Empty<ManifestModelDraft>())
-                    .Select(model => new ManifestModelDocument
-                    {
-                        id = model.Id,
-                        revision = string.IsNullOrWhiteSpace(model.Revision) ? null : model.Revision,
-                        files = (model.FileEntries?.Count ?? 0) > 0
-                            ? model.FileEntries.Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label }).ToArray()
-                            : null
-                    })
-                    .ToArray()
-            };
-            return ManifestJson.StripEmptyLabels(JsonUtility.ToJson(document, true));
         }
 
         private static string NormalizePath(string path)

@@ -347,6 +347,85 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         [Test]
+        public void ProjectModelRecipeSource_UsesManifestDefaultWithoutOverride()
+        {
+            var source = new ProjectModelRecipeSource(new[]
+            {
+                CreateManifestDependency("com.example.a", "model.onnx", "float16"),
+                CreateManifestDependency("com.example.b", "model.onnx", null)
+            });
+
+            var recipe = source.GetEffectiveRecipe("doji/test-model", "model.onnx");
+
+            Assert.That(recipe.Recipe.QuantizationMode, Is.EqualTo("float16"));
+            Assert.That(recipe.SourceLabel, Is.EqualTo("Manifest: com.example.a"));
+            Assert.That(recipe.HasProjectOverride, Is.False);
+            Assert.That(source.GetEffectiveRecipe("doji/test-model", "other.onnx").SourceLabel, Is.EqualTo("Built-in Default"));
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_UsesBuiltInDefaultWhenManifestsDisagree()
+        {
+            var source = new ProjectModelRecipeSource(new[]
+            {
+                CreateManifestDependency("com.example.a", "model.onnx", "float16"),
+                CreateManifestDependency("com.example.b", "model.onnx", "uint8")
+            });
+
+            var recipe = source.GetEffectiveRecipe("doji/test-model", "model.onnx");
+
+            Assert.That(recipe.Recipe.QuantizationMode, Is.EqualTo("none"));
+            Assert.That(recipe.SourceLabel, Is.EqualTo("Built-in Default (manifests disagree: com.example.a, com.example.b)"));
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_ProjectOverrideReplacesManifestDefault()
+        {
+            var source = new ProjectModelRecipeSource(new[] { CreateManifestDependency("com.example.a", "model.onnx", "float16") });
+
+            source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe { QuantizationMode = "none" });
+
+            var recipe = source.GetEffectiveRecipe("doji/test-model", "model.onnx");
+            Assert.That(recipe.HasProjectOverride, Is.True, "Going back to `none` differs from the manifest default, so it stays an override.");
+            Assert.That(recipe.Recipe.QuantizationMode, Is.EqualTo("none"));
+
+            source.SetProjectOverride("doji/test-model", "model.onnx", new OnnxConversionRecipe { QuantizationMode = "float16" });
+
+            Assert.That(source.GetEffectiveRecipe("doji/test-model", "model.onnx").HasProjectOverride, Is.False, "An override equal to the manifest default is removed.");
+        }
+
+        [Test]
+        public void ProjectModelRecipeSource_EnsureProjectOverride_StartsFromManifestDefault()
+        {
+            var source = new ProjectModelRecipeSource(new[] { CreateManifestDependency("com.example.a", "model.onnx", "uint8") });
+
+            source.EnsureProjectOverride("doji/test-model", "model.onnx");
+
+            var asset = AssetDatabase.LoadAssetAtPath<ProjectModelConversionOverridesAsset>(ProjectModelRecipeSource.DefaultAssetPath);
+            Assert.That(asset.Overrides[0].Recipe.QuantizationMode, Is.EqualTo("uint8"));
+        }
+
+        private static DiscoveredModelDependency CreateManifestDependency(string packageId, string repoPath, string quantization)
+        {
+            return new DiscoveredModelDependency(
+                packageId,
+                packageId,
+                "1.0.0",
+                null,
+                null,
+                null,
+                new ModelDependencyDefinition(
+                    "doji/test-model",
+                    "main",
+                    new[]
+                    {
+                        new ModelDependencyFileDefinition(
+                            repoPath,
+                            conversion: quantization == null ? null : new OnnxConversionRecipe { QuantizationMode = quantization })
+                    }));
+        }
+
+        [Test]
         public void ProjectModelRecipeSource_SetProjectOverride_UpsertsRecipeValues()
         {
             var source = new ProjectModelRecipeSource();

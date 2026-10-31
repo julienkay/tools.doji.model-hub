@@ -110,7 +110,7 @@ First configurable slice should support:
 - package-authored optional files inside one repo dependency
 - project-owned enable or disable of those files before download
 - project-level overrides from Model Hub UI
-- future package-authored defaults, but not required in same phase
+- manifest-authored defaults (`files[].conversion`)
 
 First slice should no longer keep current import behavior that every discovered `.onnx` file in snapshot is part of import set.
 
@@ -148,13 +148,11 @@ AI Model Hub should support layered recipe sources.
 
 ### Package Default
 
-Future manifest schema should allow package authors to declare default conversion intent for a file or artifact group.
-
-Package-authored optional bundle selection belongs in current additive `version: 1` extension.
-
-Richer conversion defaults can still grow later.
+A manifest declares a default recipe per file with `files[].conversion`, in the additive `version: 1` schema. See [manifest-schema.md](manifest-schema.md).
 
 Package defaults exist so package authors can express known-good import expectations when a repo contains multiple ONNX variants or requires specific static dimensions.
+
+`ProjectModelRecipeSource.GetManifestDefault` reads them from `DiscoveredDependencyCache`, the last manifest scan. A project change, a package change, or an editor manifest write clears the cache. A manifest without `conversion` for the file has no say.
 
 ### Project Override
 
@@ -176,7 +174,9 @@ Effective recipe for one file follows precedence:
 2. package default
 3. built-in converter default
 
-AI Model Hub should surface recipe source in UI so users can see whether current settings come from package, project, or fallback behavior.
+The Files tab shows the source: `Project Override`, `Manifest: <owners>`, or `Built-in Default`.
+
+A project override that equals the manifest default is removed, so it does not pin the project to settings the package may change later. A new override starts from the manifest default.
 
 ## Storage Model
 
@@ -388,16 +388,13 @@ Repo item becomes action-required when any required file is stale or missing.
 
 Current strict revision conflict rule remains unchanged.
 
-Additional future conflict rule:
+Package-default conflict rule:
 
-- if multiple owners declare different package-default recipes for same `repo + repoPath`, AI Model Hub must not silently choose one
+- if multiple owners declare different package-default recipes for same `repo + repoPath`, AI Model Hub does not choose one of them
+- the built-in default applies, and the Files tab shows `Built-in Default (manifests disagree: <owners>)`
+- a project override becomes the explicit winner
 
-Preferred resolution:
-
-- project override becomes explicit winner
-- until then, row is conflict or failed-validation state
-
-This mirrors revision-conflict philosophy: package management should not silently collapse incompatible declarations.
+Unlike a revision conflict, this does not block setup: every recipe produces a working model, and the disagreement is visible where the settings are edited.
 
 ## Runtime Contract
 

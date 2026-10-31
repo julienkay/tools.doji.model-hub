@@ -13,6 +13,7 @@ Manifest stays on `version: 1` and supports:
 - whole-repo dependencies
 - required explicit-file dependencies
 - package-authored optional exact file paths inside one repo dependency
+- per-file conversion defaults for `.onnx` files (`files[].conversion`)
 
 ```json
 {
@@ -58,7 +59,10 @@ Field intent:
 - `files`: optional list of exact repo-relative file objects. Omit or leave empty for whole-repository scope.
 - `files[].path`: exact repo-relative file path selected by this dependency owner
 - `files[].optional`: whether the path is project-selectable instead of always required; default/omitted means `false`
-- `files[].label`: display name for model pickers; trimmed, empty means none. It does not change the selection or its hash. Editor writers emit it last and drop empty labels (`ManifestJson.StripEmptyLabels`), because `JsonUtility` writes every field
+- `files[].label`: display name for model pickers; trimmed, empty means none. It does not change the selection or its hash
+- `files[].conversion`: manifest-default conversion recipe for an `.onnx` file: `quantization` (`none`, `float16`, `uint8`; omitted means `none`) and `inputShapes` (input name to full dimension list, `-1` dynamic). At least one key; parsed into `ModelDependencyFileDefinition.Conversion`. It does not change the selection hash; the recipe hash covers it. See [per-file-conversion-recipes.md](per-file-conversion-recipes.md#package-default)
+
+Editor writers use `ManifestWriter`, which leaves out defaults (`revision` when empty, `optional: false`, empty labels, no `conversion`). The Inspector and Project Settings stores read documents with `JsonUtility`, which cannot read `conversion`, so `ModelManifestInspectorUtility.AttachConversions` copies it from the parsed manifest. `FileSelectionPopup` keeps it for files that stay selected. `ProjectManifestAsset` stores it as `Quantization` and `InputShapes` on the file entry
 
 Canonical HuggingFace model id definition:
 
@@ -72,7 +76,7 @@ Manifest meaning:
 - one entry resolves one upstream repo revision to one concrete commit
 - one entry owns one canonical repo id for one manifest owner
 - duplicate `id` values inside one manifest are invalid
-- unknown properties at root, model, or file level are invalid, a non-boolean `optional` and a non-string `label` are invalid; a silently ignored key can widen a file-selective entry into a whole-repo download. The legacy `optionalFiles` key gets an error with a migration hint
+- unknown properties at root, model, file, or `conversion` level are invalid, a non-boolean `optional`, a non-string `label`, and `conversion` on a non-`.onnx` file are invalid; a silently ignored key can widen a file-selective entry into a whole-repo download. The legacy `optionalFiles` key gets an error with a migration hint
 - optional model variants must not be modeled as duplicate manifest rows with same `id`
 - one entry may depend on whole repo, on explicit always-required files, or on required files plus optional files inside that repo
 - the extension decides each selected file's format: `.onnx` is converted, `.sentis` is used as downloaded; see [import-and-generated-assets.md](import-and-generated-assets.md)

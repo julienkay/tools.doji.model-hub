@@ -185,7 +185,8 @@ Editor UI and manifest editing:
   - ONNX external weights larger than 2 GiB from `FakeHubServer`, through Editor sync and through the player download
   - the connection drops past 2 GiB and the next attempt resumes with a `Range` offset above `int.MaxValue`
   - the companion file joins the selection, sizes and progress stay exact, bytes around the 2 GiB mark and the end match, and a later player load needs no network
-  - each test writes about 2.1 GiB to the temp folder
+  - each test writes about 2.1 GiB to the temp folder; the fake Hub generates the bytes, nothing is stored in the repo
+  - TearDown deletes the folder even when a reset throws, and the fixture's OneTimeSetUp deletes folders left by runs that stopped mid-test
 - `tools.doji.model-hub/Tests/Editor/Cache/BlobLockTests.cs`
   - blob lock exclusion, waiting, and cancellation; waits run on the thread pool because the main thread is blocked during a test
 - `tools.doji.model-hub/Tests/Editor/Discovery/ProjectOptionalFileSelectionsAssetTests.cs`

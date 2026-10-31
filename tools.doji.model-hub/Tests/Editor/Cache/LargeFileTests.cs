@@ -32,10 +32,39 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private string _rootDirectory;
         private FakeHubFile _weights;
 
+        private static readonly string TempRoot = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.LargeFileTests");
+
+        /// <summary>
+        /// Deletes folders left by runs that stopped before TearDown, for example when the Editor closed mid-download.
+        /// Each one holds up to 2.1 GiB and nothing reads it again.
+        /// </summary>
+        [OneTimeSetUp]
+        public void DeleteLeftoverRuns()
+        {
+            if (!Directory.Exists(TempRoot))
+            {
+                return;
+            }
+
+            foreach (var directory in Directory.GetDirectories(TempRoot))
+            {
+                TryDeleteDirectory(directory);
+            }
+        }
+
+        [OneTimeTearDown]
+        public void DeleteTempRoot()
+        {
+            if (Directory.Exists(TempRoot) && !Directory.EnumerateFileSystemEntries(TempRoot).Any())
+            {
+                TryDeleteDirectory(TempRoot);
+            }
+        }
+
         [SetUp]
         public void SetUp()
         {
-            _rootDirectory = Path.Combine(Path.GetTempPath(), "Doji.ModelHub.LargeFileTests", Guid.NewGuid().ToString("N"));
+            _rootDirectory = Path.Combine(TempRoot, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
             _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
             _server = FakeHubServer.Start();
@@ -48,16 +77,38 @@ namespace Doji.AI.ModelHub.Editor.Tests
         [TearDown]
         public void TearDown()
         {
-            HubEndpoint.Override = null;
-            CacheFiles.ForceSymlinkSupport = null;
-            RuntimeModels.RegistryOverride = null;
-            RuntimeModels.ResetForTests();
-            Hub.RegisterOnnxConverter(null, null);
-            _server?.Dispose();
-            _cacheScope?.Dispose();
-            if (Directory.Exists(_rootDirectory))
+            try
             {
-                Directory.Delete(_rootDirectory, true);
+                HubEndpoint.Override = null;
+                CacheFiles.ForceSymlinkSupport = null;
+                RuntimeModels.RegistryOverride = null;
+                RuntimeModels.ResetForTests();
+                Hub.RegisterOnnxConverter(null, null);
+                _server?.Dispose();
+                _cacheScope?.Dispose();
+            }
+            finally
+            {
+                // Runs even when a reset above throws, so a failed test never keeps 2.1 GiB on disk.
+                TryDeleteDirectory(_rootDirectory);
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (path != null && Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            catch (IOException)
+            {
+                // A file is still open. The next run's OneTimeSetUp deletes the folder.
+            }
+            catch (UnauthorizedAccessException)
+            {
             }
         }
 

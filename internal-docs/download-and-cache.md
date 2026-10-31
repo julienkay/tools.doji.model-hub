@@ -194,7 +194,7 @@ AI Model Hub never repairs on its own. An earlier auto-heal started download-onl
 Rules:
 
 - turn 401 and 403 into `HubAccess` messages: a denied file download means the model is gated or private; a denied or missing revision lookup means no public repository has that id and revision (the Hub answers 401 for missing repositories too). AI Model Hub sends no token
-- start downloads only from an explicit user action: the setup prompt, a Model Hub button, the toolbar, or the menu
+- start downloads only from an explicit user action: the setup prompt, a Model Hub button, the toolbar, the menu, or a `model_hub_sync` command
 - `BackgroundSyncManager.ResumeIfNeeded` only resumes a persisted queue the user already started
 
 The index repository check ignores letter case. Hugging Face repository ids are case-insensitive, and the cache folder is case-insensitive on Windows and macOS, so `owner/Model` and `owner/model` share one snapshot.

@@ -53,8 +53,10 @@ namespace Doji.AI.ModelHub.Editor
                 .Where(file => !HasCurrentCachedFile(snapshotRoot, existingMetadata, file))
                 .ToArray();
 
-            foreach (var file in filesToDownload)
+            for (var index = 0; index < filesToDownload.Length; index++)
             {
+                var file = filesToDownload[index];
+                (progress as IFileDownloadProgress)?.OnFileStarted(file.RepoPath, file.SizeInBytes, index, filesToDownload.Length);
                 await DownloadIntoSnapshotAsync(resolvedSnapshot, file, progress, cancellationToken);
             }
 

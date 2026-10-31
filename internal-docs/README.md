@@ -14,6 +14,7 @@ exception is the roadmap, which lists features the package does not have yet.
 | [per-file-conversion-recipes.md](per-file-conversion-recipes.md) | Per-file input shapes and conversion settings, project overrides |
 | [runtime-loading.md](runtime-loading.md) | Registry, build step, delivery modes, platform loading, runtime downloads and ONNX conversion |
 | [editor-model-hub-ui.md](editor-model-hub-ui.md) | Model Hub window, Project Settings, Inspectors, states and actions |
+| [command-line-automation.md](command-line-automation.md) | Unity CLI commands, the automation layer, sync plan and run record |
 | [visual-scenario-sandbox.md](visual-scenario-sandbox.md) | Scenario fixtures for checking Model Hub UI states |
 | [testing.md](testing.md) | Map from behavior contracts to test fixtures |
 | [roadmap.md](roadmap.md) | Missing features and open questions |

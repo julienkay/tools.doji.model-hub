@@ -12,6 +12,7 @@ AI Model Hub is not affiliated with Hugging Face.
 - [For Unity Project Users](manual/getting-started-project-users.md)
 - [Manifest Schema](manual/manifest-reference.md)
 - [Editor Surfaces](manual/editor-surfaces.md)
+- [Command Line and CI](manual/command-line.md)
 - [Setup, Cache, and Runtime Loading](manual/import-cache-runtime.md)
 
 ## API Reference

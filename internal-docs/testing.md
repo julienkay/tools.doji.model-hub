@@ -126,6 +126,15 @@ Status and sync:
   - `AutoImport` does nothing while suspended
 - `tools.doji.model-hub/Tests/Editor/Sync/BackgroundSyncManagerTests.cs`
   - background gating and damaged-cache codes
+- `tools.doji.model-hub/Tests/Editor/Status/StatusServiceTests.cs` (`BuildSyncPlan_*`, `BuildNothingToSyncMessage_*`)
+  - the sync plan names a skip reason for ready, unknown, selection-required, and conflicting models
+  - a sync that starts nothing explains each model
+- `tools.doji.model-hub/Tests/Editor/Automation/ModelHubAutomationTests.cs`
+  - CLI status lists owner, revision, resolved commit, state, and per-file optional, enabled, and cached
+  - unknown repositories, modes, quantizations, and file edits are refused with the fix in the message
+  - cache removal refuses without `--confirm`; cancel reports when nothing runs
+  - the run record survives save and load; sync reports become per-model results
+  - optional-file toggles keep the owner's other files; downloads report each file start
   - status reads snapshots from disk; a missing or foreign index is ignored
 - `tools.doji.model-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`
   - Remove from Cache deletes only blobs no remaining snapshot links to, and leaves partial downloads alone (needs symlink support)

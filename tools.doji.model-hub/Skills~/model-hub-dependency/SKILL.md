@@ -57,4 +57,6 @@ Model model = await Hub.LoadModelAsync("owner/name", "onnx/model_small.onnx");
 
 Pass your package id first when another package may use the same model. To check a manifest, open Model Hub (`Window > AI Model Hub`): validation errors appear on the owning package.
 
+To download and set up the declared models from a terminal or CI, use the sibling skill `model-hub-cli` (`unity command model_hub_status`, `model_hub_sync`, `model_hub_sync_status`).
+
 Full reference: `Documentation` link of the package, pages `manifest-reference` and `package-model-api`.

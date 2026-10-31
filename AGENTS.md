@@ -31,7 +31,7 @@ Prefer these locations:
 - `internal-docs/`: design notes for maintainers; `internal-docs/README.md` indexes them. Read
   `internal-docs/architecture.md` first, then the topic doc for the area you change.
 - `.claude/skills/`: project skills for tests (`unity-model-hub-test-creation`) and user docs (`user-facing-docfx-docs`)
-- `tools.doji.model-hub/Skills~/`: skills that ship with the package for consumers (`model-hub-dependency`); update them with the manifest schema
+- `tools.doji.model-hub/Skills~/`: skills that ship with the package for consumers (`model-hub-dependency`, `model-hub-cli`); update them with the manifest schema and the CLI commands
 - `projects/AI Model Hub/Assets`: companion-project assets and test scenes
 
 Prefer working in the package folder when functionality is package-owned.

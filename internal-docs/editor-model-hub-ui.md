@@ -202,7 +202,7 @@ If same repository is declared at multiple requested revisions:
 - conflict summary UI should classify owners as project, embedded/local package, or installed package so user sees whether fix is direct manifest edit or package-version change
 - conflict UX should offer clipboard summary and `Open Package Manager` when installed packages participate
 - import and manage actions stay disabled for conflicting rows until project resolves conflict to one revision
-- a global sync must skip or fail those dependencies without touching shared runtime payload for that repo
+- a global sync skips those dependencies (`SyncSkipReason.RevisionConflict`) without touching shared runtime payload for that repo, and says so when it starts nothing
 
 Later if pain stays common:
 

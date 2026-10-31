@@ -64,4 +64,5 @@ Continue with [For Unity Project Users](getting-started-project-users.md).
 
 - [Manifest Schema](manifest-reference.md) documents manifest types, fields, validation, whole-repo scope, selected files, and per-file `optional` flags.
 - [Editor Surfaces](editor-surfaces.md) documents Model Hub, the setup prompt, Project Settings, and manifest Inspectors.
+- [Command Line and CI](command-line.md) documents the Unity CLI commands for scripts, CI, and coding agents.
 - [Setup, Cache, and Runtime Loading](import-cache-runtime.md) documents the sync flow, the cache and converted-model folders, builds, players, and the runtime API.

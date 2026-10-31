@@ -316,7 +316,7 @@ namespace Doji.AI.ModelHub.Editor
             track.Add(_syncProgressFill);
             text.Add(track);
             _syncBanner.Add(text);
-            _syncBanner.Add(UiKit.Button("Cancel", BackgroundSyncManager.Cancel));
+            _syncBanner.Add(UiKit.Button("Cancel", () => BackgroundSyncManager.Cancel()));
             return _syncBanner;
         }
 

@@ -143,13 +143,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static void TurnOn(Entry entry)
         {
-            var enabled = entry.Dependency.GetEnabledOptionalRepoPaths().ToList();
-            if (!enabled.Contains(entry.RepoPath, StringComparer.Ordinal))
-            {
-                enabled.Add(entry.RepoPath);
-            }
-
-            new ProjectOptionalFileSelectionSource().SetEnabledOptionalFiles(entry.PackageId, entry.Dependency.ModelId, enabled);
+            new ProjectOptionalFileSelectionSource().SetEnabled(entry.Dependency, entry.RepoPath, true);
             Invalidate();
             ModelHubWindow.RefreshOpenWindows();
             BackgroundSyncManager.StartForRepository(entry.RepoId, entry.Revision, SyncOperationMode.Full);

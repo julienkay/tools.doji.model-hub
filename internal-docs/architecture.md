@@ -5,7 +5,8 @@
 | Assembly | Namespace | Contents |
 |---|---|---|
 | `Doji.ModelHub` | `Doji.AI.ModelHub` | `Runtime/Manifest`, `Core`, `Cache`, `Locator`, `Conversion` |
-| `Doji.ModelHub.Editor` | `Doji.AI.ModelHub.Editor` | `Editor/Discovery`, `Cache`, `Sync`, `Import`, `Build`, `Status`, `InferenceBridge`, `UI` |
+| `Doji.ModelHub.Editor` | `Doji.AI.ModelHub.Editor` | `Editor/Discovery`, `Cache`, `Sync`, `Import`, `Build`, `Status`, `InferenceBridge`, `UI`, `Automation` |
+| `Doji.ModelHub.Editor.Cli` | `Doji.AI.ModelHub.Editor.Cli` | `Editor/Cli`: Unity CLI commands. Compiles only with `com.unity.pipeline` (`MODEL_HUB_PIPELINE`). |
 | `Doji.ModelHub.Editor.Tests` | `Doji.AI.ModelHub.Editor.Tests` | EditMode tests in `Tests/Editor` |
 
 The companion project references the package and its dependencies with
@@ -20,6 +21,7 @@ The companion project references the package and its dependencies with
 | `com.unity.ai.inference` | ONNX to `.sentis` conversion in the Editor and runtime `Model` loading |
 | `tools.doji.onnx-model-loader` (optional) | ONNX conversion in players, behind the `MODEL_HUB_ONNX_MODEL_LOADER` version define |
 | `com.unity.nuget.newtonsoft-json` | Manifest, metadata and registry JSON |
+| `com.unity.pipeline` (optional) | Unity CLI commands, behind the `MODEL_HUB_PIPELINE` version define. See [command-line-automation.md](command-line-automation.md). |
 
 Generic download behavior belongs in `tools.doji.downloads`, not here.
 AI Model Hub owns HuggingFace resolution, cache policy, prompts, status, and
@@ -64,6 +66,7 @@ repository. See [editor-model-hub-ui.md](editor-model-hub-ui.md).
 - `Project Settings > Doji > AI > AI Model Hub`
 - `Tools > Doji > AI Model Hub`: `Set Up All Models`, `Show Status`, `Open Project Settings`
 - custom Inspector for writable `model-hub-manifest.json` files
+- Unity CLI commands `model_hub_*` when `com.unity.pipeline` is installed
 
 ## Conventions
 

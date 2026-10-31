@@ -9,6 +9,8 @@ AI Model Hub has four places in the Editor:
 | Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and choose the download cache folder. |
 | Manifest Inspector | Select an `model-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
+Scripts, CI, and coding agents do the same work from a terminal with the Unity CLI. See [Command Line and CI](command-line.md).
+
 ## Model Hub
 
 ![Model Hub with the MiDaS model selected. The details on the right show the status, the format ONNX and Sentis files, the In builds field set to Download at runtime, and the two manifests that use the model.](../images/manual/model-hub-overview.png)

@@ -630,14 +630,7 @@ namespace Doji.AI.ModelHub.Editor
 
         private void SetOptionalFileEnabled(DiscoveredModelDependency dependency, string path, bool isEnabled)
         {
-            var enabledFiles = dependency.GetEnabledOptionalRepoPaths().ToList();
-            enabledFiles.RemoveAll(existing => string.Equals(existing, path, StringComparison.Ordinal));
-            if (isEnabled)
-            {
-                enabledFiles.Add(path);
-            }
-
-            _optionalFileSelectionSource.SetEnabledOptionalFiles(dependency.PackageId, dependency.ModelId, enabledFiles);
+            _optionalFileSelectionSource.SetEnabled(dependency, path, isEnabled);
             RefreshReport();
         }
 

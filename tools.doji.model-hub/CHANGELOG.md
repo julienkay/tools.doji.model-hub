@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Unity CLI commands, when the project has `com.unity.pipeline`: `model_hub_status`, `model_hub_sync`, `model_hub_sync_status`, `model_hub_set_file`, `model_hub_cancel`, and `model_hub_remove_cache`. Agents, scripts, and CI read each model's state and files, start a background sync and poll its progress and per-model result, and turn optional files on, without the Model Hub window and without dialogs. `unity run <project> --command model_hub_sync` waits until the sync ends. The commands live in `Doji.ModelHub.Editor.Cli`, which compiles only with `com.unity.pipeline`. The package ships a `model-hub-cli` agent skill for them.
+- **Set Up All Models** says in the Console why it starts nothing, per model: ready, not found on Hugging Face, no optional file turned on, or requested at two revisions.
 - Model Hub has a sidebar like Package Manager: **In Project** lists this project's models, and **Model Cache** lists the models downloaded on this machine. It shows the start of each model card. **Add to Project…** lists a cached model in the project manifest or in a package in development, with the cached files, so it needs no download. The cache map moved to its own window, **Model Cache Disk Usage**, opened from `Tools > Doji > AI Model Hub`, the Model Cache context menu, or a cached model's details.
 - `.sentis` files on Hugging Face are used as downloaded, without an import step. The file extension decides the format of each file.
 - ONNX external weight files (`.onnx_data`, `.onnx.data`) are selected with their `.onnx` file.
@@ -34,6 +36,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Downloads use the shared Hugging Face cache instead of a private `raw` folder. Existing downloads are moved on the first Editor start.
 - Converted models live in a shared folder outside the project, keyed by source file, converter, and conversion settings. Nothing is written into `Assets`.
 - A whole-repository dependency on a repository with both ONNX and Sentis files is invalid. List the files you use.
+- A sync skips models that manifests request at two revisions, instead of reporting them as failed.
 - **Remove Imported Files** is now **Remove from Project**.
 
 ### Removed

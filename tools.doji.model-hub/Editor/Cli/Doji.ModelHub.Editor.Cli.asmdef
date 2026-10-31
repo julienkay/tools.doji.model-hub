@@ -1,0 +1,28 @@
+{
+    "name": "Doji.ModelHub.Editor.Cli",
+    "rootNamespace": "Doji.AI.ModelHub.Editor.Cli",
+    "references": [
+        "Doji.ModelHub",
+        "Doji.ModelHub.Editor",
+        "Unity.Pipeline.Attributes"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "MODEL_HUB_PIPELINE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.pipeline",
+            "expression": "",
+            "define": "MODEL_HUB_PIPELINE"
+        }
+    ],
+    "noEngineReferences": false
+}

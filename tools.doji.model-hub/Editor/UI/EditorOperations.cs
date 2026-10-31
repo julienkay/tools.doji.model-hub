@@ -151,6 +151,22 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            ApplyProjectOverrides(item, recipesByRepoPath);
+            StartBackgroundSync(item);
+        }
+
+        /// <summary>
+        /// Persists repo file recipe edits as project overrides, without starting a sync. Returns the repository
+        /// paths it wrote.
+        /// </summary>
+        public static string[] ApplyProjectOverrides(ModelHubItem item, System.Collections.Generic.IReadOnlyDictionary<string, OnnxConversionRecipe> recipesByRepoPath)
+        {
+            if (item == null || recipesByRepoPath == null)
+            {
+                return System.Array.Empty<string>();
+            }
+
+            var written = new System.Collections.Generic.List<string>();
             foreach (var file in item.Files)
             {
                 if (!recipesByRepoPath.TryGetValue(file.RepoPath, out var recipe))
@@ -159,9 +175,10 @@ namespace Doji.AI.ModelHub.Editor
                 }
 
                 RecipeSource.SetProjectOverride(item.Repository, file.RepoPath, recipe);
+                written.Add(file.RepoPath);
             }
 
-            StartBackgroundSync(item);
+            return written.ToArray();
         }
 
         /// <summary>

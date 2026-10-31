@@ -16,5 +16,7 @@
     href: manifest-reference.md
   - name: Editor Surfaces
     href: editor-surfaces.md
+  - name: Command Line and CI
+    href: command-line.md
   - name: Setup, Cache, and Runtime Loading
     href: import-cache-runtime.md

@@ -599,6 +599,70 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(downloadOnly.Select(item => item.Mode), Is.All.EqualTo(SyncOperationMode.DownloadOnly), "Only a full sync is downgraded.");
         }
 
+        /// <summary>
+        /// Verifies the sync plan names a reason for every model it leaves out: ready, unknown on Hugging Face, no
+        /// optional file turned on, or requested at two revisions. Only the missing model is synced.
+        /// </summary>
+        [Test]
+        public void BuildSyncPlan_GivesAReasonForEverySkippedModel()
+        {
+            var ready = CreateDependency(packageId: "tools.doji.ready", repository: "doji/ready-model");
+            WriteRawCache(ready);
+            WriteGeneratedArtifacts(ready);
+            var invalid = CreateDependency(packageId: "tools.doji.invalid", repository: $"doji/invalid-{Guid.NewGuid():N}");
+            RepositoryValidationCacheService.WriteCachedRepositoryExists(invalid.Repository, false);
+            var selection = CreateDependency(
+                packageId: "tools.doji.selection",
+                repository: "doji/selection-model",
+                fileEntries: new[] { new ModelDependencyFileDefinition("models/model.onnx", true) });
+            var conflictMain = CreateDependency(packageId: "tools.doji.conflict-a", repository: "doji/conflict-model", revision: "main");
+            var conflictDev = CreateDependency(packageId: "tools.doji.conflict-b", repository: "doji/conflict-model", revision: "dev");
+            var missing = CreateDependency(packageId: "tools.doji.missing", repository: "doji/missing-model");
+            var discovery = new DiscoveryReport(
+                new[] { ready, invalid, selection, conflictMain, conflictDev, missing },
+                Array.Empty<ManifestDiscoveryIssue>());
+
+            var plan = BackgroundSyncManager.BuildSyncPlan(discovery, null, SyncOperationMode.Full)
+                .ToDictionary(entry => entry.Dependency.PackageId, entry => entry);
+
+            Assert.That(plan["tools.doji.ready"].SkipReason, Is.EqualTo(SyncSkipReason.Ready));
+            Assert.That(plan["tools.doji.invalid"].SkipReason, Is.EqualTo(SyncSkipReason.InvalidRepository));
+            Assert.That(plan["tools.doji.selection"].SkipReason, Is.EqualTo(SyncSkipReason.SelectionRequired));
+            Assert.That(plan["tools.doji.conflict-a"].SkipReason, Is.EqualTo(SyncSkipReason.RevisionConflict));
+            Assert.That(plan["tools.doji.conflict-b"].SkipReason, Is.EqualTo(SyncSkipReason.RevisionConflict));
+            Assert.That(plan["tools.doji.conflict-a"].Message, Does.Contain("multiple revisions"));
+            Assert.That(plan["tools.doji.missing"].IsPending, Is.True);
+            Assert.That(plan["tools.doji.missing"].Mode, Is.EqualTo(SyncOperationMode.Full));
+        }
+
+        /// <summary>
+        /// Verifies the message for a sync that starts nothing names each model and why it was left out, so the
+        /// menu item never does nothing without saying why.
+        /// </summary>
+        [Test]
+        public void BuildNothingToSyncMessage_NamesEachModelAndReason()
+        {
+            var ready = CreateDependency(packageId: "tools.doji.ready", repository: "doji/ready-model");
+            WriteRawCache(ready);
+            WriteGeneratedArtifacts(ready);
+            var selection = CreateDependency(
+                packageId: "tools.doji.selection",
+                repository: "doji/selection-model",
+                fileEntries: new[] { new ModelDependencyFileDefinition("models/model.onnx", true) });
+            var plan = BackgroundSyncManager.BuildSyncPlan(
+                new DiscoveryReport(new[] { ready, selection }, Array.Empty<ManifestDiscoveryIssue>()),
+                null,
+                SyncOperationMode.Full);
+
+            var message = BackgroundSyncManager.BuildNothingToSyncMessage(plan);
+
+            Assert.That(plan.Any(entry => entry.IsPending), Is.False);
+            Assert.That(message, Does.StartWith("AI Model Hub: nothing to sync."));
+            Assert.That(message, Does.Contain("doji/ready-model: ready."));
+            Assert.That(message, Does.Contain("doji/selection-model: no optional model file is turned on."));
+            Assert.That(BackgroundSyncManager.BuildNothingToSyncMessage(Array.Empty<SyncPlanEntry>()), Does.Contain("No manifest declares a model"));
+        }
+
         private static void WriteStoreHit(DiscoveredModelDependency dependency, string commitHash = "abc123")
         {
             var file = new RawCacheFileMetadata

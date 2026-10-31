@@ -122,15 +122,10 @@ namespace Doji.AI.ModelHub.Editor
             _version = 1;
             _models = new List<ManifestModelEntry>();
             _loadErrorMessage = null;
-            if (_store.TryLoad(out var document, out var errorMessage))
+            if (_store.TryLoad(out var version, out var models, out var errorMessage))
             {
-                if (document != null)
-                {
-                    _version = document.version;
-                    _models = (document.models ?? Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>())
-                        .Select(ManifestModelEntry.FromDocumentModel)
-                        .ToList();
-                }
+                _version = version;
+                _models = (models ?? Array.Empty<ManifestModelEntry>()).ToList();
             }
             else
             {

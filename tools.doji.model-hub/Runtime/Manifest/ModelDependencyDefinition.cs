@@ -68,7 +68,7 @@ namespace Doji.AI.ModelHub
         /// Creates an immutable model dependency definition from one manifest entry.
         /// </summary>
         /// <param name="id">Canonical HuggingFace model identifier, matching Hub `from_pretrained(...)` style source naming.</param>
-        /// <param name="revision">Branch, tag, or commit to resolve from the Hub.</param>
+        /// <param name="revision">Branch, tag, or commit to resolve from the Hub, as written. Null or empty means <c>main</c>.</param>
         /// <param name="files">Optional exact repo-relative selected files. Optional entries are project-selectable; required entries are always selected.</param>
         public ModelDependencyDefinition(
             string id,
@@ -76,7 +76,7 @@ namespace Doji.AI.ModelHub
             IReadOnlyList<ModelDependencyFileDefinition> files = null)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
-            Revision = revision ?? throw new ArgumentNullException(nameof(revision));
+            Revision = revision?.Trim() ?? string.Empty;
             _fileEntries = NormalizeFileEntries(files);
         }
 
@@ -86,7 +86,8 @@ namespace Doji.AI.ModelHub
         public string Id { get; }
 
         /// <summary>
-        /// Branch, tag, or commit to resolve before downloading.
+        /// Branch, tag, or commit as the manifest writes it. Empty when the manifest sets none. Resolve with
+        /// <see cref="EffectiveRevision"/>, which defaults to <c>main</c>.
         /// </summary>
         public string Revision { get; }
 

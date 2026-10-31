@@ -176,7 +176,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
             Assert.That(manifest.Models[0].Id, Is.EqualTo("hf-internal-testing/tiny-random-bert"));
-            Assert.That(manifest.Models[0].Revision, Is.EqualTo("main"));
+            Assert.That(manifest.Models[0].Revision, Is.Empty, "The parsed manifest keeps the revision as written.");
             Assert.That(manifest.Models[0].EffectiveRevision, Is.EqualTo("main"));
         }
 
@@ -729,10 +729,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies explicit `main` revision stays explicit when reloading the raw project-settings manifest document.
+        /// Verifies explicit `main` revision stays explicit when reloading the project-settings manifest.
         /// </summary>
         [Test]
-        public void TryLoadManifestDocument_PreservesExplicitMainRevision()
+        public void TryLoadManifestEntries_PreservesExplicitMainRevision()
         {
             var projectRoot = Path.Combine(_rootDirectory, "ExplicitMainProjectRoot");
             var manifestDirectory = Path.Combine(projectRoot, "ProjectSettings", "Packages", "tools.doji.model-hub");
@@ -749,11 +749,56 @@ namespace Doji.AI.ModelHub.Editor.Tests
   ]
 }");
 
-            var success = ProjectSettingsModelManifestStore.TryLoadManifestDocument(projectRoot, out var document, out var errorMessage);
+            var success = ProjectSettingsModelManifestStore.TryLoadManifestEntries(projectRoot, out _, out var models, out var errorMessage);
 
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
-            Assert.That(document.models[0].revision, Is.EqualTo("main"));
+            Assert.That(models[0].Revision, Is.EqualTo("main"));
+        }
+
+        /// <summary>
+        /// Verifies the project-settings manifest loads conversion settings and keeps a missing revision empty.
+        /// </summary>
+        [Test]
+        public void TryLoadManifestEntries_ReadsConversionAndKeepsMissingRevisionEmpty()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "ConversionProjectRoot");
+            var manifestDirectory = Path.Combine(projectRoot, "ProjectSettings", "Packages", "tools.doji.model-hub");
+            Directory.CreateDirectory(manifestDirectory);
+            File.WriteAllText(
+                Path.Combine(manifestDirectory, Hub.ManifestFileName),
+                @"{ ""version"": 1, ""models"": [ { ""id"": ""a/b"", ""files"": [ { ""path"": ""m.onnx"", ""conversion"": { ""quantization"": ""float16"" } } ] } ] }");
+
+            var success = ProjectSettingsModelManifestStore.TryLoadManifestEntries(projectRoot, out _, out var models, out var errorMessage);
+
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(models[0].Owner, Is.EqualTo("a"));
+            Assert.That(models[0].Name, Is.EqualTo("b"));
+            Assert.That(models[0].Revision, Is.Empty);
+            Assert.That(models[0].FileEntries[0].Conversion.QuantizationMode, Is.EqualTo("float16"));
+        }
+
+        /// <summary>
+        /// Verifies adding a model leaves the revisions and conversion settings of the other models as written.
+        /// </summary>
+        [Test]
+        public void TryAddModelId_KeepsOtherModelsAsWritten()
+        {
+            var projectRoot = Path.Combine(_rootDirectory, "AddKeepsOthersProjectRoot");
+            var manifestDirectory = Path.Combine(projectRoot, "ProjectSettings", "Packages", "tools.doji.model-hub");
+            Directory.CreateDirectory(manifestDirectory);
+            var manifestPath = Path.Combine(manifestDirectory, Hub.ManifestFileName);
+            File.WriteAllText(
+                manifestPath,
+                @"{ ""version"": 1, ""models"": [ { ""id"": ""a/b"", ""files"": [ { ""path"": ""m.onnx"", ""conversion"": { ""quantization"": ""uint8"" } } ] } ] }");
+
+            var success = ProjectSettingsModelManifestStore.TryAddModelId("c/d", "main", null, out var errorMessage, projectRoot);
+
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(ManifestParser.TryParse(File.ReadAllText(manifestPath), out var manifest, out errorMessage), Is.True, errorMessage);
+            Assert.That(manifest.Models[0].Revision, Is.Empty, "Adding a model must not write `main` into another model.");
+            Assert.That(manifest.Models[0].FileEntries[0].Conversion.QuantizationMode, Is.EqualTo("uint8"));
+            Assert.That(manifest.Models[1].Revision, Is.EqualTo("main"));
         }
 
         /// <summary>
@@ -803,7 +848,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(errorMessage, Is.Null);
             Assert.That(contents, Does.Not.Contain("revision"));
             Assert.That(ManifestParser.TryParse(contents, out var manifest, out errorMessage), Is.True, errorMessage);
-            Assert.That(manifest.Models[0].Revision, Is.EqualTo("main"));
+            Assert.That(manifest.Models[0].EffectiveRevision, Is.EqualTo("main"));
         }
 
         /// <summary>

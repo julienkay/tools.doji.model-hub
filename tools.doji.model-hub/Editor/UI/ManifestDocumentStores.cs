@@ -12,7 +12,7 @@ namespace Doji.AI.ModelHub.Editor
         string DisplayName { get; }
         bool IsEditable { get; }
         bool ShouldPersistValidationCache { get; }
-        bool TryLoad(out ModelManifestInspectorUtility.ManifestDocument document, out string errorMessage);
+        bool TryLoad(out int version, out ManifestModelEntry[] models, out string errorMessage);
         bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage);
     }
 
@@ -39,9 +39,9 @@ namespace Doji.AI.ModelHub.Editor
             !string.IsNullOrWhiteSpace(_assetPath) &&
             _assetPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase);
 
-        public bool TryLoad(out ModelManifestInspectorUtility.ManifestDocument document, out string errorMessage)
+        public bool TryLoad(out int version, out ManifestModelEntry[] models, out string errorMessage)
         {
-            return ModelManifestInspectorUtility.TryLoadManifestDocument(_assetPath, out document, out _, out errorMessage);
+            return ModelManifestInspectorUtility.TryLoadManifestEntries(_assetPath, out version, out models, out errorMessage);
         }
 
         public bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage)
@@ -76,9 +76,9 @@ namespace Doji.AI.ModelHub.Editor
         public bool IsEditable => true;
         public bool ShouldPersistValidationCache => true;
 
-        public bool TryLoad(out ModelManifestInspectorUtility.ManifestDocument document, out string errorMessage)
+        public bool TryLoad(out int version, out ManifestModelEntry[] models, out string errorMessage)
         {
-            return ProjectSettingsModelManifestStore.TryLoadManifestDocument(null, out document, out errorMessage);
+            return ProjectSettingsModelManifestStore.TryLoadManifestEntries(null, out version, out models, out errorMessage);
         }
 
         public bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage)
@@ -111,9 +111,9 @@ namespace Doji.AI.ModelHub.Editor
         public bool IsEditable => _asset != null;
         public bool ShouldPersistValidationCache => true;
 
-        public bool TryLoad(out ModelManifestInspectorUtility.ManifestDocument document, out string errorMessage)
+        public bool TryLoad(out int version, out ManifestModelEntry[] models, out string errorMessage)
         {
-            return ModelManifestInspectorUtility.TryLoadProjectManifestAssetDocument(_asset, out document, out errorMessage);
+            return ModelManifestInspectorUtility.TryLoadProjectManifestAsset(_asset, out version, out models, out errorMessage);
         }
 
         public bool TrySave(int version, ManifestModelEntry[] models, out string errorMessage)

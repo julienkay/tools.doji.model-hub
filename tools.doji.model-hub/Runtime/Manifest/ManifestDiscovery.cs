@@ -858,7 +858,7 @@ namespace Doji.AI.ModelHub
                     return false;
                 }
 
-                var revision = ManifestRevision.NormalizeForResolution(model.Revision);
+                var revision = model.Revision?.Trim() ?? string.Empty;
                 var files = ValidateSelectedFiles(model?.FileEntries, id, modelIndex, out errorMessage);
                 if (errorMessage != null)
                 {

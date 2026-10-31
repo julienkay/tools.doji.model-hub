@@ -68,8 +68,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new ManifestModelEntry("hf-internal-testing", "tiny-random-bert", "main")
                 });
 
-            Assert.That(stateKey, Does.Contain("\"id\":\"hf-internal-testing/tiny-random-bert\""));
-            Assert.That(stateKey, Does.Contain("\"revision\":\"main\""));
+            Assert.That(stateKey, Does.Contain("\"id\": \"hf-internal-testing/tiny-random-bert\""));
+            Assert.That(stateKey, Does.Contain("\"revision\": \"main\""));
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         new[] { new ModelDependencyFileDefinition("onnx/model.onnx") })
                 });
 
-            Assert.That(stateKey, Does.Contain("\"path\":\"onnx/model.onnx\""));
+            Assert.That(stateKey, Does.Contain("\"path\": \"onnx/model.onnx\""));
         }
 
         /// <summary>
@@ -109,8 +109,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         new[] { new ModelDependencyFileDefinition("onnx/model_q4.onnx", true) })
                 });
 
-            Assert.That(stateKey, Does.Contain("\"path\":\"onnx/model_q4.onnx\""));
-            Assert.That(stateKey, Does.Contain("\"optional\":true"));
+            Assert.That(stateKey, Does.Contain("\"path\": \"onnx/model_q4.onnx\""));
+            Assert.That(stateKey, Does.Contain("\"optional\": true"));
         }
 
         /// <summary>
@@ -219,7 +219,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Ensures ScriptableObject project manifests convert into shared editor document shape without losing explicit file selection.
         /// </summary>
         [Test]
-        public void TryLoadProjectManifestAssetDocument_ReadsSerializedAssetModels()
+        public void TryLoadProjectManifestAsset_ReadsSerializedAssetModels()
         {
             var asset = ScriptableObject.CreateInstance<ProjectManifestAsset>();
             SetProjectManifest(asset, 1, new[]
@@ -231,22 +231,24 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     Files = new[]
                     {
                         new ProjectManifestFileAssetEntry { Path = "onnx/model.onnx" },
-                        new ProjectManifestFileAssetEntry { Path = "onnx/model_q4.onnx", Optional = true }
+                        new ProjectManifestFileAssetEntry { Path = "onnx/model_q4.onnx", Optional = true, Quantization = "float16" }
                     }
                 }
             });
 
-            var success = ModelManifestInspectorUtility.TryLoadProjectManifestAssetDocument(asset, out var document, out var errorMessage);
+            var success = ModelManifestInspectorUtility.TryLoadProjectManifestAsset(asset, out var version, out var models, out var errorMessage);
 
             Assert.That(success, Is.True);
             Assert.That(errorMessage, Is.Null);
-            Assert.That(document.version, Is.EqualTo(1));
-            Assert.That(document.models[0].id, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
-            Assert.That(document.models[0].revision, Is.EqualTo("refs/pr/7"));
-            Assert.That(document.models[0].files[0].path, Is.EqualTo("onnx/model.onnx"));
-            Assert.That(document.models[0].files[0].optional, Is.False);
-            Assert.That(document.models[0].files[1].path, Is.EqualTo("onnx/model_q4.onnx"));
-            Assert.That(document.models[0].files[1].optional, Is.True);
+            Assert.That(version, Is.EqualTo(1));
+            Assert.That(models[0].ModelId, Is.EqualTo("onnx-community/tiny-clip-test-ONNX"));
+            Assert.That(models[0].Revision, Is.EqualTo("refs/pr/7"));
+            Assert.That(models[0].FileEntries[0].Path, Is.EqualTo("onnx/model.onnx"));
+            Assert.That(models[0].FileEntries[0].Optional, Is.False);
+            Assert.That(models[0].FileEntries[0].Conversion, Is.Null);
+            Assert.That(models[0].FileEntries[1].Path, Is.EqualTo("onnx/model_q4.onnx"));
+            Assert.That(models[0].FileEntries[1].Optional, Is.True);
+            Assert.That(models[0].FileEntries[1].Conversion.QuantizationMode, Is.EqualTo("float16"));
         }
 
         /// <summary>
@@ -270,7 +272,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         {
                             new ModelDependencyFileDefinition(" tokenizer.json "),
                             new ModelDependencyFileDefinition("onnx\\model.onnx"),
-                            new ModelDependencyFileDefinition("onnx/model.onnx"),
+                            new ModelDependencyFileDefinition("onnx/model.onnx", conversion: new OnnxConversionRecipe { QuantizationMode = "float16" }),
                             new ModelDependencyFileDefinition(" onnx\\model_q4.onnx ", true),
                             new ModelDependencyFileDefinition("onnx/model_q4.onnx", true)
                         })
@@ -289,6 +291,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(filesProperty.arraySize, Is.EqualTo(3));
             Assert.That(filesProperty.GetArrayElementAtIndex(0).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("onnx/model.onnx"));
             Assert.That(filesProperty.GetArrayElementAtIndex(0).FindPropertyRelative("<Optional>k__BackingField").boolValue, Is.False);
+            Assert.That(filesProperty.GetArrayElementAtIndex(0).FindPropertyRelative("<Quantization>k__BackingField").stringValue, Is.EqualTo("float16"));
+            Assert.That(filesProperty.GetArrayElementAtIndex(2).FindPropertyRelative("<Quantization>k__BackingField").stringValue, Is.Empty);
             Assert.That(filesProperty.GetArrayElementAtIndex(1).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("onnx/model_q4.onnx"));
             Assert.That(filesProperty.GetArrayElementAtIndex(1).FindPropertyRelative("<Optional>k__BackingField").boolValue, Is.True);
             Assert.That(filesProperty.GetArrayElementAtIndex(2).FindPropertyRelative("<Path>k__BackingField").stringValue, Is.EqualTo("tokenizer.json"));
@@ -314,6 +318,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
                     fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex].Path;
                     fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex].Optional;
+                    fileProperty.FindPropertyRelative("<Quantization>k__BackingField").stringValue = files[fileIndex].Quantization ?? string.Empty;
                 }
             }
 

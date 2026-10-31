@@ -123,28 +123,21 @@ namespace Doji.AI.ModelHub.Editor
             return owner.Length > 0 && name.Length > 0;
         }
 
-        public static ManifestModelEntry FromDocumentModel(ModelManifestInspectorUtility.ManifestModelDocument model)
+        /// <summary>
+        /// Creates an editor row from a manifest model id such as <c>owner/name</c>. An id without an owner keeps
+        /// everything in <see cref="Name"/>.
+        /// </summary>
+        public static ManifestModelEntry Create(string id, string revision, ModelDependencyFileDefinition[] files)
         {
-            var identifier = model?.id ?? string.Empty;
+            var identifier = id ?? string.Empty;
             var slashIndex = identifier.IndexOf('/');
-            if (slashIndex <= 0 || slashIndex >= identifier.Length - 1)
-            {
-                return new ManifestModelEntry(
-                    string.Empty,
-                    identifier,
-                    model?.revision ?? string.Empty,
-                    (model?.files ?? Array.Empty<ModelManifestInspectorUtility.ManifestFileDocument>())
-                    .Select(file => file?.ToDefinition())
-                    .ToArray());
-            }
-
-            return new ManifestModelEntry(
-                identifier.Substring(0, slashIndex),
-                identifier.Substring(slashIndex + 1),
-                model?.revision ?? string.Empty,
-                (model?.files ?? Array.Empty<ModelManifestInspectorUtility.ManifestFileDocument>())
-                .Select(file => file?.ToDefinition())
-                .ToArray());
+            return slashIndex <= 0 || slashIndex >= identifier.Length - 1
+                ? new ManifestModelEntry(string.Empty, identifier, revision ?? string.Empty, files)
+                : new ManifestModelEntry(
+                    identifier.Substring(0, slashIndex),
+                    identifier.Substring(slashIndex + 1),
+                    revision ?? string.Empty,
+                    files);
         }
     }
 

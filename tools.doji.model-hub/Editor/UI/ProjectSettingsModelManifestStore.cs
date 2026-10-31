@@ -112,16 +112,14 @@ namespace Doji.AI.ModelHub.Editor
             return true;
         }
 
-        internal static bool TryLoadManifestDocument(
+        internal static bool TryLoadManifestEntries(
             string projectRoot,
-            out ModelManifestInspectorUtility.ManifestDocument document,
+            out int version,
+            out ManifestModelEntry[] models,
             out string errorMessage)
         {
-            document = new ModelManifestInspectorUtility.ManifestDocument
-            {
-                version = 1,
-                models = Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>()
-            };
+            version = 1;
+            models = Array.Empty<ManifestModelEntry>();
             errorMessage = null;
 
             if (!TryReadManifestContents(projectRoot, out _, out var contents, out errorMessage))
@@ -129,25 +127,13 @@ namespace Doji.AI.ModelHub.Editor
                 return true;
             }
 
-            if (errorMessage != null)
+            if (errorMessage != null || !ManifestParser.TryParse(contents, out var manifest, out errorMessage))
             {
                 return false;
             }
 
-            if (!ManifestParser.TryParse(contents, out var manifest, out errorMessage))
-            {
-                return false;
-            }
-
-            document = JsonUtility.FromJson<ModelManifestInspectorUtility.ManifestDocument>(contents);
-            if (document == null)
-            {
-                errorMessage = "Failed to deserialize project manifest document.";
-                return false;
-            }
-
-            document.models ??= Array.Empty<ModelManifestInspectorUtility.ManifestModelDocument>();
-            ModelManifestInspectorUtility.AttachConversions(document, manifest);
+            version = manifest.Version;
+            models = ModelManifestInspectorUtility.ToEntries(manifest);
             return true;
         }
 

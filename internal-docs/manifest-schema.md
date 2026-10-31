@@ -62,7 +62,7 @@ Field intent:
 - `files[].label`: display name for model pickers; trimmed, empty means none. It does not change the selection or its hash
 - `files[].conversion`: manifest-default conversion recipe for an `.onnx` file: `quantization` (`none`, `float16`, `uint8`; omitted means `none`) and `inputShapes` (input name to full dimension list, `-1` dynamic). At least one key; parsed into `ModelDependencyFileDefinition.Conversion`. It does not change the selection hash; the recipe hash covers it. See [per-file-conversion-recipes.md](per-file-conversion-recipes.md#package-default)
 
-Editor writers use `ManifestWriter`, which leaves out defaults (`revision` when empty, `optional: false`, empty labels, no `conversion`). The Inspector and Project Settings stores read documents with `JsonUtility`, which cannot read `conversion`, so `ModelManifestInspectorUtility.AttachConversions` copies it from the parsed manifest. `FileSelectionPopup` keeps it for files that stay selected. `ProjectManifestAsset` stores it as `Quantization` and `InputShapes` on the file entry
+Editor manifest authoring reads with `ManifestParser` and writes with `ManifestWriter`, both Newtonsoft. `ModelDependencyDefinition.Revision` keeps the revision as written, empty when omitted; `EffectiveRevision` resolves it to `main`. So the editor shows and saves what the file says: an explicit `main` stays, an omitted revision stays omitted, and adding one model does not rewrite the others. The writer leaves out defaults (`revision` when empty, `optional: false`, empty labels, no `conversion`). `FileSelectionPopup` keeps `conversion` for files that stay selected. `ProjectManifestAsset` stores it as `Quantization` and `InputShapes` on the file entry
 
 Canonical HuggingFace model id definition:
 

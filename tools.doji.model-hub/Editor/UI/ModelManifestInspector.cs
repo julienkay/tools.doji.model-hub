@@ -94,41 +94,6 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class ModelManifestInspectorUtility
     {
-        [Serializable]
-        internal sealed class ManifestDocument
-        {
-            public int version;
-            public ManifestModelDocument[] models;
-        }
-
-        [Serializable]
-        internal sealed class ManifestModelDocument
-        {
-            public string id;
-            public string revision;
-            public ManifestFileDocument[] files;
-        }
-
-        [Serializable]
-        internal sealed class ManifestFileDocument
-        {
-            public string path;
-            public bool optional;
-            public string label;
-
-            /// <summary>
-            /// Package-default conversion settings. Not part of the JSON form: <c>JsonUtility</c> cannot read the
-            /// <c>conversion</c> object, so loaders copy it from the parsed manifest with <see cref="AttachConversions"/>.
-            /// </summary>
-            [NonSerialized]
-            public OnnxConversionRecipe conversion;
-
-            public ModelDependencyFileDefinition ToDefinition()
-            {
-                return new ModelDependencyFileDefinition(path, optional, label, conversion);
-            }
-        }
-
         internal static bool IsModelManifestAssetPath(string assetPath)
         {
             return !string.IsNullOrWhiteSpace(assetPath) &&
@@ -174,58 +139,32 @@ namespace Doji.AI.ModelHub.Editor
             return ManifestParser.TryParse(rawJson, out manifest, out errorMessage);
         }
 
-        internal static bool TryLoadManifestDocument(
+        /// <summary>
+        /// Loads a manifest file as editor rows, with revisions as the file writes them.
+        /// </summary>
+        internal static bool TryLoadManifestEntries(
             string assetPath,
-            out ManifestDocument document,
-            out string absolutePath,
+            out int version,
+            out ManifestModelEntry[] models,
             out string errorMessage)
         {
-            document = null;
-            if (!TryLoadManifest(assetPath, out var manifest, out var rawJson, out absolutePath, out errorMessage))
+            version = 1;
+            models = Array.Empty<ManifestModelEntry>();
+            if (!TryLoadManifest(assetPath, out var manifest, out _, out _, out errorMessage))
             {
                 return false;
             }
 
-            document = JsonUtility.FromJson<ManifestDocument>(rawJson);
-            if (document == null)
-            {
-                errorMessage = "Failed to deserialize model manifest document.";
-                return false;
-            }
-
-            document.models ??= Array.Empty<ManifestModelDocument>();
-            AttachConversions(document, manifest);
+            version = manifest.Version;
+            models = ToEntries(manifest);
             return true;
         }
 
-        /// <summary>
-        /// Copies each file's <c>conversion</c> settings from the parsed manifest into a document read with
-        /// <c>JsonUtility</c>, so saving the document keeps them.
-        /// </summary>
-        internal static void AttachConversions(ManifestDocument document, PackageManifest manifest)
+        internal static ManifestModelEntry[] ToEntries(PackageManifest manifest)
         {
-            if (document?.models == null || manifest == null)
-            {
-                return;
-            }
-
-            foreach (var model in document.models)
-            {
-                var parsedModel = manifest.Models.FirstOrDefault(item =>
-                    string.Equals(item.Id, model?.id?.Trim(), StringComparison.Ordinal));
-                foreach (var file in model?.files ?? Array.Empty<ManifestFileDocument>())
-                {
-                    if (file == null)
-                    {
-                        continue;
-                    }
-
-                    var normalizedPath = ModelDependencyDefinition.NormalizeRepoPath(file.path);
-                    file.conversion = parsedModel?.FileEntries
-                        .FirstOrDefault(entry => string.Equals(entry.Path, normalizedPath, StringComparison.Ordinal))
-                        ?.Conversion;
-                }
-            }
+            return (manifest?.Models ?? Array.Empty<ModelDependencyDefinition>())
+                .Select(model => ManifestModelEntry.Create(model.Id, model.Revision, model.FileEntries.ToArray()))
+                .ToArray();
         }
 
         internal static string BuildVirtualPackageManifestAssetPath(string packageId)
@@ -235,21 +174,22 @@ namespace Doji.AI.ModelHub.Editor
                 : $"Packages/{packageId}/{Hub.ManifestFileName}";
         }
 
+        /// <summary>
+        /// Returns the JSON the rows would save as, so the editor can tell whether anything changed. Incomplete rows
+        /// count too.
+        /// </summary>
         internal static string BuildStateKey(int version, ManifestModelEntry[] models)
         {
-            var document = new ManifestDocument
-            {
-                version = version,
-                models = (models ?? Array.Empty<ManifestModelEntry>())
-                    .Select(model => new ManifestModelDocument
-                    {
-                        id = model?.ModelId ?? string.Empty,
-                        revision = model?.Revision ?? string.Empty,
-                        files = ToFileDocuments(model?.FileEntries)
-                    })
-                    .ToArray()
-            };
-            return JsonUtility.ToJson(document, false);
+            return ManifestWriter.ToJson(version, ToDrafts(models));
+        }
+
+        private static IEnumerable<ManifestModelDraft> ToDrafts(IEnumerable<ManifestModelEntry> models)
+        {
+            return (models ?? Array.Empty<ManifestModelEntry>())
+                .Select(model => new ManifestModelDraft(
+                    model?.ModelId ?? string.Empty,
+                    string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
+                    model?.HasExplicitFileSelection == true ? model.FileEntries : null));
         }
 
         internal static bool TryBuildManifestJson(
@@ -261,49 +201,24 @@ namespace Doji.AI.ModelHub.Editor
             serializedJson = null;
             errorMessage = null;
 
-            var drafts = (models ?? Array.Empty<ManifestModelEntry>())
-                .Select(model => new ManifestModelDraft(
-                    model?.ModelId,
-                    string.IsNullOrWhiteSpace(model?.Revision) ? "main" : model.Revision,
-                    model?.HasExplicitFileSelection == true ? model.FileEntries : null))
-                .ToArray();
+            var drafts = ToDrafts(models).ToArray();
             if (!ManifestFactory.TryCreateManifest(version, drafts, out var manifest, out errorMessage))
             {
                 return false;
             }
 
-            serializedJson = ManifestWriter.ToJson(
-                manifest.Version,
-                (models ?? Array.Empty<ManifestModelEntry>())
-                    .Select(model => new ManifestModelDraft(
-                        model?.ModelId ?? string.Empty,
-                        string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                        model?.HasExplicitFileSelection == true ? model.FileEntries : null)));
+            serializedJson = ManifestWriter.ToJson(manifest.Version, drafts);
             return true;
         }
 
-        internal static ManifestDocument BuildDocument(int version, ManifestModelEntry[] models)
-        {
-            return new ManifestDocument
-            {
-                version = version,
-                models = (models ?? Array.Empty<ManifestModelEntry>())
-                    .Select(model => new ManifestModelDocument
-                    {
-                        id = model?.ModelId ?? string.Empty,
-                        revision = string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                        files = model?.HasExplicitFileSelection == true ? ToFileDocuments(model.FileEntries) : null
-                    })
-                    .ToArray()
-            };
-        }
-
-        internal static bool TryLoadProjectManifestAssetDocument(
+        internal static bool TryLoadProjectManifestAsset(
             ProjectManifestAsset asset,
-            out ManifestDocument document,
+            out int version,
+            out ManifestModelEntry[] models,
             out string errorMessage)
         {
-            document = null;
+            version = 1;
+            models = Array.Empty<ManifestModelEntry>();
             errorMessage = null;
 
             if (asset == null)
@@ -321,38 +236,30 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            document = new ManifestDocument
-            {
-                version = versionProperty.intValue,
-                models = Enumerable.Range(0, modelsProperty.arraySize)
-                    .Select(index =>
-                    {
-                        var modelProperty = modelsProperty.GetArrayElementAtIndex(index);
-                        var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
-                        return new ManifestModelDocument
-                        {
-                            id = modelProperty.FindPropertyRelative("<Id>k__BackingField")?.stringValue,
-                            revision = modelProperty.FindPropertyRelative("<Revision>k__BackingField")?.stringValue,
-                            files = filesProperty == null
-                                ? null
-                                : Enumerable.Range(0, filesProperty.arraySize)
-                                    .Select(fileIndex =>
-                                    {
-                                        var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
-                                        return new ManifestFileDocument
-                                        {
-                                            path = fileProperty.FindPropertyRelative("<Path>k__BackingField")?.stringValue,
-                                            optional = fileProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true,
-                                            label = fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue,
-                                            conversion = ReadConversion(fileProperty)
-                                        };
-                                    })
-                                    .ToArray()
-                        };
-                    })
-                    .ToArray()
-            };
-
+            version = versionProperty.intValue;
+            models = Enumerable.Range(0, modelsProperty.arraySize)
+                .Select(index =>
+                {
+                    var modelProperty = modelsProperty.GetArrayElementAtIndex(index);
+                    var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
+                    return ManifestModelEntry.Create(
+                        modelProperty.FindPropertyRelative("<Id>k__BackingField")?.stringValue,
+                        modelProperty.FindPropertyRelative("<Revision>k__BackingField")?.stringValue,
+                        filesProperty == null
+                            ? null
+                            : Enumerable.Range(0, filesProperty.arraySize)
+                                .Select(fileIndex =>
+                                {
+                                    var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
+                                    return new ModelDependencyFileDefinition(
+                                        fileProperty.FindPropertyRelative("<Path>k__BackingField")?.stringValue,
+                                        fileProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true,
+                                        fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue,
+                                        ReadConversion(fileProperty));
+                                })
+                                .ToArray());
+                })
+                .ToArray();
             return true;
         }
 
@@ -369,11 +276,8 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var document = BuildDocument(version, models);
-            var drafts = (document.models ?? Array.Empty<ManifestModelDocument>())
-                .Select(model => new ManifestModelDraft(model.id, model.revision, ToDefinitions(model.files)))
-                .ToArray();
-            if (!ManifestFactory.TryCreateManifest(document.version, drafts, out _, out errorMessage))
+            var drafts = ToDrafts(models).ToArray();
+            if (!ManifestFactory.TryCreateManifest(version, drafts, out _, out errorMessage))
             {
                 return false;
             }
@@ -388,24 +292,23 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             versionProperty.intValue = version;
-            modelsProperty.arraySize = document.models?.Length ?? 0;
-            for (var i = 0; i < modelsProperty.arraySize; i++)
+            modelsProperty.arraySize = drafts.Length;
+            for (var i = 0; i < drafts.Length; i++)
             {
                 var modelProperty = modelsProperty.GetArrayElementAtIndex(i);
-                var sourceModel = document.models[i];
-                modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = sourceModel.id;
-                modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = sourceModel.revision ?? string.Empty;
+                modelProperty.FindPropertyRelative("<Id>k__BackingField").stringValue = drafts[i].Id;
+                modelProperty.FindPropertyRelative("<Revision>k__BackingField").stringValue = drafts[i].Revision ?? string.Empty;
 
                 var filesProperty = modelProperty.FindPropertyRelative("<Files>k__BackingField");
-                var files = sourceModel.files ?? Array.Empty<ManifestFileDocument>();
-                filesProperty.arraySize = files.Length;
-                for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
+                var files = drafts[i].FileEntries ?? Array.Empty<ModelDependencyFileDefinition>();
+                filesProperty.arraySize = files.Count;
+                for (var fileIndex = 0; fileIndex < files.Count; fileIndex++)
                 {
                     var fileProperty = filesProperty.GetArrayElementAtIndex(fileIndex);
-                    fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex]?.path;
-                    fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex]?.optional == true;
-                    fileProperty.FindPropertyRelative("<Label>k__BackingField").stringValue = files[fileIndex]?.label ?? string.Empty;
-                    WriteConversion(fileProperty, files[fileIndex]?.conversion);
+                    fileProperty.FindPropertyRelative("<Path>k__BackingField").stringValue = files[fileIndex].Path;
+                    fileProperty.FindPropertyRelative("<Optional>k__BackingField").boolValue = files[fileIndex].Optional;
+                    fileProperty.FindPropertyRelative("<Label>k__BackingField").stringValue = files[fileIndex].Label ?? string.Empty;
+                    WriteConversion(fileProperty, files[fileIndex].Conversion);
                 }
             }
 
@@ -465,40 +368,6 @@ namespace Doji.AI.ModelHub.Editor
                     dimensionsProperty.GetArrayElementAtIndex(dimension).intValue = dimensions[dimension];
                 }
             }
-        }
-
-        private static ManifestModelEntry EditableModelEntryFromManifest(ModelDependencyDefinition model)
-        {
-            var identifier = model?.Id ?? string.Empty;
-            var slashIndex = identifier.IndexOf('/');
-            if (slashIndex <= 0 || slashIndex >= identifier.Length - 1)
-            {
-                return new ManifestModelEntry(
-                    string.Empty,
-                    identifier,
-                    model?.Revision ?? string.Empty,
-                    model?.FileEntries?.ToArray());
-            }
-
-            return new ManifestModelEntry(
-                identifier.Substring(0, slashIndex),
-                identifier.Substring(slashIndex + 1),
-                model?.Revision ?? string.Empty,
-                model?.FileEntries?.ToArray());
-        }
-
-        private static ManifestFileDocument[] ToFileDocuments(IReadOnlyList<ModelDependencyFileDefinition> files)
-        {
-            return (files ?? Array.Empty<ModelDependencyFileDefinition>())
-                .Select(file => new ManifestFileDocument { path = file.Path, optional = file.Optional, label = file.Label, conversion = file.Conversion })
-                .ToArray();
-        }
-
-        private static ModelDependencyFileDefinition[] ToDefinitions(IReadOnlyList<ManifestFileDocument> files)
-        {
-            return (files ?? Array.Empty<ManifestFileDocument>())
-                .Select(file => file?.ToDefinition())
-                .ToArray();
         }
 
         internal static bool TryGetPackageRelativePath(string assetPath, string packageId, out string relativePath)

@@ -501,7 +501,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 packageVersion,
                 packageResolvedPath ?? $"/tmp/{packageId}",
                 manifestPath ?? $"/tmp/{packageId}/model-hub-manifest.json",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     repository,
                     revision));

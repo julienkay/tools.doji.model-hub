@@ -296,22 +296,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         [Test]
-        public void BuildStatusReport_ReturnsStaleWhenBindingManifestHashDiffers()
-        {
-            var dependency = CreateDependency();
-            WriteRawCache(dependency);
-            WriteGeneratedArtifacts(dependency, bindingManifestHash: "old-manifest-hash");
-
-            var report = BuildStatusReport(dependency);
-
-            Assert.That(report.StaleCount, Is.EqualTo(1));
-            Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingStale));
-            Assert.That(
-                report.DependencyStatuses[0].MaintainerMessage,
-                Is.EqualTo("Import binding metadata is stale: manifest hash expected `manifesthash` but found `old-manifest-hash`."));
-        }
-
-        [Test]
         public void BuildStatusReport_ReturnsMissingWhenSharedImportMetadataIsAbsent()
         {
             var dependency = CreateDependency();
@@ -729,7 +713,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     repository,
                     revision,
@@ -803,7 +786,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private static void WriteGeneratedArtifacts(
             DiscoveredModelDependency dependency,
             string commitHash = "abc123",
-            string bindingManifestHash = null,
             string bindingRecipeSetHash = null,
             string sentisVersion = null,
             string runtimeRecipeHash = null)
@@ -864,7 +846,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     PackageId = dependency.PackageId,
                     PackageVersion = dependency.PackageVersion,
                     ModelId = dependency.ModelId,
-                    ManifestHash = bindingManifestHash ?? dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,
@@ -1032,7 +1013,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     PackageId = dependency.PackageId,
                     PackageVersion = dependency.PackageVersion,
                     ModelId = dependency.ModelId,
-                    ManifestHash = dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = commitHash,

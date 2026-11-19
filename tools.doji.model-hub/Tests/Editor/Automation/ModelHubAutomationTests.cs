@@ -364,7 +364,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     repository,
                     "v1",

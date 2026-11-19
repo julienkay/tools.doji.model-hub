@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Collections.Generic;
 using Unity.InferenceEngine;
@@ -149,8 +148,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 var entry = scenario.Entries[index];
                 RepositoryValidationCacheService.WriteCachedRepositoryExists(entry.Repository, true);
                 var manifestAsset = CreateOrUpdateManifestAsset(scenario, index, entry);
-                var manifestHash = ComputeManifestHash(BuildStableManifestJson(entry));
-                ApplyEntry(manifestHash, entry);
+                ApplyEntry(entry);
                 EditorUtility.SetDirty(manifestAsset);
             }
             AssetDatabase.SaveAssets();
@@ -236,7 +234,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             return CachePaths.GetRevisionRefPath(entry.Repository, entry.Revision);
         }
 
-        private static void ApplyEntry(string manifestHash, VisualScenarioEntry entry)
+        private static void ApplyEntry(VisualScenarioEntry entry)
         {
             var repositoryFiles = GetRepositoryFilePaths(entry);
             var cachedRepoPaths = GetCachedRepoPaths(entry);
@@ -315,10 +313,9 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             {
                 var selectedOnnxRepoPaths = GetSelectedOnnxRepoPaths(entry);
                 var recipeSetHash = ComputeRecipeSetHash(selectedOnnxRepoPaths);
-                var dependencySelectionHash = ComputeDependencySelectionHash(entry);
-                var importedManifestHash = entry.State == VisualScenarioState.UpdateNeeded
-                    ? manifestHash + "-stale"
-                    : manifestHash;
+                var dependencySelectionHash = entry.State == VisualScenarioState.UpdateNeeded
+                    ? ComputeDependencySelectionHash(entry) + "-stale"
+                    : ComputeDependencySelectionHash(entry);
                 var diagnostics = entry.State == VisualScenarioState.PartialConversionWarning
                     ? new[]
                     {
@@ -379,7 +376,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                         PackageId = ProjectOwnerId,
                         PackageVersion = ProjectOwnerVersion,
                         ModelId = entry.Repository,
-                        ManifestHash = importedManifestHash,
                         Repository = entry.Repository,
                         RequestedRevision = entry.Revision,
                         ResolvedCommitHash = entry.ResolvedCommitHash,
@@ -490,24 +486,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             }
         }
 
-        private static string BuildStableManifestJson(VisualScenarioEntry entry)
-        {
-            return JsonUtility.ToJson(
-                new ManifestAssetDocument
-                {
-                    _version = 1,
-                    _models = new[]
-                    {
-                        new ManifestAssetEntryDocument
-                        {
-                            _id = entry.Repository,
-                            _revision = entry.Revision,
-                            _files = GetSelectedFileEntries(entry)
-                        }
-                    }
-                });
-        }
-
         private static string[] GetSelectedFiles(VisualScenarioEntry entry)
         {
             return NormalizeSelectedFiles(entry?.SelectedFiles);
@@ -602,7 +580,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             var selectedFiles = GetSelectedFiles(entry);
             if (selectedFiles.Length == 0)
             {
-                return ComputeTextHash("all\n");
+                return TextHash.Sha256("all\n");
             }
 
             var builder = new StringBuilder();
@@ -612,12 +590,12 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 builder.AppendLine(repoPath);
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         private static string ComputeDefaultRecipeHash()
         {
-            return ComputeTextHash("none\n");
+            return TextHash.Sha256("none\n");
         }
 
         private static string ComputeRecipeSetHash(IEnumerable<string> repoPaths)
@@ -635,20 +613,7 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
                 builder.Append('\n');
             }
 
-            return ComputeTextHash(builder.ToString());
-        }
-
-        private static string ComputeManifestHash(string contents)
-        {
-            return ComputeTextHash(contents);
-        }
-
-        private static string ComputeTextHash(string contents)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(contents ?? string.Empty);
-            var hashBytes = sha256.ComputeHash(bytes);
-            return string.Concat(hashBytes.Select(hashByte => hashByte.ToString("x2")));
+            return TextHash.Sha256(builder.ToString());
         }
 
         private static string GetSentisVersion()
@@ -815,29 +780,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
         }
 
         [Serializable]
-        private sealed class ManifestAssetDocument
-        {
-            [SerializeField]
-            public int _version;
-
-            [SerializeField]
-            public ManifestAssetEntryDocument[] _models = Array.Empty<ManifestAssetEntryDocument>();
-        }
-
-        [Serializable]
-        private sealed class ManifestAssetEntryDocument
-        {
-            [SerializeField]
-            public string _id;
-
-            [SerializeField]
-            public string _revision;
-
-            [SerializeField]
-            public ProjectManifestFileAssetEntry[] _files;
-        }
-
-        [Serializable]
         private sealed class RepositoryFileDocument
         {
             public string RepoPath;
@@ -907,7 +849,6 @@ namespace Doji.AI.ModelHub.Sandbox.Editor
             public string PackageId;
             public string PackageVersion;
             public string ModelId;
-            public string ManifestHash;
             public string Repository;
             public string RequestedRevision;
             public string ResolvedCommitHash;

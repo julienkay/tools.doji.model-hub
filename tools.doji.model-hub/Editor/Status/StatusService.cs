@@ -483,7 +483,6 @@ namespace Doji.AI.ModelHub.Editor
 
             if (!string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
-                !string.Equals(bindingMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !SentisCompatibility.AreCompatible(bindingMetadata.SentisVersion, GetCurrentSentisVersion()) ||
@@ -561,7 +560,6 @@ namespace Doji.AI.ModelHub.Editor
 
             return string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
                 string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
@@ -629,7 +627,6 @@ namespace Doji.AI.ModelHub.Editor
                 PackageId = bindingMetadata?.PackageId,
                 PackageVersion = bindingMetadata?.PackageVersion,
                 ModelId = bindingMetadata?.ModelId,
-                ManifestHash = bindingMetadata?.ManifestHash,
                 Repository = bindingMetadata?.Repository,
                 RequestedRevision = bindingMetadata?.RequestedRevision,
                 ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata?.ResolvedCommitHash,
@@ -661,7 +658,6 @@ namespace Doji.AI.ModelHub.Editor
 
             AddMismatch(mismatches, "package id", bindingMetadata.PackageId, dependency.PackageId);
             AddMismatch(mismatches, "model id", bindingMetadata.ModelId, dependency.ModelId);
-            AddMismatch(mismatches, "manifest hash", bindingMetadata.ManifestHash, dependency.ManifestHash);
             AddMismatch(mismatches, "repository", bindingMetadata.Repository, dependency.Repository);
             AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
             AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);

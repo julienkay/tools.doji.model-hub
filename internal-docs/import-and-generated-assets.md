@@ -95,13 +95,13 @@ Each `ImportedRuntimeFileMetadata` holds:
 - `SourceEtag`, `SourceSizeInBytes`, `Companions` (repo path, etag, size): what a player needs to download the same files
 - `ConversionKey` and `RecipeHash` for ONNX files
 
-Binding record (`ImportBindingMetadata`): owner id and version, model id, manifest hash, requested revision, resolved commit, Sentis version, recipe set hash, selection hash, and the shared record path.
+Binding record (`ImportBindingMetadata`): owner id and version, model id, requested revision, resolved commit, Sentis version, recipe set hash, selection hash, and the shared record path.
 
 The shared record covers the union of every owner's selection for one repository and commit. A binding exposes only its own owner's selection. The runtime registry takes files per owner.
 
 ## Stale detection
 
-A binding is stale when the manifest hash, requested revision, selection, enabled optional files, resolved commit, Sentis format generation, or shared record path changes. Records keep the exact Sentis version that imported them, for diagnostics.
+A binding is stale when the requested revision, selection, enabled optional files, recipe set, resolved commit, Sentis format generation, or shared record path changes. The binding stores no manifest hash: these fields hold every part of a manifest entry that changes the import, so other manifest edits leave the binding current. Records keep the exact Sentis version that imported them, for diagnostics.
 
 A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis format generation changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Convert** again.
 

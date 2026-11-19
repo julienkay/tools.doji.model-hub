@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using UnityEditor;
 using UnityEngine;
 
@@ -69,7 +67,6 @@ namespace Doji.AI.ModelHub.Editor
                     continue;
                 }
 
-                var manifestHash = ComputeManifestHash(snapshot.Asset.ToStableJson());
                 foreach (var model in manifest.Models)
                 {
                     dependencies.Add(new DiscoveredModelDependency(
@@ -78,7 +75,6 @@ namespace Doji.AI.ModelHub.Editor
                         ProjectManifestOwnerVersion,
                         snapshot.ResolvedPath,
                         snapshot.ManifestPath,
-                        manifestHash,
                         model));
                 }
             }
@@ -113,7 +109,6 @@ namespace Doji.AI.ModelHub.Editor
                     });
             }
 
-            var manifestHash = ComputeManifestHash(contents);
             var dependencies = manifest.Models
                 .Select(model => new DiscoveredModelDependency(
                     ProjectSettingsManifestOwnerId,
@@ -121,7 +116,6 @@ namespace Doji.AI.ModelHub.Editor
                     ProjectManifestOwnerVersion,
                     projectRoot,
                     manifestPath,
-                    manifestHash,
                     model))
                 .ToArray();
             return new DiscoveryReport(dependencies, Array.Empty<ManifestDiscoveryIssue>());
@@ -172,15 +166,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var pathKey = NormalizePathForOwnerId(string.IsNullOrWhiteSpace(assetPath) ? manifestPath : assetPath);
-            return $"{ProjectManifestOwnerIdPrefix}{ComputeManifestHash(pathKey)}";
-        }
-
-        private static string ComputeManifestHash(string contents)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(contents ?? string.Empty);
-            var hashBytes = sha256.ComputeHash(bytes);
-            return string.Concat(hashBytes.Select(hashByte => hashByte.ToString("x2")));
+            return $"{ProjectManifestOwnerIdPrefix}{TextHash.Sha256(pathKey)}";
         }
 
         private static string NormalizePathForOwnerId(string path)

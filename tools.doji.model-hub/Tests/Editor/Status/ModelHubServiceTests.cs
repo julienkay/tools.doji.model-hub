@@ -239,7 +239,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.pkg-a",
                 "/tmp/tools.doji.pkg-a/model-hub-manifest.json",
-                "pkg-hash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main"));
@@ -248,7 +247,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 PackageId = "tools.doji.pkg-a",
                 PackageVersion = "1.0.0",
                 ModelId = "model-a",
-                ManifestHash = "pkg-hash",
                 Repository = "doji/test-model",
                 RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
@@ -625,7 +623,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 manifestPath ?? $"/tmp/{packageId}/model-hub-manifest.json",
-                $"{packageId}-hash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     revision,
@@ -636,7 +633,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 PackageId = packageId,
                 PackageVersion = "1.0.0",
                 ModelId = modelId,
-                ManifestHash = $"{packageId}-hash",
                 Repository = "doji/test-model",
                 RequestedRevision = revision,
                 ResolvedCommitHash = "abc123",

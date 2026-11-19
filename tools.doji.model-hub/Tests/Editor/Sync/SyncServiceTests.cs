@@ -132,7 +132,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     modelId,
                     revision));
@@ -225,7 +224,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 {
                     PackageId = dependency.PackageId,
                     ModelId = dependency.ModelId,
-                    ManifestHash = dependency.ManifestHash,
                     Repository = dependency.Repository,
                     RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = cachedSnapshot.Metadata.ResolvedCommitHash,

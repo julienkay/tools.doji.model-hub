@@ -53,7 +53,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "project",
                 "/tmp/project",
                 "Assets/AI Model Hub/AI Model Hub Project Manifest.asset",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main"));
@@ -73,7 +72,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.test",
                 "/tmp/tools.doji.test/model-hub-manifest.json",
-                "manifesthash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main"));
@@ -112,7 +110,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.invalid",
                 "/tmp/tools.doji.invalid/model-hub-manifest.json",
-                "manifesthash-invalid",
                 new ModelDependencyDefinition(
                     $"doji/invalid-{Guid.NewGuid():N}",
                     "main"));
@@ -122,7 +119,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.valid",
                 "/tmp/tools.doji.valid/model-hub-manifest.json",
-                "manifesthash-valid",
                 new ModelDependencyDefinition(
                     $"doji/valid-{Guid.NewGuid():N}",
                     "main"));
@@ -178,7 +174,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.corrupt",
                 "/tmp/tools.doji.corrupt/model-hub-manifest.json",
-                "manifesthash-corrupt",
                 new ModelDependencyDefinition(modelId, "main"));
 
             var revRefPath = CachePaths.GetRevisionRefPath(modelId, "main");
@@ -222,7 +217,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.missing",
                 "/tmp/tools.doji.missing/model-hub-manifest.json",
-                "manifesthash-missing",
                 new ModelDependencyDefinition(modelId, "main"));
 
             var discoveryReport = new DiscoveryReport(
@@ -312,7 +306,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.disk",
                 "/tmp/tools.doji.disk/model-hub-manifest.json",
-                "manifesthash-disk",
                 new ModelDependencyDefinition(modelId, "main", files));
         }
 

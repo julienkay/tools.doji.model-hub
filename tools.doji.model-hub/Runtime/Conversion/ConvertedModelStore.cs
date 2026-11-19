@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using Unity.InferenceEngine;
 using UnityEngine;
 
@@ -50,9 +48,7 @@ namespace Doji.AI.ModelHub
                 throw new ArgumentException("The source etag is required.", nameof(sourceEtag));
             }
 
-            using var sha256 = SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes($"{sourceEtag}\n{converterId}\n{recipeHash}"));
-            return string.Concat(bytes.Take(16).Select(value => value.ToString("x2")));
+            return TextHash.Sha256($"{sourceEtag}\n{converterId}\n{recipeHash}").Substring(0, 32);
         }
 
         /// <summary>

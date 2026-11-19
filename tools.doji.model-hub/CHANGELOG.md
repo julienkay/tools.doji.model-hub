@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `Hub.TryResolveRuntimeModel` and `Hub.LoadRuntimeModel`. Use `Hub.LoadModelAsync`.
 - Generated files under `Assets/StreamingAssets/model-hub/<owner>/` and `Assets/StreamingAssets/model-hub/registries/`. AI Model Hub deletes them on update.
 
+### Fixed
+
+- A manifest edit that does not change a model no longer makes the manifest's models stale. Examples are other line endings from git (`core.autocrlf`), a byte order mark, formatting, or a change to another model. AI Model Hub compares only the model's repository, revision, selected files, and conversion settings.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added

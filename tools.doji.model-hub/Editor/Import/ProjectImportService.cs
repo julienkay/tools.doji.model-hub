@@ -403,7 +403,6 @@ namespace Doji.AI.ModelHub.Editor
             if (metadata == null ||
                 !string.Equals(metadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
-                !string.Equals(metadata.ManifestHash, dependency.ManifestHash, StringComparison.Ordinal) ||
                 !string.Equals(metadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
                 !string.Equals(metadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
                 !string.Equals(metadata.ResolvedCommitHash, cachedSnapshot.Metadata?.ResolvedCommitHash, StringComparison.Ordinal) ||
@@ -504,7 +503,6 @@ namespace Doji.AI.ModelHub.Editor
                 PackageId = dependency.PackageId,
                 PackageVersion = dependency.PackageVersion,
                 ModelId = dependency.ModelId,
-                ManifestHash = dependency.ManifestHash,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
                 ResolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash,
@@ -531,7 +529,6 @@ namespace Doji.AI.ModelHub.Editor
                 PackageId = bindingMetadata.PackageId,
                 PackageVersion = bindingMetadata.PackageVersion,
                 ModelId = bindingMetadata.ModelId,
-                ManifestHash = bindingMetadata.ManifestHash,
                 Repository = bindingMetadata.Repository,
                 RequestedRevision = bindingMetadata.RequestedRevision,
                 ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata.ResolvedCommitHash,

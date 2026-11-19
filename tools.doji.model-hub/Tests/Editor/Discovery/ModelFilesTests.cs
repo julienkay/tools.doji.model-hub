@@ -140,7 +140,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.test",
                 "/tmp/tools.doji.test/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition(
                     "julienkay/sentis-MiDaS",
                     "main",
@@ -157,7 +156,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.test",
                 "/tmp/tools.doji.test/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition(
                     "julienkay/sentis-MiDaS",
                     "main",

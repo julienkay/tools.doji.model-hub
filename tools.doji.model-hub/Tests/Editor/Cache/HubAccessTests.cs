@@ -119,7 +119,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.gated",
                 "/tmp/tools.doji.gated/model-hub-manifest.json",
-                "gated-manifest-hash",
                 new ModelDependencyDefinition(repository, "main", new[] { new ModelDependencyFileDefinition("model.sentis") }));
         }
     }

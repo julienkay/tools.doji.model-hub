@@ -210,7 +210,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.a",
                 "/tmp/tools.doji.a/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition("doji/test-model", "main", new[]
                 {
                     new ModelDependencyFileDefinition("onnx/model.onnx", label: "Small"),
@@ -275,7 +274,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.a",
                 "/tmp/tools.doji.a/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition("doji/test-model", "main", new[]
                 {
                     new ModelDependencyFileDefinition("unet/model.onnx"),
@@ -409,7 +407,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition(repository, "main"));
         }
 

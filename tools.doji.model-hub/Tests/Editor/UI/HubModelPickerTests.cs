@@ -22,7 +22,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/midas",
                 "/tmp/midas/model-hub-manifest.json",
-                "hash",
                 new ModelDependencyDefinition("julienkay/sentis-MiDaS", "main", new[]
                 {
                     new ModelDependencyFileDefinition("config.json"),
@@ -66,7 +65,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void Build_TellsConversionFromSetup()
         {
             var dependency = new DiscoveredModelDependency(
-                "tools.doji.midas", "MiDaS", "1.0.0", "/tmp/midas", "/tmp/midas/model-hub-manifest.json", "hash",
+                "tools.doji.midas", "MiDaS", "1.0.0", "/tmp/midas", "/tmp/midas/model-hub-manifest.json",
                 new ModelDependencyDefinition("julienkay/sentis-MiDaS", "main", new[]
                 {
                     new ModelDependencyFileDefinition("onnx/small.onnx"),

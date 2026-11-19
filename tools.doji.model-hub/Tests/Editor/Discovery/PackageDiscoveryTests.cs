@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -75,7 +73,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(alphaDependency.ModelId, Is.EqualTo("doji/text-small"));
             Assert.That(alphaDependency.Repository, Is.EqualTo("doji/text-small"));
             Assert.That(alphaDependency.ManifestPath, Is.EqualTo(Path.Combine(alphaPackage.ResolvedPath, Hub.ManifestFileName)));
-            Assert.That(alphaDependency.ManifestHash, Is.EqualTo(ComputeSha256(secondManifest)));
 
             var zebraDependency = report.Dependencies[1];
             Assert.That(zebraDependency.PackageDisplayName, Is.EqualTo("Zebra Tools"));
@@ -480,7 +477,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.first",
                 "/tmp/tools.doji.first/model-hub-manifest.json",
-                "hash-a",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
@@ -495,7 +491,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.second",
                 "/tmp/tools.doji.second/model-hub-manifest.json",
-                "hash-b",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
@@ -971,14 +966,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             return new InstalledPackageSnapshot(packageId, displayName, version, packageDirectory);
         }
 
-
-        private static string ComputeSha256(string value)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(value);
-            var hashBytes = sha256.ComputeHash(bytes);
-            return string.Concat(hashBytes.Select(hashByte => hashByte.ToString("x2")));
-        }
 
         private static void SetProjectManifest(ProjectManifestAsset asset, int version, ProjectManifestModelAssetEntry[] models)
         {

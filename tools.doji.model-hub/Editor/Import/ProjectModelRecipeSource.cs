@@ -114,7 +114,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append('\n');
             }
 
-            return OnnxImportMetadataUtility.ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         public void SetProjectOverride(string repository, string repoPath, OnnxConversionRecipe recipe)

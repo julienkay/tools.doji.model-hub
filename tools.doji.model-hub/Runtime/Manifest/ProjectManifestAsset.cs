@@ -31,11 +31,6 @@ namespace Doji.AI.ModelHub
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
-
-        internal string ToStableJson()
-        {
-            return JsonUtility.ToJson(new ProjectManifestAssetDocument(this));
-        }
     }
 
     /// <summary>
@@ -121,43 +116,5 @@ namespace Doji.AI.ModelHub
 
         [field: SerializeField]
         public int[] Dimensions { get; set; }
-    }
-
-    [Serializable]
-    internal sealed class ProjectManifestAssetDocument
-    {
-        [SerializeField]
-        private int _version;
-
-        [SerializeField]
-        private ProjectManifestAssetEntryDocument[] _models = Array.Empty<ProjectManifestAssetEntryDocument>();
-
-        public ProjectManifestAssetDocument(ProjectManifestAsset asset)
-        {
-            _version = asset.Version;
-            _models = (asset.Models ?? Array.Empty<ProjectManifestModelAssetEntry>())
-                .Select(model => new ProjectManifestAssetEntryDocument(model))
-                .ToArray();
-        }
-    }
-
-    [Serializable]
-    internal sealed class ProjectManifestAssetEntryDocument
-    {
-        [SerializeField]
-        private string _id;
-
-        [SerializeField]
-        private string _revision;
-
-        [SerializeField]
-        private ProjectManifestFileAssetEntry[] _files;
-
-        public ProjectManifestAssetEntryDocument(ProjectManifestModelAssetEntry model)
-        {
-            _id = model?.Id;
-            _revision = model?.Revision;
-            _files = model?.Files;
-        }
     }
 }

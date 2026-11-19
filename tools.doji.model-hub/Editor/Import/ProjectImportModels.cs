@@ -145,7 +145,6 @@ namespace Doji.AI.ModelHub.Editor
         public string PackageId { get; set; }
         public string PackageVersion { get; set; }
         public string ModelId { get; set; }
-        public string ManifestHash { get; set; }
         public string Repository { get; set; }
         public string RequestedRevision { get; set; }
         public string ResolvedCommitHash { get; set; }
@@ -165,7 +164,6 @@ namespace Doji.AI.ModelHub.Editor
         public string PackageId { get; set; }
         public string PackageVersion { get; set; }
         public string ModelId { get; set; }
-        public string ManifestHash { get; set; }
         public string Repository { get; set; }
         public string RequestedRevision { get; set; }
         public string ResolvedCommitHash { get; set; }

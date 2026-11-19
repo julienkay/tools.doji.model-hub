@@ -33,9 +33,7 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public static string GetSharedImportFolder(string repository, string resolvedCommitHash, string sentisVersion, string recipeSetHash)
         {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var identity = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{resolvedCommitHash}|{SentisCompatibility.GetGeneration(sentisVersion)}|{recipeSetHash}"));
-            var key = string.Concat(System.Linq.Enumerable.Take(identity, 8).Select(value => value.ToString("x2")));
+            var key = TextHash.Sha256($"{resolvedCommitHash}|{SentisCompatibility.GetGeneration(sentisVersion)}|{recipeSetHash}").Substring(0, 16);
             return $"{SharedImportsRoot}/{Hub.SanitizePathSegment(repository)}/{key}";
         }
 

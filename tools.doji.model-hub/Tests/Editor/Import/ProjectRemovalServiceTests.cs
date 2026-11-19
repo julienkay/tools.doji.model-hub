@@ -116,12 +116,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void Remove_KeepsSharedImportUntilLastBindingIsRemoved()
         {
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test", "recipe-test");
-            WriteBinding("tools.doji.first", "doji/test-model", "manifest-a", sharedMetadataPath);
-            WriteBinding("tools.doji.second", "doji/test-model", "manifest-b", sharedMetadataPath);
+            WriteBinding("tools.doji.first", "doji/test-model", sharedMetadataPath);
+            WriteBinding("tools.doji.second", "doji/test-model", sharedMetadataPath);
             WriteSharedImport(sharedMetadataPath);
 
-            var firstItem = CreateProjectRemovalItem("tools.doji.first", "manifest-a", sharedMetadataPath);
-            var secondItem = CreateProjectRemovalItem("tools.doji.second", "manifest-b", sharedMetadataPath);
+            var firstItem = CreateProjectRemovalItem("tools.doji.first", sharedMetadataPath);
+            var secondItem = CreateProjectRemovalItem("tools.doji.second", sharedMetadataPath);
 
             new ProjectRemovalService().Remove(firstItem);
 
@@ -145,11 +145,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void Remove_DoesNothingWhenItemHasRevisionConflict()
         {
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath("doji/test-model", "abc123", "sentis-test", "recipe-test");
-            WriteBinding("tools.doji.first", "doji/test-model", "manifest-a", sharedMetadataPath);
+            WriteBinding("tools.doji.first", "doji/test-model", sharedMetadataPath);
             WriteSharedImport(sharedMetadataPath);
             var conflictItem = CreateProjectRemovalItem(
                 "tools.doji.first",
-                "manifest-a",
                 sharedMetadataPath,
                 DependencyState.Failed,
                 DependencyReasonCode.RevisionConflict);
@@ -207,7 +206,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                             "1.0.0",
                             "/tmp/tools.doji.test",
                             "/tmp/tools.doji.test/model-hub-manifest.json",
-                            "manifesthash",
                             new ModelDependencyDefinition("doji/test-model", requestedRevision)),
                         state,
                         reasonCode,
@@ -227,7 +225,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static ModelHubItem CreateProjectRemovalItem(
             string packageId,
-            string manifestHash,
             string sharedMetadataPath,
             DependencyState state = DependencyState.Ready,
             DependencyReasonCode reasonCode = DependencyReasonCode.None)
@@ -238,14 +235,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                manifestHash,
                 new ModelDependencyDefinition("doji/test-model", "main"));
             var importedMetadata = new ImportedModelMetadata
             {
                 PackageId = packageId,
                 PackageVersion = "1.0.0",
                 ModelId = "doji/test-model",
-                ManifestHash = manifestHash,
                 Repository = "doji/test-model",
                 RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
@@ -309,7 +304,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             File.WriteAllText(Path.Combine(snapshotRoot, "model.onnx"), "onnx");
         }
 
-        private static void WriteBinding(string packageId, string modelId, string manifestHash, string sharedMetadataPath, string sentisVersion = "sentis-test")
+        private static void WriteBinding(string packageId, string modelId, string sharedMetadataPath, string sentisVersion = "sentis-test")
         {
             var bindingAbsolutePath = ProjectPaths.ToProjectAbsolutePath(ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId));
             Directory.CreateDirectory(Path.GetDirectoryName(bindingAbsolutePath) ?? throw new InvalidOperationException());
@@ -318,7 +313,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 PackageId = packageId,
                 PackageVersion = "1.0.0",
                 ModelId = modelId,
-                ManifestHash = manifestHash,
                 Repository = modelId,
                 RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",

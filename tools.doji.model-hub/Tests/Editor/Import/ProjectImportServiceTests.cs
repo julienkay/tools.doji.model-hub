@@ -148,7 +148,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var cachedSnapshot = CreateCachedSnapshot();
 
             var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
-            var second = await service.ImportAsync(CreateDependency(packageId: "tools.doji.other", manifestHash: "other"), cachedSnapshot, CancellationToken.None);
+            var second = await service.ImportAsync(CreateDependency(packageId: "tools.doji.other"), cachedSnapshot, CancellationToken.None);
             File.WriteAllText(ProjectPaths.ToProjectAbsolutePath(first.SharedMetadataFilePath), "{ invalid json");
             var third = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
@@ -434,7 +434,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 null,
                 null,
-                null,
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",
@@ -616,7 +615,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
             var second = await service.ImportAsync(
-                CreateDependency(packageId: "tools.doji.other", manifestHash: "other"),
+                CreateDependency(packageId: "tools.doji.other"),
                 cachedSnapshot,
                 CancellationToken.None,
                 allowConversion: false);
@@ -647,7 +646,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
         private static DiscoveredModelDependency CreateDependency(
             string packageId = "tools.doji.test",
-            string manifestHash = "manifesthash",
             string[] files = null)
         {
             return new DiscoveredModelDependency(
@@ -656,7 +654,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                manifestHash,
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main",

@@ -32,7 +32,7 @@ Primary scope:
 ## What to cover first
 
 - manifest parsing rules: required fields, version checks, duplicate ids, invalid JSON, whitespace handling
-- package discovery behavior: package ordering, display/version fallback, manifest hashing, skip behavior, non-fatal issue collection
+- package discovery behavior: package ordering, display/version fallback, skip behavior, non-fatal issue collection
 - editor workflow outputs that users or maintainers rely on, not helper implementation details
 - regression cases around package paths, missing files, malformed manifests, and mixed valid/invalid package sets
 

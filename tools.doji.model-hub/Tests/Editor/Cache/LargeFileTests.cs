@@ -125,7 +125,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 "/tmp/tools.doji.large",
                 "/tmp/tools.doji.large/model-hub-manifest.json",
-                "large-manifest-hash",
                 new ModelDependencyDefinition(Repo, "main", new[] { new ModelDependencyFileDefinition("onnx/model.onnx") }));
             var service = new RawCacheService(new HttpClient());
             _weights.CutNextDownloadAfter(CutAfter);

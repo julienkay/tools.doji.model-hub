@@ -150,7 +150,7 @@ namespace Doji.AI.ModelHub
             var normalizedFiles = NormalizeSelectedFiles(files);
             if (selectsWholeRepository)
             {
-                return ComputeTextHash("all\n");
+                return TextHash.Sha256("all\n");
             }
 
             var builder = new StringBuilder();
@@ -160,7 +160,7 @@ namespace Doji.AI.ModelHub
                 builder.AppendLine(repoPath);
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         internal static bool IsOnnxFile(string repoPath)
@@ -189,13 +189,6 @@ namespace Doji.AI.ModelHub
                 || string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase)
                 || (fileName.StartsWith("README_", StringComparison.OrdinalIgnoreCase)
                     && string.Equals(Path.GetExtension(fileName), ".md", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string ComputeTextHash(string text)
-        {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(text ?? string.Empty));
-            return string.Concat(bytes.Select(value => value.ToString("x2")));
         }
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace Doji.AI.ModelHub.Editor
@@ -43,7 +42,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append('\n');
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         public static string ComputeInputSignatureHash(OnnxModelSignature signature)
@@ -70,7 +69,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append('\n');
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         public static string ComputeRecipeSetHash(IEnumerable<string> repoPaths)
@@ -88,7 +87,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append('\n');
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         public static string ComputeRecipeSetHash(IEnumerable<RawCacheFileMetadata> files)
@@ -112,7 +111,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append('\n');
             }
 
-            return ComputeTextHash(builder.ToString());
+            return TextHash.Sha256(builder.ToString());
         }
 
         private static bool IsOnnxFile(string repoPath)
@@ -121,23 +120,6 @@ namespace Doji.AI.ModelHub.Editor
                 System.IO.Path.GetExtension(repoPath),
                 ".onnx",
                 StringComparison.OrdinalIgnoreCase);
-        }
-
-        internal static string ComputeTextHash(string text)
-        {
-            // Preferred when Unity profile exposes modern .NET crypto helpers:
-            // var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(text ?? string.Empty));
-            // return Convert.ToHexString(bytes).ToLowerInvariant();
-
-            using var sha256 = SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(text ?? string.Empty));
-            var builder = new StringBuilder(bytes.Length * 2);
-            foreach (var value in bytes)
-            {
-                builder.Append(value.ToString("x2"));
-            }
-
-            return builder.ToString();
         }
     }
 }

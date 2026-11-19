@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -29,7 +27,6 @@ namespace Doji.AI.ModelHub
             string packageVersion,
             string packageResolvedPath,
             string manifestPath,
-            string manifestHash,
             ModelDependencyDefinition model,
             IReadOnlyList<string> enabledOptionalFiles = null)
         {
@@ -38,7 +35,6 @@ namespace Doji.AI.ModelHub
             PackageVersion = packageVersion;
             PackageResolvedPath = packageResolvedPath;
             ManifestPath = manifestPath;
-            ManifestHash = manifestHash;
             ModelId = model.Id;
             Repository = model.Id;
             Revision = model.EffectiveRevision;
@@ -84,12 +80,6 @@ namespace Doji.AI.ModelHub
         /// <c>C:/dev/com.example.sample-package/model-hub-manifest.json</c>.
         /// </summary>
         public string ManifestPath { get; }
-
-        /// <summary>
-        /// SHA-256 hash of manifest contents used for future staleness checks, for example
-        /// <c>7f83b1657ff1fc53b92dc18148a1d65dfa135014...</c>.
-        /// </summary>
-        public string ManifestHash { get; }
 
         /// <summary>
         /// Canonical HuggingFace model id declared in manifest, for example
@@ -399,7 +389,6 @@ namespace Doji.AI.ModelHub
                     continue;
                 }
 
-                var manifestHash = ComputeManifestHash(contents);
                 var packageDisplayName = string.IsNullOrWhiteSpace(package.DisplayName) ? package.Name : package.DisplayName;
                 var packageVersion = string.IsNullOrWhiteSpace(package.Version) ? "unknown" : package.Version;
 
@@ -411,26 +400,11 @@ namespace Doji.AI.ModelHub
                         packageVersion,
                         package.ResolvedPath,
                         manifestPath,
-                        manifestHash,
                         model));
                 }
             }
 
             return new DiscoveryReport(dependencies, issues);
-        }
-
-        private static string ComputeManifestHash(string contents)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(contents);
-            var hashBytes = sha256.ComputeHash(bytes);
-            var builder = new StringBuilder(hashBytes.Length * 2);
-            foreach (var hashByte in hashBytes)
-            {
-                builder.Append(hashByte.ToString("x2"));
-            }
-
-            return builder.ToString();
         }
     }
 

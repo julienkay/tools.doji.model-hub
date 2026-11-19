@@ -107,7 +107,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "1.0.0",
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
-                "integration-manifest-hash",
                 new ModelDependencyDefinition(
                     modelId,
                     revision));

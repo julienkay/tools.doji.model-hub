@@ -138,7 +138,6 @@ namespace Doji.AI.ModelHub.Editor
                         dependency.PackageVersion,
                         dependency.PackageResolvedPath,
                         dependency.ManifestPath,
-                        dependency.ManifestHash,
                         model,
                         selectionSource.GetEnabledOptionalFiles(
                             dependency.PackageId,

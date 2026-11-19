@@ -179,7 +179,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 "project",
                 $"/tmp/{packageId}",
                 "Assets/AI Model Hub/AI Model Hub Project Manifest.asset",
-                $"{packageId}-hash",
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main"));

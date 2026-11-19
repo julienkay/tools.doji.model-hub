@@ -2,13 +2,13 @@
     "name": "Doji.ModelHub.Editor.Tests",
     "rootNamespace": "Doji.AI.ModelHub.Editor.Tests",
     "references": [
-        "Doji.ModelHub",
-        "Doji.ModelHub.Editor",
-        "Doji.Downloads",
-        "Doji.Downloads.Editor",
-        "Unity.InferenceEngine",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "GUID:d3968dc2a3e14bc4a77f0a5b4af632c2",
+        "GUID:08ac8057764145ad9180e84609553131",
+        "GUID:33634f0321224cbab008d083a50cd823",
+        "GUID:fe5ebd90e7614ec78c930038d8122905",
+        "GUID:63a57c8b658089e49a173b0f0c4870a7",
+        "GUID:27619889b8ba8c24980f49ee34dbb44a",
+        "GUID:0acc523941302664db1f4e527237feb3"
     ],
     "includePlatforms": [
         "Editor"

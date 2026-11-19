@@ -2,9 +2,9 @@
     "name": "Doji.ModelHub.Editor.Cli",
     "rootNamespace": "Doji.AI.ModelHub.Editor.Cli",
     "references": [
-        "Doji.ModelHub",
-        "Doji.ModelHub.Editor",
-        "Unity.Pipeline.Attributes"
+        "GUID:d3968dc2a3e14bc4a77f0a5b4af632c2",
+        "GUID:08ac8057764145ad9180e84609553131",
+        "GUID:b522baaf20314499ba2deea8dd838496"
     ],
     "includePlatforms": [
         "Editor"

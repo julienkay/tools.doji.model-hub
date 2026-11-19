@@ -6,8 +6,8 @@
         "GUID:33634f0321224cbab008d083a50cd823",
         "GUID:fe5ebd90e7614ec78c930038d8122905",
         "GUID:d2ebcfa72eb894441bf35a029f580305",
-        "Unity.InferenceEngine",
-        "Unity.InferenceEngine.Editor"
+        "GUID:63a57c8b658089e49a173b0f0c4870a7",
+        "GUID:9a9be325188f03b488b3cc911c32a3bc"
     ],
     "includePlatforms": [
         "Editor"

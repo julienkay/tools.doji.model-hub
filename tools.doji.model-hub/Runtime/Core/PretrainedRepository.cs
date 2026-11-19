@@ -46,6 +46,54 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public IReadOnlyList<string> Files => (_model.files ?? Array.Empty<RuntimeModelFile>()).Select(file => file.repoPath).ToArray();
 
+        /// <summary>
+        /// Repository paths of the other files this package uses: configs, tokenizers, and similar files.
+        /// </summary>
+        public IReadOnlyList<string> DataFiles => (_model.dataFiles ?? Array.Empty<RuntimeDataFile>()).Select(file => file.repoPath).ToArray();
+
+        /// <summary>
+        /// Whether this package uses a model file or a data file at this path.
+        /// </summary>
+        public bool HasFile(string repoPath)
+        {
+            return _model.FindFile(repoPath) != null || _model.FindDataFile(repoPath) != null;
+        }
+
+        /// <summary>
+        /// Reads one of <see cref="DataFiles"/>. Works on every platform.
+        /// </summary>
+        public Task<byte[]> ReadFileAsync(
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return RuntimeModels.LoadDataAsync(_model, GetDataFile(repoPath), progress, cancellationToken);
+        }
+
+        /// <summary>
+        /// Reads one of <see cref="DataFiles"/> as UTF-8 text.
+        /// </summary>
+        public async Task<string> ReadTextAsync(
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Hub.DecodeText(await ReadFileAsync(repoPath, progress, cancellationToken));
+        }
+
+        /// <summary>
+        /// Reads without waiting, where <see cref="LoadModel"/> can.
+        /// </summary>
+        public byte[] ReadFile(string repoPath)
+        {
+            return RuntimeModels.LoadData(_model, GetDataFile(repoPath));
+        }
+
+        public string ReadText(string repoPath)
+        {
+            return Hub.DecodeText(ReadFile(repoPath));
+        }
+
         public Task<Model> LoadModelAsync(
             string repoPath,
             IProgress<DownloadProgress> progress = null,
@@ -75,6 +123,12 @@ namespace Doji.AI.ModelHub
         public Task EnsureAvailableAsync(IProgress<DownloadProgress> progress = null, CancellationToken cancellationToken = default)
         {
             return RuntimeModels.EnsureAvailableAsync(_model, progress, cancellationToken);
+        }
+
+        private RuntimeDataFile GetDataFile(string repoPath)
+        {
+            return _model.FindDataFile(repoPath) ?? throw new System.IO.FileNotFoundException(
+                $"AI Model Hub model '{RepoId}' has no file '{repoPath}'. List it in the manifest's files. Its other files are: {string.Join(", ", DataFiles)}.");
         }
 
         private RuntimeModelFile GetFile(string repoPath)

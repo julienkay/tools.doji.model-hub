@@ -95,7 +95,7 @@ AI Model Hub normalizes selected paths before storing them:
 - removes duplicates
 - sorts paths with ordinal comparison
 
-Selected files that are not model files, such as `config.json` or tokenizer files, are downloaded into the cache with the model files.
+Selected files that are not model files, such as `config.json` or tokenizer files, are downloaded into the cache with the model files. Builds bundle or download them like the model, and package code reads them with `Hub.ReadTextAsync` or `Hub.ReadFileAsync`.
 
 ## Model files
 
@@ -105,7 +105,7 @@ The extension of a selected file decides how AI Model Hub uses it:
 - `.sentis`: loaded as downloaded. There is no import step and no conversion setting.
 - any other extension: downloaded, not loaded as a model.
 
-Selecting an `.onnx` file also selects its external weight files when the model has them: `<file>.onnx_data`, `<file>.onnx.data`, and numbered parts such as `<file>.onnx_data_1`. Do not list them yourself.
+Selecting an `.onnx` file also selects its external weight files when the model has them: `<file>.onnx_data`, `<file>.onnx.data`, and numbered parts such as `<file>.onnx_data_1`, plus a `weights.pb` file next to the only `.onnx` file of its folder. Do not list them yourself.
 
 A model can contain both formats. `julienkay/sentis-MiDaS`, for example, has ONNX files under `onnx/` and Sentis files under `sentis/`. List the files you use, and each one loads by its own format:
 

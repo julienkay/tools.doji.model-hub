@@ -49,7 +49,7 @@ Use `files` when the package needs only some files of the model.
 }
 ```
 
-Selected files that are not models, such as `preprocessor_config.json`, are downloaded with the model.
+Selected files that are not models, such as `preprocessor_config.json`, are downloaded with the model, and builds include them the same way as the model. Read them with `Hub.ReadTextAsync` or `Hub.ReadFileAsync`, see [Read configs and other files](import-cache-runtime.md#read-configs-and-other-files).
 
 If you convert a model yourself and publish the `.sentis` file on Hugging Face, list that file. Projects then use it as downloaded, without converting it.
 

@@ -226,6 +226,81 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(files.Select(file => file.label), Is.EqualTo(new[] { "Small", null }));
         }
 
+        /// <summary>
+        /// Verifies selected files that are not models reach the registry: a build bundles them from the cache, Play mode
+        /// reads them from the cache, and ONNX companions stay with their model.
+        /// </summary>
+        [Test]
+        public void Build_BundlesDataFilesFromTheCache()
+        {
+            var snapshot = Path.Combine(_rootDirectory, "snapshot");
+            var configPath = Path.Combine(snapshot, "unet", "config.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(configPath));
+            File.WriteAllText(configPath, "{}");
+            var status = ReadyWithDataFiles(snapshot);
+
+            var plan = Plan(ModelDelivery.Bundle, status);
+            var editor = PlanForEditor(ModelDelivery.Bundle, status);
+            var download = Plan(ModelDelivery.Download, status);
+
+            Assert.That(plan.Problems, Is.Empty);
+            var dataFile = plan.Registry.packages.Single().models.Single().dataFiles.Single();
+            Assert.That(dataFile.repoPath, Is.EqualTo("unet/config.json"));
+            Assert.That(dataFile.relativePath, Is.EqualTo("model-hub/files/doji/test-model/unet/config.json"));
+            Assert.That(dataFile.localPath, Is.Null, "Builds never carry paths of this machine.");
+            Assert.That(plan.BundledFiles, Does.Contain((configPath, dataFile.relativePath)));
+            Assert.That(editor.Registry.packages.Single().models.Single().dataFiles.Single().localPath, Is.EqualTo(configPath));
+            var downloaded = download.Registry.packages.Single().models.Single().dataFiles.Single();
+            Assert.That(downloaded.source.etag, Is.EqualTo("etag-config"));
+            Assert.That(downloaded.source.size, Is.EqualTo(2));
+            Assert.That(download.BundledFiles, Is.Empty);
+        }
+
+        /// <summary>
+        /// Verifies a build stops when a bundled data file is not in the cache.
+        /// </summary>
+        [Test]
+        public void Build_ReportsMissingDataFiles()
+        {
+            var plan = Plan(ModelDelivery.Bundle, ReadyWithDataFiles(Path.Combine(_rootDirectory, "empty-snapshot")));
+
+            Assert.That(plan.Problems.Single(), Does.Contain("unet/config.json"));
+        }
+
+        private DependencyStatus ReadyWithDataFiles(string snapshot)
+        {
+            var dependency = new DiscoveredModelDependency(
+                "tools.doji.a",
+                "tools.doji.a",
+                "1.0.0",
+                "/tmp/tools.doji.a",
+                "/tmp/tools.doji.a/model-hub-manifest.json",
+                "hash",
+                new ModelDependencyDefinition("doji/test-model", "main", new[]
+                {
+                    new ModelDependencyFileDefinition("unet/model.onnx"),
+                    new ModelDependencyFileDefinition("unet/config.json")
+                }));
+            var metadata = new ImportedModelMetadata
+            {
+                PackageId = "tools.doji.a",
+                Repository = "doji/test-model",
+                RequestedRevision = "main",
+                ResolvedCommitHash = "abc123",
+                RawSnapshotRootPath = snapshot,
+                RepositoryFiles = new[]
+                {
+                    new RepositoryFileMetadata { RepoPath = "unet/model.onnx", SizeInBytes = 10, EntityTag = "etag-onnx" },
+                    new RepositoryFileMetadata { RepoPath = "unet/model.onnx_data", SizeInBytes = 9, EntityTag = "etag-data" },
+                    new RepositoryFileMetadata { RepoPath = "unet/config.json", SizeInBytes = 2, EntityTag = "\"etag-config\"" },
+                    new RepositoryFileMetadata { RepoPath = "README.md", SizeInBytes = 1, EntityTag = "etag-readme" }
+                },
+                RuntimeFiles = new[] { OnnxFile("unet/model.onnx") }
+            };
+            return new DependencyStatus(
+                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, metadata);
+        }
+
         private RuntimeRegistryBuilder.Plan Plan(ModelDelivery delivery, params DependencyStatus[] statuses)
         {
             return Run(delivery, statuses, false, null, null);

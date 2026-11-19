@@ -89,7 +89,8 @@ namespace Doji.AI.ModelHub.Editor
                             .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
                             .Select(file => CreateFile(dependency, file, delivery, getRecipe, forEditor, projectRoot, plan, bundledPaths, label))
                             .Where(file => file != null)
-                            .ToArray()
+                            .ToArray(),
+                        dataFiles = CreateDataFiles(status, delivery, forEditor, plan, bundledPaths, label)
                     };
                     models.Add(model);
                 }
@@ -116,6 +117,80 @@ namespace Doji.AI.ModelHub.Editor
             return CacheOverviewService.TryParseFolderName(CachePaths.ResolveRepositoryFolderName(repository), out _, out var cached)
                 ? cached
                 : repository;
+        }
+
+        /// <summary>
+        /// The selected files that are not models and not ONNX companions: configs, tokenizers, and other files the
+        /// package reads with <see cref="Hub.ReadFileAsync(string,string,System.IProgress{Doji.Downloads.DownloadProgress},System.Threading.CancellationToken)"/>.
+        /// A whole-repository dependency gets every such file except dotfiles such as <c>.gitattributes</c>.
+        /// </summary>
+        private static RuntimeDataFile[] CreateDataFiles(
+            DependencyStatus status,
+            ModelDelivery delivery,
+            bool forEditor,
+            Plan plan,
+            HashSet<string> bundledPaths,
+            string label)
+        {
+            var dependency = status.Dependency;
+            var metadata = status.ImportedMetadata;
+            var repositoryFiles = metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
+            var knownPaths = repositoryFiles.Select(file => file.RepoPath).ToArray();
+            var selected = dependency.GetSelectedRepoPaths(knownPaths);
+            var companions = new HashSet<string>(
+                selected.SelectMany(path => ModelFiles.GetCompanionFiles(path, knownPaths)),
+                StringComparer.Ordinal);
+            var files = new List<RuntimeDataFile>();
+
+            foreach (var repoPath in selected)
+            {
+                if (ModelFiles.IsModelFile(repoPath) || companions.Contains(repoPath))
+                {
+                    continue;
+                }
+
+                if (dependency.SelectsWholeRepository && Path.GetFileName(repoPath).StartsWith(".", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var repositoryFile = repositoryFiles.FirstOrDefault(file => string.Equals(file.RepoPath, repoPath, StringComparison.Ordinal));
+                var relativePath = Hub.GetRuntimeDataRelativePath(dependency.Repository, repoPath);
+                var cachedPath = string.IsNullOrWhiteSpace(metadata.RawSnapshotRootPath)
+                    ? null
+                    : Path.Combine(metadata.RawSnapshotRootPath, repoPath.Replace('/', Path.DirectorySeparatorChar));
+                var file = new RuntimeDataFile
+                {
+                    repoPath = repoPath,
+                    relativePath = relativePath,
+                    source = new RuntimeSourceFile
+                    {
+                        repoPath = repoPath,
+                        etag = CachePaths.NormalizeEtag(repositoryFile?.EntityTag),
+                        size = repositoryFile?.SizeInBytes ?? 0
+                    }
+                };
+
+                if (forEditor)
+                {
+                    file.localPath = cachedPath;
+                }
+                else if (delivery == ModelDelivery.Bundle && bundledPaths.Add(relativePath))
+                {
+                    if (cachedPath == null || !File.Exists(cachedPath))
+                    {
+                        plan.Problems.Add($"{label}: {repoPath} is not in the cache. Download it again in Window > AI Model Hub.");
+                    }
+                    else
+                    {
+                        plan.BundledFiles.Add((cachedPath, relativePath));
+                    }
+                }
+
+                files.Add(file);
+            }
+
+            return files.ToArray();
         }
 
         private static RuntimeModelFile CreateFile(

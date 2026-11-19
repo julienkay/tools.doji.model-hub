@@ -16,10 +16,13 @@ The package writes the loading code once. The project decides delivery (bundle o
 ```text
 RuntimeRegistry   version, onnxConverterId, packages[]
 RuntimePackageEntry   packageId, packageVersion, models[]
-RuntimeModelEntry   repoId, cacheRepoId, revision, commit, delivery ("bundle" | "download"), files[]
+RuntimeModelEntry   repoId, cacheRepoId, revision, commit, delivery ("bundle" | "download"), files[], dataFiles[]
 RuntimeModelFile   repoPath, label, format ("onnx" | "sentis"), relativePath,
                    source {repoPath, etag, size}, companions[], recipeHash, quantization, inputShapes[]
+RuntimeDataFile    repoPath, relativePath, source {repoPath, etag, size}
 ```
+
+- `dataFiles` are the selected files that are neither model files nor ONNX companions (configs, tokenizers). `RuntimeRegistryBuilder.CreateDataFiles` takes them from `DiscoveredModelDependency.GetSelectedRepoPaths` and the import record's `RepositoryFiles`; whole-repository dependencies skip dotfiles. Their `relativePath` is `model-hub/files/<owner>/<name>/<repoPath>` (`Hub.GetRuntimeDataRelativePath`). Bundled builds add them from `RawSnapshotRootPath`; the Editor catalog sets `localPath` to the cache file. `Hub.ReadFileAsync`/`ReadTextAsync` find them with `RuntimeRegistry.TryFindDataFile`, which follows the same package rules as `TryFind`.
 
 - `relativePath` is the bundled path under StreamingAssets: `model-hub/models/<owner>/<name>/<repoPath with .sentis>` (`Hub.GetRuntimeModelRelativePath`).
 - `cacheRepoId` is the repository id as the Editor's cache folder spells it, so a player downloads into the same folder name as the Hub and Python use. Lookup uses `repoId`, case-insensitively.
@@ -78,6 +81,8 @@ Builds never ship `.onnx` files.
 | bundle | any | Load `relativePath` from StreamingAssets. |
 | download | `.sentis` | `RuntimeDownloader.EnsureFileAsync`, then load the snapshot file. |
 | download | `.onnx` | Download source and companions, look up the converted store by key, else convert with `OnnxConverter`, apply the recipe, save, then load. |
+| bundle | data file | Read from StreamingAssets: `File` where it is a folder, `UnityWebRequest` into memory on Android and the Web (no copy). |
+| download | data file | `RuntimeDownloader.EnsureFileAsync`, then read the snapshot file. `EnsureAvailableAsync` fetches them too. |
 
 Platform access to bundled files:
 

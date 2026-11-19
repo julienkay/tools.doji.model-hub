@@ -129,6 +129,117 @@ namespace Doji.AI.ModelHub
                 : $"AI Model Hub model '{repoId}'{owner} has no file '{repoPath}'. Its files are: {string.Join(", ", known)}.");
         }
 
+        public static (RuntimePackageEntry Package, RuntimeModelEntry Model, RuntimeDataFile File) FindDataFile(
+            RuntimeRegistry catalog,
+            string packageId,
+            string repoId,
+            string repoPath)
+        {
+            if (catalog.TryFindDataFile(packageId, repoId, repoPath, out var package, out var model, out var file))
+            {
+                return (package, model, file);
+            }
+
+            var known = catalog.GetKnownDataFiles(repoId);
+            var owner = packageId == null ? string.Empty : $" for package '{packageId}'";
+            throw new FileNotFoundException(catalog.GetKnownFiles(repoId).Count == 0 && known.Count == 0
+                ? $"AI Model Hub has no model '{repoId}'{owner}. Add it to a manifest and import it in Window > AI Model Hub."
+                : $"AI Model Hub model '{repoId}'{owner} has no file '{repoPath}'. List it in the manifest's files. Its other files are: {string.Join(", ", known)}.");
+        }
+
+        /// <summary>
+        /// Reads one data file, downloading it first when needed.
+        /// </summary>
+        public static async Task<byte[]> LoadDataAsync(
+            RuntimeModelEntry model,
+            RuntimeDataFile file,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            if (TryGetDataPathWithoutWaiting(model, file, out var localPath))
+            {
+                return File.ReadAllBytes(localPath);
+            }
+
+            if (model.Delivery == ModelDelivery.Bundle)
+            {
+                // Android and the Web: data files are small, so they are read into memory instead of copied.
+                return await ReadStreamingAssetBytesAsync(file.relativePath, progress, cancellationToken);
+            }
+
+            return File.ReadAllBytes(await EnsureDataDownloadedAsync(model, file, progress, cancellationToken));
+        }
+
+        /// <summary>
+        /// Reads one data file without waiting, where <see cref="Load"/> can load a model.
+        /// </summary>
+        public static byte[] LoadData(RuntimeModelEntry model, RuntimeDataFile file)
+        {
+            if (TryGetDataPathWithoutWaiting(model, file, out var localPath))
+            {
+                return File.ReadAllBytes(localPath);
+            }
+
+            throw new InvalidOperationException(model.Delivery == ModelDelivery.Download
+                ? $"AI Model Hub file '{model.repoId}:{file.repoPath}' is downloaded on first use. Use Hub.ReadFileAsync or Hub.ReadTextAsync, or Hub.EnsureAvailableAsync on a loading screen."
+                : $"AI Model Hub file '{model.repoId}:{file.repoPath}' is inside the build package on this platform. Use Hub.ReadFileAsync or Hub.ReadTextAsync.");
+        }
+
+        /// <summary>
+        /// Returns the path of a data file that is already a file on this device.
+        /// </summary>
+        internal static bool TryGetDataPathWithoutWaiting(RuntimeModelEntry model, RuntimeDataFile file, out string path)
+        {
+            path = null;
+            if (!string.IsNullOrWhiteSpace(file.localPath))
+            {
+                path = File.Exists(file.localPath) ? file.localPath : null;
+                if (path == null)
+                {
+                    throw new FileNotFoundException(
+                        $"AI Model Hub file '{model.repoId}:{file.repoPath}' is not downloaded in this project. Download it in Window > AI Model Hub.",
+                        file.localPath);
+                }
+
+                return true;
+            }
+
+            if (model.Delivery == ModelDelivery.Bundle)
+            {
+                if (!StreamingAssetsIsFolder)
+                {
+                    return false;
+                }
+
+                path = Hub.GetRuntimeAbsolutePath(file.relativePath);
+                return true;
+            }
+
+            var downloaded = CachePaths.GetSnapshotFilePath(model.CacheRepoId, model.commit, file.repoPath);
+            if (CacheBlobs.IsComplete(downloaded, file.source?.size ?? 0))
+            {
+                path = downloaded;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static Task<string> EnsureDataDownloadedAsync(
+            RuntimeModelEntry model,
+            RuntimeDataFile file,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            return RuntimeDownloader.EnsureFileAsync(
+                model.CacheRepoId,
+                model.revision,
+                model.commit,
+                file.source ?? new RuntimeSourceFile { repoPath = file.repoPath },
+                progress,
+                cancellationToken);
+        }
+
         /// <summary>
         /// Loads one runtime model, downloading or converting it first when needed.
         /// </summary>
@@ -194,6 +305,20 @@ namespace Doji.AI.ModelHub
                 else if (Application.platform == RuntimePlatform.Android)
                 {
                     await CopyBundledModelAsync(file, progress, cancellationToken);
+                }
+            }
+
+            if (model.Delivery != ModelDelivery.Download)
+            {
+                return;
+            }
+
+            foreach (var file in model.dataFiles ?? Array.Empty<RuntimeDataFile>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!TryGetDataPathWithoutWaiting(model, file, out _))
+                {
+                    await EnsureDataDownloadedAsync(model, file, progress, cancellationToken);
                 }
             }
         }

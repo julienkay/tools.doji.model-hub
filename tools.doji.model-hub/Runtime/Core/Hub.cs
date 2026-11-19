@@ -72,7 +72,100 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Downloads (and for ONNX files, converts) every file of a model without loading it, for loading screens.
+        /// Reads a file of a model that is not a model itself, such as <c>config.json</c> or a tokenizer file, by
+        /// repository id and the path the package's manifest lists. It reaches the device like the model: bundled, or
+        /// downloaded on first use. Works on every platform.
+        /// </summary>
+        public static Task<byte[]> ReadFileAsync(
+            string repoId,
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadFileAsync(null, repoId, repoPath, progress, cancellationToken);
+        }
+
+        /// <summary>
+        /// Reads a file of one package's model. Use it when two packages use the same repository with different files.
+        /// </summary>
+        public static async Task<byte[]> ReadFileAsync(
+            string packageId,
+            string repoId,
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            var catalog = await RuntimeModels.GetCatalogAsync();
+            var (_, model, file) = RuntimeModels.FindDataFile(catalog, packageId, repoId, repoPath);
+            return await RuntimeModels.LoadDataAsync(model, file, progress, cancellationToken);
+        }
+
+        /// <summary>
+        /// Reads a text file of a model as UTF-8, like
+        /// <see cref="ReadFileAsync(string,string,IProgress{DownloadProgress},CancellationToken)"/>.
+        /// </summary>
+        public static Task<string> ReadTextAsync(
+            string repoId,
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadTextAsync(null, repoId, repoPath, progress, cancellationToken);
+        }
+
+        public static async Task<string> ReadTextAsync(
+            string packageId,
+            string repoId,
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return DecodeText(await ReadFileAsync(packageId, repoId, repoPath, progress, cancellationToken));
+        }
+
+        /// <summary>
+        /// Reads a file of a model without waiting, where <see cref="LoadModel(string,string)"/> can load a model.
+        /// </summary>
+        public static byte[] ReadFile(string repoId, string repoPath)
+        {
+            return ReadFile(null, repoId, repoPath);
+        }
+
+        public static byte[] ReadFile(string packageId, string repoId, string repoPath)
+        {
+            var (_, model, file) = RuntimeModels.FindDataFile(RuntimeModels.GetCatalog(), packageId, repoId, repoPath);
+            return RuntimeModels.LoadData(model, file);
+        }
+
+        public static string ReadText(string repoId, string repoPath)
+        {
+            return ReadText(null, repoId, repoPath);
+        }
+
+        public static string ReadText(string packageId, string repoId, string repoPath)
+        {
+            return DecodeText(ReadFile(packageId, repoId, repoPath));
+        }
+
+        /// <summary>
+        /// UTF-8, without a byte order mark, like <c>File.ReadAllText</c>.
+        /// </summary>
+        internal static string DecodeText(byte[] bytes)
+        {
+            if (bytes == null)
+            {
+                return null;
+            }
+
+            var hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+            return hasBom
+                ? System.Text.Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3)
+                : System.Text.Encoding.UTF8.GetString(bytes);
+        }
+
+        /// <summary>
+        /// Downloads (and for ONNX files, converts) every file of a model, data files included, without loading it, for
+        /// loading screens.
         /// Bundled models need nothing, except a one-time copy on Android.
         /// </summary>
         public static Task EnsureAvailableAsync(
@@ -195,6 +288,14 @@ namespace Doji.AI.ModelHub
         internal static string GetRuntimeAbsolutePath(string relativePath)
         {
             return Path.Combine(Application.streamingAssetsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
+        /// Path of one data file inside StreamingAssets: <c>model-hub/files/owner/name/scheduler/scheduler_config.json</c>.
+        /// </summary>
+        internal static string GetRuntimeDataRelativePath(string repository, string repoPath)
+        {
+            return $"{RuntimeStreamingRelativeRoot}/files/{SanitizeRelativePath(repository)}/{SanitizeRelativePath(repoPath)}";
         }
 
         /// <summary>

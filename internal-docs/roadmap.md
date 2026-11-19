@@ -26,8 +26,9 @@ entry when it ships or is rejected.
 - **Offline and portable cache.** Reuse and move the shared cache without
   network access.
 - **Remote browsing.** Browse HuggingFace repositories in Model Hub.
-- **`from_pretrained` helpers.** Extend the wrapper only when a concrete
-  tokenizer, config, or runtime need appears.
+- **`from_pretrained` helpers.** Selected configs and tokenizer files are
+  readable with `Hub.ReadTextAsync`. Extend the wrapper further only when a
+  concrete runtime need appears.
 
 ## Open questions
 

@@ -106,6 +106,35 @@ namespace Doji.AI.ModelHub
     }
 
     /// <summary>
+    /// One file of a model that is not a model itself, such as <c>config.json</c> or a tokenizer file, addressed by its
+    /// repository path. It reaches the device like the model's runtime models: bundled in StreamingAssets, or downloaded.
+    /// </summary>
+    [Serializable]
+    public sealed class RuntimeDataFile
+    {
+        /// <summary>
+        /// Repository path the package uses to read it, for example <c>scheduler/scheduler_config.json</c>.
+        /// </summary>
+        public string repoPath;
+
+        /// <summary>
+        /// Bundled models: path of the file inside StreamingAssets.
+        /// </summary>
+        public string relativePath;
+
+        /// <summary>
+        /// Downloaded models: the file on Hugging Face.
+        /// </summary>
+        public RuntimeSourceFile source;
+
+        /// <summary>
+        /// Editor only: the file in the Hugging Face cache of this machine. Never written to a build.
+        /// </summary>
+        [NonSerialized]
+        public string localPath;
+    }
+
+    /// <summary>
     /// One model of one package: its repository, pinned commit, delivery, and files.
     /// </summary>
     [Serializable]
@@ -129,6 +158,11 @@ namespace Doji.AI.ModelHub
 
         public RuntimeModelFile[] files = Array.Empty<RuntimeModelFile>();
 
+        /// <summary>
+        /// The selected files that are not models: configs, tokenizers, and other files the package reads.
+        /// </summary>
+        public RuntimeDataFile[] dataFiles = Array.Empty<RuntimeDataFile>();
+
         public string CacheRepoId => string.IsNullOrWhiteSpace(cacheRepoId) ? repoId : cacheRepoId;
 
         public ModelDelivery Delivery => string.Equals(delivery, "download", StringComparison.Ordinal)
@@ -138,6 +172,12 @@ namespace Doji.AI.ModelHub
         public RuntimeModelFile FindFile(string repoPath)
         {
             return (files ?? Array.Empty<RuntimeModelFile>())
+                .FirstOrDefault(file => string.Equals(file?.repoPath, repoPath, StringComparison.Ordinal));
+        }
+
+        public RuntimeDataFile FindDataFile(string repoPath)
+        {
+            return (dataFiles ?? Array.Empty<RuntimeDataFile>())
                 .FirstOrDefault(file => string.Equals(file?.repoPath, repoPath, StringComparison.Ordinal));
         }
     }
@@ -234,6 +274,56 @@ namespace Doji.AI.ModelHub
             model = null;
             file = null;
             return false;
+        }
+
+        /// <summary>
+        /// Finds a data file, the same way <see cref="TryFind"/> finds a model file.
+        /// </summary>
+        public bool TryFindDataFile(string packageId, string repoId, string repoPath, out RuntimePackageEntry package, out RuntimeModelEntry model, out RuntimeDataFile file)
+        {
+            foreach (var candidatePackage in packages ?? Array.Empty<RuntimePackageEntry>())
+            {
+                if (packageId != null && !string.Equals(candidatePackage?.packageId, packageId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                foreach (var candidateModel in candidatePackage?.models ?? Array.Empty<RuntimeModelEntry>())
+                {
+                    if (!string.Equals(candidateModel?.repoId, repoId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var candidateFile = candidateModel.FindDataFile(repoPath);
+                    if (candidateFile != null)
+                    {
+                        package = candidatePackage;
+                        model = candidateModel;
+                        file = candidateFile;
+                        return true;
+                    }
+                }
+            }
+
+            package = null;
+            model = null;
+            file = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Lists the data file paths of every package entry of one repository, for error messages.
+        /// </summary>
+        public IReadOnlyList<string> GetKnownDataFiles(string repoId)
+        {
+            return (packages ?? Array.Empty<RuntimePackageEntry>())
+                .SelectMany(package => package?.models ?? Array.Empty<RuntimeModelEntry>())
+                .Where(model => string.Equals(model?.repoId, repoId, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(model => model.dataFiles ?? Array.Empty<RuntimeDataFile>())
+                .Select(file => file.repoPath)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
         }
 
         /// <summary>

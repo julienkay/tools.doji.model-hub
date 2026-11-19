@@ -520,6 +520,74 @@ namespace Doji.AI.ModelHub.Editor.Tests
             protected override void Release() { }
         }
 
+        /// <summary>
+        /// Verifies data files read from the Editor cache, from StreamingAssets, and from a download at the pinned
+        /// commit, and that unknown files are explained.
+        /// </summary>
+        [Test]
+        public async Task ReadTextAsync_ReadsEditorBundledAndDownloadedFiles()
+        {
+            var cached = Path.Combine(_rootDirectory, "config.json");
+            File.WriteAllText(cached, "{\"a\":1}");
+            UseRegistry(WithData(Model("bundle"), new RuntimeDataFile { repoPath = "config.json", localPath = cached }));
+            Assert.That(await Hub.ReadTextAsync(Repo, "config.json"), Is.EqualTo("{\"a\":1}"));
+            Assert.That(Hub.ReadText(Repo, "config.json"), Is.EqualTo("{\"a\":1}"));
+            Assert.That(Hub.FromPretrained(Repo).DataFiles, Is.EqualTo(new[] { "config.json" }));
+            Assert.That(Hub.FromPretrained(Repo).HasFile("config.json"), Is.True);
+
+            var relativePath = Hub.GetRuntimeDataRelativePath(Repo, "tokenizer/vocab.json");
+            var bundledPath = Hub.GetRuntimeAbsolutePath(relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(bundledPath));
+            File.WriteAllText(bundledPath, "vocab");
+            try
+            {
+                UseRegistry(WithData(Model("bundle"), new RuntimeDataFile { repoPath = "tokenizer/vocab.json", relativePath = relativePath }));
+                Assert.That(await Hub.ReadTextAsync(Repo, "tokenizer/vocab.json"), Is.EqualTo("vocab"));
+            }
+            finally
+            {
+                File.Delete(bundledPath);
+            }
+
+            UseRegistry(WithData(Model("download"), new RuntimeDataFile
+            {
+                repoPath = "scheduler/scheduler_config.json",
+                source = new RuntimeSourceFile { repoPath = "scheduler/scheduler_config.json", etag = "etag-scheduler", size = 4 }
+            }));
+            Assert.Throws<InvalidOperationException>(() => Hub.ReadFile(Repo, "scheduler/scheduler_config.json"), "Not downloaded yet.");
+            Assert.That(await Hub.ReadFileAsync(Repo, "scheduler/scheduler_config.json"), Has.Length.EqualTo(4));
+            Assert.That(await Hub.ReadFileAsync(Repo, "scheduler/scheduler_config.json"), Has.Length.EqualTo(4));
+            Assert.That(_downloadCount, Is.EqualTo(1));
+            Assert.That(_downloadedUrls.Single(), Is.EqualTo($"https://huggingface.co/{Repo}/resolve/{Commit}/scheduler/scheduler_config.json"));
+            Assert.That(Hub.ReadFile(Repo, "scheduler/scheduler_config.json"), Has.Length.EqualTo(4), "Once downloaded, it reads without waiting.");
+
+            var missing = Assert.ThrowsAsync<FileNotFoundException>(() => Hub.ReadTextAsync(Repo, "missing.json"));
+            Assert.That(missing.Message, Does.Contain("missing.json").And.Contain("scheduler/scheduler_config.json"));
+        }
+
+        /// <summary>
+        /// Verifies a loading screen also fetches the data files of a downloaded model.
+        /// </summary>
+        [Test]
+        public async Task EnsureAvailableAsync_DownloadsDataFiles()
+        {
+            UseRegistry(WithData(
+                Model("download", new RuntimeModelFile { repoPath = "a.sentis", format = "sentis", source = new RuntimeSourceFile { repoPath = "a.sentis", etag = "e1" } }),
+                new RuntimeDataFile { repoPath = "config.json", source = new RuntimeSourceFile { repoPath = "config.json", etag = "e2", size = 4 } }));
+
+            await Hub.EnsureAvailableAsync(Repo);
+            await Hub.EnsureAvailableAsync(Repo);
+
+            Assert.That(_downloadCount, Is.EqualTo(2));
+            Assert.That(Hub.ReadFile(Repo, "config.json"), Has.Length.EqualTo(4));
+        }
+
+        private static RuntimeModelEntry WithData(RuntimeModelEntry model, params RuntimeDataFile[] dataFiles)
+        {
+            model.dataFiles = dataFiles;
+            return model;
+        }
+
         private RuntimeRegistry UseRegistry(RuntimeModelEntry model)
         {
             var registry = new RuntimeRegistry { packages = new[] { Package("tools.doji.test", model) } };

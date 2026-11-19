@@ -34,7 +34,7 @@ Put `model-hub-manifest.json` at the package root (`Packages/<package-id>/`). Fo
 | `id` | Required. Public Hugging Face `repo_id`. Gated and private models fail. Unique per manifest. |
 | `revision` | Branch, tag, or commit. Default `main`. Pin a commit for reproducible builds. |
 | `files` | Omit to take every file of the repo. A repo with both `.onnx` and `.sentis` files then fails: list the files. |
-| `files[].path` | Exact repo-relative path. `.onnx` is converted, `.sentis` is used as is, others are downloaded only. ONNX external weights (`.onnx_data`, `.onnx.data`) come along: do not list them. |
+| `files[].path` | Exact repo-relative path. `.onnx` is converted, `.sentis` is used as is, other files (configs, tokenizers) ship like the model and are read with `Hub.ReadTextAsync`. ONNX external weights (`.onnx_data`, `.onnx.data`, a `weights.pb` beside the only `.onnx` of its folder) come along: do not list them. |
 | `files[].optional` | `true` lets the project turn the file on. It is ignored until the project does. If all model files are optional, Model Hub shows `Choose files`. |
 | `files[].label` | Name in model pickers (`[HubModel]` dropdown, `HubModelFile.DisplayName`). |
 | `files[].conversion` | `.onnx` only. Default conversion for every project. |
@@ -53,6 +53,12 @@ Load a model in package code by id and the exact listed path:
 
 ```csharp
 Model model = await Hub.LoadModelAsync("owner/name", "onnx/model_small.onnx");
+```
+
+Read a listed config or tokenizer file the same way:
+
+```csharp
+string config = await Hub.ReadTextAsync("owner/name", "config.json");
 ```
 
 Pass your package id first when another package may use the same model. To check a manifest, open Model Hub (`Window > AI Model Hub`): validation errors appear on the owning package.

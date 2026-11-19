@@ -19,7 +19,7 @@ The file extension decides how AI Model Hub uses a file:
 | `.sentis` | Uses the downloaded file as it is. There is no conversion. | Do not apply. |
 | anything else | Downloads it when selected, for example a config or tokenizer file. It is not a model. | — |
 
-Selecting an `.onnx` file also selects its external weight files, such as `model.onnx_data` or `model.onnx.data`, when the model has them.
+Selecting an `.onnx` file also selects its external weight files, such as `model.onnx_data`, `model.onnx.data`, or a `weights.pb` next to the only `.onnx` file of its folder, when the model has them.
 
 A dependency without a file list works when the model has only one format. A model with both `.onnx` and `.sentis` files needs a file list, so AI Model Hub never picks a format for you. See [Manifest Schema](manifest-reference.md#model-files).
 
@@ -122,9 +122,12 @@ The build adds files to StreamingAssets directly from the shared folders. It doe
 ```text
 StreamingAssets/model-hub/model-hub-runtime.json
 StreamingAssets/model-hub/models/<owner>/<name>/<repo-path>.sentis
+StreamingAssets/model-hub/files/<owner>/<name>/<repo-path>
 ```
 
 For example, `onnx/model.onnx` of `onnx-community/tiny-clip-test-ONNX` is bundled as `model-hub/models/onnx-community/tiny-clip-test-ONNX/onnx/model.sentis`.
+
+Selected files that are not models, such as `config.json` or tokenizer files, go the same way as the model: a bundled model bundles them under `model-hub/files/`, and a model that downloads at runtime downloads them too. A whole-repository dependency includes every such file except dotfiles such as `.gitattributes`. ONNX external weights are part of their model and are never added as files.
 
 Rules:
 
@@ -202,7 +205,18 @@ PretrainedRepository repo = await Hub.FromPretrainedAsync("onnx-community/tiny-c
 Model model = await repo.LoadModelAsync("onnx/model.onnx");
 ```
 
-`repo.Files` lists the model files the project uses, and `repo.Commit` is the commit the build uses.
+`repo.Files` lists the model files the project uses, `repo.DataFiles` the other files, and `repo.Commit` is the commit the build uses.
+
+### Read configs and other files
+
+Read a selected file that is not a model, such as `config.json` or a tokenizer file, by the model id and its path in the manifest:
+
+```csharp
+string json = await Hub.ReadTextAsync("onnx-community/tiny-clip-test-ONNX", "preprocessor_config.json");
+byte[] bytes = await Hub.ReadFileAsync("onnx-community/tiny-clip-test-ONNX", "tokenizer.json");
+```
+
+`PretrainedRepository` has the same `ReadTextAsync` and `ReadFileAsync`, and `HasFile` to check whether the project includes a path. The file must be listed in the manifest's `files`, or come with a whole-repository dependency. Like models, `ReadText` and `ReadFile` do not wait, and work where `Hub.LoadModel` works.
 
 ### List a package's models
 
@@ -233,7 +247,7 @@ Model model = await Hub.LoadModelAsync("com.example.depth", "julienkay/sentis-Mi
 | Message starts with | Cause |
 |---|---|
 | `AI Model Hub has no model '<repo>'` | No manifest declares the model, or it is not ready in this project. In a player, the build did not include it. |
-| `AI Model Hub model '<repo>' has no file '<path>'` | The manifest does not select that file. The message lists the files it does select. |
+| `AI Model Hub model '<repo>' has no file '<path>'` | The manifest does not select that file. The message lists the files it does select. For `ReadTextAsync` and `ReadFileAsync`, it lists the selected files that are not models. |
 | `... is downloaded on first use. Use Hub.LoadModelAsync` | A synchronous call for a model that is not on the device yet. |
 | `... needs an ONNX converter` | A player downloads an `.onnx` file but `tools.doji.onnx-model-loader` is not installed. |
 | `'<path>' is an ONNX file, and this player has no ONNX converter` | `Hub.LoadModelFromFile` got an `.onnx` file in a player without a converter. |

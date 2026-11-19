@@ -66,9 +66,16 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
+        /// Single external weights file that older <c>torch.onnx.export</c> and Optimum exports write next to the model,
+        /// for example <c>unet/weights.pb</c> of ONNX Stable Diffusion pipelines.
+        /// </summary>
+        private const string SharedExternalDataFileName = "weights.pb";
+
+        /// <summary>
         /// Returns the repository files an ONNX model cannot load without: its external weights, named
         /// <c>model.onnx_data</c>, <c>model.onnx.data</c>, or numbered parts such as <c>model.onnx_data_1</c>, in the same
-        /// folder. Exporters and <c>transformers.js</c> use these names.
+        /// folder. Exporters and <c>transformers.js</c> use these names. A <c>weights.pb</c> file counts when it is
+        /// next to the only ONNX file of its folder, so it cannot belong to another model.
         /// </summary>
         public static IReadOnlyList<string> GetCompanionFiles(string onnxRepoPath, IEnumerable<string> repositoryFiles)
         {
@@ -80,14 +87,25 @@ namespace Doji.AI.ModelHub
             var prefixes = OnnxExternalDataSuffixes
                 .Select(suffix => onnxRepoPath.Substring(0, onnxRepoPath.Length - ".onnx".Length) + suffix)
                 .ToArray();
-            return repositoryFiles
-                .Where(path => !string.IsNullOrWhiteSpace(path))
+            var files = repositoryFiles.Where(path => !string.IsNullOrWhiteSpace(path)).ToArray();
+            var folder = GetFolder(onnxRepoPath);
+            var sharedWeights = folder + SharedExternalDataFileName;
+            var ownsSharedWeights = files.Count(path => GetFormat(path) == ModelFileFormat.Onnx &&
+                string.Equals(GetFolder(path), folder, StringComparison.Ordinal)) == 1;
+            return files
                 .Where(path => prefixes.Any(prefix =>
                     string.Equals(path, prefix, StringComparison.Ordinal) ||
-                    (path.StartsWith(prefix + "_", StringComparison.Ordinal) && path.Length > prefix.Length + 1)))
+                    (path.StartsWith(prefix + "_", StringComparison.Ordinal) && path.Length > prefix.Length + 1)) ||
+                    (ownsSharedWeights && string.Equals(path, sharedWeights, StringComparison.Ordinal)))
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        private static string GetFolder(string repoPath)
+        {
+            var separator = repoPath.LastIndexOf('/');
+            return separator < 0 ? string.Empty : repoPath.Substring(0, separator + 1);
         }
 
         /// <summary>

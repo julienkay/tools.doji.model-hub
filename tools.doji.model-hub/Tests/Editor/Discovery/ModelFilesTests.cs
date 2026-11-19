@@ -55,6 +55,20 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(ModelFiles.GetCompanionFiles("sentis/model.sentis", files), Is.Empty);
         }
 
+        /// <summary>
+        /// Verifies a <c>weights.pb</c> file belongs to the only ONNX file of its folder, and to no model when the folder
+        /// has several.
+        /// </summary>
+        [Test]
+        public void GetCompanionFiles_FindsSharedWeightsOfTheOnlyModelInAFolder()
+        {
+            var files = new[] { "unet/model.onnx", "unet/weights.pb", "vae/model.onnx", "both/a.onnx", "both/b.onnx", "both/weights.pb", "weights.pb" };
+
+            Assert.That(ModelFiles.GetCompanionFiles("unet/model.onnx", files), Is.EqualTo(new[] { "unet/weights.pb" }));
+            Assert.That(ModelFiles.GetCompanionFiles("vae/model.onnx", files), Is.Empty);
+            Assert.That(ModelFiles.GetCompanionFiles("both/a.onnx", files), Is.Empty);
+        }
+
         [Test]
         public void Describe_LabelsRepositoryFormats()
         {

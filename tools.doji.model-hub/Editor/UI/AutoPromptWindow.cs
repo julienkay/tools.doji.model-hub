@@ -364,7 +364,7 @@ namespace Doji.AI.ModelHub.Editor
                 var causes = models.Select(model => model.ConversionCause).Distinct().ToArray();
                 var subject = models.Count == 1 ? "The model is" : "The models are";
                 var reason = causes.Length == 1 && causes[0] == ConversionCause.FormatChanged
-                    ? $"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format, so {(models.Count == 1 ? "it needs" : "they need")} converting again."
+                    ? $"Sentis {ProjectImportService.GetSentisVersion()} uses a new model format, so {(models.Count == 1 ? "it needs" : "they need")} converting again."
                     : causes.Length == 1 && causes[0] == ConversionCause.SettingsChanged
                         ? $"The import settings changed, so {(models.Count == 1 ? "it needs" : "they need")} converting again."
                         : $"{(models.Count == 1 ? "It needs" : "They need")} converting to Sentis models for this project.";

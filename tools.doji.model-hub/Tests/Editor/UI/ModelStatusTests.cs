@@ -120,7 +120,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ConversionCause.SettingsChanged));
 
             Assert.That(formatChanged.Kind, Is.EqualTo(ModelStatusKind.ConversionNeeded));
-            Assert.That(formatChanged.Description, Does.Contain($"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format"));
+            Assert.That(formatChanged.Description, Does.Contain($"Sentis {ProjectImportService.GetSentisVersion()} uses a new model format"));
             Assert.That(formatChanged.Description, Does.Contain("2 ONNX files need converting again"));
             Assert.That(settingsChanged.Description, Does.Contain("import settings changed"));
         }

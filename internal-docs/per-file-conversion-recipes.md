@@ -41,7 +41,7 @@ See:
 
 - [ProjectPaths.GetSharedImportFolder](../tools.doji.model-hub/Editor/Import/ProjectPaths.cs)
 - [ProjectImportService.ImportAsync](../tools.doji.model-hub/Editor/Import/ProjectImportService.cs)
-- [StatusService.IsSharedCurrent](../tools.doji.model-hub/Editor/Status/StatusService.cs)
+- [ProjectImportService.DescribeStaleShared](../tools.doji.model-hub/Editor/Import/ProjectImportService.cs)
 
 That means:
 
@@ -203,7 +203,6 @@ Minimum file metadata should include:
 - source ONNX identity hash or signature
 - `RecipeHash`
 - `ConversionPipelineVersion`
-- `InputSignatureHash`
 - generated runtime asset path
 - generated runtime relative path
 - runtime file size

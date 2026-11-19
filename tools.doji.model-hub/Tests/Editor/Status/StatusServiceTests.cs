@@ -799,8 +799,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 }
             }
 
-            sentisVersion ??= StatusService.GetCurrentSentisVersion();
-            var recipeSetHash = bindingRecipeSetHash ?? OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" });
+            sentisVersion ??= ProjectImportService.GetSentisVersion();
+            var recipeSetHash = bindingRecipeSetHash ?? new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, new[] { "models/model.onnx" });
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(
@@ -965,8 +965,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             string[] skippedRepoPaths = null)
         {
             var runtimeFiles = WriteRuntimeFiles(dependency, commitHash);
-            var sentisVersion = StatusService.GetCurrentSentisVersion();
-            var recipeSetHash = OnnxImportMetadataUtility.ComputeRecipeSetHash(selectedOnnxRepoPaths ?? new[] { "models/model.onnx" });
+            var sentisVersion = ProjectImportService.GetSentisVersion();
+            var recipeSetHash = new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, selectedOnnxRepoPaths ?? new[] { "models/model.onnx" });
             var sharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, commitHash, sentisVersion, recipeSetHash);
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(sharedMetadataPath);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(
@@ -1066,8 +1066,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ProjectPaths.GetSharedImportMetadataFilePath(
                     dependency.Repository,
                     commitHash,
-                    StatusService.GetCurrentSentisVersion(),
-                    OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" })));
+                    ProjectImportService.GetSentisVersion(),
+                    new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, new[] { "models/model.onnx" })));
             if (File.Exists(sharedMetadataAbsolutePath))
             {
                 File.Delete(sharedMetadataAbsolutePath);
@@ -1080,8 +1080,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 ProjectPaths.GetSharedImportMetadataFilePath(
                     dependency.Repository,
                     commitHash,
-                    StatusService.GetCurrentSentisVersion(),
-                    OnnxImportMetadataUtility.ComputeRecipeSetHash(new[] { "models/model.onnx" })));
+                    ProjectImportService.GetSentisVersion(),
+                    new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, new[] { "models/model.onnx" })));
             File.WriteAllText(sharedMetadataAbsolutePath, "{ invalid json");
         }
 

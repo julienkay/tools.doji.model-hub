@@ -101,9 +101,11 @@ The shared record covers the union of every owner's selection for one repository
 
 ## Stale detection
 
-A binding is stale when the requested revision, selection, enabled optional files, recipe set, resolved commit, Sentis format generation, or shared record path changes. The binding stores no manifest hash: these fields hold every part of a manifest entry that changes the import, so other manifest edits leave the binding current. Records keep the exact Sentis version that imported them, for diagnostics.
+Import and status use the same two checks, `ProjectImportService.DescribeStaleBinding` and `DescribeStaleShared`. Each returns null when the record is current, or the message that says why it is stale.
 
-A shared import is stale when the resolved commit, the selected model file union, the recipe set, or the Sentis format generation changes, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Convert** again.
+The shared record path holds the repository, the resolved commit, the Sentis format generation and the recipe set. So a binding is current when it points at the expected shared record and has the same requested revision and selection hash (selected and enabled optional files). The binding stores no manifest hash, so other manifest edits leave it current. The binding's recorded commit, Sentis version and recipe set only explain a path that differs. Records keep the exact Sentis version that imported them, for diagnostics.
+
+A shared import is stale when the raw snapshot root, the repository inventory or the selected model file union changes, when a runtime file record is incomplete, or when a runtime model file is missing. Status checks `FilePath` on disk, so deleting a converted model makes the model need **Convert** again.
 
 ## Removal
 

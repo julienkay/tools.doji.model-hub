@@ -113,13 +113,5 @@ namespace Doji.AI.ModelHub.Editor
             var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             return Path.GetFullPath(Path.Combine(projectRoot, projectRelativePath));
         }
-
-        /// <summary>
-        /// Returns true when path segment is safe for generated asset paths.
-        /// </summary>
-        public static string SanitizePathSegment(string value)
-        {
-            return Hub.SanitizePathSegment(value);
-        }
     }
 }

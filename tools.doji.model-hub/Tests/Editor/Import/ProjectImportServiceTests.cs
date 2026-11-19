@@ -343,7 +343,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void SanitizePathSegment_ReplacesInvalidPathCharacters()
         {
             Assert.That(
-                ProjectPaths.SanitizePathSegment("tools/doji\\bad name"),
+                Hub.SanitizePathSegment("tools/doji\\bad name"),
                 Is.EqualTo("tools-doji-bad-name"));
         }
 

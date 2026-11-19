@@ -274,38 +274,20 @@ namespace Doji.AI.ModelHub.Editor
 
             knownBinding = bindingMetadata;
 
-            var expectedSharedMetadataPath = ProjectPaths.GetSharedImportMetadataFilePath(
-                dependency.Repository,
-                resolvedCommitHash,
-                GetCurrentSentisVersion(),
-                expectedRecipeSetHash);
-            if (!IsBindingCurrent(bindingMetadata, dependency, rawMetadata, expectedSharedMetadataPath, expectedRecipeSetHash))
+            var staleBinding = ProjectImportService.DescribeStaleBinding(bindingMetadata, dependency, resolvedCommitHash, expectedRecipeSetHash);
+            if (staleBinding != null)
             {
                 return Pending(Stale(
                     dependency,
                     DependencyReasonCode.ImportBindingStale,
-                    BuildBindingMismatchMessage(dependency, rawMetadata, bindingMetadata, expectedSharedMetadataPath, expectedRecipeSetHash),
+                    staleBinding,
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
-            }
-
-            if (string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
-            {
-                return Pending(Missing(
-                    dependency,
-                    DependencyReasonCode.ImportBindingInvalid,
-                    "Import binding metadata is invalid.",
-                    revisionRefPath,
-                    snapshotRoot,
-                    rawMetadataPath,
-                    rawMetadata,
-                    runtimePreviewAssetPath,
-                    bindingMetadataAssetPath));
+                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
@@ -321,7 +303,7 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
+                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
             if (!ProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
@@ -336,26 +318,27 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
+                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
             }
 
             knownShared = sharedMetadata;
-            if (!IsSharedCurrent(sharedMetadata, dependency, rawMetadata, snapshotRoot, expectedRecipeSetHash, selectedModelRepoPaths))
+            var staleShared = ProjectImportService.DescribeStaleShared(sharedMetadata, rawMetadata, snapshotRoot, rawMetadataPath, selectedModelRepoPaths);
+            if (staleShared != null)
             {
                 return Pending(Stale(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataStale,
-                    BuildSharedMismatchMessage(dependency, snapshotRoot, rawMetadataPath, rawMetadata, sharedMetadata, expectedRecipeSetHash),
+                    staleShared,
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata)));
+                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata)));
             }
 
-            var importedMetadata = BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
+            var importedMetadata = ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
@@ -443,7 +426,7 @@ namespace Doji.AI.ModelHub.Editor
                 shared = readShared;
             }
 
-            var currentVersion = GetCurrentSentisVersion();
+            var currentVersion = ProjectImportService.GetSentisVersion();
             var recordedVersion = shared?.SentisVersion ?? binding?.SentisVersion;
             if (!string.IsNullOrWhiteSpace(recordedVersion) && !SentisCompatibility.AreCompatible(recordedVersion, currentVersion))
             {
@@ -461,11 +444,6 @@ namespace Doji.AI.ModelHub.Editor
             return settingsChanged ? ConversionCause.SettingsChanged : ConversionCause.FirstConversion;
         }
 
-        internal static string GetCurrentSentisVersion()
-        {
-            return UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly)?.version ?? "unknown";
-        }
-
         private static bool TryBuildImportedOnlyStatus(
             DiscoveredModelDependency dependency,
             string bindingMetadataAbsolutePath,
@@ -481,28 +459,16 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            if (!string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) ||
-                !string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) ||
-                !string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
-                !string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) ||
-                !SentisCompatibility.AreCompatible(bindingMetadata.SentisVersion, GetCurrentSentisVersion()) ||
-                !string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) ||
-                string.IsNullOrWhiteSpace(bindingMetadata.RecipeSetHash) ||
-                string.IsNullOrWhiteSpace(bindingMetadata.SharedImportMetadataPath))
+            // Without the raw cache the commit and recipe set are known only from the binding itself; the check still
+            // catches another revision, selection, repository, or format generation.
+            if (string.IsNullOrWhiteSpace(bindingMetadata.ResolvedCommitHash) ||
+                ProjectImportService.DescribeStaleBinding(bindingMetadata, dependency, bindingMetadata.ResolvedCommitHash, bindingMetadata.RecipeSetHash) != null)
             {
                 return false;
             }
 
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
             if (!ProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
-            {
-                return false;
-            }
-
-            if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.ResolvedCommitHash, bindingMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !SentisCompatibility.AreCompatible(sharedMetadata.SentisVersion, GetCurrentSentisVersion()) ||
-                !string.Equals(sharedMetadata.RecipeSetHash, bindingMetadata.RecipeSetHash, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -518,7 +484,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var importedMetadata = BuildResolvedImportedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
+            var importedMetadata = ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
             var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
@@ -544,174 +510,6 @@ namespace Doji.AI.ModelHub.Editor
                 bindingMetadataAssetPath,
                 importedMetadata);
             return true;
-        }
-
-        private static bool IsBindingCurrent(
-            ImportBindingMetadata bindingMetadata,
-            DiscoveredModelDependency dependency,
-            RawCacheMetadata rawMetadata,
-            string expectedSharedMetadataPath,
-            string expectedRecipeSetHash)
-        {
-            if (bindingMetadata == null)
-            {
-                return false;
-            }
-
-            return string.Equals(bindingMetadata.PackageId, dependency.PackageId, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.ModelId, dependency.ModelId, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.Repository, dependency.Repository, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.RequestedRevision, dependency.Revision, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) &&
-                SentisCompatibility.AreCompatible(bindingMetadata.SentisVersion, GetCurrentSentisVersion()) &&
-                string.Equals(bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) &&
-                string.Equals(bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath, StringComparison.Ordinal);
-        }
-
-        private static bool IsSharedCurrent(
-            SharedImportMetadata sharedMetadata,
-            DiscoveredModelDependency dependency,
-            RawCacheMetadata rawMetadata,
-            string snapshotRoot,
-            string expectedRecipeSetHash,
-            IReadOnlyList<string> selectedModelRepoPaths)
-        {
-            if (sharedMetadata == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(sharedMetadata.Repository, dependency.Repository, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.RawSnapshotRootPath, snapshotRoot, StringComparison.Ordinal) ||
-                !string.Equals(sharedMetadata.RawMetadataPath, CachePaths.GetSnapshotMetadataPath(dependency.Repository, rawMetadata.ResolvedCommitHash), StringComparison.Ordinal) ||
-                !SentisCompatibility.AreCompatible(sharedMetadata.SentisVersion, GetCurrentSentisVersion()) ||
-                !string.Equals(sharedMetadata.RecipeSetHash, expectedRecipeSetHash, StringComparison.Ordinal) ||
-                !(sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).All(file =>
-                    file != null &&
-                    !string.IsNullOrWhiteSpace(file.FilePath) &&
-                    (!string.Equals(file.Format, "onnx", StringComparison.Ordinal) ||
-                     (!string.IsNullOrWhiteSpace(file.RecipeHash) && !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion)))))
-            {
-                return false;
-            }
-
-            var sharedRepositoryPaths = (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                .Select(file => file.RepoPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
-            var rawRepositoryPaths = (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                .Select(file => file.RepoPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray();
-            if (!sharedRepositoryPaths.SequenceEqual(rawRepositoryPaths, StringComparer.Ordinal))
-            {
-                return false;
-            }
-
-            var runtimeRepoPaths = sharedMetadata.GetImportedOrSkippedModelRepoPaths();
-            return runtimeRepoPaths.SequenceEqual(
-                (selectedModelRepoPaths ?? Array.Empty<string>())
-                .OrderBy(path => path, StringComparer.Ordinal),
-                StringComparer.Ordinal);
-        }
-
-        private static ImportedModelMetadata BuildResolvedImportedMetadata(
-            string bindingMetadataPath,
-            ImportBindingMetadata bindingMetadata,
-            SharedImportMetadata sharedMetadata)
-        {
-            return new ImportedModelMetadata
-            {
-                PackageId = bindingMetadata?.PackageId,
-                PackageVersion = bindingMetadata?.PackageVersion,
-                ModelId = bindingMetadata?.ModelId,
-                Repository = bindingMetadata?.Repository,
-                RequestedRevision = bindingMetadata?.RequestedRevision,
-                ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata?.ResolvedCommitHash,
-                RawSnapshotRootPath = sharedMetadata?.RawSnapshotRootPath,
-                RawMetadataPath = sharedMetadata?.RawMetadataPath,
-                RepositoryFiles = sharedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>(),
-                RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
-                SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata?.SentisVersion,
-                UnityVersion = sharedMetadata?.UnityVersion,
-                RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata?.RecipeSetHash,
-                DependencySelectionHash = bindingMetadata?.DependencySelectionHash,
-                BindingMetadataPath = bindingMetadataPath,
-                SharedImportMetadataPath = bindingMetadata?.SharedImportMetadataPath,
-                Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
-                RuntimeFiles = sharedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
-                SkippedRepoPaths = sharedMetadata?.SkippedRepoPaths ?? Array.Empty<string>(),
-                ImportedAtUtc = sharedMetadata?.ImportedAtUtc
-            };
-        }
-
-        private static string BuildBindingMismatchMessage(
-            DiscoveredModelDependency dependency,
-            RawCacheMetadata rawMetadata,
-            ImportBindingMetadata bindingMetadata,
-            string expectedSharedMetadataPath,
-            string expectedRecipeSetHash)
-        {
-            var mismatches = new List<string>();
-
-            AddMismatch(mismatches, "package id", bindingMetadata.PackageId, dependency.PackageId);
-            AddMismatch(mismatches, "model id", bindingMetadata.ModelId, dependency.ModelId);
-            AddMismatch(mismatches, "repository", bindingMetadata.Repository, dependency.Repository);
-            AddMismatch(mismatches, "requested revision", bindingMetadata.RequestedRevision, dependency.Revision);
-            AddMismatch(mismatches, "resolved commit", bindingMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
-            AddMismatch(mismatches, "Sentis format generation", SentisCompatibility.GetGeneration(bindingMetadata.SentisVersion), SentisCompatibility.GetGeneration(GetCurrentSentisVersion()));
-            AddMismatch(mismatches, "selection hash", bindingMetadata.DependencySelectionHash, dependency.DependencySelectionHash);
-            AddMismatch(mismatches, "recipe set hash", bindingMetadata.RecipeSetHash, expectedRecipeSetHash);
-            AddMismatch(mismatches, "shared metadata path", bindingMetadata.SharedImportMetadataPath, expectedSharedMetadataPath);
-
-            return mismatches.Count == 0
-                ? "Import binding metadata differs from current dependency state."
-                : $"Import binding metadata is stale: {string.Join("; ", mismatches)}.";
-        }
-
-        private static string BuildSharedMismatchMessage(
-            DiscoveredModelDependency dependency,
-            string snapshotRoot,
-            string rawMetadataPath,
-            RawCacheMetadata rawMetadata,
-            SharedImportMetadata sharedMetadata,
-            string expectedRecipeSetHash)
-        {
-            var mismatches = new List<string>();
-
-            AddMismatch(mismatches, "repository", sharedMetadata.Repository, dependency.Repository);
-            AddMismatch(mismatches, "resolved commit", sharedMetadata.ResolvedCommitHash, rawMetadata.ResolvedCommitHash);
-            AddMismatch(mismatches, "raw snapshot root", sharedMetadata.RawSnapshotRootPath, snapshotRoot);
-            AddMismatch(mismatches, "raw metadata path", sharedMetadata.RawMetadataPath, rawMetadataPath);
-            AddMismatch(mismatches, "Sentis format generation", SentisCompatibility.GetGeneration(sharedMetadata.SentisVersion), SentisCompatibility.GetGeneration(GetCurrentSentisVersion()));
-            AddMismatch(mismatches, "recipe set hash", sharedMetadata.RecipeSetHash, expectedRecipeSetHash);
-            AddMismatch(
-                mismatches,
-                "repository inventory",
-                string.Join("|", (sharedMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath).OrderBy(path => path, StringComparer.Ordinal)),
-                string.Join("|", (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath).OrderBy(path => path, StringComparer.Ordinal)));
-            AddMismatch(
-                mismatches,
-                "runtime file set",
-                string.Join("|", sharedMetadata.GetImportedOrSkippedModelRepoPaths()),
-                string.Join("|", dependency.GetSelectedModelRepoPaths(
-                        (rawMetadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>()).Select(file => file.RepoPath),
-                        (rawMetadata.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath))
-                    .OrderBy(path => path, StringComparer.Ordinal)));
-
-            return mismatches.Count == 0
-                ? "Shared import metadata differs from current repo snapshot or Sentis version."
-                : $"Shared import metadata is stale: {string.Join("; ", mismatches)}.";
-        }
-
-        private static void AddMismatch(List<string> mismatches, string fieldName, string actualValue, string expectedValue)
-        {
-            if (!string.Equals(actualValue, expectedValue, StringComparison.Ordinal))
-            {
-                mismatches.Add($"{fieldName} expected `{expectedValue}` but found `{actualValue}`");
-            }
         }
 
         private static bool IsVisualScenarioDependency(DiscoveredModelDependency dependency)

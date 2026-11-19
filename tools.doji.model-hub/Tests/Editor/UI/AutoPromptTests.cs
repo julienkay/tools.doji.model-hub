@@ -121,7 +121,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var viewModel = AutoPromptWindow.BuildViewModel(report);
 
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Convert All"));
-            Assert.That(viewModel.Body, Does.Contain($"Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format"));
+            Assert.That(viewModel.Body, Does.Contain($"Sentis {ProjectImportService.GetSentisVersion()} uses a new model format"));
             Assert.That(viewModel.Body, Does.Contain("they need converting again"));
         }
 

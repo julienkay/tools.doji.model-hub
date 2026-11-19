@@ -208,7 +208,7 @@ namespace Doji.AI.ModelHub.Editor
             return (item?.ConversionCause ?? ConversionCause.None) switch
             {
                 ConversionCause.FormatChanged =>
-                    $"The model is downloaded. Sentis {StatusService.GetCurrentSentisVersion()} uses a new model format, so {files} converting again. {cost}",
+                    $"The model is downloaded. Sentis {ProjectImportService.GetSentisVersion()} uses a new model format, so {files} converting again. {cost}",
                 ConversionCause.SettingsChanged =>
                     $"The model is downloaded. The import settings changed, so {files} converting again. {cost}",
                 _ =>

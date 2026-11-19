@@ -76,7 +76,7 @@ namespace Doji.AI.ModelHub.Editor
             root.Add(BuildCacheSection());
 
             root.Add(UiKit.Text(
-                $"Sentis {StatusService.GetCurrentSentisVersion()}, format generation {SentisCompatibility.GetGeneration(StatusService.GetCurrentSentisVersion())}. Sentis updates reuse converted models; only a new format generation converts them again.",
+                $"Sentis {ProjectImportService.GetSentisVersion()}, format generation {SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion())}. Sentis updates reuse converted models; only a new format generation converts them again.",
                 "ps-footer"));
             UpdateCacheSection(root);
         }

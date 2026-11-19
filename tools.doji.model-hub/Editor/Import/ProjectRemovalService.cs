@@ -25,7 +25,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var sharedMetadataPaths = item.Dependents
-                .Select(dependent => dependent.ImportedMetadata?.SharedImportMetadataPath)
+                .Select(dependent => dependent.Binding?.SharedImportMetadataPath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
@@ -192,7 +192,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             return item.Dependents
-                .Select(dependent => dependent.ImportedMetadata?.ResolvedCommitHash ?? dependent.RawMetadata?.ResolvedCommitHash)
+                .Select(dependent => dependent.Shared?.ResolvedCommitHash ?? dependent.Binding?.ResolvedCommitHash ?? dependent.RawMetadata?.ResolvedCommitHash)
                 .FirstOrDefault(commitHash => !string.IsNullOrWhiteSpace(commitHash));
         }
 

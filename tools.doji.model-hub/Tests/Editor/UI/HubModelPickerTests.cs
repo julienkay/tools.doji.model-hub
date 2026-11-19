@@ -74,7 +74,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 Array.Empty<string>());
             var status = new DependencyStatus(
                 dependency, DependencyState.Missing, DependencyReasonCode.ImportBindingMissing, "Not imported.",
-                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
                 new[] { "onnx/small.onnx" }, ConversionCause.SettingsChanged);
 
             var byPath = HubModelPicker.Build(new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), new[] { status }), null)

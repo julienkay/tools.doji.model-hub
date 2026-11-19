@@ -90,7 +90,7 @@ namespace Doji.AI.ModelHub.Editor
                 var selected = new HashSet<string>(dependency.SelectedFiles, StringComparer.Ordinal);
                 var files = dependency.HasExplicitFileSelection
                     ? dependency.FileEntries.Where(file => ModelFiles.IsModelFile(file.Path)).ToArray()
-                    : (status.ImportedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                    : (status.Shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
                         .Select(file => new ModelDependencyFileDefinition(file.RepoPath))
                         .ToArray();
                 foreach (var file in files)

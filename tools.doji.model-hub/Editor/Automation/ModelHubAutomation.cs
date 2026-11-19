@@ -418,7 +418,7 @@ namespace Doji.AI.ModelHub.Editor
                 ManifestPath = dependency.ManifestPath,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
-                ResolvedCommit = status.ImportedMetadata?.ResolvedCommitHash ?? status.RawMetadata?.ResolvedCommitHash ?? item?.ResolvedCommitHash,
+                ResolvedCommit = status.Shared?.ResolvedCommitHash ?? status.Binding?.ResolvedCommitHash ?? status.RawMetadata?.ResolvedCommitHash ?? item?.ResolvedCommitHash,
                 State = status.State.ToString(),
                 ReasonCode = status.ReasonCode.ToString(),
                 Message = status.MaintainerMessage,

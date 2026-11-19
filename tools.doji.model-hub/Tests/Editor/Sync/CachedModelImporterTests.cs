@@ -149,6 +149,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
+                null,
                 pendingConversions,
                 ConversionCause.FirstConversion);
         }
@@ -214,8 +215,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
                 return Task.FromResult(new ImportedModelArtifact(
                     "binding.json",
-                    new ImportedModelMetadata { Repository = dependency.Repository, RuntimeFiles = Array.Empty<ImportedRuntimeFileMetadata>() },
-                    "shared.json"));
+                    "shared.json",
+                    new SharedImportMetadata { Repository = dependency.Repository, RuntimeFiles = Array.Empty<ImportedRuntimeFileMetadata>() }));
             }
         }
     }

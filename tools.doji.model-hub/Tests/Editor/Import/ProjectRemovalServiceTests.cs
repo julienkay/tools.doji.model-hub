@@ -236,16 +236,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 $"/tmp/{packageId}",
                 $"/tmp/{packageId}/model-hub-manifest.json",
                 new ModelDependencyDefinition("doji/test-model", "main"));
-            var importedMetadata = new ImportedModelMetadata
-            {
-                PackageId = packageId,
-                PackageVersion = "1.0.0",
-                ModelId = "doji/test-model",
+            var importedMetadata = new SharedImportMetadata
+{
                 Repository = "doji/test-model",
-                RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
-                BindingMetadataPath = ProjectPaths.GetImportBindingMetadataFilePath(packageId, "doji/test-model"),
-                SharedImportMetadataPath = sharedMetadataPath,
                 RuntimeFiles = new[]
                 {
                     new ImportedRuntimeFileMetadata
@@ -282,6 +276,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null,
                         ConvertedModelPath,
                         ProjectPaths.GetImportBindingMetadataFilePath(packageId, "doji/test-model"),
+                        new ImportBindingMetadata { SharedImportMetadataPath = sharedMetadataPath, ResolvedCommitHash = "abc123" },
                         importedMetadata)
                 },
                 Array.Empty<ModelHubDiagnostic>(),

@@ -528,6 +528,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 null,
                 null,
+                null,
                 pendingConversions,
                 conversionCause);
         }

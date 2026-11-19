@@ -64,7 +64,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var dependency = status.Dependency;
                     var label = $"{dependency.Repository} ({dependency.PackageDisplayName ?? dependency.PackageId})";
-                    var runtimeFiles = status.ImportedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
+                    var runtimeFiles = status.Shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
                     if (status.State != DependencyState.Ready || runtimeFiles.Length == 0)
                     {
                         if (!forEditor)
@@ -82,7 +82,7 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         repoId = dependency.Repository,
                         revision = dependency.Revision,
-                        commit = status.ImportedMetadata.ResolvedCommitHash,
+                        commit = status.Shared.ResolvedCommitHash,
                         delivery = delivery == ModelDelivery.Download ? "download" : "bundle",
                         cacheRepoId = GetCacheRepoId(dependency.Repository),
                         files = runtimeFiles
@@ -133,7 +133,7 @@ namespace Doji.AI.ModelHub.Editor
             string label)
         {
             var dependency = status.Dependency;
-            var metadata = status.ImportedMetadata;
+            var metadata = status.Shared;
             var repositoryFiles = metadata.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>();
             var knownPaths = repositoryFiles.Select(file => file.RepoPath).ToArray();
             var selected = dependency.GetSelectedRepoPaths(knownPaths);

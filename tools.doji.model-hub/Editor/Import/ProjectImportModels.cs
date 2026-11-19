@@ -155,59 +155,23 @@ namespace Doji.AI.ModelHub.Editor
     }
 
     /// <summary>
-    /// Resolved import metadata used by status, UI, and registry workflows after binding and shared records are joined.
-    /// </summary>
-    [Serializable]
-    internal sealed class ImportedModelMetadata
-    {
-        public string PackageId { get; set; }
-        public string PackageVersion { get; set; }
-        public string ModelId { get; set; }
-        public string Repository { get; set; }
-        public string RequestedRevision { get; set; }
-        public string ResolvedCommitHash { get; set; }
-        public string RawSnapshotRootPath { get; set; }
-        public string RawMetadataPath { get; set; }
-        public RepositoryFileMetadata[] RepositoryFiles { get; set; } = Array.Empty<RepositoryFileMetadata>();
-        public long? RawCacheSizeInBytes { get; set; }
-        public string SentisVersion { get; set; }
-        public string UnityVersion { get; set; }
-        public string RecipeSetHash { get; set; }
-        public string DependencySelectionHash { get; set; }
-        public string BindingMetadataPath { get; set; }
-        public string SharedImportMetadataPath { get; set; }
-        public ImportDiagnostic[] Diagnostics { get; set; } = Array.Empty<ImportDiagnostic>();
-        public ImportedRuntimeFileMetadata[] RuntimeFiles { get; set; } = Array.Empty<ImportedRuntimeFileMetadata>();
-        public string[] SkippedRepoPaths { get; set; } = Array.Empty<string>();
-        public string ImportedAtUtc { get; set; }
-    }
-
-    /// <summary>
-    /// Represents one generated runtime repository snapshot joined with owner binding metadata.
+    /// One import of a dependency: where its binding and shared records are, and the shared record.
     /// </summary>
     internal sealed class ImportedModelArtifact
     {
         public ImportedModelArtifact(
             string bindingMetadataFilePath,
-            ImportedModelMetadata metadata,
-            string sharedMetadataFilePath = null)
+            string sharedMetadataFilePath,
+            SharedImportMetadata shared)
         {
             BindingMetadataFilePath = bindingMetadataFilePath;
-            Metadata = metadata;
             SharedMetadataFilePath = sharedMetadataFilePath;
+            Shared = shared;
         }
 
         public string BindingMetadataFilePath { get; }
         public string SharedMetadataFilePath { get; }
-        public ImportedModelMetadata Metadata { get; }
-        public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => Metadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
-
-        public bool TryGetRuntimeFile(string repoPath, string kind, out ImportedRuntimeFileMetadata file)
-        {
-            file = RuntimeFiles.FirstOrDefault(candidate =>
-                string.Equals(candidate.RepoPath, repoPath, StringComparison.Ordinal) &&
-                string.Equals(candidate.Kind, kind, StringComparison.Ordinal));
-            return file != null;
-        }
+        public SharedImportMetadata Shared { get; }
+        public IReadOnlyList<ImportedRuntimeFileMetadata> RuntimeFiles => Shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
     }
 }

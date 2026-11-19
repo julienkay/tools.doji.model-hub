@@ -220,12 +220,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     throw new InvalidOperationException("Simulated import failure");
                 }
 
-                var metadata = new ImportedModelMetadata
-                {
-                    PackageId = dependency.PackageId,
-                    ModelId = dependency.ModelId,
+                var metadata = new SharedImportMetadata
+{
                     Repository = dependency.Repository,
-                    RequestedRevision = dependency.Revision,
                     ResolvedCommitHash = cachedSnapshot.Metadata.ResolvedCommitHash,
                     RawSnapshotRootPath = cachedSnapshot.SnapshotRootPath,
                     RawMetadataPath = cachedSnapshot.MetadataPath,
@@ -246,8 +243,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
                 return Task.FromResult(new ImportedModelArtifact(
                     ProjectPaths.GetImportBindingMetadataFilePath(dependency.PackageId, dependency.ModelId),
-                    metadata,
-                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1", new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, new[] { "models/model.onnx" }))));
+                    ProjectPaths.GetSharedImportMetadataFilePath(dependency.Repository, cachedSnapshot.Metadata.ResolvedCommitHash, "2.6.1", new ProjectModelRecipeSource().ComputeRecipeSetHash(dependency.Repository, new[] { "models/model.onnx" })),
+                    metadata));
             }
         }
     }

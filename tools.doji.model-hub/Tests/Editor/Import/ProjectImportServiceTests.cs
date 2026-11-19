@@ -61,7 +61,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(artifact.BindingMetadataFilePath)), Is.True);
             Assert.That(File.Exists(ProjectPaths.ToProjectAbsolutePath(artifact.SharedMetadataFilePath)), Is.True);
-            Assert.That(artifact.Metadata.ResolvedCommitHash, Is.EqualTo("commit123"));
+            Assert.That(artifact.Shared.ResolvedCommitHash, Is.EqualTo("commit123"));
             var runtimeFile = artifact.RuntimeFiles.Single();
             var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe());
             var expectedKey = ConvertedModelStore.ComputeKey("etag-single", ProjectImportService.GetEditorConverterId(), recipeHash);
@@ -169,7 +169,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var first = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
             var second = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
-            Assert.That(second.Metadata.ImportedAtUtc, Is.EqualTo(first.Metadata.ImportedAtUtc));
+            Assert.That(second.Shared.ImportedAtUtc, Is.EqualTo(first.Shared.ImportedAtUtc));
         }
 
         /// <summary>
@@ -183,7 +183,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var service = new ProjectImportService(converter);
             var cachedSnapshot = CreateCachedSnapshot();
             var first = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
-            foreach (var path in new[] { first.BindingMetadataFilePath, first.Metadata.SharedImportMetadataPath })
+            foreach (var path in new[] { first.BindingMetadataFilePath, first.SharedMetadataFilePath })
             {
                 var absolutePath = ProjectPaths.ToProjectAbsolutePath(path);
                 var json = File.ReadAllText(absolutePath);
@@ -194,7 +194,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var second = await service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
             Assert.That(converter.CallCount, Is.EqualTo(1));
-            Assert.That(second.Metadata.ImportedAtUtc, Is.EqualTo(first.Metadata.ImportedAtUtc));
+            Assert.That(second.Shared.ImportedAtUtc, Is.EqualTo(first.Shared.ImportedAtUtc));
         }
 
         /// <summary>
@@ -272,9 +272,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var again = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
             Assert.That(artifact.RuntimeFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "model.onnx" }));
-            Assert.That(artifact.Metadata.SkippedRepoPaths, Is.EqualTo(new[] { "model_bnb4.onnx" }));
-            Assert.That(artifact.Metadata.Diagnostics.Single().Message, Does.Contain("model_bnb4.onnx"));
-            Assert.That(again.Metadata.Diagnostics.Single().Message, Is.EqualTo(artifact.Metadata.Diagnostics.Single().Message));
+            Assert.That(artifact.Shared.SkippedRepoPaths, Is.EqualTo(new[] { "model_bnb4.onnx" }));
+            Assert.That(artifact.Shared.Diagnostics.Single().Message, Does.Contain("model_bnb4.onnx"));
+            Assert.That(again.Shared.Diagnostics.Single().Message, Is.EqualTo(artifact.Shared.Diagnostics.Single().Message));
         }
 
         /// <summary>
@@ -291,8 +291,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var artifact = await _service.ImportAsync(CreateDependency(), cachedSnapshot, CancellationToken.None);
 
             Assert.That(artifact.RuntimeFiles.Select(file => file.RepoPath), Is.EqualTo(new[] { "model.onnx" }));
-            Assert.That(artifact.Metadata.SkippedRepoPaths, Is.EqualTo(new[] { "model_q4.onnx" }));
-            Assert.That(artifact.Metadata.Diagnostics.Single().Message, Does.Contain("`MatMulNBits`"));
+            Assert.That(artifact.Shared.SkippedRepoPaths, Is.EqualTo(new[] { "model_q4.onnx" }));
+            Assert.That(artifact.Shared.Diagnostics.Single().Message, Does.Contain("`MatMulNBits`"));
         }
 
         /// <summary>
@@ -316,8 +316,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(againFile.ImportedWeightBytes, Is.EqualTo(firstFile.ImportedWeightBytes));
             Assert.That(againFile.ConvertedWeightBytes, Is.EqualTo(firstFile.ConvertedWeightBytes));
             Assert.That(
-                again.Metadata.Diagnostics.Select(diagnostic => diagnostic.Message),
-                Is.EqualTo(first.Metadata.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                again.Shared.Diagnostics.Select(diagnostic => diagnostic.Message),
+                Is.EqualTo(first.Shared.Diagnostics.Select(diagnostic => diagnostic.Message)));
         }
 
         /// <summary>

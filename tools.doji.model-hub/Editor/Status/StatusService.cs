@@ -287,7 +287,7 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
+                    bindingMetadata));
             }
 
             var sharedMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadata.SharedImportMetadataPath);
@@ -303,7 +303,7 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
+                    bindingMetadata));
             }
 
             if (!ProjectImportService.TryReadSharedMetadata(sharedMetadataAbsolutePath, out var sharedMetadata))
@@ -318,7 +318,7 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, null)));
+                    bindingMetadata));
             }
 
             knownShared = sharedMetadata;
@@ -335,11 +335,11 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata)));
+                    bindingMetadata,
+                    sharedMetadata));
             }
 
-            var importedMetadata = ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
-            var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
+            var runtimeFiles = sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
                 return Pending(Missing(
@@ -352,7 +352,8 @@ namespace Doji.AI.ModelHub.Editor
                     rawMetadata,
                     runtimePreviewAssetPath,
                     bindingMetadataAssetPath,
-                    importedMetadata));
+                    bindingMetadata,
+                    sharedMetadata));
             }
 
             foreach (var runtimeFile in runtimeFiles)
@@ -369,7 +370,8 @@ namespace Doji.AI.ModelHub.Editor
                         rawMetadata,
                         runtimePreviewAssetPath,
                         bindingMetadataAssetPath,
-                        importedMetadata));
+                        bindingMetadata,
+                        sharedMetadata));
                 }
             }
 
@@ -385,7 +387,8 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 runtimePreviewAssetPath,
                 bindingMetadataAssetPath,
-                importedMetadata);
+                bindingMetadata,
+                sharedMetadata);
         }
 
         private static DependencyStatus WithPendingConversions(
@@ -404,7 +407,8 @@ namespace Doji.AI.ModelHub.Editor
                 status.RawMetadata,
                 status.SentisAssetPath,
                 status.BindingMetadataPath,
-                status.ImportedMetadata,
+                status.Binding,
+                status.Shared,
                 pendingConversions,
                 cause);
         }
@@ -484,8 +488,7 @@ namespace Doji.AI.ModelHub.Editor
                 return false;
             }
 
-            var importedMetadata = ProjectImportService.CreateResolvedMetadata(bindingMetadataAssetPath, bindingMetadata, sharedMetadata);
-            var runtimeFiles = importedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
+            var runtimeFiles = sharedMetadata.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
             if (runtimeFiles.Length == 0)
             {
                 return false;
@@ -508,7 +511,8 @@ namespace Doji.AI.ModelHub.Editor
                 null,
                 runtimePreviewAssetPath,
                 bindingMetadataAssetPath,
-                importedMetadata);
+                bindingMetadata,
+                sharedMetadata);
             return true;
         }
 
@@ -547,7 +551,8 @@ namespace Doji.AI.ModelHub.Editor
             RawCacheMetadata rawMetadata,
             string sentisAssetPath,
             string bindingMetadataPath,
-            ImportedModelMetadata importedMetadata = null)
+            ImportBindingMetadata bindingMetadata = null,
+            SharedImportMetadata sharedMetadata = null)
         {
             return new DependencyStatus(
                 dependency,
@@ -560,7 +565,8 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 sentisAssetPath,
                 bindingMetadataPath,
-                importedMetadata);
+                bindingMetadata,
+                sharedMetadata);
         }
 
         private static DependencyStatus Stale(
@@ -573,7 +579,8 @@ namespace Doji.AI.ModelHub.Editor
             RawCacheMetadata rawMetadata,
             string sentisAssetPath,
             string bindingMetadataPath,
-            ImportedModelMetadata importedMetadata = null)
+            ImportBindingMetadata bindingMetadata = null,
+            SharedImportMetadata sharedMetadata = null)
         {
             return new DependencyStatus(
                 dependency,
@@ -586,7 +593,8 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 sentisAssetPath,
                 bindingMetadataPath,
-                importedMetadata);
+                bindingMetadata,
+                sharedMetadata);
         }
 
         private static DependencyStatus Failed(
@@ -621,7 +629,8 @@ namespace Doji.AI.ModelHub.Editor
             RawCacheMetadata rawMetadata,
             string sentisAssetPath,
             string bindingMetadataPath,
-            ImportedModelMetadata importedMetadata = null)
+            ImportBindingMetadata bindingMetadata = null,
+            SharedImportMetadata sharedMetadata = null)
         {
             return new DependencyStatus(
                 dependency,
@@ -634,7 +643,8 @@ namespace Doji.AI.ModelHub.Editor
                 rawMetadata,
                 sentisAssetPath,
                 bindingMetadataPath,
-                importedMetadata);
+                bindingMetadata,
+                sharedMetadata);
         }
     }
 }

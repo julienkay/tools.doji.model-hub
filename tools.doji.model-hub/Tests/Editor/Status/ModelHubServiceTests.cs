@@ -242,13 +242,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 new ModelDependencyDefinition(
                     "doji/test-model",
                     "main"));
-            var metadata = new ImportedModelMetadata
-            {
-                PackageId = "tools.doji.pkg-a",
-                PackageVersion = "1.0.0",
-                ModelId = "model-a",
+            var metadata = new SharedImportMetadata
+{
                 Repository = "doji/test-model",
-                RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.modelhub.json",
@@ -281,6 +277,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         null,
                         "/data/converted/models--doji--test-model/key.sentis",
                         ProjectPaths.GetImportBindingMetadataFilePath("tools.doji.pkg-a", "model-a"),
+                        null,
                         metadata)
                 });
 
@@ -628,19 +625,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     revision,
                     fileEntries ?? ToRequiredFileEntries(selectedFiles)));
 
-            var metadata = new ImportedModelMetadata
-            {
-                PackageId = packageId,
-                PackageVersion = "1.0.0",
-                ModelId = modelId,
+            var metadata = new SharedImportMetadata
+{
                 Repository = "doji/test-model",
-                RequestedRevision = revision,
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = "/cache/doji/test-model/abc123",
                 RawMetadataPath = "/cache/doji/test-model/abc123/snapshot.modelhub.json",
                 RawCacheSizeInBytes = 12,
                 RepositoryFiles = BuildRepositoryFiles(includeExtraRepositoryFile, extraRepositoryFiles),
-                DependencySelectionHash = dependency.DependencySelectionHash,
                 Diagnostics = importedDiagnostics ?? Array.Empty<ImportDiagnostic>(),
                 RuntimeFiles = new[]
                 {
@@ -683,6 +675,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     : null,
                 runtimeAssetPath,
                 ProjectPaths.GetImportBindingMetadataFilePath(packageId, modelId),
+                null,
                 state == DependencyState.Ready ? metadata : null);
         }
 

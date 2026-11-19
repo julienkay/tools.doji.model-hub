@@ -46,7 +46,7 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
             var primary = dependents[0];
             var runtimeFiles = dependents
-                .SelectMany(item => item.ImportedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
+                .SelectMany(item => item.Shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>())
                 .GroupBy(file => file.FilePath, StringComparer.Ordinal)
                 .Select(files => files.First())
                 .OrderBy(file => file.RepoPath, StringComparer.Ordinal)
@@ -58,7 +58,7 @@ namespace Doji.AI.ModelHub.Editor
                     GetUserFacingDependencyMessage(item)))
                 .Concat(
                     dependents
-                        .SelectMany(item => item.ImportedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>())
+                        .SelectMany(item => item.Shared?.Diagnostics ?? Array.Empty<ImportDiagnostic>())
                         .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic?.Message))
                         .Select(diagnostic => new ModelHubDiagnostic(
                             string.IsNullOrWhiteSpace(diagnostic.Severity) ? "info" : diagnostic.Severity,
@@ -77,7 +77,7 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(item => item.RawFilePath)
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
             var resolvedCommitHash = dependents
-                .Select(item => item.ImportedMetadata?.ResolvedCommitHash ?? item.RawMetadata?.ResolvedCommitHash)
+                .Select(item => item.Shared?.ResolvedCommitHash ?? item.Binding?.ResolvedCommitHash ?? item.RawMetadata?.ResolvedCommitHash)
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
             var repositoryFiles = GetRepositoryInventory(primary.Dependency.Repository, primary.Dependency.Revision, dependents);
             var selectedRepoPaths = BuildSelectedRepoPathSet(dependents, repositoryFiles);
@@ -85,7 +85,7 @@ namespace Doji.AI.ModelHub.Editor
             if (!estimatedCacheSizeBytes.HasValue)
             {
                 estimatedCacheSizeBytes = dependents
-                    .Select(item => item.ImportedMetadata?.RawCacheSizeInBytes)
+                    .Select(item => item.Shared?.RawCacheSizeInBytes)
                     .Where(size => size.HasValue)
                     .Select(size => size.Value)
                     .DefaultIfEmpty(0)
@@ -275,7 +275,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             repositoryFiles = dependents
-                .SelectMany(item => item.ImportedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .SelectMany(item => item.Shared?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
                 .Where(file => !ModelDependencyDefinition.IsRepoMetadataFile(file.RepoPath))
                 .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
                 .Select(group => group.First())

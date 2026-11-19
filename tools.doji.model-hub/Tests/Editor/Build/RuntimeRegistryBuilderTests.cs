@@ -216,9 +216,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new ModelDependencyFileDefinition("sentis/model.sentis")
                 }));
             var ready = Ready("tools.doji.a", OnnxFile("onnx/model.onnx"));
-            ready.ImportedMetadata.RuntimeFiles = new[] { OnnxFile("onnx/model.onnx"), SentisFile("sentis/model.sentis") };
+            ready.Shared.RuntimeFiles = new[] { OnnxFile("onnx/model.onnx"), SentisFile("sentis/model.sentis") };
             var status = new DependencyStatus(
-                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, ready.ImportedMetadata);
+                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, null, ready.Shared);
 
             var files = Plan(ModelDelivery.Bundle, status).Registry.packages.Single().models.Single().files;
 
@@ -279,11 +279,9 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     new ModelDependencyFileDefinition("unet/model.onnx"),
                     new ModelDependencyFileDefinition("unet/config.json")
                 }));
-            var metadata = new ImportedModelMetadata
-            {
-                PackageId = "tools.doji.a",
+            var metadata = new SharedImportMetadata
+{
                 Repository = "doji/test-model",
-                RequestedRevision = "main",
                 ResolvedCommitHash = "abc123",
                 RawSnapshotRootPath = snapshot,
                 RepositoryFiles = new[]
@@ -296,7 +294,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 RuntimeFiles = new[] { OnnxFile("unet/model.onnx") }
             };
             return new DependencyStatus(
-                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, metadata);
+                dependency, DependencyState.Ready, DependencyReasonCode.None, "Ready.", null, null, null, null, _convertedPath, null, null, metadata);
         }
 
         private RuntimeRegistryBuilder.Plan Plan(ModelDelivery delivery, params DependencyStatus[] statuses)
@@ -373,11 +371,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 null,
                 file.FilePath,
                 null,
-                new ImportedModelMetadata
-                {
-                    PackageId = packageId,
+                null,
+                new SharedImportMetadata
+{
                     Repository = repository,
-                    RequestedRevision = "main",
                     ResolvedCommitHash = "abc123",
                     RuntimeFiles = new[] { file }
                 });

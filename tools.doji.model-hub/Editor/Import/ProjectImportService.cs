@@ -137,10 +137,7 @@ namespace Doji.AI.ModelHub.Editor
                     WriteJson(bindingMetadataAbsolutePath, existingBindingMetadata);
                 }
 
-                return Task.FromResult(new ImportedModelArtifact(
-                    bindingMetadataFilePath,
-                    CreateResolvedMetadata(bindingMetadataFilePath, existingBindingMetadata, existingSharedMetadata),
-                    sharedMetadataFilePath));
+                return Task.FromResult(new ImportedModelArtifact(bindingMetadataFilePath, sharedMetadataFilePath, existingSharedMetadata));
             }
 
             if (!allowConversion)
@@ -306,10 +303,7 @@ namespace Doji.AI.ModelHub.Editor
             var bindingMetadata = CreateBindingMetadata(dependency, cachedSnapshot, sentisVersion, sharedMetadataFilePath, recipeSetHash);
             WriteJson(bindingMetadataAbsolutePath, bindingMetadata);
 
-            return Task.FromResult(new ImportedModelArtifact(
-                bindingMetadataFilePath,
-                CreateResolvedMetadata(bindingMetadataFilePath, bindingMetadata, sharedMetadata),
-                sharedMetadataFilePath));
+            return Task.FromResult(new ImportedModelArtifact(bindingMetadataFilePath, sharedMetadataFilePath, sharedMetadata));
         }
 
         private static ImportedSourceFileMetadata[] GetCompanions(CachedSnapshot cachedSnapshot, string onnxRepoPath)
@@ -501,41 +495,6 @@ namespace Doji.AI.ModelHub.Editor
                 DependencySelectionHash = dependency.DependencySelectionHash,
                 SharedImportMetadataPath = sharedMetadataFilePath,
                 BoundAtUtc = DateTime.UtcNow.ToString("O")
-            };
-        }
-
-        internal static ImportedModelMetadata CreateResolvedMetadata(
-            string bindingMetadataFilePath,
-            ImportBindingMetadata bindingMetadata,
-            SharedImportMetadata sharedMetadata)
-        {
-            if (bindingMetadata == null)
-            {
-                return null;
-            }
-
-            return new ImportedModelMetadata
-            {
-                PackageId = bindingMetadata.PackageId,
-                PackageVersion = bindingMetadata.PackageVersion,
-                ModelId = bindingMetadata.ModelId,
-                Repository = bindingMetadata.Repository,
-                RequestedRevision = bindingMetadata.RequestedRevision,
-                ResolvedCommitHash = sharedMetadata?.ResolvedCommitHash ?? bindingMetadata.ResolvedCommitHash,
-                RawSnapshotRootPath = sharedMetadata?.RawSnapshotRootPath,
-                RawMetadataPath = sharedMetadata?.RawMetadataPath,
-                RepositoryFiles = sharedMetadata?.RepositoryFiles ?? Array.Empty<RepositoryFileMetadata>(),
-                RawCacheSizeInBytes = sharedMetadata?.RawCacheSizeInBytes,
-                SentisVersion = sharedMetadata?.SentisVersion ?? bindingMetadata.SentisVersion,
-                UnityVersion = sharedMetadata?.UnityVersion,
-                RecipeSetHash = sharedMetadata?.RecipeSetHash ?? bindingMetadata.RecipeSetHash,
-                DependencySelectionHash = bindingMetadata.DependencySelectionHash,
-                BindingMetadataPath = bindingMetadataFilePath,
-                SharedImportMetadataPath = bindingMetadata.SharedImportMetadataPath,
-                Diagnostics = sharedMetadata?.Diagnostics ?? Array.Empty<ImportDiagnostic>(),
-                RuntimeFiles = sharedMetadata?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>(),
-                SkippedRepoPaths = sharedMetadata?.SkippedRepoPaths ?? Array.Empty<string>(),
-                ImportedAtUtc = sharedMetadata?.ImportedAtUtc
             };
         }
 

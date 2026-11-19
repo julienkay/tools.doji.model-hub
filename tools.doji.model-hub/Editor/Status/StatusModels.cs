@@ -125,7 +125,8 @@ namespace Doji.AI.ModelHub.Editor
             RawCacheMetadata rawMetadata,
             string sentisAssetPath,
             string bindingMetadataPath,
-            ImportedModelMetadata importedMetadata,
+            ImportBindingMetadata binding,
+            SharedImportMetadata shared = null,
             IReadOnlyList<string> pendingConversions = null,
             ConversionCause conversionCause = ConversionCause.None)
         {
@@ -141,7 +142,8 @@ namespace Doji.AI.ModelHub.Editor
             RawMetadata = rawMetadata;
             SentisAssetPath = sentisAssetPath;
             BindingMetadataPath = bindingMetadataPath;
-            ImportedMetadata = importedMetadata;
+            Binding = binding;
+            Shared = shared;
         }
 
         public DiscoveredModelDependency Dependency { get; }
@@ -154,7 +156,17 @@ namespace Doji.AI.ModelHub.Editor
         public RawCacheMetadata RawMetadata { get; }
         public string SentisAssetPath { get; }
         public string BindingMetadataPath { get; }
-        public ImportedModelMetadata ImportedMetadata { get; }
+
+        /// <summary>
+        /// This owner's import binding record, when status read one.
+        /// </summary>
+        public ImportBindingMetadata Binding { get; }
+
+        /// <summary>
+        /// The shared import record the binding points at, when status read one.
+        /// </summary>
+        public SharedImportMetadata Shared { get; }
+
         public bool NeedsAttention => State != DependencyState.Ready;
 
         /// <summary>

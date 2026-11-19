@@ -198,7 +198,7 @@ namespace Doji.AI.ModelHub.Editor
         /// Selected ONNX files that Sentis could not convert in the last import.
         /// </summary>
         public IReadOnlyList<string> SkippedOnnxRepoPaths => _dependents
-            .SelectMany(item => item.ImportedMetadata?.SkippedRepoPaths ?? Array.Empty<string>())
+            .SelectMany(item => item.Shared?.SkippedRepoPaths ?? Array.Empty<string>())
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(path => path, StringComparer.Ordinal)

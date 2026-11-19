@@ -231,7 +231,11 @@ namespace Doji.AI.ModelHub
             }
         }
 
-        private static bool TryCreateSymlink(string relativeTarget, string linkPath)
+        /// <summary>
+        /// Creates a symlink at <paramref name="linkPath"/> with a relative target. Returns false when the file system
+        /// or the platform does not allow it.
+        /// </summary>
+        internal static bool TryCreateSymlink(string relativeTarget, string linkPath)
         {
 #if !(UNITY_EDITOR || UNITY_STANDALONE)
             return false;

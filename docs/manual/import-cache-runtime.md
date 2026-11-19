@@ -55,7 +55,7 @@ Downloaded files are stored in the Hugging Face cache, the same cache the `huggi
 
 Cache folder, in this order:
 
-1. a custom folder set in `Project Settings > Doji > AI > AI Model Hub` (Editor only)
+1. a custom folder set in `Preferences > Doji > AI > AI Model Hub` (Editor only, per user)
 2. the `HF_HUB_CACHE` environment variable
 3. the `hub` folder inside the `HF_HOME` environment variable
 4. `~/.cache/huggingface/hub` (on Windows `%USERPROFILE%\.cache\huggingface\hub`)
@@ -157,7 +157,7 @@ Builds then use these copies instead of adding the model, and Play mode loads th
 
 On the Web, `persistentDataPath` lives in the browser's IndexedDB. AI Model Hub saves it after each download and conversion, so a model downloads once per browser.
 
-Desktop players use the same environment variables as the Editor (`HF_HUB_CACHE`, `HF_HOME`). The Project Settings custom folder applies to the Editor only. If your application must not write to the user's Hugging Face cache, bundle its models.
+Desktop players use the same environment variables as the Editor (`HF_HUB_CACHE`, `HF_HOME`). The custom folders in Preferences apply to the Editor only. If your application must not write to the user's Hugging Face cache, bundle its models.
 
 How players read bundled models:
 

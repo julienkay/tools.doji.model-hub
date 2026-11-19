@@ -6,7 +6,8 @@ AI Model Hub has four places in the Editor:
 |---|---|---|
 | Model Hub | `Window > AI Model Hub` | See every model the project needs, download and convert them, choose optional files, change conversion settings, and choose how builds deliver each model. |
 | Setup prompt | Opens by itself | Download and convert the models that installed packages need, in one click. |
-| Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and choose the download cache folder. |
+| Project Settings | `Project Settings > Doji > AI > AI Model Hub` | Add models this project needs directly, choose how builds deliver models, and see the folders in use. |
+| Preferences | `Preferences > Doji > AI > AI Model Hub` | Choose the download cache and the folder of converted models for your user account. |
 | Manifest Inspector | Select an `model-hub-manifest.json` or a project manifest asset | Edit the model list of a package or a project manifest asset. |
 
 Scripts, CI, and coding agents do the same work from a terminal with the Unity CLI. See [Command Line and CI](command-line.md).
@@ -189,7 +190,20 @@ The table works like the [manifest Inspector](#manifest-inspector).
 
 **In builds** sets how builds deliver models by default: **Bundle in the build** or **Download at runtime**. Model Hub can override it per model. See [Builds](import-cache-runtime.md#builds).
 
-**Download cache** sets where the Editor stores downloaded files. **Hugging Face cache** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** stores them in a folder you choose for this project. **In use** shows the folder AI Model Hub uses now.
+**Folders** shows the download cache and the folder of converted models in use, what set each, and the free space on its drive. Change them in Preferences.
+
+### Preferences
+
+`Preferences > Doji > AI > AI Model Hub` sets the folders for your user account, for every project. A change applies at once.
+
+- **Download cache**: **Hugging Face default (shared with Python)** uses the same folder as the `huggingface_hub` Python library: `HF_HUB_CACHE`, then `HF_HOME/hub`, then `~/.cache/huggingface/hub`. Models downloaded by Python tools are then reused in Unity, and the other way round. **Custom folder** uses a folder you choose. On Windows, **Also set it for Python** sets `HF_HOME` (or `HF_HUB_CACHE`) for your user account after asking, so Python uses the same folder.
+- **Converted models and index**: the Sentis models converted from ONNX. The default follows `DOJI_MODEL_HUB_DATA_ROOT`, else a per-user folder.
+
+When you change a folder, AI Model Hub offers to move what is in the old one. On the same drive it renames the folders at once. On another drive it copies the files, checks them, and then asks before it deletes the old folder.
+
+On Windows, Unity Hub passes the environment variables it started with to every Editor it opens. If you change `HF_HOME`, `HF_HUB_CACHE`, or `DOJI_MODEL_HUB_DATA_ROOT` while Unity Hub runs, the Editor keeps the old value, and AI Model Hub shows a warning. Quit Unity Hub, also from the system tray, and start it and the Editor again, or choose the folder here. On macOS, variables set in a shell profile never reach Unity Hub or the Editor; use the custom folder.
+
+A sync checks first that the download and the converted models fit on their drives. If not, it stops and names the space needed and free per drive.
 
 The page also shows the installed Sentis version and its format generation. Sentis updates reuse converted models; AI Model Hub converts them again only when an update starts a new format generation.
 

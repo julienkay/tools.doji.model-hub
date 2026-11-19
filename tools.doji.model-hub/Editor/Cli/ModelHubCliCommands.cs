@@ -23,6 +23,14 @@ namespace Doji.AI.ModelHub.Editor.Cli
             return ModelHubAutomation.GetStatus(repo);
         }
 
+        [CliCommand("model_hub_cache_info",
+            "AI Model Hub: the Hugging Face cache folder and the data folder (index, converted models) in use, what decides each (editor_setting, HF_HUB_CACHE, HF_HOME, DOJI_MODEL_HUB_DATA_ROOT, or default), the free space on their drives, and environment variables that changed after Unity started.",
+            Tags = new[] { Tag })]
+        public static object CacheInfo()
+        {
+            return ModelHubAutomation.GetCacheInfo();
+        }
+
         [CliCommand("model_hub_sync",
             "AI Model Hub: start a background download and import of the models that need it, and return at once. When nothing starts, the result says why for each model. Poll model_hub_sync_status. In batch mode it waits until the sync ends.",
             Tags = new[] { Tag })]

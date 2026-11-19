@@ -100,90 +100,36 @@ namespace Doji.AI.ModelHub.Editor
 
         private static VisualElement BuildCacheSection()
         {
-            var settings = ProjectSettings.instance;
-            var section = UiKit.Section("Download cache");
+            var section = UiKit.Section("Folders", trailing: UiKit.Button("Change in Preferences…", CacheFolderPreferences.Open));
             var card = UiKit.Element("hf-card");
-
-            var location = new RadioButtonGroup(null, new List<string> { "Hugging Face cache", "Custom folder" })
-            {
-                name = "cacheLocation",
-                value = settings.UseDefaultCacheLocation ? 0 : 1
-            };
-            location.AddToClassList("ps-location");
-            card.Add(location);
-
-            var custom = UiKit.Element("ps-custom");
-            custom.name = "customRow";
-            var customField = new TextField { name = "customPath", value = settings.CustomCacheLocation ?? string.Empty, isDelayed = true };
-            customField.textEdition.placeholder = "Choose a folder";
-            custom.Add(customField);
-            custom.Add(UiKit.Button("Browse…", () =>
-            {
-                var folder = EditorUtility.OpenFolderPanel("Choose Cache Folder", customField.value, string.Empty);
-                if (!string.IsNullOrWhiteSpace(folder))
-                {
-                    customField.value = folder;
-                }
-            }));
-            card.Add(custom);
-
-            var path = UiKit.Element("ps-path");
-            path.Add(UiKit.Text("In use", "hf-kv__key"));
-            var pathValue = UiKit.Text(string.Empty, "ps-path__value");
-            pathValue.name = "effectivePath";
-            path.Add(pathValue);
-            path.Add(UiKit.LinkButton(UiKit.RevealInFileBrowserLabel, () => ProjectSettingsLinks.RevealPath(CachePaths.GetCacheRoot())));
-            card.Add(path);
-
-            var source = UiKit.Text(string.Empty, "ps-card-hint");
-            source.name = "cacheSource";
-            card.Add(source);
-
-            card.Add(UiKit.Text(
-                "Unity projects and Python tools that use huggingface_hub share this cache, so each model downloads only once.",
-                "ps-card-hint"));
+            card.name = "cacheFolders";
             section.Add(card);
-
-            location.RegisterValueChangedCallback(evt =>
-            {
-                settings.UpdateCacheLocation(evt.newValue == 0, customField.value);
-                UpdateCacheSection(section);
-            });
-            customField.RegisterValueChangedCallback(evt =>
-            {
-                settings.UpdateCacheLocation(location.value == 0, evt.newValue);
-                UpdateCacheSection(section);
-            });
             return section;
         }
 
         private static void UpdateCacheSection(VisualElement root)
         {
-            var location = root.Q<RadioButtonGroup>("cacheLocation");
-            if (location == null)
+            var card = root.Q("cacheFolders");
+            if (card == null)
             {
                 return;
             }
 
-            UiKit.SetVisible(root.Q("customRow"), location.value == 1);
-
-            var source = root.Q<Label>("cacheSource");
-            if (source != null)
+            card.Clear();
+            var report = CacheFolders.Describe();
+            var stale = CacheFolders.BuildStaleMessage(report.StaleVariables);
+            if (stale != null)
             {
-                var variable = CachePaths.GetDefaultCacheRootSource();
-                source.text = location.value == 1
-                    ? "Other tools keep using their own cache folder unless you point them here."
-                    : variable == null
-                        ? "The same folder the huggingface_hub Python library uses by default."
-                        : $"Set by the {variable} environment variable, as in the huggingface_hub Python library.";
+                card.Add(UiKit.Callout(UiTone.Warning, "Restart Unity Hub to use a changed variable", stale));
             }
 
-            var effectivePath = root.Q<Label>("effectivePath");
-            if (effectivePath != null)
-            {
-                effectivePath.text = CachePaths.GetCacheRoot();
-                effectivePath.tooltip = effectivePath.text;
-            }
+            card.Add(UiKit.Text("Download cache", "hf-overline"));
+            card.Add(CacheFolderPreferences.BuildInUseRow(report.HubCache));
+            card.Add(UiKit.Text("Converted models and index", "hf-overline"));
+            card.Add(CacheFolderPreferences.BuildInUseRow(report.DataRoot));
+            card.Add(UiKit.Text(
+                "These folders are set per user for every project, in Preferences > AI Model Hub. Unity projects and Python tools that use huggingface_hub share the download cache, so each model downloads only once.",
+                "ps-card-hint"));
         }
     }
 }

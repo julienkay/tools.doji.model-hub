@@ -267,4 +267,57 @@ namespace Doji.AI.ModelHub.Editor
         [JsonProperty("removedRevisions")] public string[] RemovedRevisions { get; set; } = Array.Empty<string>();
         [JsonProperty("message")] public string Message { get; set; }
     }
+
+    /// <summary>
+    /// The folders AI Model Hub uses, why, the free space on their drives, and stale environment variables.
+    /// </summary>
+    internal sealed class AutomationCacheInfoResult
+    {
+        /// <summary>
+        /// The Hugging Face cache with the downloads, shared with Python's <c>huggingface_hub</c>.
+        /// </summary>
+        [JsonProperty("hubCache")] public AutomationFolderInfo HubCache { get; set; }
+
+        /// <summary>
+        /// AI Model Hub's data folder with the index and the converted models.
+        /// </summary>
+        [JsonProperty("dataRoot")] public AutomationFolderInfo DataRoot { get; set; }
+
+        /// <summary>
+        /// Folder variables that changed after Unity started (Windows only). Empty when none did.
+        /// </summary>
+        [JsonProperty("staleVariables")] public AutomationStaleVariableInfo[] StaleVariables { get; set; } = Array.Empty<AutomationStaleVariableInfo>();
+
+        /// <summary>
+        /// What to do about the stale variables, or null.
+        /// </summary>
+        [JsonProperty("warning")] public string Warning { get; set; }
+    }
+
+    /// <summary>
+    /// One folder in use.
+    /// </summary>
+    internal sealed class AutomationFolderInfo
+    {
+        [JsonProperty("path")] public string Path { get; set; }
+
+        /// <summary>
+        /// <c>editor_setting</c>, an environment variable name such as <c>HF_HOME</c>, or <c>default</c>.
+        /// </summary>
+        [JsonProperty("source")] public string Source { get; set; }
+
+        [JsonProperty("drive")] public string Drive { get; set; }
+        [JsonProperty("freeBytes")] public long? FreeBytes { get; set; }
+        [JsonProperty("totalBytes")] public long? TotalBytes { get; set; }
+    }
+
+    /// <summary>
+    /// One environment variable whose value in the Editor differs from what newly started programs get.
+    /// </summary>
+    internal sealed class AutomationStaleVariableInfo
+    {
+        [JsonProperty("name")] public string Name { get; set; }
+        [JsonProperty("editorValue")] public string EditorValue { get; set; }
+        [JsonProperty("currentValue")] public string CurrentValue { get; set; }
+    }
 }

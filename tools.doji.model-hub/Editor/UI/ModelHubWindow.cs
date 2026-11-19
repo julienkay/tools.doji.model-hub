@@ -130,6 +130,7 @@ namespace Doji.AI.ModelHub.Editor
 
             root.Add(BuildToolbar());
             root.Add(BuildSyncBanner());
+            root.Add(BuildFoldersWarning());
 
             var body = UiKit.Element("mh-body");
             body.Add(BuildNav());
@@ -172,6 +173,8 @@ namespace Doji.AI.ModelHub.Editor
                 evt.menu.AppendAction(UiKit.RevealInFileBrowserLabel, _ => ProjectSettingsLinks.RevealPath(_cacheOverview?.CacheRoot ?? CachePaths.GetCacheRoot()));
             }));
             nav.Add(_navCache);
+            nav.Add(UiKit.Spacer());
+            nav.Add(BuildFoldersPanel());
             UpdateNav();
             return nav;
         }
@@ -275,6 +278,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             var menu = new GenericMenu();
             menu.AddItem(new GUIContent("Project Settings"), false, () => SettingsService.OpenProjectSettings(EditorOperations.ProjectSettingsPath));
+            menu.AddItem(new GUIContent("Folders (Preferences)"), false, CacheFolderPreferences.Open);
             menu.AddItem(new GUIContent("Open Cache Folder"), false, () => ProjectSettingsLinks.RevealPath(CachePaths.GetCacheRoot()));
             menu.AddSeparator(string.Empty);
             menu.AddItem(new GUIContent("Documentation"), false, () => Application.OpenURL(DocumentationUrl));
@@ -347,6 +351,7 @@ namespace Doji.AI.ModelHub.Editor
         private void Refresh()
         {
             RefreshReport();
+            UpdateFolders();
         }
 
         private void RefreshReport()

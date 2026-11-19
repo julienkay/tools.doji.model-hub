@@ -28,9 +28,32 @@ namespace Doji.AI.ModelHub
         internal const string HomeEnvironmentVariable = "HF_HOME";
 
         /// <summary>
-        /// Maintainer and test override for <see cref="GetDataRoot"/>, so tests never touch the real index.
+        /// Environment variable that sets <see cref="GetDataRoot"/>, AI Model Hub's own folder for the index and the
+        /// converted models. Tests use it so they never touch the real index.
         /// </summary>
         internal const string DataRootEnvironmentVariable = "DOJI_MODEL_HUB_DATA_ROOT";
+
+        /// <summary>
+        /// Source name for a folder that the Editor's per-user folder setting chose.
+        /// </summary>
+        internal const string EditorSettingSource = "editor_setting";
+
+        /// <summary>
+        /// Source name for a folder that no setting or environment variable chose.
+        /// </summary>
+        internal const string DefaultSource = "default";
+
+        /// <summary>
+        /// The environment variables that decide the folders, in the order <see cref="GetDefaultCacheRoot"/> and
+        /// <see cref="GetDataRoot"/> read them.
+        /// </summary>
+        internal static readonly string[] FolderEnvironmentVariables =
+        {
+            HubCacheEnvironmentVariable,
+            LegacyHubCacheEnvironmentVariable,
+            HomeEnvironmentVariable,
+            DataRootEnvironmentVariable
+        };
 
         private const string RepositoryTypePrefix = "models";
         private const string RepositoryIdSeparator = "--";
@@ -40,9 +63,14 @@ namespace Doji.AI.ModelHub
         private static string _persistentDataPath;
 
         /// <summary>
-        /// Editor hook for the Project Settings custom cache folder. Returns null to use the default.
+        /// Editor hook for the per-user custom cache folder. Returns null to use the default. Players never set it.
         /// </summary>
         internal static Func<string> CacheRootOverride { get; set; }
+
+        /// <summary>
+        /// Editor hook for the per-user custom data folder. Returns null to use the default. Players never set it.
+        /// </summary>
+        internal static Func<string> DataRootOverride { get; set; }
 
         /// <summary>
         /// Gets the cache folder in use: the Editor's custom folder, the Hugging Face default in the Editor and on
@@ -117,9 +145,53 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Gets AI Model Hub's per-user folder. It holds AI Model Hub's own index and never Hugging Face cache content.
+        /// Gets what decides <see cref="GetCacheRoot"/>: <see cref="EditorSettingSource"/>, the name of an environment
+        /// variable, or <see cref="DefaultSource"/>.
+        /// </summary>
+        internal static string GetCacheRootSource()
+        {
+            if (!string.IsNullOrWhiteSpace(CacheRootOverride?.Invoke()))
+            {
+                return EditorSettingSource;
+            }
+
+            return UsesSharedHuggingFaceCache ? GetDefaultCacheRootSource() ?? DefaultSource : DefaultSource;
+        }
+
+        /// <summary>
+        /// Gets what decides <see cref="GetDataRoot"/>: <see cref="EditorSettingSource"/>,
+        /// <see cref="DataRootEnvironmentVariable"/>, or <see cref="DefaultSource"/>.
+        /// </summary>
+        internal static string GetDataRootSource()
+        {
+            if (!string.IsNullOrWhiteSpace(DataRootOverride?.Invoke()))
+            {
+                return EditorSettingSource;
+            }
+
+            return ReadPathVariable(DataRootEnvironmentVariable) != null ? DataRootEnvironmentVariable : DefaultSource;
+        }
+
+        /// <summary>
+        /// Gets AI Model Hub's per-user folder. It holds AI Model Hub's own index and the converted models, and never
+        /// Hugging Face cache content. The Editor's custom folder wins, then <c>DOJI_MODEL_HUB_DATA_ROOT</c>, then the
+        /// platform default.
         /// </summary>
         public static string GetDataRoot()
+        {
+            var editorSetting = DataRootOverride?.Invoke();
+            if (!string.IsNullOrWhiteSpace(editorSetting))
+            {
+                return editorSetting;
+            }
+
+            return GetDefaultDataRoot();
+        }
+
+        /// <summary>
+        /// Gets the data folder without the Editor setting: <c>DOJI_MODEL_HUB_DATA_ROOT</c>, then the platform default.
+        /// </summary>
+        internal static string GetDefaultDataRoot()
         {
             var dataRootOverride = ReadPathVariable(DataRootEnvironmentVariable);
             if (dataRootOverride != null)
@@ -325,7 +397,15 @@ namespace Doji.AI.ModelHub
 
         private static string ReadPathVariable(string name)
         {
-            var value = Environment.GetEnvironmentVariable(name);
+            return ExpandPathValue(Environment.GetEnvironmentVariable(name));
+        }
+
+        /// <summary>
+        /// Turns an environment variable value into a path as <c>huggingface_hub</c> does: expands variables and a
+        /// leading <c>~</c>. Returns null for an empty value.
+        /// </summary>
+        internal static string ExpandPathValue(string value)
+        {
             if (string.IsNullOrWhiteSpace(value))
             {
                 return null;

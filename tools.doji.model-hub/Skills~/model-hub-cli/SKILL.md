@@ -55,8 +55,15 @@ when they decide. If a command refuses and names a flag such as `--confirm true`
 | Command | Use |
 |---|---|
 | `model_hub_set_file --repo <id> --path <p> [--enabled true\|false] [--quantization none\|float16\|uint8]` | Change one file like the Files tab. Does not sync: run `model_hub_sync --repo <id>` afterwards. |
+| `model_hub_cache_info` | The download cache (`hubCache`) and the converted-models folder (`dataRoot`): `path`, `source` (`editor_setting`, `HF_HUB_CACHE`, `HF_HOME`, `DOJI_MODEL_HUB_DATA_ROOT`, or `default`), `drive`, `freeBytes`. `staleVariables` and `warning` list variables that changed after Unity started. |
 | `model_hub_cancel` | Stop the running sync. Finished files stay. |
 | `model_hub_remove_cache --repo <id> --confirm true` | Delete one model from the shared cache. |
+
+A sync that fails with "Not enough disk space" names the space needed and free per drive. Run
+`model_hub_cache_info` and tell the user; do not delete cache content to make room. If `staleVariables` is not
+empty, the Editor still uses an old `HF_HOME` or similar value: tell the user to quit Unity Hub (also from the
+tray) and start it and the Editor again, or to choose the folder in `Preferences > Doji > AI > AI Model Hub`.
+Changing folders and setting environment variables is the user's decision; there is no command for it.
 
 `--repo` is case-sensitive and must match the manifest. An unknown id fails with the list of declared models.
 A failed command returns `success: false` with the reason in the error message; fix the argument, do not retry

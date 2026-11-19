@@ -21,7 +21,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             _previousDataRoot = Environment.GetEnvironmentVariable(CachePaths.DataRootEnvironmentVariable);
             Environment.SetEnvironmentVariable(CachePaths.HubCacheEnvironmentVariable, CacheRoot);
             Environment.SetEnvironmentVariable(CachePaths.DataRootEnvironmentVariable, DataRoot);
-            _settingsOverride = ProjectSettings.PushOverride(true, null);
+            _settingsOverride = CacheFolderSettings.PushOverride(null, null);
         }
 
         public string CacheRoot { get; }

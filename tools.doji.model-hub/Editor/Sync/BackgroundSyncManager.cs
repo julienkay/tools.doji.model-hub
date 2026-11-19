@@ -205,6 +205,16 @@ namespace Doji.AI.ModelHub.Editor
                 return new SyncStartResult(false, true, false, running, "A sync is already running. Wait for it to finish, or cancel it.");
             }
 
+            if (CacheFolderMover.IsMoving)
+            {
+                var moving = plan
+                    .Select(entry => entry.IsPending
+                        ? new SyncPlanEntry(entry.Status, entry.Mode, SyncSkipReason.FolderMoving, "A cache folder is being moved.")
+                        : entry)
+                    .ToArray();
+                return new SyncStartResult(false, false, false, moving, "A cache folder is being moved. Start the sync after the move.");
+            }
+
             var pendingItems = plan.Where(entry => entry.IsPending).ToArray();
             if (pendingItems.Length == 0)
             {
@@ -329,6 +339,7 @@ namespace Doji.AI.ModelHub.Editor
                 SyncSkipReason.SelectionRequired => "no optional model file is turned on",
                 SyncSkipReason.RevisionConflict => "requested at more than one revision",
                 SyncSkipReason.AlreadyRunning => "a sync is already running",
+                SyncSkipReason.FolderMoving => "a cache folder is being moved",
                 _ => "pending"
             };
         }
@@ -556,7 +567,8 @@ namespace Doji.AI.ModelHub.Editor
                                 cachedFile = await rawCacheService.GetOrDownloadAsync(
                                     dependency,
                                     downloadProgress,
-                                    operationContext.CancellationToken);
+                                    operationContext.CancellationToken,
+                                    conversionFollows: true);
                                 _progress = _progress?.With(phase: "importing", clearFile: true);
                                 operationContext.ReportProgress(
                                     totalCount == 0 ? 1f : (index + 1f) / totalCount,

@@ -56,10 +56,10 @@ Maintainer rules:
 Project Settings answers only:
 
 - which models this project declares itself (`ProjectSettings/Packages/tools.doji.model-hub/model-hub-manifest.json`)
-- where the shared cache lives, and which folder is in effect
+- which folders are in effect (read-only; they are set per user in `Preferences > Doji > AI > AI Model Hub`)
 - which Sentis version imports target
 
-The default folder is the Hugging Face cache (`HF_HUB_CACHE`, `HF_HOME/hub`, `~/.cache/huggingface/hub`); the page names the environment variable when one decides it. A custom folder overrides it for the project.
+`Preferences > Doji > AI > AI Model Hub` (`CacheFolderPreferences`) chooses the download cache ("Hugging Face default (shared with Python)" or a custom folder, optionally setting `HF_HOME` for Python) and the data folder. Each shows the folder in use, its source, and the free space. **Apply** runs `CacheFolderChange.Apply`, which offers to move the content. The Model Hub window shows both folders at the bottom of the navigation and a warning below the toolbar when a folder variable is stale.
 
 `ProjectSettingsProvider.Refresh()` reloads the open page after other surfaces change the project manifest or cache. It never discards unapplied edits.
 

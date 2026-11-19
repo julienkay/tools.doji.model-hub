@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `Preferences > Doji > AI > AI Model Hub` chooses the download cache and the folder of converted models per user, for every project, and applies at once. It replaces the cache folder in Project Settings. Changing a folder offers to move its content (a rename on the same drive; a checked copy across drives that deletes the old folder only after you confirm), and can set `HF_HOME` for your user account so Python follows.
+- The Model Hub window, Preferences, and Project Settings show both folders, what set each, and the free space on their drives. On Windows they warn when `HF_HOME`, `HF_HUB_CACHE`, or `DOJI_MODEL_HUB_DATA_ROOT` changed after Unity Hub started.
+- A sync stops before it downloads or converts when the files do not fit on their drives, and names the space needed and free per drive.
+- `model_hub_cache_info` Unity CLI command: the folders, their sources, free space, and stale environment variables.
+
 - `Hub.ReadFileAsync`, `Hub.ReadTextAsync` and their synchronous forms, and `PretrainedRepository.ReadFileAsync`, `ReadTextAsync`, `DataFiles` and `HasFile`, to read selected files that are not models, such as configs and tokenizer files. Builds bundle or download these files like their model.
 - A `weights.pb` file next to the only `.onnx` file of its folder counts as that model's external weights.
 - Unity CLI commands, when the project has `com.unity.pipeline`: `model_hub_status`, `model_hub_sync`, `model_hub_sync_status`, `model_hub_set_file`, `model_hub_cancel`, and `model_hub_remove_cache`. Agents, scripts, and CI read each model's state and files, start a background sync and poll its progress and per-model result, and turn optional files on, without the Model Hub window and without dialogs. `unity run <project> --command model_hub_sync` waits until the sync ends. The commands live in `Doji.ModelHub.Editor.Cli`, which compiles only with `com.unity.pipeline`. The package ships a `model-hub-cli` agent skill for them.

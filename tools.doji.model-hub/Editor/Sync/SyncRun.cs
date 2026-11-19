@@ -40,7 +40,12 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Another sync is running. Only one sync runs at a time.
         /// </summary>
-        AlreadyRunning
+        AlreadyRunning,
+
+        /// <summary>
+        /// The cache or data folder is being moved to a new folder.
+        /// </summary>
+        FolderMoving
     }
 
     /// <summary>

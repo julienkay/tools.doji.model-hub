@@ -10,7 +10,7 @@ Use it as navigation aid, not as replacement for reading test code.
 
 Tests run inside the companion project, where a maintainer may have real models imported, and on a machine with a real Hugging Face cache. Fixtures must never wipe either.
 
-- `TestCacheScope` points `HF_HUB_CACHE` and `DOJI_MODEL_HUB_DATA_ROOT` at a temporary folder, so tests never read or write the real cache, the index, or the converted store.
+- `TestCacheScope` points `HF_HUB_CACHE` and `DOJI_MODEL_HUB_DATA_ROOT` at a temporary folder and clears the per-user folder setting for the test, so tests never read or write the real cache, the index, or the converted store.
 - `TestProjectStateScope` records the files under `Assets/StreamingAssets/model-hub` (pulled copies) and `Library/Doji/ModelHub/imports` (or other roots you pass) at `SetUp`, and at `TearDown` deletes only the files and folders the test added. Use fake repository ids such as `doji/test-model`, so test output never overwrites a real import.
 - Pass project files that would change a test's result, such as the conversion overrides and optional-file selections assets, as isolated files. The scope moves them aside for the test and restores them, `.meta` and GUID included, afterwards.
 
@@ -58,6 +58,15 @@ Cache and repository inventory:
   - downloads take the Hub's spelling of the repository id
 - `tools.doji.model-hub/Tests/Editor/Cache/CachePathsTests.cs`
   - a manifest id that differs in letter case finds the existing folder by name, also on Windows
+- `tools.doji.model-hub/Tests/Editor/Cache/CacheFolderTests.cs`
+  - the per-user folder setting wins over `HF_HUB_CACHE`, `HF_HOME`, and `DOJI_MODEL_HUB_DATA_ROOT`; sources are reported
+  - saving applies at once and never writes `EditorPrefs` inside `CacheFolderSettings.PushOverride`
+  - "set it for Python" picks `HF_HOME` or `HF_HUB_CACHE`
+  - stale variables against a `FakeEnvironmentVariables`; `model_hub_cache_info` with a `FakeDiskSpace`
+- `tools.doji.model-hub/Tests/Editor/Cache/CacheFolderMoverTests.cs`
+  - same-drive rename and merge, cross-drive copy that keeps the source until deleted, relative snapshot links, full drive, nested folders
+- `tools.doji.model-hub/Tests/Editor/Cache/DiskSpaceCheckTests.cs`
+  - requirements add up per drive, the message, download and conversion estimates, a full drive stops a download before it starts
 - `tools.doji.downloads` `ResumableDownloaderTests.DownloadFileAsync_ResumesThroughRedirect`
   - resume state keeps the stable `/resolve`-style URL; Range and If-Range reach the redirect target
 - `tools.doji.model-hub/Tests/Editor/Cache/RawCacheTests.cs`

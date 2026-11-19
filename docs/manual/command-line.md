@@ -12,6 +12,7 @@ The commands do what the Model Hub buttons do. They never open a dialog: each co
 | `model_hub_sync [--repo <id>] [--mode full\|download] [--wait true]` | Starts a background download and setup of the models that need it, and returns at once. `full` (the default) downloads and converts; `download` only downloads. |
 | `model_hub_sync_status` | Says whether a sync runs, shows its progress (the model, the current file, bytes downloaded), and the result of the last sync for each model. |
 | `model_hub_set_file --repo <id> --path <path> [--enabled true\|false] [--quantization none\|float16\|uint8]` | Turns an optional file on or off, or sets the quantization of an ONNX file, like the **Files** tab. It does not start a download: run `model_hub_sync` afterwards. |
+| `model_hub_cache_info` | Shows the download cache and the folder of converted models in use, what set each (`editor_setting`, `HF_HUB_CACHE`, `HF_HOME`, `DOJI_MODEL_HUB_DATA_ROOT`, or `default`), the free space on their drives, and environment variables that changed after Unity started. |
 | `model_hub_cancel` | Cancels the running sync. Files that finished downloading stay in the cache. |
 | `model_hub_remove_cache --repo <id> --confirm true` | Deletes one model's downloaded files from the cache on this machine, like **Remove from Cache**. |
 

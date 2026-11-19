@@ -73,6 +73,39 @@
     padding: 4px 8px;
 }
 
+.mh-folders {
+    padding: 8px 10px 10px 10px;
+    border-top-width: 1px;
+    border-top-color: var(--hf-border);
+    cursor: link;
+}
+
+.mh-folders__entry {
+    margin-top: 4px;
+}
+
+.mh-folders__path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mh-folders__meta {
+    font-size: 10px;
+    color: var(--hf-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mh-folders-warning {
+    padding: 6px 10px 0 10px;
+}
+
+.mh-folders-warning .hf-callout__message {
+    white-space: normal;
+}
+
 .mh-nav__label {
     flex-grow: 1;
 }

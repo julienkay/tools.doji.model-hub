@@ -56,6 +56,41 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// The Hugging Face cache folder and the data folder in use, what decides each, the free space on their
+        /// drives, and environment variables that changed after Unity started.
+        /// </summary>
+        public static AutomationCacheInfoResult GetCacheInfo(IEnvironmentVariables environment = null, IDiskSpace diskSpace = null)
+        {
+            var report = CacheFolders.Describe(environment, diskSpace);
+            return new AutomationCacheInfoResult
+            {
+                HubCache = ToFolderInfo(report.HubCache),
+                DataRoot = ToFolderInfo(report.DataRoot),
+                StaleVariables = report.StaleVariables
+                    .Select(variable => new AutomationStaleVariableInfo
+                    {
+                        Name = variable.Name,
+                        EditorValue = variable.EditorValue,
+                        CurrentValue = variable.CurrentValue
+                    })
+                    .ToArray(),
+                Warning = CacheFolders.BuildStaleMessage(report.StaleVariables)
+            };
+        }
+
+        private static AutomationFolderInfo ToFolderInfo(CacheFolderInfo folder)
+        {
+            return new AutomationFolderInfo
+            {
+                Path = folder.Path,
+                Source = folder.Source,
+                Drive = folder.Drive?.RootPath,
+                FreeBytes = folder.Drive?.AvailableBytes,
+                TotalBytes = folder.Drive?.TotalBytes
+            };
+        }
+
+        /// <summary>
         /// Starts a background sync of every model, or of one repository, and returns at once. When nothing starts,
         /// the result says why for each dependency.
         /// </summary>
@@ -496,6 +531,7 @@ namespace Doji.AI.ModelHub.Editor
                 SyncSkipReason.SelectionRequired => "selection_required",
                 SyncSkipReason.RevisionConflict => "revision_conflict",
                 SyncSkipReason.AlreadyRunning => "already_running",
+                SyncSkipReason.FolderMoving => "folder_moving",
                 _ => null
             };
         }

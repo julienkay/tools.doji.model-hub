@@ -100,7 +100,7 @@ The synchronous `Hub.LoadModel` and `Hub.FromPretrained` work only when a local 
 
 | Platform | Cache root | Data root |
 |---|---|---|
-| Editor | Project Settings custom folder (`CacheRootOverride`), else Hugging Face default | per-user Doji folder |
+| Editor | per-user custom folder (`CacheRootOverride`), else Hugging Face default | per-user custom folder (`DataRootOverride`), else `DOJI_MODEL_HUB_DATA_ROOT`, else per-user Doji folder |
 | Windows, macOS, Linux players | Hugging Face default: `HF_HUB_CACHE`, `HF_HOME/hub`, `~/.cache/huggingface/hub` | per-user Doji folder, same as the Editor |
 | Other players | `persistentDataPath/huggingface/hub` | `persistentDataPath/model-hub` |
 

@@ -12,7 +12,15 @@ Cache root, resolved like `huggingface_hub` (`CachePaths.GetDefaultCacheRoot`):
 4. `$XDG_CACHE_HOME/huggingface/hub`
 5. `~/.cache/huggingface/hub` (also on Windows: `%USERPROFILE%\.cache\huggingface\hub`)
 
-A custom folder in Project Settings replaces the default for that project.
+In the Editor, a custom folder in `Preferences > AI Model Hub` replaces the default (`CacheFolderSettings`, stored per user in `EditorPrefs`, hooked in through `CachePaths.CacheRootOverride`). It applies at once and to every project of the user. Players never read it.
+
+`CachePaths.GetCacheRootSource` and `GetDataRootSource` say what decided each folder: `editor_setting`, the environment variable, or `default`. `CacheFolders.Describe` adds the free space of each drive (`IDiskSpace`) and the stale variables.
+
+Stale variables (Windows): Unity Hub passes the environment it started with to every Editor it launches, so a variable changed after Unity Hub started never reaches the Editor. `CacheFolders.FindStaleVariables` compares each folder variable in the process with the value new programs get (user value, else machine value; `IEnvironmentVariables`, faked in tests). The window, Preferences, Project Settings, and `model_hub_cache_info` show the difference. macOS and Linux cannot read that value, so the check reports nothing there.
+
+Changing a folder (`CacheFolderChange.Apply`) offers to move the existing content (`CacheFolderMover`): on the same drive it renames, across drives it checks the free space, copies, checks every file's size, and deletes the source only after the user confirms. A copy recreates each snapshot symlink as a relative link to the copied blob, or copies the content where the new drive allows no symlinks. `.locks` is not copied. A file the destination already has is kept. Syncs do not start during a move. The setting can also set `HF_HOME` (the parent of a folder named `hub`) or else `HF_HUB_CACHE` for the user, after asking, so Python follows.
+
+Before downloading, `RawCacheService` checks that the missing files fit on the cache drive and, for a full sync, that the converted models fit on the data drive (about the ONNX size with external weights). `ProjectImportService.ImportAsync` checks the pending conversions again. Requirements on one drive add up; a sync that does not fit fails with `InsufficientDiskSpaceException`, which names the needed and free size per drive.
 
 Layout, as in `huggingface_hub`:
 
@@ -69,7 +77,7 @@ AI Model Hub's own bookkeeping never goes into the cache. `huggingface_hub` repo
 <data-root>/index/models--<owner>--<name>/<commit>.json.lock
 ```
 
-`DOJI_MODEL_HUB_DATA_ROOT` overrides the data folder for tests and maintainer workflows. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_MODEL_HUB_DATA_ROOT` at temporary folders.
+Data root: the Editor setting, then `DOJI_MODEL_HUB_DATA_ROOT`, then the per-user default. Tests use `TestCacheScope`, which points `HF_HUB_CACHE` and `DOJI_MODEL_HUB_DATA_ROOT` at temporary folders.
 
 The index entry records the repository file list, file etags, and the model card's license fields for one commit. It is a hint, never the truth:
 

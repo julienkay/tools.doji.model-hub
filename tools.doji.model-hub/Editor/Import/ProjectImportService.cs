@@ -80,6 +80,25 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Space the converted models of <paramref name="pendingConversions"/> need in the converted store: about the
+        /// size of each ONNX file and its external weights. Quantized models need less, so this is an upper bound.
+        /// </summary>
+        internal static DiskSpaceRequirement BuildConversionRequirement(
+            IReadOnlyCollection<string> pendingConversions,
+            IEnumerable<RawCacheFileMetadata> cachedFiles)
+        {
+            var files = (cachedFiles ?? Array.Empty<RawCacheFileMetadata>())
+                .Where(file => !string.IsNullOrWhiteSpace(file?.RepoPath))
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().SizeInBytes.GetValueOrDefault(), StringComparer.Ordinal);
+            var bytes = (pendingConversions ?? Array.Empty<string>())
+                .SelectMany(path => new[] { path }.Concat(ModelFiles.GetCompanionFiles(path, files.Keys)))
+                .Distinct(StringComparer.Ordinal)
+                .Sum(path => files.TryGetValue(path, out var size) ? size : 0);
+            return new DiskSpaceRequirement(CachePaths.GetConvertedRoot(), bytes, "converted models");
+        }
+
+        /// <summary>
         /// Returns the recorded import when it is current, otherwise prepares the runtime models of the selected files.
         /// With <paramref name="allowConversion"/> false, an import that would convert an ONNX file throws
         /// <see cref="ConversionRequiredException"/> before it writes anything.
@@ -140,18 +159,19 @@ namespace Doji.AI.ModelHub.Editor
                 return Task.FromResult(new ImportedModelArtifact(bindingMetadataFilePath, sharedMetadataFilePath, existingSharedMetadata));
             }
 
-            if (!allowConversion)
+            var pendingConversions = GetPendingConversions(
+                dependency.Repository,
+                cachedSnapshot.Metadata?.Files,
+                selectedModelRepoPaths.Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx),
+                _recipeSource);
+            if (!allowConversion && pendingConversions.Length > 0)
             {
-                var pendingConversions = GetPendingConversions(
-                    dependency.Repository,
-                    cachedSnapshot.Metadata?.Files,
-                    selectedModelRepoPaths.Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx),
-                    _recipeSource);
-                if (pendingConversions.Length > 0)
-                {
-                    throw new ConversionRequiredException(dependency.Repository, pendingConversions);
-                }
+                throw new ConversionRequiredException(dependency.Repository, pendingConversions);
             }
+
+            DiskSpaceCheck.EnsureFits(
+                $"convert {dependency.Repository}",
+                new[] { BuildConversionRequirement(pendingConversions, cachedSnapshot.Metadata?.Files) });
 
             var runtimeFiles = new List<ImportedRuntimeFileMetadata>();
             var onnxFileCount = 0;

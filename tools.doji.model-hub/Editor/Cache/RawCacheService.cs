@@ -25,10 +25,25 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Returns cached repository snapshot if required files are already present, otherwise downloads only the missing required files.
         /// </summary>
-        public async Task<CachedSnapshot> GetOrDownloadAsync(
+        public Task<CachedSnapshot> GetOrDownloadAsync(
             DiscoveredModelDependency dependency,
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
+        {
+            return GetOrDownloadAsync(dependency, progress, cancellationToken, conversionFollows: false);
+        }
+
+        /// <summary>
+        /// Like <see cref="GetOrDownloadAsync(DiscoveredModelDependency, IProgress{DownloadProgress}, CancellationToken)"/>.
+        /// Before it downloads, it checks that the cache drive holds the missing files and, when
+        /// <paramref name="conversionFollows"/> is true, that the data drive also holds the models converted from the
+        /// downloaded ONNX files. It throws <see cref="InsufficientDiskSpaceException"/> when they do not fit.
+        /// </summary>
+        public async Task<CachedSnapshot> GetOrDownloadAsync(
+            DiscoveredModelDependency dependency,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken,
+            bool conversionFollows)
         {
             var resolvedSnapshot = await _httpClient.ResolveSnapshotVersionAsync(dependency, cancellationToken);
             var snapshotRoot = CachePaths.GetSnapshotRoot(
@@ -52,6 +67,9 @@ namespace Doji.AI.ModelHub.Editor
             var filesToDownload = resolvedSnapshot.Files
                 .Where(file => !HasCurrentCachedFile(snapshotRoot, existingMetadata, file))
                 .ToArray();
+            DiskSpaceCheck.EnsureFits(
+                $"download {resolvedSnapshot.Repository}",
+                BuildDownloadRequirements(resolvedSnapshot.Files, filesToDownload, conversionFollows));
 
             for (var index = 0; index < filesToDownload.Length; index++)
             {
@@ -65,6 +83,38 @@ namespace Doji.AI.ModelHub.Editor
             WriteMetadata(metadataPath, metadata);
             WriteRevisionRef(resolvedSnapshot.Repository, resolvedSnapshot.RequestedRevision, resolvedSnapshot.ResolvedCommitHash);
             return new CachedSnapshot(snapshotRoot, metadataPath, metadata);
+        }
+
+        /// <summary>
+        /// Space a download needs: the missing files in the cache and, when a conversion follows, about the size of the
+        /// downloaded ONNX files and their external weights in the converted store. Quantized models need less, so
+        /// this is an upper bound.
+        /// </summary>
+        internal static DiskSpaceRequirement[] BuildDownloadRequirements(
+            IReadOnlyList<ResolvedRepoFile> repositoryFiles,
+            IReadOnlyList<ResolvedRepoFile> filesToDownload,
+            bool conversionFollows)
+        {
+            var downloadBytes = filesToDownload.Sum(file => file.SizeInBytes.GetValueOrDefault());
+            var requirements = new List<DiskSpaceRequirement>
+            {
+                new(CachePaths.GetCacheRoot(), downloadBytes, "downloads")
+            };
+            if (conversionFollows)
+            {
+                var paths = repositoryFiles.Select(file => file.RepoPath).ToArray();
+                var sizes = repositoryFiles
+                    .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First().SizeInBytes.GetValueOrDefault(), StringComparer.Ordinal);
+                var convertedBytes = filesToDownload
+                    .Where(file => ModelFiles.GetFormat(file.RepoPath) == ModelFileFormat.Onnx)
+                    .SelectMany(file => new[] { file.RepoPath }.Concat(ModelFiles.GetCompanionFiles(file.RepoPath, paths)))
+                    .Distinct(StringComparer.Ordinal)
+                    .Sum(path => sizes.TryGetValue(path, out var size) ? size : 0);
+                requirements.Add(new DiskSpaceRequirement(CachePaths.GetConvertedRoot(), convertedBytes, "converted models"));
+            }
+
+            return requirements.ToArray();
         }
 
         /// <summary>

@@ -51,8 +51,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var sizes = new System.Collections.Generic.Dictionary<string, long?> { ["doji/test-model"] = 1024 };
             var optional = new[]
             {
-                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, 0, new ModelLink("MIT", "https://example.invalid", null)),
-                AutoPromptWindow.BuildOptionalEntry("doji/cached", new[] { "Diffusers" }, null, 0, 0, new ModelLink("MIT", "https://example.invalid", null)),
+                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, true, new ModelLink("MIT", "https://example.invalid", null)),
+                AutoPromptWindow.BuildOptionalEntry("doji/cached", new[] { "Diffusers" }, null, 0, false, new ModelLink("MIT", "https://example.invalid", null)),
             };
 
             var viewModel = AutoPromptWindow.BuildViewModel(report, sizes, null, null, optional);
@@ -78,7 +78,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var report = new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), Array.Empty<DependencyStatus>());
             var optional = new[]
             {
-                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, 0, new ModelLink("MIT", "https://example.invalid", null)),
+                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, true, new ModelLink("MIT", "https://example.invalid", null)),
             };
 
             Assert.That(AutoPromptWindow.BuildViewModel(report, null, null, null, optional).OptionalModels, Is.Empty);
@@ -93,18 +93,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void BuildOptionalModelViewModel_OffersEnableAndDownload()
         {
             var viewModel = AutoPromptWindow.BuildOptionalModelViewModel(
-                "doji/optional", "main", new[] { "Diffusers" }, new[] { "manifest.json" }, 4096, 8192,
+                "doji/optional", "main", new[] { "Diffusers" }, new[] { "manifest.json" }, 4096, true,
                 new ModelLink("MIT", "https://example.invalid", null));
 
             Assert.That(viewModel.Models.Count, Is.EqualTo(1));
             Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
             Assert.That(viewModel.Models[0].DownloadSizeBytes, Is.EqualTo(4096));
             Assert.That(viewModel.Models[0].LicenseLink.Label, Is.EqualTo("MIT"));
-            Assert.That(viewModel.Body, Does.StartWith("doji/optional is an optional model."));
-            Assert.That(viewModel.Body, Does.Contain("Enabling it downloads 4 KB from Hugging Face."));
-            Assert.That(viewModel.Body, Does.Contain("The converted model takes about 8 KB more."));
+            Assert.That(viewModel.Body, Is.EqualTo("doji/optional is an optional model that this project does not use yet."));
             Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.EnableOptionalModel));
-            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable and Download"));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert  ·  4 KB"));
             Assert.That(viewModel.OpenLabel, Is.EqualTo("Open in AI Model Hub"));
             Assert.That(viewModel.OpenRepository, Is.EqualTo("doji/optional"));
             Assert.That(viewModel.DismissLabel, Is.EqualTo("Cancel"));
@@ -117,14 +115,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void BuildOptionalModelViewModel_OffersEnableWhenFilesAreCached()
         {
             var viewModel = AutoPromptWindow.BuildOptionalModelViewModel(
-                "doji/optional", "main", new[] { "Diffusers" }, null, 0, 0,
+                "doji/optional", "main", new[] { "Diffusers" }, null, 0, false,
                 new ModelLink("MIT", "https://example.invalid", null));
 
             Assert.That(viewModel.Models[0].NeedsDownload, Is.False);
-            Assert.That(viewModel.Models[0].WillConvert, Is.False);
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable"));
-            Assert.That(viewModel.Body, Does.Contain("Its files are already on this machine"));
-            Assert.That(viewModel.Body, Does.Not.Contain("Enabling it downloads"));
+
+            var convertOnly = AutoPromptWindow.BuildOptionalModelViewModel(
+                "doji/optional", "main", new[] { "Diffusers" }, null, 0, true,
+                new ModelLink("MIT", "https://example.invalid", null));
+            Assert.That(convertOnly.PrimaryActionLabel, Is.EqualTo("Convert"));
         }
 
         /// <summary>

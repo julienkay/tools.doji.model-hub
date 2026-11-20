@@ -129,7 +129,8 @@ namespace Doji.AI.ModelHub.Editor
                     resolvedCommitHash,
                     repositoryFiles,
                     pathsWhenEnabled);
-                item.ConvertedSizeBytes = CalculateConvertedSize(repositoryFiles, pathsWhenEnabled);
+                item.ConvertsWhenEnabled = pathsWhenEnabled.Count == 0 ||
+                    pathsWhenEnabled.Any(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx);
             }
 
             return item;
@@ -185,39 +186,6 @@ namespace Doji.AI.ModelHub.Editor
 
             return !string.IsNullOrWhiteSpace(resolvedCommitHash) &&
                    CacheBlobs.IsComplete(CachePaths.GetSnapshotFilePath(repository, resolvedCommitHash, file.RepoPath), file.SizeInBytes);
-        }
-
-        /// <summary>
-        /// About the disk space the converted models of the selected ONNX files need: each ONNX file and its external
-        /// weights. Quantized models need less, so this is an upper bound. Null when the file sizes are not known.
-        /// </summary>
-        internal static long? CalculateConvertedSize(
-            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
-            IReadOnlyCollection<string> selectedRepoPaths)
-        {
-            var sizes = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
-                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.First().SizeInBytes, StringComparer.Ordinal);
-            if (sizes.Count == 0)
-            {
-                return null;
-            }
-
-            long total = 0;
-            foreach (var path in (selectedRepoPaths ?? Array.Empty<string>())
-                         .Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx)
-                         .SelectMany(path => new[] { path }.Concat(ModelFiles.GetCompanionFiles(path, sizes.Keys)))
-                         .Distinct(StringComparer.Ordinal))
-            {
-                if (!sizes.TryGetValue(path, out var size) || !size.HasValue)
-                {
-                    return null;
-                }
-
-                total += size.Value;
-            }
-
-            return total;
         }
 
         /// <summary>

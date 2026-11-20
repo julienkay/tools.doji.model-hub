@@ -405,43 +405,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(ModelHubService.CalculatePendingDownloadSize(Repository, null, Array.Empty<RepositoryFileMetadata>(), selected), Is.Null);
         }
 
-        /// <summary>
-        /// Verifies the converted size covers the selected ONNX files and their external weights, and nothing else.
-        /// </summary>
-        [Test]
-        public void ConvertedSize_CountsOnnxFilesAndTheirWeights()
-        {
-            var files = new[]
-            {
-                new RepositoryFileMetadata { RepoPath = "unet/model.onnx", SizeInBytes = 10 },
-                new RepositoryFileMetadata { RepoPath = "unet/weights.pb", SizeInBytes = 20 },
-                new RepositoryFileMetadata { RepoPath = "tokenizer/vocab.json", SizeInBytes = 40 },
-            };
-            var selected = new HashSet<string>(files.Select(file => file.RepoPath), StringComparer.Ordinal);
-
-            Assert.That(ModelHubService.CalculateConvertedSize(files, selected), Is.EqualTo(30));
-            Assert.That(ModelHubService.CalculateConvertedSize(files, new HashSet<string> { "tokenizer/vocab.json" }), Is.EqualTo(0));
-        }
-
-        /// <summary>
-        /// Verifies the dialog names no owner, says when nothing needs downloading, and gives the converted size.
-        /// </summary>
-        [Test]
-        public void EnableDialog_SaysWhenFilesAreAlreadyDownloaded()
-        {
-            var cached = OptionalModelPrompt.BuildMessage(Repository, 0, 2048);
-            Assert.That(cached, Does.StartWith($"{Repository} is an optional model. This project does not use it yet."));
-            Assert.That(cached, Does.Contain("Its files are already on this machine, so nothing needs to download."));
-            Assert.That(cached, Does.Not.Contain("Enabling it downloads"));
-            Assert.That(cached, Does.Contain("The converted model takes about 2 KB more."));
-
-            var missing = OptionalModelPrompt.BuildMessage(Repository, 1024, 0);
-            Assert.That(missing, Does.Contain("Enabling it downloads 1 KB from Hugging Face."));
-            Assert.That(missing, Does.Not.Contain("converted model"));
-
-            Assert.That(OptionalModelPrompt.BuildMessage(Repository, null, null), Does.Contain("Enabling it downloads it from Hugging Face."));
-        }
-
         private static void WriteBlob(string etag, int length)
         {
             var path = CachePaths.GetBlobPath(Repository, etag);

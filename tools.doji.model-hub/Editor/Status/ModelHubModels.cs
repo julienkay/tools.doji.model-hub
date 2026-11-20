@@ -148,10 +148,10 @@ namespace Doji.AI.ModelHub.Editor
         public long? PendingDownloadBytes { get; internal set; }
 
         /// <summary>
-        /// For an optional model that is not enabled: about the disk space its converted models need (the ONNX files
-        /// and their external weights). Zero when it has no ONNX file. Null when the file sizes are not known.
+        /// For an optional model that is not enabled: whether enabling it converts ONNX files. True when its file list
+        /// is unknown.
         /// </summary>
-        public long? ConvertedSizeBytes { get; internal set; }
+        public bool ConvertsWhenEnabled { get; internal set; }
         public long? RuntimeSizeOnDiskBytes { get; }
         public ModelHubItemState State { get; }
         public IReadOnlyList<DependencyStatus> Dependents => _dependents;

@@ -142,7 +142,7 @@ That split matters because imported runtime files are project-owned artifacts, w
 
 Optional models that no owner enabled (`ModelHubItem.IsNotEnabled`) never open the prompt, because `NotEnabled` is not `NeedsAttention`. When the prompt opens for required work, `PromptViewModel.OptionalModels` lists them below the required models in a foldout, **Optional models (N)**, collapsed above three models. Each row has a checkbox that starts off, the bytes missing from the cache (`PendingDownloadBytes`, or **Downloaded** when nothing is missing), and the license link. While the prompt lists optional models, the primary label counts the models (**Download 2**) instead of saying **All**, and `BuildPrimaryActionLabel` adds each checked model to the count and the size. The primary action enables the checked models (`EditorOperations.SetOptionalModelEnabled`) before the sync starts. **Later** enables nothing.
 
-`ShowOptionalModel` opens the same window as a modal utility for one optional model that code loads (`OptionalModelPrompt.OfferEnable`): one card, **Enable and Download** (**Enable** when the files are cached), **Open in AI Model Hub** (selects the model), and **Cancel**. Closing the window cancels.
+`ShowOptionalModel` opens the same window as a modal utility for one optional model that code loads (`OptionalModelPrompt.OfferEnable`): one card, and a primary button that names what enabling does, like the setup prompt (**Download & Convert**, **Download**, or **Convert**, with the size of the files missing from the cache; **Enable** when nothing downloads or converts), **Open in AI Model Hub** (selects the model), and **Cancel**. Closing the window cancels.
 
 ## Repo Metadata File Filtering
 

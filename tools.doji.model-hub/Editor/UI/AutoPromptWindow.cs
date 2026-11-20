@@ -580,13 +580,13 @@ namespace Doji.AI.ModelHub.Editor
                 entry.Owners,
                 entry.ManifestPaths,
                 item.PendingDownloadBytes,
-                item.ConvertedSizeBytes,
+                entry.WillConvert,
                 entry.LicenseLink);
         }
 
         /// <summary>
-        /// One card for an optional model that is not enabled: the bytes missing from the cache, its license, and
-        /// whether it converts.
+        /// One card for an optional model that is not enabled: the bytes missing from the cache, whether it converts,
+        /// and its license.
         /// </summary>
         private static PromptModelEntry BuildOptionalEntry(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
         {
@@ -598,7 +598,7 @@ namespace Doji.AI.ModelHub.Editor
                 (dependents ?? Array.Empty<DependencyStatus>()).Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).ToArray(),
                 (dependents ?? Array.Empty<DependencyStatus>()).Select(status => status.Dependency.ManifestPath).ToArray(),
                 item.PendingDownloadBytes,
-                item.ConvertedSizeBytes,
+                item.ConvertsWhenEnabled,
                 ModelLinks.GetLicenseLink(item.Repository, revision, item.ModelCard, item.Files.Select(file => file.RepoPath)));
         }
 
@@ -607,7 +607,7 @@ namespace Doji.AI.ModelHub.Editor
             IReadOnlyList<string> owners,
             IReadOnlyList<string> manifestPaths,
             long? pendingDownloadBytes,
-            long? convertedSizeBytes,
+            bool willConvert,
             ModelLink licenseLink)
         {
             return new PromptModelEntry(
@@ -618,8 +618,7 @@ namespace Doji.AI.ModelHub.Editor
                 pendingDownloadBytes != 0,
                 pendingDownloadBytes,
                 licenseLink,
-                // Unknown sizes: assume it converts, like the setup prompt does for an unknown file list.
-                convertedSizeBytes != 0,
+                willConvert,
                 isOptional: true);
         }
 
@@ -629,20 +628,22 @@ namespace Doji.AI.ModelHub.Editor
             IReadOnlyList<string> owners,
             IReadOnlyList<string> manifestPaths,
             long? pendingDownloadBytes,
-            long? convertedSizeBytes,
+            bool willConvert,
             ModelLink licenseLink)
         {
-            var model = BuildOptionalEntry(repository, owners, manifestPaths, pendingDownloadBytes, convertedSizeBytes, licenseLink);
-            var needsDownload = model.NeedsDownload;
+            var model = BuildOptionalEntry(repository, owners, manifestPaths, pendingDownloadBytes, willConvert, licenseLink);
+            // Name what enabling does, like the setup prompt does for required models. With nothing to download or
+            // convert, enabling only adds the model to the project.
+            var (label, tooltip, _) = model.NeedsDownload || model.WillConvert
+                ? BuildPrimaryAction(new[] { model })
+                : ("Enable", "Use the model in this project.", PromptPrimaryAction.EnableOptionalModel);
             return new PromptViewModel(
-                "Enable an optional AI model?",
-                OptionalModelPrompt.BuildMessage(repository, pendingDownloadBytes, convertedSizeBytes),
+                "Use an optional AI model?",
+                OptionalModelPrompt.BuildMessage(repository),
                 new[] { model },
                 0,
-                needsDownload ? "Enable and Download" : "Enable",
-                needsDownload
-                    ? "Enable the model in this project's settings, then download it from Hugging Face into the shared cache."
-                    : "Enable the model in this project's settings. The files are already downloaded.",
+                label,
+                tooltip,
                 PromptPrimaryAction.EnableOptionalModel,
                 "Cancel",
                 "Open in AI Model Hub",

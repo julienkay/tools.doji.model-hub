@@ -43,33 +43,11 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// The prompt text. It gives only the bytes that are not in the cache yet, and the disk space of the converted
-        /// model when the model has ONNX files to convert.
+        /// The prompt text. The primary button names what enabling does (download, convert) and the download size.
         /// </summary>
-        internal static string BuildMessage(string repository, long? pendingDownloadBytes, long? convertedSizeBytes)
+        internal static string BuildMessage(string repository)
         {
-            string download;
-            var size = UiKit.FormatBytes(pendingDownloadBytes);
-            if (pendingDownloadBytes == 0)
-            {
-                download = "Its files are already on this machine, so nothing needs to download.";
-            }
-            else if (string.IsNullOrWhiteSpace(size))
-            {
-                download = "Enabling it downloads it from Hugging Face.";
-            }
-            else
-            {
-                download = $"Enabling it downloads {size} from Hugging Face.";
-            }
-
-            var converted = convertedSizeBytes > 0 ? UiKit.FormatBytes(convertedSizeBytes) : null;
-            var conversion = string.IsNullOrWhiteSpace(converted)
-                ? string.Empty
-                : $" The converted model takes about {converted} more.";
-            return $"{repository} is an optional model. This project does not use it yet. " +
-                   $"{download}{conversion} " +
-                   "The choice is saved in the project settings.";
+            return $"{repository} is an optional model that this project does not use yet.";
         }
 
         /// <summary>

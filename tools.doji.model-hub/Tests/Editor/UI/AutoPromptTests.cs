@@ -39,6 +39,53 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies the setup prompt lists optional models below the required ones, unchecked, and that checking one
+        /// adds its missing bytes to the primary button and counts the models instead of saying "All".
+        /// </summary>
+        [Test]
+        public void BuildViewModel_ListsOptionalModelsAndCountsCheckedOnes()
+        {
+            var report = new StatusReport(
+                Array.Empty<ManifestDiscoveryIssue>(),
+                new[] { CreateStatus(DependencyState.Missing) });
+            var sizes = new System.Collections.Generic.Dictionary<string, long?> { ["doji/test-model"] = 1024 };
+            var optional = new[]
+            {
+                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, 0, new ModelLink("MIT", "https://example.invalid", null)),
+                AutoPromptWindow.BuildOptionalEntry("doji/cached", new[] { "Diffusers" }, null, 0, 0, new ModelLink("MIT", "https://example.invalid", null)),
+            };
+
+            var viewModel = AutoPromptWindow.BuildViewModel(report, sizes, null, null, optional);
+
+            Assert.That(viewModel.Models.Select(model => model.Repository), Is.EqualTo(new[] { "doji/test-model" }));
+            Assert.That(viewModel.OptionalModels.Select(model => model.Repository), Is.EqualTo(new[] { "doji/cached", "doji/large" }));
+            Assert.That(viewModel.OptionalModels.All(model => model.IsOptional), Is.True);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Download & Convert  ·  1 KB"));
+
+            var (label, _) = AutoPromptWindow.BuildPrimaryActionLabel(viewModel, new[] { "doji/large" });
+            Assert.That(label, Is.EqualTo("Download & Convert 2  ·  3 KB"));
+
+            var (cachedLabel, _) = AutoPromptWindow.BuildPrimaryActionLabel(viewModel, new[] { "doji/cached" });
+            Assert.That(cachedLabel, Is.EqualTo("Download & Convert 2  ·  1 KB"));
+        }
+
+        /// <summary>
+        /// Verifies optional models alone never fill the setup prompt: without required work it lists none.
+        /// </summary>
+        [Test]
+        public void BuildViewModel_ListsNoOptionalModelsWithoutRequiredWork()
+        {
+            var report = new StatusReport(Array.Empty<ManifestDiscoveryIssue>(), Array.Empty<DependencyStatus>());
+            var optional = new[]
+            {
+                AutoPromptWindow.BuildOptionalEntry("doji/large", new[] { "Diffusers" }, null, 2048, 0, new ModelLink("MIT", "https://example.invalid", null)),
+            };
+
+            Assert.That(AutoPromptWindow.BuildViewModel(report, null, null, null, optional).OptionalModels, Is.Empty);
+            Assert.That(AutoPrompt.ShouldPrompt(report), Is.False);
+        }
+
+        /// <summary>
         /// Verifies the optional-model prompt shows one card, counts only missing bytes, and offers Enable and Download,
         /// Open in AI Model Hub for that model, and Cancel.
         /// </summary>

@@ -85,6 +85,26 @@
     margin-top: 2px;
 }
 
+.sp-optional {
+    border-top-width: 1px;
+    border-top-color: var(--hf-border-subtle);
+    padding-top: 4px;
+}
+
+.sp-optional > .unity-foldout__toggle {
+    margin: 2px 8px;
+    color: var(--hf-text-muted);
+}
+
+.sp-optional > .unity-foldout__content {
+    margin-left: 0;
+}
+
+.sp-model__toggle {
+    margin: 0 10px 0 0;
+    flex-shrink: 0;
+}
+
 .sp-model__size {
     margin-left: 10px;
     color: var(--hf-text-muted);

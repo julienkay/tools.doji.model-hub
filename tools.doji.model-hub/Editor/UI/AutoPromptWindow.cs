@@ -19,6 +19,13 @@ namespace Doji.AI.ModelHub.Editor
 
         private PromptViewModel _viewModel;
         private Action<OptionalModelChoice> _onOptionalChoice;
+        private readonly HashSet<string> _checkedOptional = new(StringComparer.Ordinal);
+        private Button _primaryButton;
+
+        /// <summary>
+        /// The optional section starts collapsed above this many models, so the required models stay in focus.
+        /// </summary>
+        private const int ExpandedOptionalLimit = 3;
 
         internal enum PromptPrimaryAction
         {
@@ -44,9 +51,11 @@ namespace Doji.AI.ModelHub.Editor
             var window = CreateInstance<AutoPromptWindow>();
             window.titleContent = new GUIContent(ModelHubWindow.Title);
             var items = GetHubItems();
-            window._viewModel = BuildViewModel(report, GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items));
+            window._viewModel = BuildViewModel(report, GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items), GetOptionalModels(items));
             window.EnsureModelCards(report, items);
-            var height = Mathf.Min(220f + (window._viewModel.Models.Count * 64f), 560f);
+            var optionalCount = window._viewModel.OptionalModels.Count;
+            var optionalHeight = optionalCount == 0 ? 0f : 28f + (optionalCount <= ExpandedOptionalLimit ? optionalCount * 64f : 0f);
+            var height = Mathf.Min(220f + (window._viewModel.Models.Count * 64f) + optionalHeight, 560f);
             var main = EditorGUIUtility.GetMainWindowPosition();
             window.position = new Rect(
                 main.x + ((main.width - WindowWidth) * 0.5f),
@@ -117,6 +126,17 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// The optional models that no owner enabled, as unchecked cards the setup prompt can enable with the required ones.
+        /// </summary>
+        private static IReadOnlyList<PromptModelEntry> GetOptionalModels(IReadOnlyDictionary<string, ModelHubItem> items)
+        {
+            return items.Values
+                .Where(item => item.IsNotEnabled)
+                .Select(item => BuildOptionalEntry(item, item.NotEnabledDependents))
+                .ToArray();
+        }
+
+        /// <summary>
         /// Whether each repository selects ONNX files, which convert after the download. Repositories whose file list is
         /// unknown are left out, and the prompt assumes they convert.
         /// </summary>
@@ -165,7 +185,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
 
                     var refreshed = GetHubItems();
-                    _viewModel = BuildViewModel(report, GetDownloadSizes(refreshed), GetLicenseLinks(refreshed), GetOnnxSelections(refreshed));
+                    _viewModel = BuildViewModel(report, GetDownloadSizes(refreshed), GetLicenseLinks(refreshed), GetOnnxSelections(refreshed), GetOptionalModels(refreshed));
                     rootVisualElement.Clear();
                     CreateGUI();
                 });
@@ -225,7 +245,7 @@ namespace Doji.AI.ModelHub.Editor
             if (_viewModel == null)
             {
                 var items = GetHubItems();
-                _viewModel = BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items));
+                _viewModel = BuildViewModel(EditorOperations.CreateStatusReport(), GetDownloadSizes(items), GetLicenseLinks(items), GetOnnxSelections(items), GetOptionalModels(items));
             }
 
             var root = rootVisualElement;
@@ -249,6 +269,11 @@ namespace Doji.AI.ModelHub.Editor
                     var row = BuildModelRow(_viewModel.Models[index]);
                     row.EnableInClassList("sp-model--last", index == _viewModel.Models.Count - 1);
                     list.Add(row);
+                }
+
+                if (_viewModel.OptionalModels.Count > 0)
+                {
+                    list.Add(BuildOptionalSection());
                 }
 
                 root.Add(list);
@@ -292,17 +317,83 @@ namespace Doji.AI.ModelHub.Editor
             var primary = UiKit.PrimaryButton(_viewModel.PrimaryActionLabel, RunPrimaryAction);
             primary.tooltip = _viewModel.PrimaryActionTooltip;
             footer.Add(primary);
+            _primaryButton = primary;
+            UpdatePrimaryButton();
             root.Add(footer);
             root.schedule.Execute(() => primary.Focus());
         }
 
-        private static VisualElement BuildModelRow(PromptModelEntry model)
+        /// <summary>
+        /// The optional models that no owner enabled, each with a checkbox that starts off. Checked models are enabled
+        /// and downloaded with the required ones.
+        /// </summary>
+        private VisualElement BuildOptionalSection()
+        {
+            var models = _viewModel.OptionalModels;
+            var foldout = new Foldout
+            {
+                text = $"Optional models ({models.Count})",
+                value = models.Count <= ExpandedOptionalLimit
+            };
+            foldout.AddToClassList("sp-optional");
+            for (var index = 0; index < models.Count; index++)
+            {
+                var model = models[index];
+                var toggle = new Toggle { value = _checkedOptional.Contains(model.Repository) };
+                toggle.AddToClassList("sp-model__toggle");
+                toggle.tooltip = "Enable this optional model in the project's settings and download it with the others.";
+                toggle.RegisterValueChangedCallback(change =>
+                {
+                    if (change.newValue)
+                    {
+                        _checkedOptional.Add(model.Repository);
+                    }
+                    else
+                    {
+                        _checkedOptional.Remove(model.Repository);
+                    }
+
+                    UpdatePrimaryButton();
+                });
+                var row = BuildModelRow(model, toggle);
+                row.EnableInClassList("sp-model--last", index == models.Count - 1);
+                foldout.Add(row);
+            }
+
+            return foldout;
+        }
+
+        private void UpdatePrimaryButton()
+        {
+            if (_primaryButton == null || _viewModel == null)
+            {
+                return;
+            }
+
+            var (label, tooltip) = BuildPrimaryActionLabel(_viewModel, _checkedOptional);
+            _primaryButton.text = label;
+            _primaryButton.tooltip = tooltip;
+        }
+
+        private static VisualElement BuildModelRow(PromptModelEntry model, Toggle toggle = null)
         {
             var row = UiKit.Element("sp-model");
-            row.Add(UiKit.Dot(model.IsConflict ? UiTone.Error : UiTone.Info));
+            if (toggle != null)
+            {
+                row.Add(toggle);
+            }
+            else
+            {
+                row.Add(UiKit.Dot(model.IsConflict ? UiTone.Error : UiTone.Info));
+            }
+
             var text = UiKit.Element("sp-model__text");
             text.Add(UiKit.Text(ModelStatus.GetModelName(model.Repository), "sp-model__name"));
-            var detail = UiKit.Text($"{model.Repository} · for {string.Join(", ", model.Owners)}", "sp-model__detail");
+            var detail = UiKit.Text(
+                model.IsOptional
+                    ? $"{model.Repository} · optional, for {string.Join(", ", model.Owners)}"
+                    : $"{model.Repository} · for {string.Join(", ", model.Owners)}",
+                "sp-model__detail");
             detail.tooltip = string.Join("\n", model.ManifestPaths);
             text.Add(detail);
             text.Add(UiKit.Links(
@@ -317,6 +408,12 @@ namespace Doji.AI.ModelHub.Editor
             if (!string.IsNullOrWhiteSpace(size) && model.NeedsDownload)
             {
                 row.Add(UiKit.Text(size, "sp-model__size"));
+            }
+            else if (!model.NeedsDownload && model.IsOptional)
+            {
+                var downloaded = UiKit.Text("Downloaded", "sp-model__size");
+                downloaded.tooltip = "The files are already in the cache. Enabling the model does not download them again.";
+                row.Add(downloaded);
             }
             else if (!model.NeedsDownload && model.WillConvert)
             {
@@ -340,6 +437,16 @@ namespace Doji.AI.ModelHub.Editor
 
             if (_viewModel.PrimaryAction == PromptPrimaryAction.StartSync)
             {
+                if (_checkedOptional.Count > 0)
+                {
+                    var items = GetHubItems();
+                    EditorOperations.SetOptionalModelEnabled(
+                        _checkedOptional
+                            .Where(items.ContainsKey)
+                            .SelectMany(repository => items[repository].NotEnabledDependents.Select(status => status.Dependency)),
+                        true);
+                }
+
                 EditorOperations.StartBackgroundSync();
                 ProjectSettingsProvider.Refresh();
             }
@@ -354,7 +461,8 @@ namespace Doji.AI.ModelHub.Editor
             StatusReport report,
             IReadOnlyDictionary<string, long?> downloadSizes = null,
             IReadOnlyDictionary<string, ModelLink> licenseLinks = null,
-            IReadOnlyDictionary<string, bool> onnxSelections = null)
+            IReadOnlyDictionary<string, bool> onnxSelections = null,
+            IReadOnlyList<PromptModelEntry> optionalModels = null)
         {
             var attention = (report?.DependencyStatuses ?? Array.Empty<DependencyStatus>())
                 .Where(status => status.NeedsStartupPrompt)
@@ -427,8 +535,36 @@ namespace Doji.AI.ModelHub.Editor
                 body = BuildBody(models.Where(model => !model.IsConflict).ToArray());
             }
 
-            var (label, tooltip, action) = BuildPrimaryAction(models);
-            return new PromptViewModel(headline, body, models, issueCount, label, tooltip, action);
+            // Optional models ride along only when the prompt has required models to download or convert.
+            var optional = models.Any(model => !model.IsConflict)
+                ? (optionalModels ?? Array.Empty<PromptModelEntry>())
+                    .Where(entry => entry != null && models.All(model => !string.Equals(model.Repository, entry.Repository, StringComparison.Ordinal)))
+                    .OrderBy(entry => ModelStatus.GetModelName(entry.Repository), StringComparer.OrdinalIgnoreCase)
+                    .ToArray()
+                : Array.Empty<PromptModelEntry>();
+            var (label, tooltip, action) = BuildPrimaryAction(models, optional.Length > 0);
+            return new PromptViewModel(headline, body, models, issueCount, label, tooltip, action, optionalModels: optional);
+        }
+
+        /// <summary>
+        /// The primary button of the setup prompt with <paramref name="checkedOptional"/> enabled too: their downloads
+        /// add to the size, and the label counts the models.
+        /// </summary>
+        internal static (string Label, string Tooltip) BuildPrimaryActionLabel(
+            PromptViewModel viewModel,
+            IEnumerable<string> checkedOptional)
+        {
+            if (viewModel.PrimaryAction != PromptPrimaryAction.StartSync)
+            {
+                return (viewModel.PrimaryActionLabel, viewModel.PrimaryActionTooltip);
+            }
+
+            var chosen = new HashSet<string>(checkedOptional ?? Array.Empty<string>(), StringComparer.Ordinal);
+            var models = viewModel.Models
+                .Concat(viewModel.OptionalModels.Where(model => chosen.Contains(model.Repository)))
+                .ToArray();
+            var (label, tooltip, _) = BuildPrimaryAction(models, viewModel.OptionalModels.Count > 0);
+            return (label, tooltip);
         }
 
         /// <summary>
@@ -437,18 +573,54 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         internal static PromptViewModel BuildOptionalModelViewModel(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
         {
+            var entry = BuildOptionalEntry(item, dependents);
+            return BuildOptionalModelViewModel(
+                entry.Repository,
+                item.RequestedRevision,
+                entry.Owners,
+                entry.ManifestPaths,
+                item.PendingDownloadBytes,
+                item.ConvertedSizeBytes,
+                entry.LicenseLink);
+        }
+
+        /// <summary>
+        /// One card for an optional model that is not enabled: the bytes missing from the cache, its license, and
+        /// whether it converts.
+        /// </summary>
+        private static PromptModelEntry BuildOptionalEntry(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
+        {
             var revision = string.IsNullOrWhiteSpace(item.ResolvedCommitHash)
                 ? ManifestRevision.NormalizeForResolution(item.RequestedRevision)
                 : item.ResolvedCommitHash;
-            var licenseLink = ModelLinks.GetLicenseLink(item.Repository, revision, item.ModelCard, item.Files.Select(file => file.RepoPath));
-            return BuildOptionalModelViewModel(
+            return BuildOptionalEntry(
                 item.Repository,
-                item.RequestedRevision,
                 (dependents ?? Array.Empty<DependencyStatus>()).Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).ToArray(),
                 (dependents ?? Array.Empty<DependencyStatus>()).Select(status => status.Dependency.ManifestPath).ToArray(),
                 item.PendingDownloadBytes,
                 item.ConvertedSizeBytes,
-                licenseLink);
+                ModelLinks.GetLicenseLink(item.Repository, revision, item.ModelCard, item.Files.Select(file => file.RepoPath)));
+        }
+
+        internal static PromptModelEntry BuildOptionalEntry(
+            string repository,
+            IReadOnlyList<string> owners,
+            IReadOnlyList<string> manifestPaths,
+            long? pendingDownloadBytes,
+            long? convertedSizeBytes,
+            ModelLink licenseLink)
+        {
+            return new PromptModelEntry(
+                repository,
+                (owners ?? Array.Empty<string>()).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
+                (manifestPaths ?? Array.Empty<string>()).Distinct().ToArray(),
+                false,
+                pendingDownloadBytes != 0,
+                pendingDownloadBytes,
+                licenseLink,
+                // Unknown sizes: assume it converts, like the setup prompt does for an unknown file list.
+                convertedSizeBytes != 0,
+                isOptional: true);
         }
 
         internal static PromptViewModel BuildOptionalModelViewModel(
@@ -460,17 +632,8 @@ namespace Doji.AI.ModelHub.Editor
             long? convertedSizeBytes,
             ModelLink licenseLink)
         {
-            var needsDownload = pendingDownloadBytes != 0;
-            var model = new PromptModelEntry(
-                repository,
-                (owners ?? Array.Empty<string>()).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
-                (manifestPaths ?? Array.Empty<string>()).Distinct().ToArray(),
-                false,
-                needsDownload,
-                pendingDownloadBytes,
-                licenseLink,
-                // Unknown sizes: assume it converts, like the setup prompt does for an unknown file list.
-                convertedSizeBytes != 0);
+            var model = BuildOptionalEntry(repository, owners, manifestPaths, pendingDownloadBytes, convertedSizeBytes, licenseLink);
+            var needsDownload = model.NeedsDownload;
             return new PromptViewModel(
                 "Enable an optional AI model?",
                 OptionalModelPrompt.BuildMessage(repository, pendingDownloadBytes, convertedSizeBytes),
@@ -487,7 +650,11 @@ namespace Doji.AI.ModelHub.Editor
                 requestedRevision);
         }
 
-        private static (string Label, string Tooltip, PromptPrimaryAction Action) BuildPrimaryAction(IReadOnlyList<PromptModelEntry> models)
+        /// <param name="countModels">Name the number of models instead of "All", because the prompt also lists
+        /// optional models that "All" might seem to include.</param>
+        private static (string Label, string Tooltip, PromptPrimaryAction Action) BuildPrimaryAction(
+            IReadOnlyList<PromptModelEntry> models,
+            bool countModels = false)
         {
             var syncable = models.Where(model => !model.IsConflict).ToArray();
             if (syncable.Length == 0)
@@ -498,7 +665,7 @@ namespace Doji.AI.ModelHub.Editor
             var downloads = syncable.Where(model => model.NeedsDownload).ToArray();
             var converts = syncable.Any(model => model.WillConvert);
             var verb = downloads.Length == 0 ? "Convert" : converts ? "Download & Convert" : "Download";
-            var label = syncable.Length == 1 ? verb : $"{verb} All";
+            var label = syncable.Length == 1 ? verb : countModels ? $"{verb} {syncable.Length}" : $"{verb} All";
             if (downloads.Length > 0 && downloads.All(model => model.DownloadSizeBytes.HasValue))
             {
                 label = $"{label}  ·  {UiKit.FormatBytes(downloads.Sum(model => model.DownloadSizeBytes.GetValueOrDefault()))}";
@@ -570,8 +737,10 @@ namespace Doji.AI.ModelHub.Editor
                 string dismissLabel = "Later",
                 string openLabel = "Open Model Hub",
                 string openRepository = null,
-                string openRevision = null)
+                string openRevision = null,
+                IReadOnlyList<PromptModelEntry> optionalModels = null)
             {
+                OptionalModels = optionalModels?.ToArray() ?? Array.Empty<PromptModelEntry>();
                 DismissLabel = dismissLabel;
                 OpenLabel = openLabel;
                 OpenRepository = openRepository;
@@ -604,6 +773,12 @@ namespace Doji.AI.ModelHub.Editor
             public string OpenLabel { get; }
 
             public string OpenRepository { get; }
+
+            /// <summary>
+            /// Optional models that no owner enabled, listed below the required ones with a checkbox that starts off.
+            /// Empty unless the prompt has required models to set up.
+            /// </summary>
+            public IReadOnlyList<PromptModelEntry> OptionalModels { get; }
             public string OpenRevision { get; }
         }
 
@@ -618,8 +793,10 @@ namespace Doji.AI.ModelHub.Editor
                 long? downloadSizeBytes,
                 ModelLink licenseLink,
                 bool willConvert = false,
-                ConversionCause conversionCause = ConversionCause.None)
+                ConversionCause conversionCause = ConversionCause.None,
+                bool isOptional = false)
             {
+                IsOptional = isOptional;
                 LicenseLink = licenseLink;
                 WillConvert = willConvert;
                 ConversionCause = conversionCause;
@@ -635,6 +812,11 @@ namespace Doji.AI.ModelHub.Editor
             public IReadOnlyList<string> Owners { get; }
             public IReadOnlyList<string> ManifestPaths { get; }
             public bool IsConflict { get; }
+
+            /// <summary>
+            /// An optional model that no owner enabled. Its download size counts only files missing from the cache.
+            /// </summary>
+            public bool IsOptional { get; }
             public bool NeedsDownload { get; }
             public long? DownloadSizeBytes { get; }
 

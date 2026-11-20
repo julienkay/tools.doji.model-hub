@@ -33,16 +33,9 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var dependents = item.NotEnabledDependents.Where(dependent => Matches(dependent, packageId)).ToArray();
-            var owners = string.Join(", ", dependents
-                .Select(dependent => ModelStatus.GetOwnerDisplayName(dependent.Dependency))
-                .Distinct(StringComparer.Ordinal));
-            var size = UiKit.FormatBytes(item.SourceSizeBytes);
-            var download = string.IsNullOrWhiteSpace(size) ? "Download size: unknown until AI Model Hub asks Hugging Face." : $"Download size: {size}.";
             if (!EditorUtility.DisplayDialog(
                     "Enable Optional Model",
-                    $"{item.Repository} is an optional model of {owners}. It is not enabled in this project, so it is not downloaded.\n\n" +
-                    $"Enable it and download it now? {download}\n\n" +
-                    "The choice is saved in this project's settings, so builds include the model on every machine.",
+                    BuildMessage(item.Repository, item.PendingDownloadBytes, item.ConvertedSizeBytes),
                     "Enable and Download",
                     "Cancel"))
             {
@@ -57,6 +50,34 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Completes when the running sync ends, with true when it succeeded.
         /// </summary>
+        /// <summary>
+        /// The dialog text. It gives only the bytes that are not in the cache yet, and the disk space of the converted
+        /// model when the model has ONNX files to convert.
+        /// </summary>
+        internal static string BuildMessage(string repository, long? pendingDownloadBytes, long? convertedSizeBytes)
+        {
+            string download;
+            if (pendingDownloadBytes == 0)
+            {
+                download = "The files are already downloaded.";
+            }
+            else
+            {
+                var size = UiKit.FormatBytes(pendingDownloadBytes);
+                download = string.IsNullOrWhiteSpace(size)
+                    ? "Download size: unknown until AI Model Hub asks Hugging Face."
+                    : $"Download size: {size}.";
+            }
+
+            var converted = convertedSizeBytes > 0 ? UiKit.FormatBytes(convertedSizeBytes) : null;
+            var conversion = string.IsNullOrWhiteSpace(converted)
+                ? string.Empty
+                : $" The converted model needs about {converted} of disk space.";
+            return $"{repository} is an optional model. It is not enabled in this project, so it is not downloaded.\n\n" +
+                   $"{(pendingDownloadBytes == 0 ? "Enable it now?" : "Enable it and download it now?")} {download}{conversion}\n\n" +
+                   "The choice is saved in this project's settings, so builds include the model on every machine.";
+        }
+
         public static async Task<bool> WaitForSyncAsync()
         {
             var run = await BackgroundSyncManager.WaitForRunToEndAsync();

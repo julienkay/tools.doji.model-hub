@@ -378,6 +378,77 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(exception.Message, Does.Contain(Repository).And.Contain("tools.doji.optional").And.Contain("Window > AI Model Hub"));
         }
 
+        // ---------------------------------------------------------------- Enable dialog
+
+        /// <summary>
+        /// Verifies the download size counts only files that are not in the cache: a complete blob counts as cached
+        /// even when the snapshot does not link to it, a short blob does not.
+        /// </summary>
+        [Test]
+        public void PendingDownloadSize_SkipsCompleteBlobsWithoutSnapshotLinks()
+        {
+            var files = new[]
+            {
+                new RepositoryFileMetadata { RepoPath = "unet/model.onnx", SizeInBytes = 10, EntityTag = "\"aaa\"" },
+                new RepositoryFileMetadata { RepoPath = "unet/weights.pb", SizeInBytes = 20, EntityTag = "bbb" },
+                new RepositoryFileMetadata { RepoPath = "vae/model.onnx", SizeInBytes = 30, EntityTag = "ccc" },
+            };
+            var selected = new HashSet<string>(files.Select(file => file.RepoPath), StringComparer.Ordinal);
+            WriteBlob("aaa", 10);
+            WriteBlob("bbb", 20);
+            WriteBlob("ccc", 5);
+
+            Assert.That(ModelHubService.CalculatePendingDownloadSize(Repository, null, files, selected), Is.EqualTo(30));
+
+            WriteBlob("ccc", 30);
+            Assert.That(ModelHubService.CalculatePendingDownloadSize(Repository, null, files, selected), Is.EqualTo(0));
+            Assert.That(ModelHubService.CalculatePendingDownloadSize(Repository, null, Array.Empty<RepositoryFileMetadata>(), selected), Is.Null);
+        }
+
+        /// <summary>
+        /// Verifies the converted size covers the selected ONNX files and their external weights, and nothing else.
+        /// </summary>
+        [Test]
+        public void ConvertedSize_CountsOnnxFilesAndTheirWeights()
+        {
+            var files = new[]
+            {
+                new RepositoryFileMetadata { RepoPath = "unet/model.onnx", SizeInBytes = 10 },
+                new RepositoryFileMetadata { RepoPath = "unet/weights.pb", SizeInBytes = 20 },
+                new RepositoryFileMetadata { RepoPath = "tokenizer/vocab.json", SizeInBytes = 40 },
+            };
+            var selected = new HashSet<string>(files.Select(file => file.RepoPath), StringComparer.Ordinal);
+
+            Assert.That(ModelHubService.CalculateConvertedSize(files, selected), Is.EqualTo(30));
+            Assert.That(ModelHubService.CalculateConvertedSize(files, new HashSet<string> { "tokenizer/vocab.json" }), Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// Verifies the dialog names no owner, says when nothing needs downloading, and gives the converted size.
+        /// </summary>
+        [Test]
+        public void EnableDialog_SaysWhenFilesAreAlreadyDownloaded()
+        {
+            var cached = OptionalModelPrompt.BuildMessage(Repository, 0, 2048);
+            Assert.That(cached, Does.StartWith($"{Repository} is an optional model. It is not enabled"));
+            Assert.That(cached, Does.Contain("The files are already downloaded."));
+            Assert.That(cached, Does.Not.Contain("Download size"));
+            Assert.That(cached, Does.Contain("The converted model needs about 2 KB of disk space."));
+
+            var missing = OptionalModelPrompt.BuildMessage(Repository, 1024, 0);
+            Assert.That(missing, Does.Contain("Download size: 1 KB."));
+            Assert.That(missing, Does.Not.Contain("converted model"));
+
+            Assert.That(OptionalModelPrompt.BuildMessage(Repository, null, null), Does.Contain("Download size: unknown"));
+        }
+
+        private static void WriteBlob(string etag, int length)
+        {
+            var path = CachePaths.GetBlobPath(Repository, etag);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllBytes(path, new byte[length]);
+        }
+
         // ---------------------------------------------------------------- Helpers
 
         private void UseRegistry()

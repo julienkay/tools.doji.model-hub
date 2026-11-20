@@ -83,9 +83,10 @@ namespace Doji.AI.ModelHub.Editor
             var selectedRepoPaths = BuildSelectedRepoPathSet(dependents, repositoryFiles);
             // An optional model that no owner enabled selects nothing yet. Its size is what enabling it downloads.
             var isNotEnabled = dependents.All(item => item.IsNotEnabled);
+            var pathsWhenEnabled = isNotEnabled ? BuildSelectedRepoPathSet(dependents, repositoryFiles, whenEnabled: true) : null;
             var estimatedCacheSizeBytes = CalculateSelectedSourceSize(
                 repositoryFiles,
-                isNotEnabled ? BuildSelectedRepoPathSet(dependents, repositoryFiles, whenEnabled: true) : selectedRepoPaths);
+                pathsWhenEnabled ?? selectedRepoPaths);
             if (!estimatedCacheSizeBytes.HasValue)
             {
                 estimatedCacheSizeBytes = dependents
@@ -105,7 +106,7 @@ namespace Doji.AI.ModelHub.Editor
             var runtimeSizeOnDiskBytes = CalculateRuntimeSizeOnDisk(runtimeFiles);
             var fileItems = BuildFileItems(primary.Dependency.Repository, dependents, runtimeFiles, repositoryFiles, selectedRepoPaths);
 
-            return new ModelHubItem(
+            var item = new ModelHubItem(
                 primary.Dependency.Repository,
                 primary.Dependency.Revision,
                 resolvedCommitHash,
@@ -121,6 +122,102 @@ namespace Doji.AI.ModelHub.Editor
                 runtimeFiles,
                 fileItems,
                 GetModelCard(primary.Dependency.Repository, primary.Dependency.Revision, dependents));
+            if (pathsWhenEnabled != null)
+            {
+                item.PendingDownloadBytes = CalculatePendingDownloadSize(
+                    primary.Dependency.Repository,
+                    resolvedCommitHash,
+                    repositoryFiles,
+                    pathsWhenEnabled);
+                item.ConvertedSizeBytes = CalculateConvertedSize(repositoryFiles, pathsWhenEnabled);
+            }
+
+            return item;
+        }
+
+        /// <summary>
+        /// The bytes of <paramref name="selectedRepoPaths"/> that are not in the cache yet. A file counts as cached
+        /// when its blob is complete, even if the snapshot does not link to it yet (a download then only links it),
+        /// or when its snapshot file is complete. Null when a missing file has no known size.
+        /// </summary>
+        internal static long? CalculatePendingDownloadSize(
+            string repository,
+            string resolvedCommitHash,
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            IReadOnlyCollection<string> selectedRepoPaths)
+        {
+            var files = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .Where(file => selectedRepoPaths?.Contains(file.RepoPath) == true)
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToArray();
+            if (files.Length == 0)
+            {
+                return null;
+            }
+
+            long total = 0;
+            foreach (var file in files)
+            {
+                if (IsInCache(repository, resolvedCommitHash, file))
+                {
+                    continue;
+                }
+
+                if (!file.SizeInBytes.HasValue)
+                {
+                    return null;
+                }
+
+                total += file.SizeInBytes.Value;
+            }
+
+            return total;
+        }
+
+        private static bool IsInCache(string repository, string resolvedCommitHash, RepositoryFileMetadata file)
+        {
+            if (!string.IsNullOrWhiteSpace(CachePaths.NormalizeEtag(file.EntityTag)) &&
+                CacheBlobs.IsComplete(CachePaths.GetBlobPath(repository, file.EntityTag), file.SizeInBytes))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(resolvedCommitHash) &&
+                   CacheBlobs.IsComplete(CachePaths.GetSnapshotFilePath(repository, resolvedCommitHash, file.RepoPath), file.SizeInBytes);
+        }
+
+        /// <summary>
+        /// About the disk space the converted models of the selected ONNX files need: each ONNX file and its external
+        /// weights. Quantized models need less, so this is an upper bound. Null when the file sizes are not known.
+        /// </summary>
+        internal static long? CalculateConvertedSize(
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            IReadOnlyCollection<string> selectedRepoPaths)
+        {
+            var sizes = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
+                .GroupBy(file => file.RepoPath, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().SizeInBytes, StringComparer.Ordinal);
+            if (sizes.Count == 0)
+            {
+                return null;
+            }
+
+            long total = 0;
+            foreach (var path in (selectedRepoPaths ?? Array.Empty<string>())
+                         .Where(path => ModelFiles.GetFormat(path) == ModelFileFormat.Onnx)
+                         .SelectMany(path => new[] { path }.Concat(ModelFiles.GetCompanionFiles(path, sizes.Keys)))
+                         .Distinct(StringComparer.Ordinal))
+            {
+                if (!sizes.TryGetValue(path, out var size) || !size.HasValue)
+                {
+                    return null;
+                }
+
+                total += size.Value;
+            }
+
+            return total;
         }
 
         /// <summary>

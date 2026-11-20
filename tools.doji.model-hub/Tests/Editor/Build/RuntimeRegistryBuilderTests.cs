@@ -386,7 +386,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 CreateDependency(packageId, "doji/test-model"),
                 DependencyState.Missing,
                 reasonCode,
-                "Import binding metadata file is missing.",
+                "Not set up in this project yet.",
                 null,
                 null,
                 null,

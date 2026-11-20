@@ -20,7 +20,7 @@ namespace Doji.AI.ModelHub.Editor
         private const string OperationName = "AI Model Hub Sync";
         private static readonly EditorPersistentOperationRunner Runner = new(
             OperationName,
-            "Syncing model dependencies",
+            "Setting up AI models",
             GetStatePath());
 
         private static readonly List<TaskCompletionSource<SyncRunRecord>> RunEndWaiters = new();

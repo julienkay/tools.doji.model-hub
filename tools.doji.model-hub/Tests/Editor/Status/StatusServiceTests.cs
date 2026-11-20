@@ -52,7 +52,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheRevisionRefMissing));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw cache revision ref is missing."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Not downloaded on this machine."));
         }
 
         [Test]
@@ -78,7 +78,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingMissing));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import binding metadata file is missing."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Not set up in this project yet."));
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SelectionRequired));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("This dependency has optional model files, but none are currently enabled for this project owner."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Every model file is optional, and none is turned on. Turn one on in the Files tab."));
         }
 
         /// <summary>
@@ -199,7 +199,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.ReadyCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.None));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Raw repo snapshot, import binding, and generated runtime files are current."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Downloaded and set up."));
         }
 
         /// <summary>
@@ -291,7 +291,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.ReadyCount, Is.EqualTo(1));
             Assert.That(
                 report.DependencyStatuses[0].MaintainerMessage,
-                Is.EqualTo("Generated runtime files are present. Raw cache has been removed from this machine."));
+                Is.EqualTo("Set up in this project. Its downloaded files were removed from the cache on this machine."));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheRemovedAfterImport));
         }
 
@@ -307,7 +307,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SharedImportMetadataMissing));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Shared import metadata file is missing."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("The converted model is missing. Convert it again."));
         }
 
         /// <summary>
@@ -326,7 +326,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].IsImportPending, Is.True);
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.SharedImportMetadataInvalid));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Shared import metadata is invalid."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("The converted model's record is damaged. Convert it again."));
         }
 
         [Test]
@@ -342,7 +342,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(
                 report.DependencyStatuses[0].MaintainerMessage,
-                Does.StartWith("Runtime model is missing: models/model.onnx"));
+                Does.StartWith("A converted model file is missing: models/model.onnx"));
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.RuntimeFileMissing));
         }
 
@@ -366,7 +366,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(report.MissingCount, Is.EqualTo(1));
             Assert.That(report.DependencyStatuses[0].IsImportPending, Is.True);
             Assert.That(report.DependencyStatuses[0].ReasonCode, Is.EqualTo(DependencyReasonCode.ImportBindingInvalid));
-            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("Import binding metadata is invalid."));
+            Assert.That(report.DependencyStatuses[0].MaintainerMessage, Is.EqualTo("The project's setup record is damaged. Set the model up again."));
         }
 
         [Test]

@@ -320,8 +320,8 @@ namespace Doji.AI.ModelHub.Editor
                 DependencyReasonCode.RawSnapshotRootMissing => "The downloaded files are missing. Download this model again.",
                 DependencyReasonCode.RawCacheFilesMissing => "Some selected files are not downloaded yet. Update the model.",
                 DependencyReasonCode.RevisionConflict => null,
-                DependencyReasonCode.RawCacheRevisionRefUnreadable => "Cached revision pointer could not be read. Download this model again.",
-                DependencyReasonCode.SelectionRequired => "Choose at least one optional model file for this manifest owner.",
+                DependencyReasonCode.RawCacheRevisionRefUnreadable => "The cache entry is damaged. Download this model again.",
+                DependencyReasonCode.SelectionRequired => "Turn on at least one optional model file in the Files tab.",
                 DependencyReasonCode.InvalidSelection => status.MaintainerMessage,
                 DependencyReasonCode.RawCacheRemovedAfterImport => null,
                 _ => status.MaintainerMessage
@@ -352,7 +352,7 @@ namespace Doji.AI.ModelHub.Editor
                     .OrderBy(label => label, StringComparer.Ordinal)
                     .ToArray();
                 var errorMessage =
-                    $"Revision conflict: '{repositoryGroup.Key}' is declared at multiple revisions ({string.Join(", ", revisions)}). AI Model Hub supports only one revision per model per project. Resolve manifests to one revision before importing or removing files. Conflicting dependents: {string.Join(", ", owners)}.";
+                    $"Revision conflict: '{repositoryGroup.Key}' is declared at multiple revisions ({string.Join(", ", revisions)}). A project can use only one revision per model. Change the manifests to request one revision before you set it up or remove it. Requested by: {string.Join(", ", owners)}.";
                 foreach (var item in repositoryGroup)
                 {
                     item.AddDiagnostic(new ModelHubDiagnostic("error", errorMessage));

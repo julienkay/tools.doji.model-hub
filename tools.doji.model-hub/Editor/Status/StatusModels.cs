@@ -268,7 +268,7 @@ namespace Doji.AI.ModelHub.Editor
         public string BuildMaintainerMessage()
         {
             return
-                $"Model '{Repository}' is declared at multiple revisions ({string.Join(", ", RequestedRevisions)}). AI Model Hub supports only one revision per model per project. Resolve manifests to one revision before importing or removing project artifacts.";
+                $"Model '{Repository}' is declared at multiple revisions ({string.Join(", ", RequestedRevisions)}). A project can use only one revision per model. Change the manifests to request one revision before you set it up or remove it.";
         }
     }
 

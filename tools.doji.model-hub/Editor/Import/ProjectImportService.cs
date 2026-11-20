@@ -113,7 +113,7 @@ namespace Doji.AI.ModelHub.Editor
 
             var sentisVersion = GetSentisVersion();
             var resolvedCommitHash = cachedSnapshot.Metadata?.ResolvedCommitHash
-                ?? throw new InvalidOperationException($"Cached snapshot for '{dependency.Repository}' is missing resolved commit hash.");
+                ?? throw new InvalidOperationException($"The cache entry of '{dependency.Repository}' does not name its commit. Download it again.");
             var bindingMetadataFilePath = ProjectPaths.GetImportBindingMetadataFilePath(
                 dependency.PackageId,
                 dependency.ModelId);
@@ -414,7 +414,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
             }
 
-            return mismatches.Count == 0 ? null : $"Import binding metadata is stale: {string.Join("; ", mismatches)}.";
+            return mismatches.Count == 0 ? null : $"The project's setup is out of date: {string.Join("; ", mismatches)}.";
         }
 
         /// <summary>
@@ -446,7 +446,7 @@ namespace Doji.AI.ModelHub.Editor
                 mismatches.Add("a runtime file record is incomplete");
             }
 
-            return mismatches.Count == 0 ? null : $"Shared import metadata is stale: {string.Join("; ", mismatches)}.";
+            return mismatches.Count == 0 ? null : $"The converted model is out of date: {string.Join("; ", mismatches)}.";
         }
 
         private static string JoinRepoPaths(IEnumerable<RepositoryFileMetadata> files)

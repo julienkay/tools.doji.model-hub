@@ -49,25 +49,27 @@ namespace Doji.AI.ModelHub.Editor
         internal static string BuildMessage(string repository, long? pendingDownloadBytes, long? convertedSizeBytes)
         {
             string download;
+            var size = UiKit.FormatBytes(pendingDownloadBytes);
             if (pendingDownloadBytes == 0)
             {
-                download = "The files are already downloaded.";
+                download = "Its files are already on this machine, so nothing needs to download.";
+            }
+            else if (string.IsNullOrWhiteSpace(size))
+            {
+                download = "Enabling it downloads it from Hugging Face.";
             }
             else
             {
-                var size = UiKit.FormatBytes(pendingDownloadBytes);
-                download = string.IsNullOrWhiteSpace(size)
-                    ? "Download size: unknown until AI Model Hub asks Hugging Face."
-                    : $"Download size: {size}.";
+                download = $"Enabling it downloads {size} from Hugging Face.";
             }
 
             var converted = convertedSizeBytes > 0 ? UiKit.FormatBytes(convertedSizeBytes) : null;
             var conversion = string.IsNullOrWhiteSpace(converted)
                 ? string.Empty
-                : $" The converted model needs about {converted} of disk space.";
-            return $"{repository} is an optional model. It is not enabled in this project, so it is not downloaded. " +
+                : $" The converted model takes about {converted} more.";
+            return $"{repository} is an optional model. This project does not use it yet. " +
                    $"{download}{conversion} " +
-                   "The choice is saved in this project's settings, so builds include the model on every machine.";
+                   "The choice is saved in the project settings.";
         }
 
         /// <summary>

@@ -256,7 +256,7 @@ namespace Doji.AI.ModelHub
 
             return selected.Any(ModelFiles.IsModelFile)
                 ? null
-                : $"Dependency `{ModelId}` does not select any model file. Select at least one `.onnx` or `.sentis` file.";
+                : $"Model `{ModelId}` does not select any model file. Select at least one `.onnx` or `.sentis` file.";
         }
 
         internal bool RequiresRepoPath(

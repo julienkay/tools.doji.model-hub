@@ -76,8 +76,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
 
-            Assert.That(message, Does.Contain("AI Model Hub: unresolved model dependencies."));
-            Assert.That(message, Does.Contain("(2 dependencies, 1 discovery issue)"));
+            Assert.That(message, Does.Contain("AI Model Hub: some models need setup."));
+            Assert.That(message, Does.Contain("(2 models, 1 manifest error)"));
             Assert.That(message, Does.Contain(EditorOperations.ProjectSettingsPath));
             Assert.That(message, Does.Contain("Window > AI Model Hub"));
         }
@@ -98,8 +98,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
 
-            Assert.That(message, Does.Contain("(1 dependency)"));
-            Assert.That(message, Does.Not.Contain("dependencyy"));
+            Assert.That(message, Does.Contain("(1 model)"));
+            Assert.That(message, Does.Not.Contain("modell"));
         }
 
         /// <summary>
@@ -123,7 +123,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
 
             var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
 
-            Assert.That(message, Is.EqualTo("AI Model Hub: no unresolved model dependencies."));
+            Assert.That(message, Is.EqualTo("AI Model Hub: every model is ready."));
         }
 
         /// <summary>
@@ -141,13 +141,13 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         projectOwnerId,
                         "Project",
                         DependencyState.Missing,
-                        "Raw cache revision ref is missing.",
+                        "Not downloaded on this machine.",
                         DependencyReasonCode.RawCacheRevisionRefMissing)
                 });
 
             var message = EditorOperations.BuildUnresolvedDependencyReminder(report);
 
-            Assert.That(message, Does.Contain("(1 dependency)"));
+            Assert.That(message, Does.Contain("(1 model)"));
         }
 
         private static DependencyStatus CreateDependencyStatus(

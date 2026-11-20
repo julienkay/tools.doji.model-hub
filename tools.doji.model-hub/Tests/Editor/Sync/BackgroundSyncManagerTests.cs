@@ -274,7 +274,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var status = BuildStatus(dependency);
 
             Assert.That(status.ReasonCode, Is.EqualTo(DependencyReasonCode.RawCacheFilesMissing));
-            Assert.That(status.MaintainerMessage, Does.Contain("file list is not known"));
+            Assert.That(status.MaintainerMessage, Does.Contain("does not have this model's file list"));
         }
 
         /// <summary>

@@ -68,7 +68,7 @@ namespace Doji.AI.ModelHub.Editor
                 return new ModelStatus(
                     ModelStatusKind.NotEnabled,
                     "Not enabled",
-                    "Optional model. It is not enabled in this project, so it is not downloaded, converted, or included in builds. Enable it to use it.",
+                    "Optional model. This project does not use it yet, and builds do not include it. Enable it to use it.",
                     UiTone.Neutral,
                     ModelActionKind.EnableModel,
                     "Enable");
@@ -136,7 +136,7 @@ namespace Doji.AI.ModelHub.Editor
                 return new ModelStatus(
                     ModelStatusKind.UpdateNeeded,
                     "Update needed",
-                    "The files are downloaded, but AI Model Hub does not know this model's file list on this machine, so it cannot tell whether every file is there. Update to check and download what is missing.",
+                    "AI Model Hub does not have this model's file list, so it cannot check that every file is downloaded. Update to check and download what is missing.",
                     UiTone.Info,
                     ModelActionKind.Sync,
                     "Update");

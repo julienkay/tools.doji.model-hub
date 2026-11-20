@@ -289,7 +289,7 @@ namespace Doji.AI.ModelHub.Editor
 
             card.Add(UiKit.KeyValue("Revisions", repository.Refs.Count > 0
                 ? string.Join(", ", repository.Refs)
-                : $"{repository.SnapshotCount} snapshot(s), no named revision"));
+                : $"{repository.SnapshotCount} cached commit(s), no branch or tag"));
             var cachedModels = revision == null
                 ? Array.Empty<string>()
                 : CacheOverviewService.GetCachedModelFiles(CacheOverviewService.GetSnapshotFiles(repository.FolderPath, revision));

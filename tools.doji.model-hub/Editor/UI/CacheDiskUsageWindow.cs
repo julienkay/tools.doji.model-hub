@@ -422,7 +422,7 @@ namespace Doji.AI.ModelHub.Editor
                     _card.Add(UiKit.KeyValue("Partial downloads", $"{partialCount} · {UiKit.FormatBytes(repository.PartialSizeInBytes)}"));
                 }
 
-                _card.Add(UiKit.KeyValue("Revisions", repository.Refs.Count > 0 ? string.Join(", ", repository.Refs) : $"{repository.SnapshotCount} snapshot(s), no named revision"));
+                _card.Add(UiKit.KeyValue("Revisions", repository.Refs.Count > 0 ? string.Join(", ", repository.Refs) : $"{repository.SnapshotCount} cached commit(s), no branch or tag"));
                 if (!repository.IsModel)
                 {
                     _card.Add(UiKit.KeyValue("Type", repository.RepoType));

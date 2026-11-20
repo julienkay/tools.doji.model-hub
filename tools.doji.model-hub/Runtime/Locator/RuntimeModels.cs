@@ -236,7 +236,7 @@ namespace Doji.AI.ModelHub
             var owner = packageId == null ? string.Empty : $" of package '{packageId}'";
             var rebuild = Application.isEditor ? string.Empty : " Then build the player again.";
             return new InvalidOperationException(
-                $"AI Model Hub model '{repoId}'{owner} is optional and not enabled in this project, so it was not downloaded or bundled. " +
+                $"AI Model Hub model '{repoId}'{owner} is optional, and this project has not enabled it, so builds do not include it. " +
                 $"Enable it in the Editor: Window > AI Model Hub, select it under Available, and click Enable, " +
                 $"or run `unity command model_hub_set_model --repo {repoId} --enabled true` and then `model_hub_sync --repo {repoId}`.{rebuild}");
         }

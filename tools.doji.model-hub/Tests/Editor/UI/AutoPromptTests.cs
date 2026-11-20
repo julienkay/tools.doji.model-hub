@@ -101,8 +101,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.Models[0].DownloadSizeBytes, Is.EqualTo(4096));
             Assert.That(viewModel.Models[0].LicenseLink.Label, Is.EqualTo("MIT"));
             Assert.That(viewModel.Body, Does.StartWith("doji/optional is an optional model."));
-            Assert.That(viewModel.Body, Does.Contain("Download size: 4 KB."));
-            Assert.That(viewModel.Body, Does.Contain("The converted model needs about 8 KB of disk space."));
+            Assert.That(viewModel.Body, Does.Contain("Enabling it downloads 4 KB from Hugging Face."));
+            Assert.That(viewModel.Body, Does.Contain("The converted model takes about 8 KB more."));
             Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.EnableOptionalModel));
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable and Download"));
             Assert.That(viewModel.OpenLabel, Is.EqualTo("Open in AI Model Hub"));
@@ -123,8 +123,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(viewModel.Models[0].NeedsDownload, Is.False);
             Assert.That(viewModel.Models[0].WillConvert, Is.False);
             Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable"));
-            Assert.That(viewModel.Body, Does.Contain("The files are already downloaded."));
-            Assert.That(viewModel.Body, Does.Not.Contain("Download size"));
+            Assert.That(viewModel.Body, Does.Contain("Its files are already on this machine"));
+            Assert.That(viewModel.Body, Does.Not.Contain("Enabling it downloads"));
         }
 
         /// <summary>

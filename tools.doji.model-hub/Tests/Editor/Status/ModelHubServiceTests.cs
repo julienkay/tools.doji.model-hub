@@ -168,7 +168,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(hubReport.Items[0].State, Is.EqualTo(ModelHubItemState.ActionRequired));
             Assert.That(hubReport.Items[0].Diagnostics.Count, Is.EqualTo(1));
             Assert.That(hubReport.Items[0].Diagnostics[0].Severity, Is.EqualTo("warning"));
-            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Choose at least one optional model file for this manifest owner."));
+            Assert.That(hubReport.Items[0].Diagnostics[0].Message, Is.EqualTo("Turn on at least one optional model file in the Files tab."));
         }
 
         /// <summary>
@@ -196,7 +196,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "model-b",
                         DependencyState.Missing,
                         reasonCode: DependencyReasonCode.RawCacheFilesMissing,
-                        maintainerMessage: "Raw cache is missing selected file(s): model_bnb4.onnx.",
+                        maintainerMessage: "Not downloaded yet: model_bnb4.onnx.",
                         selectedFiles: new[] { "model.onnx", "model_bnb4.onnx" },
                         extraRepositoryFiles: new[]
                         {
@@ -270,7 +270,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         dependency,
                         DependencyState.Ready,
                         DependencyReasonCode.RawCacheRemovedAfterImport,
-                        "Generated runtime files are present. Raw cache has been removed from this machine.",
+                        "Set up in this project. Its downloaded files were removed from the cache on this machine.",
                         null,
                         null,
                         null,
@@ -306,7 +306,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                         "model-a",
                         DependencyState.Missing,
                         reasonCode: DependencyReasonCode.RawCacheRevisionRefMissing,
-                        maintainerMessage: "Raw cache revision ref is missing.",
+                        maintainerMessage: "Not downloaded on this machine.",
                         rawCachedFilePath: null,
                         includeRawMetadata: false)
                 });
@@ -651,7 +651,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 dependency,
                 state,
                 reasonCode ?? (state == DependencyState.Ready ? DependencyReasonCode.None : DependencyReasonCode.ImportBindingMissing),
-                maintainerMessage ?? (state == DependencyState.Ready ? "Ready." : "Import binding metadata file is missing."),
+                maintainerMessage ?? (state == DependencyState.Ready ? "Ready." : "Not set up in this project yet."),
                 $"/cache/doji/test-model/refs/{revision}",
                 includeRawMetadata ? "/cache/doji/test-model/abc123" : null,
                 includeRawMetadata ? "/cache/doji/test-model/abc123/snapshot.modelhub.json" : null,

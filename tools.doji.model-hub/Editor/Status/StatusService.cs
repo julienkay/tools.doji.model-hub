@@ -83,7 +83,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.SelectionRequired,
-                    "This dependency has optional model files, but none are currently enabled for this project owner.",
+                    "Every model file is optional, and none is turned on. Turn one on in the Files tab.",
                     revisionRefPath,
                     null,
                     null,
@@ -98,7 +98,7 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAbsolutePath,
                     bindingMetadataAssetPath,
                     DependencyReasonCode.RawCacheRemovedAfterImport,
-                    "Generated runtime files are present. Raw cache has been removed from this machine.",
+                    "Set up in this project. Its downloaded files were removed from the cache on this machine.",
                     out var importedOnlyStatus))
                 {
                     return importedOnlyStatus;
@@ -107,7 +107,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.RawCacheRevisionRefMissing,
-                    "Raw cache revision ref is missing.",
+                    "Not downloaded on this machine.",
                     revisionRefPath,
                     null,
                     null,
@@ -125,7 +125,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Failed(
                     dependency,
                     DependencyReasonCode.RawCacheRevisionRefUnreadable,
-                    $"Could not read raw cache revision ref: {exception.Message}",
+                    $"Could not read which commit the cache holds: {exception.Message}",
                     revisionRefPath,
                     null,
                     null,
@@ -142,7 +142,7 @@ namespace Doji.AI.ModelHub.Editor
                     bindingMetadataAbsolutePath,
                     bindingMetadataAssetPath,
                     DependencyReasonCode.RawCacheRemovedAfterImport,
-                    "Generated runtime files are present. Raw cache snapshot has been removed from this machine.",
+                    "Set up in this project. Its downloaded files were removed from the cache on this machine.",
                     out var importedOnlyStatus))
                 {
                     return importedOnlyStatus;
@@ -151,7 +151,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.RawSnapshotRootMissing,
-                    "Raw snapshot root is missing.",
+                    "The downloaded files are missing from the cache.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -172,7 +172,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.RawCacheFilesMissing,
-                    "The model's file list is not known on this machine, so AI Model Hub cannot tell whether every file is downloaded. Update to check.",
+                    "AI Model Hub does not have this model's file list, so it cannot check that every file is downloaded. Update to check.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -198,7 +198,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Missing(
                     dependency,
                     DependencyReasonCode.RawCacheFilesMissing,
-                    $"Raw cache is missing selected file(s): {string.Join(", ", missingSelectedFiles)}.",
+                    $"Not downloaded yet: {string.Join(", ", missingSelectedFiles)}.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -253,7 +253,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Pending(Missing(
                     dependency,
                     DependencyReasonCode.ImportBindingMissing,
-                    "Import binding metadata file is missing.",
+                    "Not set up in this project yet.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -268,7 +268,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Pending(Missing(
                     dependency,
                     DependencyReasonCode.ImportBindingInvalid,
-                    "Import binding metadata is invalid.",
+                    "The project's setup record is damaged. Set the model up again.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -301,7 +301,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Pending(Missing(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataMissing,
-                    "Shared import metadata file is missing.",
+                    "The converted model is missing. Convert it again.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -316,7 +316,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Pending(Missing(
                     dependency,
                     DependencyReasonCode.SharedImportMetadataInvalid,
-                    "Shared import metadata is invalid.",
+                    "The converted model's record is damaged. Convert it again.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -350,7 +350,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Pending(Missing(
                     dependency,
                     DependencyReasonCode.RuntimeFilesMissing,
-                    "Generated runtime files are missing.",
+                    "The converted model files are missing. Set the model up again.",
                     revisionRefPath,
                     snapshotRoot,
                     rawMetadataPath,
@@ -368,7 +368,7 @@ namespace Doji.AI.ModelHub.Editor
                     return Pending(Missing(
                         dependency,
                         DependencyReasonCode.RuntimeFileMissing,
-                        $"Runtime model is missing: {runtimeFile.RepoPath} ({runtimeFile.FilePath}).",
+                        $"A converted model file is missing: {runtimeFile.RepoPath} ({runtimeFile.FilePath}).",
                         revisionRefPath,
                         snapshotRoot,
                         rawMetadataPath,
@@ -385,7 +385,7 @@ namespace Doji.AI.ModelHub.Editor
                 dependency,
                 DependencyState.Ready,
                 DependencyReasonCode.None,
-                "Raw repo snapshot, import binding, and generated runtime files are current.",
+                "Downloaded and set up.",
                 revisionRefPath,
                 snapshotRoot,
                 rawMetadataPath,
@@ -604,7 +604,7 @@ namespace Doji.AI.ModelHub.Editor
                 dependency,
                 DependencyState.NotEnabled,
                 DependencyReasonCode.NotEnabled,
-                $"Optional model. It is not enabled in this project, so AI Model Hub does not download, convert, or bundle it. " +
+                $"Optional model. This project does not use it yet, so AI Model Hub does not set it up or bundle it. " +
                 $"Enable it in Window > AI Model Hub, or run model_hub_set_model --repo {dependency.Repository} --enabled true.",
                 revisionRefPath,
                 null,

@@ -523,7 +523,7 @@ namespace Doji.AI.ModelHub.Editor
             {
                 headline = models.Length == 1 ? "Model revisions conflict" : $"{models.Length} models have conflicting revisions";
                 body = conflictHasInstalledPackage
-                    ? "Packages request different revisions of the same model. Update a package, embed it to edit its manifest, or remove one of the dependencies."
+                    ? "Packages request different revisions of the same model. Update a package, embed it to edit its manifest, or remove the model from one manifest."
                     : "Manifests request different revisions of the same model. Change them to use one revision.";
             }
             else

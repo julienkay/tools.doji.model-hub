@@ -55,21 +55,21 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot import '{item.Repository}' because the project declares it at multiple revisions. Resolve manifests to one revision first.");
+                    $"AI Model Hub cannot set up '{item.Repository}': manifests request different revisions of it. Change them to request one revision first.");
                 return;
             }
 
             if (item.IsNotEnabled)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub does not download '{item.Repository}': it is an optional model that this project did not enable. Enable it first.");
+                    $"AI Model Hub: '{item.Repository}' is an optional model that this project has not enabled. Enable it first.");
                 return;
             }
 
             if (item.HasSelectionRequired)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot import '{item.Repository}' until at least one optional ONNX file is enabled for each owner that requires a selection.");
+                    $"AI Model Hub cannot set up '{item.Repository}' until you turn on at least one of its optional model files in the Files tab.");
                 return;
             }
 
@@ -116,7 +116,7 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot remove imported artifacts for '{item.Repository}' while the project declares it at multiple revisions.");
+                    $"AI Model Hub cannot remove '{item.Repository}' from this project while manifests request different revisions of it.");
                 return;
             }
 
@@ -136,7 +136,7 @@ namespace Doji.AI.ModelHub.Editor
             if (item.HasRevisionConflict)
             {
                 UnityEngine.Debug.LogWarning(
-                    $"AI Model Hub cannot remove raw cache for '{item.Repository}' while the project declares it at multiple revisions.");
+                    $"AI Model Hub cannot remove '{item.Repository}' from the cache while manifests request different revisions of it.");
                 return;
             }
 
@@ -190,7 +190,7 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (report.DependencyStatuses.Count == 0 && report.DiscoveryIssues.Count == 0)
             {
-                return "No model-hub package or project manifests were found.";
+                return "No package or project manifest lists an AI model.";
             }
 
             var packageCount = report.DependencyStatuses
@@ -210,7 +210,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.AppendLine($"Optional models not enabled: {report.NotEnabledCount}");
             }
 
-            builder.AppendLine($"Discovery issues: {report.DiscoveryIssues.Count}");
+            builder.AppendLine($"Manifest errors: {report.DiscoveryIssues.Count}");
             return builder.ToString().TrimEnd();
         }
 
@@ -221,24 +221,24 @@ namespace Doji.AI.ModelHub.Editor
         {
             if (report == null || !report.NeedsStartupPrompt)
             {
-                return "AI Model Hub: no unresolved model dependencies.";
+                return "AI Model Hub: every model is ready.";
             }
 
             var unresolvedCount = report.DependencyStatuses.Count(status => status.NeedsStartupPrompt);
             var issueCount = report.DiscoveryIssues.Count;
             var builder = new StringBuilder();
-            builder.Append("AI Model Hub: unresolved model dependencies.");
+            builder.Append("AI Model Hub: some models need setup.");
 
             if (unresolvedCount > 0 || issueCount > 0)
             {
                 builder.Append(' ');
                 builder.Append('(');
                 builder.Append($"{unresolvedCount} ");
-                builder.Append(unresolvedCount == 1 ? "dependency" : "dependencies");
+                builder.Append(unresolvedCount == 1 ? "model" : "models");
 
                 if (issueCount > 0)
                 {
-                    builder.Append($", {issueCount} discovery issue");
+                    builder.Append($", {issueCount} manifest error");
                     if (issueCount != 1)
                     {
                         builder.Append('s');
@@ -248,7 +248,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.Append(')');
             }
 
-            builder.Append($" Open {ProjectSettingsPath} or Window > AI Model Hub to resolve.");
+            builder.Append($" Open Window > AI Model Hub or {ProjectSettingsPath} to set them up.");
             return builder.ToString();
         }
 
@@ -262,7 +262,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (report.DependencyStatuses.Count == 0 && report.DiscoveryIssues.Count == 0)
             {
-                builder.AppendLine("- No model-hub package or project manifests were found.");
+                builder.AppendLine("- No package or project manifest lists an AI model.");
                 return builder.ToString().TrimEnd();
             }
 
@@ -283,7 +283,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (report.DiscoveryIssues.Count > 0)
             {
-                builder.AppendLine("Discovery issues:");
+                builder.AppendLine("Manifest errors:");
                 foreach (var issue in report.DiscoveryIssues.OrderBy(issue => issue.PackageId).ThenBy(issue => issue.ManifestPath))
                 {
                     builder.AppendLine($"- {ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId)}: {issue.Message}");
@@ -301,7 +301,7 @@ namespace Doji.AI.ModelHub.Editor
             var builder = new StringBuilder();
             builder.AppendLine($"Synced models: {report.SuccessCount}");
             builder.AppendLine($"Failed models: {report.FailureCount}");
-            builder.AppendLine($"Discovery issues: {report.DiscoveryIssues.Count}");
+            builder.AppendLine($"Manifest errors: {report.DiscoveryIssues.Count}");
 
             if (report.FailureCount > 0 || report.DiscoveryIssues.Count > 0)
             {
@@ -333,7 +333,7 @@ namespace Doji.AI.ModelHub.Editor
                         ?.FilePath;
 
                     builder.AppendLine($"- OK {ownerLabel}/{result.Dependency.ModelId}");
-                    builder.AppendLine($"  raw snapshot: {rawSnapshotPath ?? "<unknown>"}");
+                    builder.AppendLine($"  downloaded files: {rawSnapshotPath ?? "<unknown>"}");
                     builder.AppendLine($"  mode: {result.Mode}");
                     builder.AppendLine($"  runtime model: {sentisArtifactPath ?? "<none>"}");
                 }
@@ -346,7 +346,7 @@ namespace Doji.AI.ModelHub.Editor
 
             if (report.DiscoveryIssues.Count > 0)
             {
-                builder.AppendLine("Discovery issues:");
+                builder.AppendLine("Manifest errors:");
                 foreach (var issue in report.DiscoveryIssues.OrderBy(issue => issue.PackageId).ThenBy(issue => issue.ManifestPath))
                 {
                     builder.AppendLine($"- {ProjectManifestDiscovery.GetOwnerDisplayName(issue.PackageId)}: {issue.Message}");

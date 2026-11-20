@@ -339,7 +339,7 @@ namespace Doji.AI.ModelHub.Editor
                 builder.AppendLine($"  resolve: {resolutionInfo.ResolutionHint}");
             }
 
-            builder.Append("AI Model Hub blocks import/remove until one requested revision remains for this model.");
+            builder.Append("AI Model Hub does not set up or remove this model until every manifest requests the same revision.");
             return builder.ToString();
         }
 

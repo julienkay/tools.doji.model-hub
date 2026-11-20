@@ -430,16 +430,16 @@ namespace Doji.AI.ModelHub.Editor.Tests
         public void EnableDialog_SaysWhenFilesAreAlreadyDownloaded()
         {
             var cached = OptionalModelPrompt.BuildMessage(Repository, 0, 2048);
-            Assert.That(cached, Does.StartWith($"{Repository} is an optional model. It is not enabled"));
-            Assert.That(cached, Does.Contain("The files are already downloaded."));
-            Assert.That(cached, Does.Not.Contain("Download size"));
-            Assert.That(cached, Does.Contain("The converted model needs about 2 KB of disk space."));
+            Assert.That(cached, Does.StartWith($"{Repository} is an optional model. This project does not use it yet."));
+            Assert.That(cached, Does.Contain("Its files are already on this machine, so nothing needs to download."));
+            Assert.That(cached, Does.Not.Contain("Enabling it downloads"));
+            Assert.That(cached, Does.Contain("The converted model takes about 2 KB more."));
 
             var missing = OptionalModelPrompt.BuildMessage(Repository, 1024, 0);
-            Assert.That(missing, Does.Contain("Download size: 1 KB."));
+            Assert.That(missing, Does.Contain("Enabling it downloads 1 KB from Hugging Face."));
             Assert.That(missing, Does.Not.Contain("converted model"));
 
-            Assert.That(OptionalModelPrompt.BuildMessage(Repository, null, null), Does.Contain("Download size: unknown"));
+            Assert.That(OptionalModelPrompt.BuildMessage(Repository, null, null), Does.Contain("Enabling it downloads it from Hugging Face."));
         }
 
         private static void WriteBlob(string etag, int length)

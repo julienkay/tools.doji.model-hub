@@ -237,14 +237,14 @@ namespace Doji.AI.ModelHub.Editor
             if (!File.Exists(revisionRefPath))
             {
                 throw new InvalidOperationException(
-                    $"Raw cache revision ref is missing for '{dependency.Repository}' at '{dependency.Revision}'. Download it first.");
+                    $"'{dependency.Repository}' at '{dependency.Revision}' is not downloaded. Download it first.");
             }
 
             var resolvedCommitHash = File.ReadAllText(revisionRefPath).Trim();
             if (string.IsNullOrWhiteSpace(resolvedCommitHash))
             {
                 throw new InvalidOperationException(
-                    $"Raw cache revision ref is invalid for '{dependency.Repository}' at '{dependency.Revision}'. Download it again.");
+                    $"The cache entry of '{dependency.Repository}' at '{dependency.Revision}' is damaged. Download it again.");
             }
 
             var snapshotRoot = CachePaths.GetSnapshotRoot(dependency.Repository, resolvedCommitHash);
@@ -253,7 +253,7 @@ namespace Doji.AI.ModelHub.Editor
             if (!HasSelectedFiles(dependency, metadata))
             {
                 throw new InvalidOperationException(
-                    $"Raw cache snapshot is not available for '{dependency.Repository}' at '{dependency.Revision}'. Download it first.");
+                    $"The downloaded files of '{dependency.Repository}' at '{dependency.Revision}' are missing. Download it first.");
             }
 
             return new CachedSnapshot(snapshotRoot, metadataPath, metadata);

@@ -97,7 +97,7 @@ namespace Doji.AI.ModelHub.Editor
                 {
                     var state = included.Contains(Key(dependency.PackageId, dependency.Repository, file.Path))
                         ? FileState.Included
-                        : file.Optional && !selected.Contains(file.Path) ? FileState.NotTurnedOn
+                        : dependency.IsNotEnabled || (file.Optional && !selected.Contains(file.Path)) ? FileState.NotTurnedOn
                         : GetSetupState(status, file.Path);
                     entries.Add(new Entry
                     {

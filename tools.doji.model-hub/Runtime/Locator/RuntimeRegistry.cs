@@ -194,6 +194,17 @@ namespace Doji.AI.ModelHub
     }
 
     /// <summary>
+    /// An optional model that a package declares and the project did not enable. It is neither bundled nor
+    /// downloadable; the registry lists it only so that loading it fails with a message that says how to enable it.
+    /// </summary>
+    [Serializable]
+    public sealed class RuntimeNotEnabledModel
+    {
+        public string packageId;
+        public string repoId;
+    }
+
+    /// <summary>
     /// The runtime registry the build writes to <c>StreamingAssets/model-hub/model-hub-runtime.json</c>: every model of
     /// every package, and where its runtime models come from.
     /// </summary>
@@ -216,6 +227,23 @@ namespace Doji.AI.ModelHub
         public string formatGeneration;
 
         public RuntimePackageEntry[] packages = Array.Empty<RuntimePackageEntry>();
+
+        /// <summary>
+        /// Optional models that the project did not enable.
+        /// </summary>
+        public RuntimeNotEnabledModel[] notEnabledModels = Array.Empty<RuntimeNotEnabledModel>();
+
+        /// <summary>
+        /// Whether a package (or, without a package id, any package) declares this repository as an optional model that
+        /// the project did not enable.
+        /// </summary>
+        public bool IsNotEnabled(string packageId, string repoId)
+        {
+            return (notEnabledModels ?? Array.Empty<RuntimeNotEnabledModel>()).Any(model =>
+                model != null &&
+                string.Equals(model.repoId, repoId, StringComparison.OrdinalIgnoreCase) &&
+                (packageId == null || string.Equals(model.packageId, packageId, StringComparison.Ordinal)));
+        }
 
         public static RuntimeRegistry FromJson(string json)
         {

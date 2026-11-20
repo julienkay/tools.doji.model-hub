@@ -11,6 +11,7 @@ Recommended location:
 Manifest stays on `version: 1` and supports:
 
 - whole-repo dependencies
+- optional (opt-in) models: model-level `optional`
 - required explicit-file dependencies
 - package-authored optional exact file paths inside one repo dependency
 - per-file conversion defaults for `.onnx` files (`files[].conversion`)
@@ -56,6 +57,7 @@ Field intent:
 - `version`: manifest format version
 - `id`: canonical HuggingFace model id, also used as repo snapshot identity and runtime lookup key
 - `revision`: branch, tag, or commit to resolve from HuggingFace
+- `optional`: model-level opt-in; default/omitted means `false`. See [Optional Models](#optional-models)
 - `files`: optional list of exact repo-relative file objects. Omit or leave empty for whole-repository scope.
 - `files[].path`: exact repo-relative file path selected by this dependency owner
 - `files[].optional`: whether the path is project-selectable instead of always required; default/omitted means `false`
@@ -84,6 +86,29 @@ Manifest meaning:
 - selecting an `.onnx` file adds its external weight files (`ModelFiles.GetCompanionFiles`)
 
 File selection uses exact repo-relative paths first. Pattern-based authoring can layer on later if needed, but manifest truth is still concrete file selection.
+
+## Optional Models
+
+Model-level `optional: true` declares a model that each project opts into. It solves packages such as the
+diffusers package, whose companion project declares several large models that should not download on open.
+
+Rules:
+
+- `ModelDependencyDefinition.Optional` carries the flag; `ManifestModelDraft`, `ManifestWriter`,
+  `ManifestModelEntry` (manifest editor), and `ProjectManifestAsset` round-trip it
+- `ProjectSettings` (`_enabledOptionalModels`) records enabled models per owner id and model id, beside the
+  optional-file selections; `EditorManifestDiscovery.ApplyProjectOptionalSelections` applies it through
+  `IProjectOptionalFileSelectionSource.IsModelEnabled`
+- `DiscoveredModelDependency.IsEnabled` is false only for an optional model that is not enabled. Such a dependency
+  selects no file (`SelectedFiles`, `GetSelectedRepoPaths` are empty); `GetSelectedRepoPathsWhenEnabled` gives the
+  files enabling would select, for the download size
+- status is `DependencyState.NotEnabled` / `DependencyReasonCode.NotEnabled`: not `NeedsAttention`, no startup
+  prompt; sync skips it with `SyncSkipReason.NotEnabled` (`not_enabled`); `RevisionConflictDetector` ignores it
+- `RuntimeRegistryBuilder` writes it to `RuntimeRegistry.notEnabledModels`, so `RuntimeModels.Find` throws an error
+  that says how to enable the model. In the Editor (not batch mode) the `RuntimeModels.EditorOfferEnableModel` hook
+  (`OptionalModelPrompt`) asks to enable and download it; the async `Hub` calls wait for the sync and retry
+- enabling selects the model's required files; file-level `optional` keeps its meaning inside an enabled model
+- disabling keeps the cache and the import records; status reads `NotEnabled` again before any import state
 
 ## Optional Files
 

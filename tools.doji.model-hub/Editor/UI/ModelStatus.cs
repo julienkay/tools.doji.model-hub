@@ -12,14 +12,16 @@ namespace Doji.AI.ModelHub.Editor
         RepairNeeded,
         ChooseFiles,
         Error,
-        Conflict
+        Conflict,
+        NotEnabled
     }
 
     internal enum ModelActionKind
     {
         None,
         Sync,
-        ChooseFiles
+        ChooseFiles,
+        EnableModel
     }
 
     /// <summary>
@@ -50,7 +52,7 @@ namespace Doji.AI.ModelHub.Editor
         public UiTone Tone { get; }
         public ModelActionKind Action { get; }
         public string ActionLabel { get; }
-        public bool NeedsAction => Kind != ModelStatusKind.Ready;
+        public bool NeedsAction => Kind != ModelStatusKind.Ready && Kind != ModelStatusKind.NotEnabled;
 
         public static ModelStatus From(ModelHubItem item)
         {
@@ -60,6 +62,17 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var hasCache = !string.IsNullOrWhiteSpace(item.RawSnapshotRootPath);
+
+            if (item.IsNotEnabled)
+            {
+                return new ModelStatus(
+                    ModelStatusKind.NotEnabled,
+                    "Not enabled",
+                    "Optional model. It is not enabled in this project, so it is not downloaded, converted, or included in builds. Enable it to use it.",
+                    UiTone.Neutral,
+                    ModelActionKind.EnableModel,
+                    "Enable");
+            }
 
             if (item.HasRevisionConflict)
             {

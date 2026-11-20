@@ -51,7 +51,7 @@ namespace Doji.AI.ModelHub
             CancellationToken cancellationToken = default)
         {
             var catalog = await RuntimeModels.GetCatalogAsync();
-            var (_, model, file) = RuntimeModels.Find(catalog, packageId, repoId, repoPath);
+            var (_, model, file) = await RuntimeModels.FindAsync(catalog, packageId, repoId, repoPath);
             return await RuntimeModels.LoadAsync(model, file, progress, cancellationToken);
         }
 
@@ -96,7 +96,7 @@ namespace Doji.AI.ModelHub
             CancellationToken cancellationToken = default)
         {
             var catalog = await RuntimeModels.GetCatalogAsync();
-            var (_, model, file) = RuntimeModels.FindDataFile(catalog, packageId, repoId, repoPath);
+            var (_, model, file) = await RuntimeModels.FindDataFileAsync(catalog, packageId, repoId, repoPath);
             return await RuntimeModels.LoadDataAsync(model, file, progress, cancellationToken);
         }
 
@@ -183,7 +183,7 @@ namespace Doji.AI.ModelHub
             CancellationToken cancellationToken = default)
         {
             var catalog = await RuntimeModels.GetCatalogAsync();
-            var (_, model, _) = RuntimeModels.Find(catalog, packageId, repoId, null);
+            var (_, model, _) = await RuntimeModels.FindAsync(catalog, packageId, repoId, null);
             await RuntimeModels.EnsureAvailableAsync(model, progress, cancellationToken);
         }
 
@@ -209,7 +209,7 @@ namespace Doji.AI.ModelHub
         public static async Task<PretrainedRepository> FromPretrainedAsync(string packageId, string repoId)
         {
             var catalog = await RuntimeModels.GetCatalogAsync();
-            var (package, model, _) = RuntimeModels.Find(catalog, packageId, repoId, null);
+            var (package, model, _) = await RuntimeModels.FindAsync(catalog, packageId, repoId, null);
             return new PretrainedRepository(package, model);
         }
 

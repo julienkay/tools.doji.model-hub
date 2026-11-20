@@ -15,7 +15,7 @@ namespace Doji.AI.ModelHub.Editor.Cli
         private const string Tag = "model_hub";
 
         [CliCommand("model_hub_status",
-            "AI Model Hub: every model dependency of the project (owner, repository, revision, resolved commit, state, reason) and its files (optional, enabled, cached, imported, size). Reads local state only.",
+            "AI Model Hub: every model dependency of the project (owner, repository, revision, optional, enabled, download size, resolved commit, state, reason) and its files (optional, enabled, cached, imported, size). An optional model that is not enabled has state NotEnabled. Reads local state only.",
             Tags = new[] { Tag })]
         public static object Status(
             [CliArg("repo", "Only this model's repository id, for example org/model. Omit for every model.")] string repo = null)
@@ -65,6 +65,19 @@ namespace Doji.AI.ModelHub.Editor.Cli
             [CliArg("quantization", "none, float16, or uint8, for ONNX files. Omit to keep it.")] string quantization = null)
         {
             return ModelHubAutomation.SetFile(repo, path, ParseOptionalBool(enabled, "enabled"), quantization);
+        }
+
+        [CliCommand("model_hub_set_model",
+            "AI Model Hub: enable or disable an optional model (a manifest entry with \"optional\": true) for this project, like the Enable and Disable buttons of the Model Hub window. The choice is saved in ProjectSettings, so it applies on every machine. Does not start a sync: run model_hub_sync afterwards. Enable a model only with the user's consent: it can be large.",
+            Tags = new[] { Tag })]
+        public static object SetModel(
+            [CliArg("repo", "The model's repository id.", Required = true)] string repo,
+            [CliArg("enabled", "true or false: enable or disable the optional model.", Required = true)] string enabled,
+            [CliArg("owner", "Only this owner's entry (package id, as model_hub_status lists it). Omit for every owner that declares the model optional.")] string owner = null)
+        {
+            var value = ParseOptionalBool(enabled, "enabled")
+                ?? throw new ModelHubAutomationException("Pass --enabled true or --enabled false.");
+            return ModelHubAutomation.SetModel(repo, value, owner);
         }
 
         [CliCommand("model_hub_cancel",

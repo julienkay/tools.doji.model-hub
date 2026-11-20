@@ -11,6 +11,7 @@ The commands do what the Model Hub buttons do. They never open a dialog: each co
 | `model_hub_status [--repo <id>]` | Lists every model the project's manifests declare: the owner package, the model id, the requested revision, the commit it resolved to, the state and its reason, and each file with whether it is optional, turned on, downloaded, and set up for this project. Reads local state only. |
 | `model_hub_sync [--repo <id>] [--mode full\|download] [--wait true]` | Starts a background download and setup of the models that need it, and returns at once. `full` (the default) downloads and converts; `download` only downloads. |
 | `model_hub_sync_status` | Says whether a sync runs, shows its progress (the model, the current file, bytes downloaded), and the result of the last sync for each model. |
+| `model_hub_set_model --repo <id> --enabled true\|false [--owner <package-id>]` | Enables or disables an optional model (`"optional": true` in the manifest) for the project, like **Enable** and **Disable** in the Model Hub window. The choice is saved in the project's settings. It does not start a download: run `model_hub_sync` afterwards. |
 | `model_hub_set_file --repo <id> --path <path> [--enabled true\|false] [--quantization none\|float16\|uint8]` | Turns an optional file on or off, or sets the quantization of an ONNX file, like the **Files** tab. It does not start a download: run `model_hub_sync` afterwards. |
 | `model_hub_cache_info` | Shows the download cache and the folder of converted models in use, what set each (`editor_setting`, `HF_HUB_CACHE`, `HF_HOME`, `DOJI_MODEL_HUB_DATA_ROOT`, or `default`), the free space on their drives, and environment variables that changed after Unity started. |
 | `model_hub_cancel` | Cancels the running sync. Files that finished downloading stay in the cache. |
@@ -37,10 +38,20 @@ When `model_hub_sync` starts nothing, `started` is `false` and each model in `de
 | `ready` | Every selected file is downloaded and set up. | None. |
 | `invalid_repository` | The model was not found on Hugging Face. | Correct the model id in the manifest. |
 | `selection_required` | All model files of the dependency are optional, and none is turned on. | Turn one on with `model_hub_set_file --enabled true`. |
+| `not_enabled` | The model is optional and the project did not enable it. It is not an error. | Enable it with `model_hub_set_model --enabled true` if the project needs it. |
 | `revision_conflict` | Manifests request different revisions of the same model. | Change the manifests so they use one revision. |
 | `already_running` | Another sync runs. Only one sync runs at a time. | Wait for it, or run `model_hub_cancel`. |
 
 **Set Up All Models** in `Tools > Doji > AI Model Hub` writes the same explanation to the Console when it has nothing to do.
+
+## Enable an optional model
+
+```bash
+unity command model_hub_set_model --repo owner/model --enabled true
+unity command model_hub_sync --repo owner/model
+```
+
+`model_hub_status` lists the model with `optional: true`, `enabled`, and `downloadSizeBytes` when the file list is known. Disable it again with `--enabled false`; downloaded files stay in the cache.
 
 ## Turn on an optional file
 

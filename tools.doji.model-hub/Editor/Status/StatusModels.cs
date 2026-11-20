@@ -28,7 +28,13 @@ namespace Doji.AI.ModelHub.Editor
         /// <summary>
         /// Status evaluation could not complete because a required file was unreadable or invalid.
         /// </summary>
-        Failed
+        Failed,
+
+        /// <summary>
+        /// The manifest marks the model optional and this project did not enable it. Nothing is downloaded, converted,
+        /// or bundled for it. A neutral state: it needs no action.
+        /// </summary>
+        NotEnabled
     }
 
     /// <summary>
@@ -37,6 +43,7 @@ namespace Doji.AI.ModelHub.Editor
     internal enum DependencyReasonCode
     {
         None,
+        NotEnabled,
         InvalidRepository,
         RawCacheRemovedAfterImport,
         RawCacheRevisionRefMissing,
@@ -167,7 +174,12 @@ namespace Doji.AI.ModelHub.Editor
         /// </summary>
         public SharedImportMetadata Shared { get; }
 
-        public bool NeedsAttention => State != DependencyState.Ready;
+        public bool NeedsAttention => State != DependencyState.Ready && State != DependencyState.NotEnabled;
+
+        /// <summary>
+        /// An optional model that this project did not enable.
+        /// </summary>
+        public bool IsNotEnabled => State == DependencyState.NotEnabled;
 
         /// <summary>
         /// Selected ONNX files the import would convert, because the converted store has no model for them with this
@@ -226,6 +238,7 @@ namespace Doji.AI.ModelHub.Editor
         public int MissingCount => _dependencyStatuses.Count(status => status.State == DependencyState.Missing);
         public int StaleCount => _dependencyStatuses.Count(status => status.State == DependencyState.Stale);
         public int FailedCount => _dependencyStatuses.Count(status => status.State == DependencyState.Failed);
+        public int NotEnabledCount => _dependencyStatuses.Count(status => status.State == DependencyState.NotEnabled);
         public bool NeedsAttention => DiscoveryIssues.Count > 0 || _dependencyStatuses.Any(status => status.NeedsAttention);
         public bool NeedsStartupPrompt => DiscoveryIssues.Count > 0 || _dependencyStatuses.Any(status => status.NeedsStartupPrompt);
     }
@@ -268,8 +281,9 @@ namespace Doji.AI.ModelHub.Editor
             IReadOnlyList<DiscoveredModelDependency> dependencies)
         {
             var conflicts = new Dictionary<string, RepositoryRevisionConflict>(StringComparer.Ordinal);
+            // An optional model that the project did not enable is never resolved, so its revision cannot conflict.
             foreach (var repositoryGroup in (dependencies ?? Array.Empty<DiscoveredModelDependency>())
-                         .Where(dependency => dependency != null)
+                         .Where(dependency => dependency != null && dependency.IsEnabled)
                          .GroupBy(dependency => dependency.Repository, StringComparer.Ordinal))
             {
                 var requestedRevisions = repositoryGroup

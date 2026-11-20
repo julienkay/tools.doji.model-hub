@@ -26,6 +26,18 @@ namespace Doji.AI.ModelHub
         internal static Func<RuntimeRegistry> EditorCatalog { get; set; }
 
         /// <summary>
+        /// Editor hook, null in players: asks the user to enable an optional model that is not enabled
+        /// and to download it. Arguments are the package id (or null) and the repository id. Returns true when the user
+        /// enabled the model and its sync started. It returns false in batch mode, where no one can answer.
+        /// </summary>
+        internal static Func<string, string, bool> EditorOfferEnableModel { get; set; }
+
+        /// <summary>
+        /// Editor hook: completes when the running sync ends, with true when it succeeded.
+        /// </summary>
+        internal static Func<Task<bool>> EditorWaitForSync { get; set; }
+
+        /// <summary>
         /// Test hook that replaces the registry a player would read.
         /// </summary>
         internal static RuntimeRegistry RegistryOverride { get; set; }
@@ -123,10 +135,110 @@ namespace Doji.AI.ModelHub
             }
 
             var known = catalog.GetKnownFiles(repoId);
+            if (catalog.IsNotEnabled(packageId, repoId) && (known.Count == 0 || packageId != null))
+            {
+                throw CreateNotEnabledException(packageId, repoId, OfferEnable(packageId, repoId));
+            }
+
             var owner = packageId == null ? string.Empty : $" for package '{packageId}'";
             throw new FileNotFoundException(known.Count == 0
                 ? $"AI Model Hub has no model '{repoId}'{owner}. Add it to a manifest and import it in Window > AI Model Hub."
                 : $"AI Model Hub model '{repoId}'{owner} has no file '{repoPath}'. Its files are: {string.Join(", ", known)}.");
+        }
+
+        /// <summary>
+        /// Finds a model file like <see cref="Find"/>. In the Editor, when the model is optional and not enabled, it
+        /// offers to enable and download it, waits for the download, and finds the file again.
+        /// </summary>
+        public static async Task<(RuntimePackageEntry Package, RuntimeModelEntry Model, RuntimeModelFile File)> FindAsync(
+            RuntimeRegistry catalog,
+            string packageId,
+            string repoId,
+            string repoPath)
+        {
+            if (catalog.TryFind(packageId, repoId, repoPath, out var package, out var model, out var file))
+            {
+                return (package, model, file);
+            }
+
+            if (await TryEnableAndWaitAsync(catalog, packageId, repoId, catalog.GetKnownFiles(repoId).Count == 0))
+            {
+                catalog = await GetCatalogAsync();
+            }
+
+            return Find(catalog, packageId, repoId, repoPath);
+        }
+
+        /// <summary>
+        /// Finds a data file like <see cref="FindDataFile"/>, offering to enable an optional model the way
+        /// <see cref="FindAsync"/> does.
+        /// </summary>
+        public static async Task<(RuntimePackageEntry Package, RuntimeModelEntry Model, RuntimeDataFile File)> FindDataFileAsync(
+            RuntimeRegistry catalog,
+            string packageId,
+            string repoId,
+            string repoPath)
+        {
+            if (catalog.TryFindDataFile(packageId, repoId, repoPath, out var package, out var model, out var file))
+            {
+                return (package, model, file);
+            }
+
+            var unknown = catalog.GetKnownFiles(repoId).Count == 0 && catalog.GetKnownDataFiles(repoId).Count == 0;
+            if (await TryEnableAndWaitAsync(catalog, packageId, repoId, unknown))
+            {
+                catalog = await GetCatalogAsync();
+            }
+
+            return FindDataFile(catalog, packageId, repoId, repoPath);
+        }
+
+        private static async Task<bool> TryEnableAndWaitAsync(RuntimeRegistry catalog, string packageId, string repoId, bool unknownRepository)
+        {
+            if (!catalog.IsNotEnabled(packageId, repoId) || (!unknownRepository && packageId == null))
+            {
+                return false;
+            }
+
+            if (!OfferEnable(packageId, repoId))
+            {
+                throw CreateNotEnabledException(packageId, repoId, false);
+            }
+
+            if (EditorWaitForSync == null || !await EditorWaitForSync())
+            {
+                throw new InvalidOperationException(
+                    $"AI Model Hub enabled the optional model '{repoId}', but its download did not finish. See Window > AI Model Hub, then load it again.");
+            }
+
+            return true;
+        }
+
+        private static bool OfferEnable(string packageId, string repoId)
+        {
+            // The Editor hook itself declines in batch mode, where no one can answer a dialog.
+            return Application.isEditor && EditorOfferEnableModel != null &&
+                EditorOfferEnableModel(packageId, repoId);
+        }
+
+        /// <summary>
+        /// The error for loading an optional model that the project did not enable: it names the model and says how to
+        /// enable it.
+        /// </summary>
+        internal static InvalidOperationException CreateNotEnabledException(string packageId, string repoId, bool enabledNow)
+        {
+            if (enabledNow)
+            {
+                return new InvalidOperationException(
+                    $"AI Model Hub enabled the optional model '{repoId}' and started its download. Load it again when the download finishes, or use Hub.LoadModelAsync, which waits for it.");
+            }
+
+            var owner = packageId == null ? string.Empty : $" of package '{packageId}'";
+            var rebuild = Application.isEditor ? string.Empty : " Then build the player again.";
+            return new InvalidOperationException(
+                $"AI Model Hub model '{repoId}'{owner} is optional and not enabled in this project, so it was not downloaded or bundled. " +
+                $"Enable it in the Editor: Window > AI Model Hub, select it under Available, and click Enable, " +
+                $"or run `unity command model_hub_set_model --repo {repoId} --enabled true` and then `model_hub_sync --repo {repoId}`.{rebuild}");
         }
 
         public static (RuntimePackageEntry Package, RuntimeModelEntry Model, RuntimeDataFile File) FindDataFile(
@@ -141,6 +253,12 @@ namespace Doji.AI.ModelHub
             }
 
             var known = catalog.GetKnownDataFiles(repoId);
+            if (catalog.IsNotEnabled(packageId, repoId) &&
+                ((catalog.GetKnownFiles(repoId).Count == 0 && known.Count == 0) || packageId != null))
+            {
+                throw CreateNotEnabledException(packageId, repoId, OfferEnable(packageId, repoId));
+            }
+
             var owner = packageId == null ? string.Empty : $" for package '{packageId}'";
             throw new FileNotFoundException(catalog.GetKnownFiles(repoId).Count == 0 && known.Count == 0
                 ? $"AI Model Hub has no model '{repoId}'{owner}. Add it to a manifest and import it in Window > AI Model Hub."

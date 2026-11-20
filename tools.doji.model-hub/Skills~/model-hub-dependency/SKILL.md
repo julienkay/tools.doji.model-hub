@@ -33,6 +33,7 @@ Put `model-hub-manifest.json` at the package root (`Packages/<package-id>/`). Fo
 | `version` | Required, `1`. |
 | `id` | Required. Public Hugging Face `repo_id`. Gated and private models fail. Unique per manifest. |
 | `revision` | Branch, tag, or commit. Default `main`. Pin a commit for reproducible builds. |
+| `optional` | `true` makes the whole model opt-in. It is declared, but not downloaded, converted, or bundled until the project enables it (Model Hub **Available** group, or `model_hub_set_model --enabled true`). Default `false`. Use it for large models a project may not need. |
 | `files` | Omit to take every file of the repo. A repo with both `.onnx` and `.sentis` files then fails: list the files. |
 | `files[].path` | Exact repo-relative path. `.onnx` is converted, `.sentis` is used as is, other files (configs, tokenizers) ship like the model and are read with `Hub.ReadTextAsync`. ONNX external weights (`.onnx_data`, `.onnx.data`, a `weights.pb` beside the only `.onnx` of its folder) come along: do not list them. |
 | `files[].optional` | `true` lets the project turn the file on. It is ignored until the project does. If all model files are optional, Model Hub shows `Choose files`. |
@@ -40,6 +41,17 @@ Put `model-hub-manifest.json` at the package root (`Packages/<package-id>/`). Fo
 | `files[].conversion` | `.onnx` only. Default conversion for every project. |
 | `conversion.quantization` | `none` (default), `float16`, or `uint8`. Exact lowercase. `int8` is invalid. |
 | `conversion.inputShapes` | Input name to the full dimension list. `-1` keeps a dimension dynamic. |
+
+Optional model:
+
+```json
+{ "id": "owner/large-model", "optional": true, "files": [ { "path": "onnx/model.onnx" } ] }
+```
+
+- Status is `NotEnabled`, a neutral state: no warning, no setup prompt, skipped by sync, no part in revision conflicts.
+- When the project enables it, its required files are selected. `files[].optional` keeps its meaning inside it.
+- The enabled state is per project, in `ProjectSettings/Doji.AI.ModelHubSettings.asset`. Commit that file so builds match on every machine.
+- Loading a file of a model that is not enabled: the Editor offers to enable and download it. Players and batch mode throw an error that names the model and how to enable it. Handle that error if the feature is optional in your package.
 
 Rules:
 

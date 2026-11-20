@@ -18,5 +18,6 @@ MonoBehaviour:
   _deliveryOverrides:
   - repository: julienkay/sentis-midas
     delivery: 1
+  _enabledOptionalModels: []
   _optionalFileSelections: []
   _conversionOverrides: []

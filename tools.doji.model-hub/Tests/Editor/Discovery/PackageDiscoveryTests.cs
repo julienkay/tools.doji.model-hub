@@ -1045,6 +1045,15 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 _entries = entries ?? Array.Empty<(string ownerId, string modelId, string[] enabledOptionalFiles)>();
             }
 
+            public bool IsModelEnabled(string ownerId, string modelId)
+            {
+                return false;
+            }
+
+            public void SetModelEnabled(string ownerId, string modelId, bool isEnabled)
+            {
+            }
+
             public string[] GetEnabledOptionalFiles(string ownerId, string modelId, IReadOnlyList<string> declaredOptionalFiles)
             {
                 var entry = _entries.FirstOrDefault(item =>

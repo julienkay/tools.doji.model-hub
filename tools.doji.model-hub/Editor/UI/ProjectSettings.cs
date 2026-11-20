@@ -7,8 +7,8 @@ using UnityEngine;
 namespace Doji.AI.ModelHub.Editor
 {
     /// <summary>
-    /// Stores project-scoped editor configuration: build delivery, optional-file selections, and
-    /// conversion overrides. Installed package manifests stay unchanged; the project's choices live here.
+    /// Stores project-scoped editor configuration: build delivery, enabled optional models, optional-file selections,
+    /// and conversion overrides. Installed package manifests stay unchanged; the project's choices live here.
     /// </summary>
     [FilePath("ProjectSettings/Doji.AI.ModelHubSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     internal sealed class ProjectSettings : ScriptableSingleton<ProjectSettings>
@@ -26,10 +26,51 @@ namespace Doji.AI.ModelHub.Editor
         private List<DeliveryOverride> _deliveryOverrides = new();
 
         [SerializeField]
+        private List<OptionalModelSelection> _enabledOptionalModels = new();
+
+        [SerializeField]
         private List<OptionalFileSelection> _optionalFileSelections = new();
 
         [SerializeField]
         private List<ConversionOverride> _conversionOverrides = new();
+
+        /// <summary>
+        /// Whether this project enabled one manifest owner's optional model.
+        /// </summary>
+        public bool IsOptionalModelEnabled(string ownerId, string modelId)
+        {
+            return FindModelSelection(ownerId, modelId) != null;
+        }
+
+        /// <summary>
+        /// Enables or disables one manifest owner's optional model for this project. Returns false when nothing changed.
+        /// </summary>
+        public bool SetOptionalModelEnabled(string ownerId, string modelId, bool isEnabled)
+        {
+            var entry = FindModelSelection(ownerId, modelId);
+            if ((entry != null) == isEnabled)
+            {
+                return false;
+            }
+
+            _enabledOptionalModels ??= new List<OptionalModelSelection>();
+            if (isEnabled)
+            {
+                _enabledOptionalModels.Add(new OptionalModelSelection { ownerId = ownerId, modelId = modelId });
+                _enabledOptionalModels.Sort((left, right) =>
+                {
+                    var byOwner = string.CompareOrdinal(left.ownerId, right.ownerId);
+                    return byOwner != 0 ? byOwner : string.CompareOrdinal(left.modelId, right.modelId);
+                });
+            }
+            else
+            {
+                _enabledOptionalModels.Remove(entry);
+            }
+
+            Save(true);
+            return true;
+        }
 
         /// <summary>
         /// Returns the optional files this project turned on for one manifest owner's model, sorted. Empty when the
@@ -135,21 +176,33 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Starts a test scope without optional-file selections or conversion overrides. Disposing it restores the
-        /// project's own entries and writes them back to disk.
+        /// Starts a test scope without enabled optional models, optional-file selections, or conversion overrides.
+        /// Disposing it restores the project's own entries and writes them back to disk.
         /// </summary>
         internal static IDisposable PushEmptyProjectOverrides()
         {
             var settings = instance;
-            var saved = (Selections: settings._optionalFileSelections, Conversions: settings._conversionOverrides);
+            var saved = (
+                Models: settings._enabledOptionalModels,
+                Selections: settings._optionalFileSelections,
+                Conversions: settings._conversionOverrides);
+            settings._enabledOptionalModels = new List<OptionalModelSelection>();
             settings._optionalFileSelections = new List<OptionalFileSelection>();
             settings._conversionOverrides = new List<ConversionOverride>();
             return new RestoreProjectOverrides(() =>
             {
+                settings._enabledOptionalModels = saved.Models;
                 settings._optionalFileSelections = saved.Selections;
                 settings._conversionOverrides = saved.Conversions;
                 settings.Save(true);
             });
+        }
+
+        private OptionalModelSelection FindModelSelection(string ownerId, string modelId)
+        {
+            return _enabledOptionalModels?.FirstOrDefault(item =>
+                string.Equals(item?.ownerId, ownerId, StringComparison.Ordinal) &&
+                string.Equals(item?.modelId, modelId, StringComparison.Ordinal));
         }
 
         private OptionalFileSelection FindSelection(string ownerId, string modelId)
@@ -213,6 +266,13 @@ namespace Doji.AI.ModelHub.Editor
         {
             public string repository;
             public ModelDelivery delivery;
+        }
+
+        [Serializable]
+        private sealed class OptionalModelSelection
+        {
+            public string ownerId;
+            public string modelId;
         }
 
         [Serializable]

@@ -33,6 +33,11 @@ namespace Doji.AI.ModelHub.Editor
         SelectionRequired,
 
         /// <summary>
+        /// The manifest marks the model optional and the project did not enable it.
+        /// </summary>
+        NotEnabled,
+
+        /// <summary>
         /// The project requests the model at more than one revision.
         /// </summary>
         RevisionConflict,

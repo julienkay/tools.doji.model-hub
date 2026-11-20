@@ -476,7 +476,8 @@ namespace Doji.AI.ModelHub.Editor
                 .Where(item => ModelStatus.From(item).NeedsAction)
                 .OrderBy(item => GetAttentionRank(ModelStatus.From(item)))
                 .ToArray();
-            var ready = items.Where(item => !ModelStatus.From(item).NeedsAction).ToArray();
+            var available = items.Where(item => item.IsNotEnabled).ToArray();
+            var ready = items.Where(item => !item.IsNotEnabled && !ModelStatus.From(item).NeedsAction).ToArray();
 
             if (issues.Count > 0)
             {
@@ -500,6 +501,16 @@ namespace Doji.AI.ModelHub.Editor
             {
                 _list.Add(BuildListSection("Ready", ready.Length));
                 foreach (var item in ready)
+                {
+                    _list.Add(BuildItemRow(item));
+                }
+            }
+
+            if (available.Length > 0)
+            {
+                // Optional models that the project did not enable: declared, but not downloaded until enabled.
+                _list.Add(BuildListSection("Available", available.Length));
+                foreach (var item in available)
                 {
                     _list.Add(BuildItemRow(item));
                 }

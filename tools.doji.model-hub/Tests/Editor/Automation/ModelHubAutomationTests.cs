@@ -381,6 +381,17 @@ namespace Doji.AI.ModelHub.Editor.Tests
             public string[] LastFiles { get; private set; }
             public int WriteCount { get; private set; }
 
+            public bool IsModelEnabled(string ownerId, string modelId)
+            {
+                return false;
+            }
+
+            public void SetModelEnabled(string ownerId, string modelId, bool isEnabled)
+            {
+                LastOwner = ownerId;
+                WriteCount++;
+            }
+
             public string[] GetEnabledOptionalFiles(string ownerId, string modelId, System.Collections.Generic.IReadOnlyList<string> declaredOptionalFiles)
             {
                 return Array.Empty<string>();

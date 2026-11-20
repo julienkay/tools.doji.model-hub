@@ -42,6 +42,11 @@ Manifest and discovery:
   - format by extension, repository format labels
   - external weight files found next to an `.onnx` file and added to the selection
   - mixed whole-repository dependencies and selections without model files are rejected
+- `tools.doji.model-hub/Tests/Editor/Status/OptionalModelTests.cs`
+  - model-level `optional` parse, rejection of non-boolean values and unknown keys, writer round-trip
+  - per-owner enabled state in `ProjectSettings` and through `ApplyProjectOptionalSelections`
+  - `NotEnabled` status, no revision conflict, sync plan skip (`not_enabled`), `model_hub_set_model` (`ModelHubAutomation.SetModel`)
+  - registry `notEnabledModels` and the load error / Editor offer
 - `tools.doji.model-hub/Tests/Editor/Discovery/PackageDiscoveryTests.cs`
   - manifest parse and normalization
   - duplicate id validation

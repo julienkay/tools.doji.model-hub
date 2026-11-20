@@ -44,6 +44,11 @@ namespace Doji.AI.ModelHub.Editor
                 dependency.ModelId);
             var bindingMetadataAbsolutePath = ProjectPaths.ToProjectAbsolutePath(bindingMetadataAssetPath);
 
+            if (dependency.IsNotEnabled)
+            {
+                return NotEnabled(dependency, revisionRefPath, bindingMetadataAssetPath);
+            }
+
             if (!IsVisualScenarioDependency(dependency) &&
                 RepositoryValidationCacheService.TryGetCachedRepositoryExists(dependency.Repository, out var repositoryExists) &&
                 !repositoryExists)
@@ -567,6 +572,48 @@ namespace Doji.AI.ModelHub.Editor
                 bindingMetadataPath,
                 bindingMetadata,
                 sharedMetadata);
+        }
+
+        /// <summary>
+        /// Status of an optional model that the project did not enable. It reads the download cache only to show the
+        /// model's size and license when another project already downloaded it.
+        /// </summary>
+        private DependencyStatus NotEnabled(
+            DiscoveredModelDependency dependency,
+            string revisionRefPath,
+            string bindingMetadataPath)
+        {
+            RawCacheMetadata rawMetadata = null;
+            try
+            {
+                if (File.Exists(revisionRefPath))
+                {
+                    var commit = File.ReadAllText(revisionRefPath).Trim();
+                    if (!string.IsNullOrWhiteSpace(commit))
+                    {
+                        rawMetadata = _rawCacheService.ReadSnapshot(dependency.Repository, dependency.Revision, commit);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                rawMetadata = null;
+            }
+
+            return new DependencyStatus(
+                dependency,
+                DependencyState.NotEnabled,
+                DependencyReasonCode.NotEnabled,
+                $"Optional model. It is not enabled in this project, so AI Model Hub does not download, convert, or bundle it. " +
+                $"Enable it in Window > AI Model Hub, or run model_hub_set_model --repo {dependency.Repository} --enabled true.",
+                revisionRefPath,
+                null,
+                null,
+                rawMetadata,
+                null,
+                bindingMetadataPath,
+                null,
+                null);
         }
 
         private static DependencyStatus Stale(

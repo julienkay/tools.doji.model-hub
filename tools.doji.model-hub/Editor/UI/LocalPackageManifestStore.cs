@@ -143,7 +143,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             version = manifest.Version;
-            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.FileEntries)));
+            drafts.AddRange(manifest.Models.Select(model => new ManifestModelDraft(model.Id, model.Revision, model.FileEntries, model.Optional)));
             return true;
         }
 

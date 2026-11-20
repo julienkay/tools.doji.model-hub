@@ -69,7 +69,7 @@ Primary item key is `repository` plus requested `revision`. Each row aggregates 
 
 The nav column (`mh-nav`) switches `ModelHubView`, serialized with the window: `Project` (In Project) and `Cache` (Model Cache). Every view has a nav entry, so the highlighted entry always says what the list shows. The disk usage map is a separate window, so it is not a view. `SwitchView` asks about unsaved Files-tab edits before it leaves `Project`, then rebuilds list and details. `OpenWindow(repository, revision)` switches to `Project`.
 
-In `Project`, list sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`. Keys are `model:{repo}@{rev}` and `issue:…`.
+In `Project`, list sections, in order: `Manifest errors` (discovery issues), `Needs action` (errors, then choices, then routine work), `Ready`, `Available` (optional models that no owner enabled: status **Not enabled**, neutral tone, size and license, primary action **Enable**, which enables the model and starts its sync). An enabled optional model shows a **Disable** button next to its primary action. Keys are `model:{repo}@{rev}` and `issue:…`.
 
 In `Cache`, rows have key `cache:{folder}` and select `_selectedCacheFolder`; search filters by repository id. The list shows model repositories with a snapshot, `Not in this project` first, then `In this project`. `OpenCachedModel(folder)` opens Model Hub in `Cache` with one repository selected.
 

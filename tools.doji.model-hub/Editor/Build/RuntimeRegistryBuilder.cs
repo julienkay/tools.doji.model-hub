@@ -54,6 +54,7 @@ namespace Doji.AI.ModelHub.Editor
             plan.Registry.formatGeneration = SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion());
             var bundledPaths = new HashSet<string>(StringComparer.Ordinal);
             var packages = new List<RuntimePackageEntry>();
+            var notEnabled = new List<RuntimeNotEnabledModel>();
 
             foreach (var packageGroup in (report?.DependencyStatuses ?? Array.Empty<DependencyStatus>())
                          .GroupBy(status => status.Dependency.PackageId, StringComparer.Ordinal)
@@ -63,6 +64,17 @@ namespace Doji.AI.ModelHub.Editor
                 foreach (var status in packageGroup.OrderBy(status => status.Dependency.ModelId, StringComparer.Ordinal))
                 {
                     var dependency = status.Dependency;
+                    if (status.IsNotEnabled)
+                    {
+                        // Not bundled and not downloadable. The registry names it, so loading it fails with a clear message.
+                        notEnabled.Add(new RuntimeNotEnabledModel
+                        {
+                            packageId = dependency.PackageId,
+                            repoId = dependency.Repository
+                        });
+                        continue;
+                    }
+
                     var label = $"{dependency.Repository} ({dependency.PackageDisplayName ?? dependency.PackageId})";
                     var runtimeFiles = status.Shared?.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>();
                     if (status.State != DependencyState.Ready || runtimeFiles.Length == 0)
@@ -105,6 +117,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             plan.Registry.packages = packages.ToArray();
+            plan.Registry.notEnabledModels = notEnabled.ToArray();
             return plan;
         }
 

@@ -274,8 +274,8 @@ namespace Doji.AI.ModelHub.Editor
 
         /// <summary>
         /// Decides what a sync does with each dependency that matches the filter. Models that are ready, unknown on
-        /// the Hub, waiting for a file selection, or requested at conflicting revisions are left out, with the
-        /// reason. A full sync of a model whose files are all cached only imports it, so converting needs no
+        /// the Hub, optional and not enabled, waiting for a file selection, or requested at conflicting revisions are
+        /// left out, with the reason. A full sync of a model whose files are all cached only imports it, so converting needs no
         /// network.
         /// </summary>
         internal static SyncPlanEntry[] BuildSyncPlan(
@@ -296,6 +296,11 @@ namespace Doji.AI.ModelHub.Editor
             if (status.State == DependencyState.Ready)
             {
                 return new SyncPlanEntry(status, mode, SyncSkipReason.Ready, "Every selected file is downloaded and set up.");
+            }
+
+            if (status.IsNotEnabled)
+            {
+                return new SyncPlanEntry(status, mode, SyncSkipReason.NotEnabled, status.MaintainerMessage);
             }
 
             switch (status.ReasonCode)
@@ -337,6 +342,7 @@ namespace Doji.AI.ModelHub.Editor
                 SyncSkipReason.Ready => "ready",
                 SyncSkipReason.InvalidRepository => "not found on Hugging Face",
                 SyncSkipReason.SelectionRequired => "no optional model file is turned on",
+                SyncSkipReason.NotEnabled => "optional model, not enabled",
                 SyncSkipReason.RevisionConflict => "requested at more than one revision",
                 SyncSkipReason.AlreadyRunning => "a sync is already running",
                 SyncSkipReason.FolderMoving => "a cache folder is being moved",

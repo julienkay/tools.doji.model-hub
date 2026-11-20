@@ -236,6 +236,12 @@ namespace Doji.AI.ModelHub.Editor
                 .ToArray();
             var changes = new List<string>();
 
+            if (enabled == true && dependencies.All(dependency => dependency.IsNotEnabled))
+            {
+                throw new ModelHubAutomationException(
+                    $"'{repository}' is an optional model that this project did not enable. Run model_hub_set_model --repo {repository} --enabled true first.");
+            }
+
             if (enabled.HasValue)
             {
                 changes.AddRange(SetEnabled(dependencies, path, enabled.Value));
@@ -274,6 +280,88 @@ namespace Doji.AI.ModelHub.Editor
                     : null
             };
         }
+
+        /// <summary>
+        /// Enables or disables an optional model for this project, like the Enable and Disable buttons of the Model Hub
+        /// window. The choice is stored in this project's settings. Does not start a sync: run <see cref="StartSync"/>
+        /// afterwards to download and import.
+        /// </summary>
+        /// <param name="owner">The owner (package id) to change, or null for every owner that declares the model optional.</param>
+        public static AutomationSetModelResult SetModel(string repository, bool enabled, string owner = null)
+        {
+            repository = NormalizeRepository(repository);
+            owner = string.IsNullOrWhiteSpace(owner) ? null : owner.Trim();
+            if (string.IsNullOrWhiteSpace(repository))
+            {
+                throw new ModelHubAutomationException("Pass --repo with the model's repository id.");
+            }
+
+            if (BackgroundSyncManager.IsRunning)
+            {
+                throw new ModelHubAutomationException("A sync is running. Wait until model_hub_sync_status reports finished, or run model_hub_cancel, then try again.");
+            }
+
+            var statusReport = CreateStatusReport();
+            RequireKnownRepository(statusReport, repository);
+            var dependencies = statusReport.DependencyStatuses
+                .Select(status => status.Dependency)
+                .Where(dependency => string.Equals(dependency.Repository, repository, StringComparison.Ordinal))
+                .ToArray();
+            if (owner != null)
+            {
+                var owned = dependencies.Where(dependency => string.Equals(dependency.PackageId, owner, StringComparison.Ordinal)).ToArray();
+                if (owned.Length == 0)
+                {
+                    throw new ModelHubAutomationException(
+                        $"'{owner}' does not declare '{repository}'. Owners: {string.Join(", ", dependencies.Select(dependency => dependency.PackageId).Distinct())}.");
+                }
+
+                dependencies = owned;
+            }
+
+            var optional = dependencies.Where(dependency => dependency.IsOptionalModel).ToArray();
+            if (optional.Length == 0 && !enabled)
+            {
+                throw new ModelHubAutomationException(
+                    $"'{repository}' is not an optional model of {string.Join(", ", dependencies.Select(dependency => dependency.PackageId).Distinct())}. " +
+                    "Only a model that its manifest marks \"optional\": true can be disabled.");
+            }
+
+            var changes = SetModelEnabledOverride != null
+                ? SetModelEnabledOverride(optional, enabled)
+                : EditorOperations.SetOptionalModelEnabled(optional, enabled);
+            if (changes.Length > 0)
+            {
+                statusReport = CreateStatusReport();
+            }
+
+            var hubReport = new ModelHubService().BuildReport(statusReport);
+            var dependencyInfos = BuildDependencies(statusReport, hubReport, repository);
+            return new AutomationSetModelResult
+            {
+                Repository = repository,
+                Enabled = enabled,
+                Changed = changes.Length > 0,
+                Changes = changes.Length > 0
+                    ? changes
+                    : new[]
+                    {
+                        optional.Length == 0
+                            ? $"Nothing changed: '{repository}' is not optional, so the project always uses it."
+                            : $"Nothing changed: the model was already {(enabled ? "enabled" : "disabled")}."
+                    },
+                Dependencies = dependencyInfos,
+                Next = enabled && dependencyInfos.Any(info => info.Enabled && !string.Equals(info.State, nameof(DependencyState.Ready), StringComparison.Ordinal))
+                    ? $"Run model_hub_sync --repo {repository} to download and import."
+                    : null
+            };
+        }
+
+        /// <summary>
+        /// Replaces how <see cref="SetModel"/> stores the change, so tests do not write this project's settings. Null
+        /// uses <see cref="EditorOperations.SetOptionalModelEnabled"/>.
+        /// </summary>
+        internal static Func<IReadOnlyList<DiscoveredModelDependency>, bool, string[]> SetModelEnabledOverride { get; set; }
 
         /// <summary>
         /// Cancels the running sync. Finished files stay in the cache.
@@ -453,6 +541,9 @@ namespace Doji.AI.ModelHub.Editor
                 ManifestPath = dependency.ManifestPath,
                 Repository = dependency.Repository,
                 RequestedRevision = dependency.Revision,
+                Optional = dependency.IsOptionalModel,
+                Enabled = dependency.IsEnabled,
+                DownloadSizeBytes = item?.SourceSizeBytes,
                 ResolvedCommit = status.Shared?.ResolvedCommitHash ?? status.Binding?.ResolvedCommitHash ?? status.RawMetadata?.ResolvedCommitHash ?? item?.ResolvedCommitHash,
                 State = status.State.ToString(),
                 ReasonCode = status.ReasonCode.ToString(),
@@ -496,7 +587,7 @@ namespace Doji.AI.ModelHub.Editor
                     {
                         Path = path,
                         Optional = optional,
-                        Enabled = optional ? enabledOptional.Contains(path) : true,
+                        Enabled = dependency.IsEnabled && (!optional || enabledOptional.Contains(path)),
                         Cached = file?.HasRawFile ?? false,
                         Imported = file?.HasRuntimeFile ?? false,
                         SizeBytes = file?.RawSizeInBytes,
@@ -529,6 +620,7 @@ namespace Doji.AI.ModelHub.Editor
                 SyncSkipReason.Ready => "ready",
                 SyncSkipReason.InvalidRepository => "invalid_repository",
                 SyncSkipReason.SelectionRequired => "selection_required",
+                SyncSkipReason.NotEnabled => "not_enabled",
                 SyncSkipReason.RevisionConflict => "revision_conflict",
                 SyncSkipReason.AlreadyRunning => "already_running",
                 SyncSkipReason.FolderMoving => "folder_moving",
@@ -543,13 +635,16 @@ namespace Doji.AI.ModelHub.Editor
                 return "No manifest declares a model. Nothing to do.";
             }
 
-            if (start.Entries.All(entry => entry.SkipReason == SyncSkipReason.Ready))
+            if (start.Entries.All(entry => entry.SkipReason is SyncSkipReason.Ready or SyncSkipReason.NotEnabled))
             {
-                return "Nothing to do: every model is ready.";
+                return start.Entries.Any(entry => entry.SkipReason == SyncSkipReason.NotEnabled)
+                    ? "Nothing to do: every enabled model is ready. Optional models that are not enabled are skipped; enable one with model_hub_set_model --enabled true, with the user's consent."
+                    : "Nothing to do: every model is ready.";
             }
 
             return "Nothing started. Read each dependency's reason. For selection_required, ask the user which optional " +
-                "file to turn on, then run model_hub_set_file --enabled true.";
+                "file to turn on, then run model_hub_set_file --enabled true. For not_enabled, the model is optional: " +
+                "run model_hub_set_model --enabled true only with the user's consent.";
         }
 
         private static string NormalizeRepository(string repository)

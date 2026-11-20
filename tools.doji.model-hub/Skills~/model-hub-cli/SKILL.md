@@ -1,6 +1,6 @@
 ---
 name: model-hub-cli
-description: Download, set up, and inspect the AI Model Hub (`tools.doji.model-hub`) models of a Unity project from the terminal with the Unity CLI (`unity command model_hub_*`, `unity run --command model_hub_sync`). Use when a project's models are missing or not ready, when a scene or test fails because a Hub model is not downloaded, when turning on an optional model file, or when setting up models in CI. Needs `com.unity.pipeline` in the project.
+description: Download, set up, and inspect the AI Model Hub (`tools.doji.model-hub`) models of a Unity project from the terminal with the Unity CLI (`unity command model_hub_*`, `unity run --command model_hub_sync`). Use when a project's models are missing or not ready, when a scene or test fails because a Hub model is not downloaded or not enabled, when enabling an optional model or turning on an optional model file, or when setting up models in CI. Needs `com.unity.pipeline` in the project.
 ---
 
 # Set up AI Model Hub models from the command line
@@ -15,18 +15,22 @@ menu item does not.
 Follow this order. Do not skip step 1.
 
 1. **Status.** `unity command model_hub_status` (or `--repo owner/model`). Read each dependency's `state`,
-   `reasonCode`, `message`, and `files` (`optional`, `enabled`, `cached`, `imported`, `sizeBytes`).
+   `reasonCode`, `message`, `optional`, `enabled`, `downloadSizeBytes`, and `files` (`optional`, `enabled`,
+   `cached`, `imported`, `sizeBytes`). `NotEnabled` is an optional model the project did not enable: it needs no
+   action unless the user wants it.
 2. **Sync.** `unity command model_hub_sync` (or `--repo owner/model`; `--mode download` only downloads). It
    returns at once. If `started` is `false`, read each `dependencies[].reason` and stop or fix:
    - `ready`: nothing to do.
    - `selection_required`: every model file is optional and none is on. Ask the user which file to turn on.
+   - `not_enabled`: an optional model the project did not enable. Not an error. Enable it only if the user wants it.
    - `invalid_repository`: the manifest's model id is wrong. Tell the user.
    - `revision_conflict`: manifests request two revisions of one model. Tell the user; do not edit package manifests.
    - `already_running`: go to step 3.
 3. **Poll.** `unity command model_hub_sync_status` every 5 to 10 seconds until `finished` is `true`. While it runs,
    `progress` has `phase`, `currentFile`, `downloadedBytes`, and `totalBytes`. When finished, `run.state` is
    `succeeded`, `failed`, `canceled`, or `interrupted`, and `run.results[]` has `ok` and `message` per model.
-4. **Confirm.** Run `model_hub_status` again. Every needed dependency should be `Ready`.
+4. **Confirm.** Run `model_hub_status` again. Every needed dependency should be `Ready` (or `NotEnabled` for
+   optional models nobody asked for).
 
 In batch mode, one call does steps 2 and 3:
 
@@ -40,6 +44,8 @@ It waits until the sync ends and prints the run record.
 
 Ask the user in chat, and wait for a clear yes, before you:
 
+- **enable an optional model** (`model_hub_set_model --enabled true`). Optional models are often large. Say the
+  model and its `downloadSizeBytes` when known.
 - **turn on an optional file** (`model_hub_set_file --enabled true`). Optional files are often large variants.
   Say the file and its `sizeBytes` when known.
 - **start a sync that downloads a lot.** Say the model and the size first when it is more than a few hundred MB
@@ -54,7 +60,8 @@ when they decide. If a command refuses and names a flag such as `--confirm true`
 
 | Command | Use |
 |---|---|
-| `model_hub_set_file --repo <id> --path <p> [--enabled true\|false] [--quantization none\|float16\|uint8]` | Change one file like the Files tab. Does not sync: run `model_hub_sync --repo <id>` afterwards. |
+| `model_hub_set_model --repo <id> --enabled true\|false [--owner <package-id>]` | Enable or disable an optional model (`"optional": true` in the manifest) for the project, like the Enable and Disable buttons. Saved in ProjectSettings. Does not sync: run `model_hub_sync --repo <id>` afterwards. |
+| `model_hub_set_file --repo <id> --path <p> [--enabled true\|false] [--quantization none\|float16\|uint8]` | Change one file like the Files tab. Does not sync: run `model_hub_sync --repo <id>` afterwards. A file of a model that is not enabled needs `model_hub_set_model` first. |
 | `model_hub_cache_info` | The download cache (`hubCache`) and the converted-models folder (`dataRoot`): `path`, `source` (`editor_setting`, `HF_HUB_CACHE`, `HF_HOME`, `DOJI_MODEL_HUB_DATA_ROOT`, or `default`), `drive`, `freeBytes`. `staleVariables` and `warning` list variables that changed after Unity started. |
 | `model_hub_cancel` | Stop the running sync. Finished files stay. |
 | `model_hub_remove_cache --repo <id> --confirm true` | Delete one model from the shared cache. |

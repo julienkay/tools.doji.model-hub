@@ -28,7 +28,8 @@ namespace Doji.AI.ModelHub
             string packageResolvedPath,
             string manifestPath,
             ModelDependencyDefinition model,
-            IReadOnlyList<string> enabledOptionalFiles = null)
+            IReadOnlyList<string> enabledOptionalFiles = null,
+            bool modelEnabled = false)
         {
             PackageId = packageId;
             PackageDisplayName = packageDisplayName;
@@ -38,6 +39,8 @@ namespace Doji.AI.ModelHub
             ModelId = model.Id;
             Repository = model.Id;
             Revision = model.EffectiveRevision;
+            IsOptionalModel = model.Optional;
+            IsEnabled = !model.Optional || modelEnabled;
             _fileEntries = ModelDependencyDefinition.NormalizeFileEntries(model.FileEntries?.ToArray());
 
             var enabledOptionalLookup = new HashSet<string>(
@@ -100,15 +103,37 @@ namespace Doji.AI.ModelHub
         public string Revision { get; }
 
         /// <summary>
+        /// Whether the manifest marks the whole model <c>optional</c>: declared, but opt-in per project.
+        /// </summary>
+        public bool IsOptionalModel { get; }
+
+        /// <summary>
+        /// Whether the project uses this dependency. Always true for a model the manifest does not mark optional. An
+        /// optional model that the project did not enable selects no file: AI Model Hub does not download, convert, or
+        /// bundle it, and it takes no part in revision conflict checks.
+        /// </summary>
+        public bool IsEnabled { get; }
+
+        /// <summary>
+        /// An optional model that the project did not enable.
+        /// </summary>
+        public bool IsNotEnabled => !IsEnabled;
+
+        /// <summary>
         /// Declared repo-relative file selections with optional intent stored beside each path.
         /// Empty means whole-repository scope.
         /// </summary>
         public IReadOnlyList<ModelDependencyFileDefinition> FileEntries => _fileEntries;
 
         /// <summary>
-        /// Effective exact repo-relative file paths selected for this dependency after applying project-owned optional-file overrides.
+        /// Effective exact repo-relative file paths selected for this dependency after applying project-owned optional-file
+        /// overrides. Empty for an optional model that the project did not enable.
         /// </summary>
-        public IReadOnlyList<string> SelectedFiles => _fileEntries
+        public IReadOnlyList<string> SelectedFiles => !IsEnabled
+            ? Array.Empty<string>()
+            : SelectedFilesWhenEnabled;
+
+        private IReadOnlyList<string> SelectedFilesWhenEnabled => _fileEntries
             .Where(file => !file.Optional || _enabledOptionalFilePaths.Contains(file.Path, StringComparer.Ordinal))
             .Select(file => file.Path)
             .Distinct(StringComparer.Ordinal)
@@ -139,7 +164,7 @@ namespace Doji.AI.ModelHub
         /// <summary>
         /// Whether the manifest declares optional model files but none are currently enabled for this owner.
         /// </summary>
-        public bool RequiresOptionalModelSelection => !SelectsWholeRepository &&
+        public bool RequiresOptionalModelSelection => IsEnabled && !SelectsWholeRepository &&
             !SelectedFiles.Any(ModelFiles.IsModelFile) &&
             _fileEntries.Any(file => file.Optional && ModelFiles.IsModelFile(file.Path));
 
@@ -164,6 +189,19 @@ namespace Doji.AI.ModelHub
             IEnumerable<string> repositoryFiles,
             IEnumerable<string> fallbackFiles = null)
         {
+            return IsEnabled
+                ? GetSelectedRepoPathsWhenEnabled(repositoryFiles, fallbackFiles)
+                : Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Returns the files <see cref="GetSelectedRepoPaths"/> would return once the project enables this model, for
+        /// example to show the download size of an optional model before it is enabled.
+        /// </summary>
+        internal IReadOnlyList<string> GetSelectedRepoPathsWhenEnabled(
+            IEnumerable<string> repositoryFiles,
+            IEnumerable<string> fallbackFiles = null)
+        {
             var knownFiles = (repositoryFiles ?? fallbackFiles ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(ModelDependencyDefinition.NormalizeRepoPath)
@@ -175,8 +213,9 @@ namespace Doji.AI.ModelHub
                 return knownFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray();
             }
 
-            return SelectedFiles
-                .Concat(SelectedFiles.SelectMany(path => ModelFiles.GetCompanionFiles(path, knownFiles)))
+            var selectedFiles = SelectedFilesWhenEnabled;
+            return selectedFiles
+                .Concat(selectedFiles.SelectMany(path => ModelFiles.GetCompanionFiles(path, knownFiles)))
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -225,7 +264,7 @@ namespace Doji.AI.ModelHub
             IEnumerable<string> repositoryFiles,
             IEnumerable<string> fallbackFiles = null)
         {
-            if (string.IsNullOrWhiteSpace(repoPath))
+            if (string.IsNullOrWhiteSpace(repoPath) || !IsEnabled)
             {
                 return false;
             }
@@ -414,7 +453,7 @@ namespace Doji.AI.ModelHub
     internal static class ManifestParser
     {
         private static readonly string[] RootProperties = { "version", "models" };
-        private static readonly string[] ModelProperties = { "id", "revision", "files" };
+        private static readonly string[] ModelProperties = { "id", "revision", "optional", "files" };
         private static readonly string[] FileProperties = { "path", "optional", "label", "conversion" };
         private static readonly string[] ConversionProperties = { "quantization", "inputShapes" };
         private static readonly string[] QuantizationValues = { "none", "float16", "uint8" };
@@ -494,13 +533,25 @@ namespace Doji.AI.ModelHub
                     }
 
                     var revision = ReadOptionalString(modelElement, "revision");
+                    var optional = false;
+                    if (modelElement.TryGetValue("optional", StringComparison.Ordinal, out var optionalToken))
+                    {
+                        if (optionalToken.Type != JTokenType.Boolean)
+                        {
+                            errorMessage = $"Manifest model at index {modelIndex} must define `optional` as a boolean when present.";
+                            return false;
+                        }
+
+                        optional = optionalToken.Value<bool>();
+                    }
+
                     var files = ReadOptionalFileArray(modelElement, "files", modelIndex, out errorMessage);
                     if (errorMessage != null)
                     {
                         return false;
                     }
 
-                    models.Add(new ManifestModelDraft(id, revision, files));
+                    models.Add(new ManifestModelDraft(id, revision, files, optional));
                     modelIndex++;
                 }
 
@@ -778,15 +829,18 @@ namespace Doji.AI.ModelHub
         public ManifestModelDraft(
             string id,
             string revision,
-            IReadOnlyList<ModelDependencyFileDefinition> files = null)
+            IReadOnlyList<ModelDependencyFileDefinition> files = null,
+            bool optional = false)
         {
             Id = id;
             Revision = revision;
             FileEntries = files?.Count > 0 ? files.ToArray() : null;
+            Optional = optional;
         }
 
         public string Id { get; }
         public string Revision { get; }
+        public bool Optional { get; }
         public IReadOnlyList<ModelDependencyFileDefinition> FileEntries { get; }
     }
 
@@ -839,7 +893,7 @@ namespace Doji.AI.ModelHub
                     return false;
                 }
 
-                finalizedModels.Add(new ModelDependencyDefinition(id, revision, files));
+                finalizedModels.Add(new ModelDependencyDefinition(id, revision, files, model.Optional));
             }
 
             manifest = new PackageManifest(version, finalizedModels);

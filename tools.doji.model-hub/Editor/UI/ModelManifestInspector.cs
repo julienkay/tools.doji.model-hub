@@ -163,7 +163,7 @@ namespace Doji.AI.ModelHub.Editor
         internal static ManifestModelEntry[] ToEntries(PackageManifest manifest)
         {
             return (manifest?.Models ?? Array.Empty<ModelDependencyDefinition>())
-                .Select(model => ManifestModelEntry.Create(model.Id, model.Revision, model.FileEntries.ToArray()))
+                .Select(model => ManifestModelEntry.Create(model.Id, model.Revision, model.FileEntries.ToArray(), model.Optional))
                 .ToArray();
         }
 
@@ -189,7 +189,8 @@ namespace Doji.AI.ModelHub.Editor
                 .Select(model => new ManifestModelDraft(
                     model?.ModelId ?? string.Empty,
                     string.IsNullOrWhiteSpace(model?.Revision) ? null : model.Revision,
-                    model?.HasExplicitFileSelection == true ? model.FileEntries : null));
+                    model?.HasExplicitFileSelection == true ? model.FileEntries : null,
+                    model?.Optional == true));
         }
 
         internal static bool TryBuildManifestJson(
@@ -257,7 +258,8 @@ namespace Doji.AI.ModelHub.Editor
                                         fileProperty.FindPropertyRelative("<Label>k__BackingField")?.stringValue,
                                         ReadConversion(fileProperty));
                                 })
-                                .ToArray());
+                                .ToArray(),
+                        modelProperty.FindPropertyRelative("<Optional>k__BackingField")?.boolValue == true);
                 })
                 .ToArray();
             return true;

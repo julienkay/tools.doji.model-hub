@@ -31,6 +31,11 @@ namespace Doji.AI.ModelHub
                 element["revision"] = model.Revision;
             }
 
+            if (model.Optional)
+            {
+                element["optional"] = true;
+            }
+
             if (model.FileEntries?.Count > 0)
             {
                 element["files"] = new JArray(model.FileEntries.Where(file => file != null).Select(WriteFile));

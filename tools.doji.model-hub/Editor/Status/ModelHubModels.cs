@@ -11,7 +11,12 @@ namespace Doji.AI.ModelHub.Editor
     {
         Ready,
         ActionRequired,
-        Error
+        Error,
+
+        /// <summary>
+        /// An optional model that this project did not enable. It needs no action.
+        /// </summary>
+        NotEnabled
     }
 
     /// <summary>
@@ -150,6 +155,28 @@ namespace Doji.AI.ModelHub.Editor
                 : item.Dependency.ManifestPath)
             .Distinct(StringComparer.Ordinal)
             .Count();
+        /// <summary>
+        /// An optional model that no owner in this project enabled.
+        /// </summary>
+        public bool IsNotEnabled => State == ModelHubItemState.NotEnabled;
+
+        /// <summary>
+        /// Owners that declare this model as optional and did not enable it.
+        /// </summary>
+        public IReadOnlyList<DependencyStatus> NotEnabledDependents => _dependents.Where(item => item.IsNotEnabled).ToArray();
+
+        /// <summary>
+        /// Owners that declare this model as optional and enabled it.
+        /// </summary>
+        public IReadOnlyList<DependencyStatus> EnabledOptionalDependents => _dependents
+            .Where(item => item.Dependency.IsOptionalModel && item.Dependency.IsEnabled)
+            .ToArray();
+
+        /// <summary>
+        /// Whether any owner declares this model with the model-level <c>optional</c> flag.
+        /// </summary>
+        public bool IsOptionalModel => _dependents.Any(item => item.Dependency.IsOptionalModel);
+
         public bool HasRevisionConflict => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RevisionConflict);
         public bool HasSelectionRequired => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.SelectionRequired);
         public bool HasMissingCacheFiles => _dependents.Any(item => item.ReasonCode == DependencyReasonCode.RawCacheFilesMissing);
@@ -204,7 +231,7 @@ namespace Doji.AI.ModelHub.Editor
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
         public bool HasImportedArtifacts => _runtimeFiles.Length > 0;
-        public bool NeedsAttention => State != ModelHubItemState.Ready;
+        public bool NeedsAttention => State != ModelHubItemState.Ready && State != ModelHubItemState.NotEnabled;
 
         internal void AddDiagnostic(ModelHubDiagnostic diagnostic)
         {
@@ -245,5 +272,6 @@ namespace Doji.AI.ModelHub.Editor
         public int ReadyCount => _items.Count(item => item.State == ModelHubItemState.Ready);
         public int ActionRequiredCount => _items.Count(item => item.State == ModelHubItemState.ActionRequired);
         public int ErrorCount => _items.Count(item => item.State == ModelHubItemState.Error);
+        public int NotEnabledCount => _items.Count(item => item.State == ModelHubItemState.NotEnabled);
     }
 }

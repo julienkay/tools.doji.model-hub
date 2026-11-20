@@ -15,17 +15,23 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal sealed class ManifestModelEntry
     {
-        public ManifestModelEntry(string owner, string name, string revision, ModelDependencyFileDefinition[] files = null)
+        public ManifestModelEntry(string owner, string name, string revision, ModelDependencyFileDefinition[] files = null, bool optional = false)
         {
             Owner = owner ?? string.Empty;
             Name = name ?? string.Empty;
             Revision = revision ?? string.Empty;
             FileEntries = ModelDependencyDefinition.NormalizeFileEntries(files);
+            Optional = optional;
         }
 
         public string Owner { get; set; }
         public string Name { get; set; }
         public string Revision { get; set; }
+
+        /// <summary>
+        /// The manifest's model-level <c>optional</c> flag: the model is opt-in per project.
+        /// </summary>
+        public bool Optional { get; set; }
         public ModelDependencyFileDefinition[] FileEntries { get; set; }
 
         public string ModelId => string.IsNullOrWhiteSpace(Owner)
@@ -127,17 +133,18 @@ namespace Doji.AI.ModelHub.Editor
         /// Creates an editor row from a manifest model id such as <c>owner/name</c>. An id without an owner keeps
         /// everything in <see cref="Name"/>.
         /// </summary>
-        public static ManifestModelEntry Create(string id, string revision, ModelDependencyFileDefinition[] files)
+        public static ManifestModelEntry Create(string id, string revision, ModelDependencyFileDefinition[] files, bool optional = false)
         {
             var identifier = id ?? string.Empty;
             var slashIndex = identifier.IndexOf('/');
             return slashIndex <= 0 || slashIndex >= identifier.Length - 1
-                ? new ManifestModelEntry(string.Empty, identifier, revision ?? string.Empty, files)
+                ? new ManifestModelEntry(string.Empty, identifier, revision ?? string.Empty, files, optional)
                 : new ManifestModelEntry(
                     identifier.Substring(0, slashIndex),
                     identifier.Substring(slashIndex + 1),
                     revision ?? string.Empty,
-                    files);
+                    files,
+                    optional);
         }
     }
 

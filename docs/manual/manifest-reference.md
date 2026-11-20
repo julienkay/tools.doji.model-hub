@@ -41,6 +41,7 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 - `version`: manifest schema version. Current value is `1`.
 - `id`: canonical HuggingFace model identifier. In Hub API terms this is the `repo_id` string such as `owner/name`. The model must be public: AI Model Hub sends no access token, so gated and private models fail to download with a message that says so.
 - `revision`: optional branch, tag, or commit to resolve. Defaults to `main`.
+- `optional`: `true` makes the whole model opt-in. See [Optional Models](#optional-models). Omitted or `false` means the project always uses the model.
 - `files`: optional exact repo-relative file objects. Omit this field to require every file of the model. If present, each entry has `path`, and optionally `optional`, `label`, and `conversion`.
 - `files[].path`: exact repo-relative file path.
 - `files[].optional`: `true` when the project owner may enable that file before download or import. Omitted or `false` means the file is always required once the manifest entry is present.
@@ -49,7 +50,7 @@ Use `ProjectManifestAsset` when model dependencies need to ship through non-pack
 
 Model ids must be unique inside one manifest. File paths must be unique inside one model entry after trimming whitespace and converting `\` to `/`.
 
-AI Model Hub rejects a manifest that contains any other property, an `optional` value that is not `true` or `false`, a `label` that is not a string, or an invalid `conversion`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
+AI Model Hub rejects a manifest that contains any other property, an `optional` value (on a model or a file) that is not `true` or `false`, a `label` that is not a string, or an invalid `conversion`. A misspelled key would otherwise be ignored, and a model entry that lost its `files` would download the whole repository. The Model Hub window shows the error for the package that owns the manifest.
 
 ## All Files
 
@@ -165,6 +166,37 @@ Required and optional are both part of the manifest's explicit file scope. The `
 Until the project enables an optional file, AI Model Hub ignores that file for status, download, import, builds, and startup prompts. After the project enables it, the file behaves like any other selected file, and a missing download or conversion requires action.
 
 If a dependency declares only optional model files and none are enabled yet, AI Model Hub shows `Choose files` in Model Hub instead of downloading every file of the model. That state does not open the startup auto prompt by itself.
+
+## Optional Models
+
+Set `optional` on a model entry when a package or project declares a model that not every project needs, for example a large model for one feature.
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "stabilityai/sd-turbo",
+      "optional": true,
+      "files": [
+        { "path": "unet/model.onnx" },
+        { "path": "vae_decoder/model.onnx" }
+      ]
+    }
+  ]
+}
+```
+
+Until the project enables it, an optional model is declared, but AI Model Hub does not download, convert, or bundle it:
+
+- Model Hub lists it in the **Available** group, with its download size and license, and status **Not enabled**. **Enable** enables it and downloads it. **Disable** on an enabled optional model turns it off again; downloaded files stay in the cache.
+- `model_hub_status` reports the state `NotEnabled`, and `model_hub_sync` skips the model with the reason `not_enabled`. It is not an error and does not open the setup prompt.
+- It takes no part in revision checks, so another manifest can request another revision of the same model.
+- Builds do not include it. Loading one of its files in a player or in batch mode throws an error that names the model and how to enable it. In the Editor, AI Model Hub asks whether to enable and download it, with its size; `Hub.LoadModelAsync` then waits for the download.
+
+When the project enables the model, its required files are selected and it behaves like any other model. Optional files inside it keep their meaning: the project turns them on in the **Files** tab.
+
+The project's choice is stored per manifest owner in `ProjectSettings/Doji.AI.ModelHubSettings.asset`, with the optional-file choices. Commit that file so that builds include the same models on every machine. From the command line, use `model_hub_set_model --repo <id> --enabled true|false`.
 
 ## Conversion Settings
 

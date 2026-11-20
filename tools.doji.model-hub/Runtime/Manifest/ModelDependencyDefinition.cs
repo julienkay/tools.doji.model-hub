@@ -70,14 +70,18 @@ namespace Doji.AI.ModelHub
         /// <param name="id">Canonical HuggingFace model identifier, matching Hub `from_pretrained(...)` style source naming.</param>
         /// <param name="revision">Branch, tag, or commit to resolve from the Hub, as written. Null or empty means <c>main</c>.</param>
         /// <param name="files">Optional exact repo-relative selected files. Optional entries are project-selectable; required entries are always selected.</param>
+        /// <param name="optional">Whether the whole model is opt-in: declared, but not downloaded, converted, or
+        /// bundled until the project enables it.</param>
         public ModelDependencyDefinition(
             string id,
             string revision,
-            IReadOnlyList<ModelDependencyFileDefinition> files = null)
+            IReadOnlyList<ModelDependencyFileDefinition> files = null,
+            bool optional = false)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Revision = revision?.Trim() ?? string.Empty;
             _fileEntries = NormalizeFileEntries(files);
+            Optional = optional;
         }
 
         /// <summary>
@@ -90,6 +94,13 @@ namespace Doji.AI.ModelHub
         /// <see cref="EffectiveRevision"/>, which defaults to <c>main</c>.
         /// </summary>
         public string Revision { get; }
+
+        /// <summary>
+        /// Whether the model is opt-in. An optional model is declared, but AI Model Hub does not download, convert, or
+        /// bundle it until the project enables it. File-level <see cref="ModelDependencyFileDefinition.Optional"/> keeps
+        /// its meaning inside an enabled model.
+        /// </summary>
+        public bool Optional { get; }
 
         /// <summary>
         /// Exact repo-relative file selections, with optional flag stored beside each path.

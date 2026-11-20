@@ -43,7 +43,24 @@ namespace Doji.AI.ModelHub.Editor
         [JsonProperty("resolvedCommit")] public string ResolvedCommit { get; set; }
 
         /// <summary>
-        /// <c>Ready</c>, <c>Missing</c>, <c>Stale</c>, or <c>Failed</c>.
+        /// Whether the manifest marks the whole model optional: opt-in per project.
+        /// </summary>
+        [JsonProperty("optional")] public bool Optional { get; set; }
+
+        /// <summary>
+        /// Whether the project uses the model. Always true for a model that is not optional.
+        /// </summary>
+        [JsonProperty("enabled")] public bool Enabled { get; set; }
+
+        /// <summary>
+        /// Bytes of the selected files on Hugging Face (for an optional model that is not enabled: the files enabling
+        /// it selects), or null when AI Model Hub does not know the file list yet.
+        /// </summary>
+        [JsonProperty("downloadSizeBytes")] public long? DownloadSizeBytes { get; set; }
+
+        /// <summary>
+        /// <c>Ready</c>, <c>Missing</c>, <c>Stale</c>, <c>Failed</c>, or <c>NotEnabled</c> (an optional model that the
+        /// project did not enable; no action needed).
         /// </summary>
         [JsonProperty("state")] public string State { get; set; }
 
@@ -252,6 +269,16 @@ namespace Doji.AI.ModelHub.Editor
     /// <summary>
     /// The answer to a cancel request.
     /// </summary>
+    internal sealed class AutomationSetModelResult
+    {
+        [JsonProperty("repository")] public string Repository { get; set; }
+        [JsonProperty("enabled")] public bool Enabled { get; set; }
+        [JsonProperty("changed")] public bool Changed { get; set; }
+        [JsonProperty("changes")] public string[] Changes { get; set; } = Array.Empty<string>();
+        [JsonProperty("dependencies")] public AutomationDependencyInfo[] Dependencies { get; set; } = Array.Empty<AutomationDependencyInfo>();
+        [JsonProperty("next")] public string Next { get; set; }
+    }
+
     internal sealed class AutomationCancelResult
     {
         [JsonProperty("canceled")] public bool Canceled { get; set; }

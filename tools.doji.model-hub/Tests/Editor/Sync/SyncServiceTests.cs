@@ -79,6 +79,38 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(importService.CallCount, Is.EqualTo(0));
         }
 
+        /// <summary>
+        /// Verifies an optional model that the project did not enable is skipped without an error: nothing is
+        /// downloaded or imported, and its revision does not conflict with another owner's.
+        /// </summary>
+        [Test]
+        public async Task SyncAsync_SkipsOptionalModelThatIsNotEnabled()
+        {
+            var enabled = CreateDependency("doji/test-model", "tools.doji.main", "main");
+            var notEnabled = new DiscoveredModelDependency(
+                "tools.doji.optional",
+                "Optional Package",
+                "1.0.0",
+                "/tmp/tools.doji.optional",
+                "/tmp/tools.doji.optional/model-hub-manifest.json",
+                new ModelDependencyDefinition("doji/test-model", "refs/tags/v1", optional: true));
+            var discoveryReport = new DiscoveryReport(
+                new[] { enabled, notEnabled },
+                Array.Empty<ManifestDiscoveryIssue>());
+            var rawCacheService = new FakeRawCacheService();
+            var importService = new FakeProjectImportService();
+            var syncService = new SyncService(rawCacheService, importService);
+
+            var report = await syncService.SyncAsync(discoveryReport, CancellationToken.None);
+
+            Assert.That(report.FailureCount, Is.EqualTo(0));
+            Assert.That(report.SuccessCount, Is.EqualTo(1));
+            Assert.That(report.ModelResults.Count, Is.EqualTo(1));
+            Assert.That(report.ModelResults[0].Dependency.PackageId, Is.EqualTo("tools.doji.main"));
+            Assert.That(rawCacheService.CallCount, Is.EqualTo(1));
+            Assert.That(importService.CallCount, Is.EqualTo(1));
+        }
+
         [Test]
         public async Task SyncAsync_DownloadOnly_SkipsMaterialization()
         {

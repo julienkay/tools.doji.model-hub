@@ -81,7 +81,11 @@ namespace Doji.AI.ModelHub.Editor
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
             var repositoryFiles = GetRepositoryInventory(primary.Dependency.Repository, primary.Dependency.Revision, dependents);
             var selectedRepoPaths = BuildSelectedRepoPathSet(dependents, repositoryFiles);
-            var estimatedCacheSizeBytes = CalculateSelectedSourceSize(repositoryFiles, selectedRepoPaths);
+            // An optional model that no owner enabled selects nothing yet. Its size is what enabling it downloads.
+            var isNotEnabled = dependents.All(item => item.IsNotEnabled);
+            var estimatedCacheSizeBytes = CalculateSelectedSourceSize(
+                repositoryFiles,
+                isNotEnabled ? BuildSelectedRepoPathSet(dependents, repositoryFiles, whenEnabled: true) : selectedRepoPaths);
             if (!estimatedCacheSizeBytes.HasValue)
             {
                 estimatedCacheSizeBytes = dependents
@@ -229,7 +233,9 @@ namespace Doji.AI.ModelHub.Editor
 
         private static void AddRevisionConflictDiagnostics(IReadOnlyList<ModelHubItem> items)
         {
-            foreach (var repositoryGroup in items.GroupBy(item => item.Repository, StringComparer.Ordinal))
+            foreach (var repositoryGroup in items
+                         .Where(item => !item.IsNotEnabled)
+                         .GroupBy(item => item.Repository, StringComparer.Ordinal))
             {
                 var revisions = repositoryGroup
                     .Select(item => item.RequestedRevision)
@@ -298,7 +304,8 @@ namespace Doji.AI.ModelHub.Editor
 
         private static HashSet<string> BuildSelectedRepoPathSet(
             IReadOnlyList<DependencyStatus> dependents,
-            IReadOnlyList<RepositoryFileMetadata> repositoryFiles)
+            IReadOnlyList<RepositoryFileMetadata> repositoryFiles,
+            bool whenEnabled = false)
         {
             var inventoryPaths = (repositoryFiles ?? Array.Empty<RepositoryFileMetadata>())
                 .Select(file => file.RepoPath)
@@ -306,9 +313,11 @@ namespace Doji.AI.ModelHub.Editor
             var selectedRepoPaths = new HashSet<string>(StringComparer.Ordinal);
             foreach (var dependent in dependents ?? Array.Empty<DependencyStatus>())
             {
-                foreach (var repoPath in dependent.Dependency.GetSelectedRepoPaths(
-                             inventoryPaths,
-                             (dependent.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath)))
+                var fallback = (dependent.RawMetadata?.Files ?? Array.Empty<RawCacheFileMetadata>()).Select(file => file.RepoPath);
+                var paths = whenEnabled
+                    ? dependent.Dependency.GetSelectedRepoPathsWhenEnabled(inventoryPaths, fallback)
+                    : dependent.Dependency.GetSelectedRepoPaths(inventoryPaths, fallback);
+                foreach (var repoPath in paths)
                 {
                     selectedRepoPaths.Add(repoPath);
                 }
@@ -433,6 +442,11 @@ namespace Doji.AI.ModelHub.Editor
 
         private static ModelHubItemState GetAggregateState(IReadOnlyList<DependencyStatus> dependents)
         {
+            if (dependents.All(item => item.IsNotEnabled))
+            {
+                return ModelHubItemState.NotEnabled;
+            }
+
             if (dependents.Any(item => item.State == DependencyState.Failed))
             {
                 return ModelHubItemState.Error;

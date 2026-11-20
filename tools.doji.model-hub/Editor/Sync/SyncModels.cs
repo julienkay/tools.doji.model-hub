@@ -152,6 +152,11 @@ namespace Doji.AI.ModelHub.Editor
                     StringComparer.Ordinal);
             foreach (var dependency in discoveryReport.Dependencies)
             {
+                if (dependency.IsNotEnabled)
+                {
+                    continue;
+                }
+
                 if (statusByDependencyKey.TryGetValue($"{dependency.PackageId}:{dependency.ModelId}", out var dependencyStatus) &&
                     dependencyStatus.ReasonCode == DependencyReasonCode.SelectionRequired)
                 {

@@ -27,7 +27,8 @@ namespace Doji.AI.ModelHub
                     model?.Revision,
                     model?.Files?.Length > 0
                         ? model.Files.Select(file => file?.ToDefinition()).ToArray()
-                        : null))
+                        : null,
+                    model?.Optional == true))
                 .ToArray();
             return ManifestFactory.TryCreateManifest(Version, drafts, out manifest, out errorMessage);
         }
@@ -44,6 +45,12 @@ namespace Doji.AI.ModelHub
 
         [field: SerializeField]
         public string Revision { get; set; } = "main";
+
+        /// <summary>
+        /// Whether the model is opt-in: declared, but not downloaded, converted, or bundled until the project enables it.
+        /// </summary>
+        [field: SerializeField]
+        public bool Optional { get; set; }
 
         [field: SerializeField]
         public ProjectManifestFileAssetEntry[] Files { get; set; }

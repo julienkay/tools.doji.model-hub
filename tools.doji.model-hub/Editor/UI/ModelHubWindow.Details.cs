@@ -161,25 +161,44 @@ namespace Doji.AI.ModelHub.Editor
             {
                 var label = status.ActionLabel;
                 var size = UiKit.FormatBytes(item.SourceSizeBytes);
-                if ((status.Kind is ModelStatusKind.DownloadNeeded or ModelStatusKind.RepairNeeded) && !string.IsNullOrWhiteSpace(size))
+                if ((status.Kind is ModelStatusKind.DownloadNeeded or ModelStatusKind.RepairNeeded or ModelStatusKind.NotEnabled) && !string.IsNullOrWhiteSpace(size))
                 {
                     label = $"{label}  ·  {size}";
                 }
 
                 var primary = UiKit.PrimaryButton(label, () => RunPrimaryAction(item, status), "hf-button--first");
-                if (status.Action == ModelActionKind.Sync)
+                if (status.Action is ModelActionKind.Sync or ModelActionKind.EnableModel)
                 {
                     primary.SetEnabled(!isSyncRunning);
-                    primary.tooltip = isSyncRunning ? "Wait for the running setup to finish." : status.Description;
+                    primary.tooltip = isSyncRunning
+                        ? "Wait for the running setup to finish."
+                        : status.Action == ModelActionKind.EnableModel
+                            ? "Enable this optional model for this project and download it. The choice is saved in the project's settings."
+                            : status.Description;
                 }
 
                 actions.Add(primary);
             }
 
+            if (!item.IsNotEnabled && item.EnabledOptionalDependents.Count > 0)
+            {
+                var disable = UiKit.Button("Disable", () => ConfirmDisableModel(item));
+                disable.SetEnabled(!isSyncRunning);
+                disable.tooltip = isSyncRunning
+                    ? "Wait for the running setup to finish."
+                    : "Disable this optional model for this project. Builds no longer include it. Downloaded files stay in the cache.";
+                if (status.Action == ModelActionKind.None)
+                {
+                    disable.AddToClassList("hf-button--first");
+                }
+
+                actions.Add(disable);
+            }
+
             Button manifestButton = null;
             manifestButton = UiKit.Button("Show Manifest", () => LocateManifest(item, manifestButton.worldBound));
             manifestButton.tooltip = "Select the manifest that declares this model.";
-            if (status.Action == ModelActionKind.None)
+            if (status.Action == ModelActionKind.None && !(item.EnabledOptionalDependents.Count > 0))
             {
                 manifestButton.AddToClassList("hf-button--first");
             }
@@ -200,7 +219,40 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (status.Action == ModelActionKind.EnableModel)
+            {
+                EnableModel(item);
+                return;
+            }
+
             EditorOperations.StartBackgroundSync(item);
+            Refresh();
+        }
+
+        /// <summary>
+        /// Enables an optional model for every owner that declares it not enabled, then downloads and sets it up.
+        /// </summary>
+        private void EnableModel(ModelHubItem item)
+        {
+            EditorOperations.SetOptionalModelEnabled(item.NotEnabledDependents.Select(dependent => dependent.Dependency), true);
+            BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision, SyncOperationMode.Full);
+            Refresh();
+        }
+
+        private void ConfirmDisableModel(ModelHubItem item)
+        {
+            if (!EditorUtility.DisplayDialog(
+                    "Disable Optional Model",
+                    $"Disable {item.Repository} in this project?\n\n" +
+                    "AI Model Hub stops setting it up, and builds no longer include it. Code that loads it gets an error that says how to enable it again. " +
+                    "Downloaded and converted files stay in the shared caches, so enabling it again is fast.",
+                    "Disable",
+                    "Cancel"))
+            {
+                return;
+            }
+
+            EditorOperations.SetOptionalModelEnabled(item.EnabledOptionalDependents.Select(dependent => dependent.Dependency), false);
             Refresh();
         }
 

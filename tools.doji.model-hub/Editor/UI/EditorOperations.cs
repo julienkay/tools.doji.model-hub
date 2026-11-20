@@ -59,6 +59,13 @@ namespace Doji.AI.ModelHub.Editor
                 return;
             }
 
+            if (item.IsNotEnabled)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"AI Model Hub does not download '{item.Repository}': it is an optional model that this project did not enable. Enable it first.");
+                return;
+            }
+
             if (item.HasSelectionRequired)
             {
                 UnityEngine.Debug.LogWarning(
@@ -67,6 +74,33 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             BackgroundSyncManager.StartForRepository(item.Repository, item.RequestedRevision, SyncOperationMode.Full);
+        }
+
+        /// <summary>
+        /// Enables or disables optional models for their owners in this project, and refreshes every surface that shows
+        /// them. Models that the manifest does not mark optional are left out. Does not start a sync. Returns one line
+        /// per change.
+        /// </summary>
+        public static string[] SetOptionalModelEnabled(
+            System.Collections.Generic.IEnumerable<DiscoveredModelDependency> dependencies,
+            bool isEnabled)
+        {
+            var source = new ProjectOptionalFileSelectionSource();
+            var changes = (dependencies ?? Enumerable.Empty<DiscoveredModelDependency>())
+                .Where(dependency => dependency != null && dependency.IsOptionalModel)
+                .Where(dependency => source.SetModelEnabled(dependency, isEnabled))
+                .Select(dependency => $"{(isEnabled ? "Enabled" : "Disabled")} optional model '{dependency.Repository}' for {dependency.PackageId}.")
+                .ToArray();
+            if (changes.Length > 0)
+            {
+                DiscoveredDependencyCache.Invalidate();
+                EditorRuntimeCatalog.Invalidate();
+                ModelHubWindow.RefreshOpenWindows();
+                ProjectSettingsProvider.Refresh();
+                BackgroundSyncManager.NotifyStateChanged();
+            }
+
+            return changes;
         }
 
         /// <summary>
@@ -171,6 +205,11 @@ namespace Doji.AI.ModelHub.Editor
             builder.AppendLine($"Missing models: {report.MissingCount}");
             builder.AppendLine($"Stale models: {report.StaleCount}");
             builder.AppendLine($"Failed models: {report.FailedCount}");
+            if (report.NotEnabledCount > 0)
+            {
+                builder.AppendLine($"Optional models not enabled: {report.NotEnabledCount}");
+            }
+
             builder.AppendLine($"Discovery issues: {report.DiscoveryIssues.Count}");
             return builder.ToString().TrimEnd();
         }

@@ -17,6 +17,8 @@ namespace Doji.AI.ModelHub.Editor
         {
             RuntimeModels.EditorCatalog = Get;
             RuntimeModels.EditorOnnxConverter = new EditorOnnxModelConverter();
+            RuntimeModels.EditorOfferEnableModel = OptionalModelPrompt.OfferEnable;
+            RuntimeModels.EditorWaitForSync = OptionalModelPrompt.WaitForSyncAsync;
             BackgroundSyncManager.SyncStateChanged += Invalidate;
             EditorApplication.projectChanged += Invalidate;
         }

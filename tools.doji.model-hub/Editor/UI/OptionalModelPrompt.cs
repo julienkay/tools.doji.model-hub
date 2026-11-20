@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using UnityEditor;
 using UnityEngine;
 
 namespace Doji.AI.ModelHub.Editor
@@ -13,9 +12,9 @@ namespace Doji.AI.ModelHub.Editor
     internal static class OptionalModelPrompt
     {
         /// <summary>
-        /// Shows the dialog for one optional model that the project did not enable. On consent it enables the model for
-        /// every owner that declares it as not enabled (or only for <paramref name="packageId"/>) and starts its sync.
-        /// Returns true when the model is enabled and its sync started.
+        /// Shows the setup prompt for one optional model that the project did not enable, and blocks until the user
+        /// decides. On consent it enables the model for every owner that declares it as not enabled (or only for
+        /// <paramref name="packageId"/>) and starts its sync. Returns true when the model is enabled and its sync started.
         /// </summary>
         public static bool OfferEnable(string packageId, string repoId)
         {
@@ -33,11 +32,7 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var dependents = item.NotEnabledDependents.Where(dependent => Matches(dependent, packageId)).ToArray();
-            if (!EditorUtility.DisplayDialog(
-                    "Enable Optional Model",
-                    BuildMessage(item.Repository, item.PendingDownloadBytes, item.ConvertedSizeBytes),
-                    "Enable and Download",
-                    "Cancel"))
+            if (AutoPromptWindow.ShowOptionalModel(item, dependents) != AutoPromptWindow.OptionalModelChoice.Enable)
             {
                 return false;
             }
@@ -48,10 +43,7 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
-        /// Completes when the running sync ends, with true when it succeeded.
-        /// </summary>
-        /// <summary>
-        /// The dialog text. It gives only the bytes that are not in the cache yet, and the disk space of the converted
+        /// The prompt text. It gives only the bytes that are not in the cache yet, and the disk space of the converted
         /// model when the model has ONNX files to convert.
         /// </summary>
         internal static string BuildMessage(string repository, long? pendingDownloadBytes, long? convertedSizeBytes)
@@ -73,11 +65,14 @@ namespace Doji.AI.ModelHub.Editor
             var conversion = string.IsNullOrWhiteSpace(converted)
                 ? string.Empty
                 : $" The converted model needs about {converted} of disk space.";
-            return $"{repository} is an optional model. It is not enabled in this project, so it is not downloaded.\n\n" +
-                   $"{(pendingDownloadBytes == 0 ? "Enable it now?" : "Enable it and download it now?")} {download}{conversion}\n\n" +
+            return $"{repository} is an optional model. It is not enabled in this project, so it is not downloaded. " +
+                   $"{download}{conversion} " +
                    "The choice is saved in this project's settings, so builds include the model on every machine.";
         }
 
+        /// <summary>
+        /// Completes when the running sync ends, with true when it succeeded.
+        /// </summary>
         public static async Task<bool> WaitForSyncAsync()
         {
             var run = await BackgroundSyncManager.WaitForRunToEndAsync();

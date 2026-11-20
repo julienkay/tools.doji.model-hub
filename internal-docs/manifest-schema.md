@@ -106,7 +106,8 @@ Rules:
   prompt; sync skips it with `SyncSkipReason.NotEnabled` (`not_enabled`); `RevisionConflictDetector` ignores it
 - `RuntimeRegistryBuilder` writes it to `RuntimeRegistry.notEnabledModels`, so `RuntimeModels.Find` throws an error
   that says how to enable the model. In the Editor (not batch mode) the `RuntimeModels.EditorOfferEnableModel` hook
-  (`OptionalModelPrompt`) asks to enable and download it; the async `Hub` calls wait for the sync and retry
+  (`OptionalModelPrompt`) asks to enable and download it in a modal `AutoPromptWindow`
+  (`ShowOptionalModel`, one card, only the bytes missing from the cache); the async `Hub` calls wait for the sync and retry
 - enabling selects the model's required files; file-level `optional` keeps its meaning inside an enabled model
 - disabling keeps the cache and the import records; status reads `NotEnabled` again before any import state
 

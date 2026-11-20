@@ -10,6 +10,7 @@ namespace Doji.AI.ModelHub.Editor
     /// <summary>
     /// Setup prompt: lists the models that need a download or a new conversion, says what each costs, and starts the
     /// work on one click. Models that only need this project's records are set up without it, by <see cref="AutoImport"/>.
+    /// It also asks, as a modal window, whether to enable one optional model that code loads (<see cref="ShowOptionalModel"/>).
     /// </summary>
     internal sealed class AutoPromptWindow : EditorWindow
     {
@@ -17,11 +18,23 @@ namespace Doji.AI.ModelHub.Editor
         private const float WindowWidth = 480f;
 
         private PromptViewModel _viewModel;
+        private Action<OptionalModelChoice> _onOptionalChoice;
 
         internal enum PromptPrimaryAction
         {
             StartSync,
-            OpenModelHub
+            OpenModelHub,
+            EnableOptionalModel
+        }
+
+        /// <summary>
+        /// What the user chose in the optional-model prompt. Closing the window is <see cref="Cancel"/>.
+        /// </summary>
+        internal enum OptionalModelChoice
+        {
+            Cancel,
+            Enable,
+            OpenInModelHub
         }
 
         internal static void ShowWindow(StatusReport report)
@@ -43,6 +56,32 @@ namespace Doji.AI.ModelHub.Editor
             window.minSize = new Vector2(WindowWidth, 220f);
             window.ShowUtility();
             window.Focus();
+        }
+
+        /// <summary>
+        /// Shows the prompt for one optional model that is not enabled, with <paramref name="dependents"/> as its owners,
+        /// and blocks until the user decides. The caller enables the model; this window only asks.
+        /// </summary>
+        internal static OptionalModelChoice ShowOptionalModel(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
+        {
+            GetOpenWindow()?.Close();
+
+            var choice = OptionalModelChoice.Cancel;
+            var window = CreateInstance<AutoPromptWindow>();
+            window.titleContent = new GUIContent(ModelHubWindow.Title);
+            window._viewModel = BuildOptionalModelViewModel(item, dependents);
+            window._onOptionalChoice = selected => choice = selected;
+            window.EnsureModelCard(item, dependents);
+            const float height = 300f;
+            var main = EditorGUIUtility.GetMainWindowPosition();
+            window.position = new Rect(
+                main.x + ((main.width - WindowWidth) * 0.5f),
+                main.y + ((main.height - height) * 0.5f),
+                WindowWidth,
+                height);
+            window.minSize = new Vector2(WindowWidth, 220f);
+            window.ShowModalUtility();
+            return choice;
         }
 
         /// <summary>
@@ -133,6 +172,54 @@ namespace Doji.AI.ModelHub.Editor
             }
         }
 
+        /// <summary>
+        /// Asks the Hub for the model card of the optional model when the prompt does not know it yet.
+        /// </summary>
+        private void EnsureModelCard(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
+        {
+            var dependency = dependents?.FirstOrDefault()?.Dependency;
+            if (item == null || item.ModelCard != null || dependency == null)
+            {
+                return;
+            }
+
+            new RemoteSnapshotSizeEstimateService().EnsureEstimateLookup(dependency, () =>
+            {
+                if (this == null)
+                {
+                    return;
+                }
+
+                var refreshed = GetHubItems();
+                if (!refreshed.TryGetValue(item.Repository, out var refreshedItem))
+                {
+                    return;
+                }
+
+                _viewModel = BuildOptionalModelViewModel(refreshedItem, refreshedItem.NotEnabledDependents
+                    .Where(status => dependents.Any(candidate => ReferenceEquals(candidate.Dependency, status.Dependency) ||
+                        string.Equals(candidate.Dependency.PackageId, status.Dependency.PackageId, StringComparison.Ordinal)))
+                    .ToArray());
+                rootVisualElement.Clear();
+                CreateGUI();
+            });
+        }
+
+        private void OnDestroy()
+        {
+            Choose(OptionalModelChoice.Cancel);
+        }
+
+        /// <summary>
+        /// Reports the first choice of the optional-model prompt; later calls, such as closing after a choice, do nothing.
+        /// </summary>
+        private void Choose(OptionalModelChoice choice)
+        {
+            var callback = _onOptionalChoice;
+            _onOptionalChoice = null;
+            callback?.Invoke(choice);
+        }
+
         private void CreateGUI()
         {
             if (_viewModel == null)
@@ -180,14 +267,25 @@ namespace Doji.AI.ModelHub.Editor
             }
 
             var footer = UiKit.Element("sp-footer");
-            footer.Add(UiKit.Button("Later", Close, "hf-button--first"));
+            footer.Add(UiKit.Button(_viewModel.DismissLabel, Close, "hf-button--first"));
             footer.Add(UiKit.Spacer());
             if (_viewModel.PrimaryAction != PromptPrimaryAction.OpenModelHub)
             {
-                footer.Add(UiKit.Button("Open Model Hub", () =>
+                footer.Add(UiKit.Button(_viewModel.OpenLabel, () =>
                 {
-                    ModelHubWindow.OpenWindow();
+                    var repository = _viewModel.OpenRepository;
+                    var revision = _viewModel.OpenRevision;
+                    if (string.IsNullOrWhiteSpace(repository))
+                    {
+                        ModelHubWindow.OpenWindow();
+                        Close();
+                        return;
+                    }
+
+                    // Close the modal prompt first, so Model Hub opens as a normal window.
+                    Choose(OptionalModelChoice.OpenInModelHub);
                     Close();
+                    EditorApplication.delayCall += () => ModelHubWindow.OpenWindow(repository, revision);
                 }));
             }
 
@@ -232,6 +330,14 @@ namespace Doji.AI.ModelHub.Editor
 
         private void RunPrimaryAction()
         {
+            if (_viewModel.PrimaryAction == PromptPrimaryAction.EnableOptionalModel)
+            {
+                // The caller enables the model and starts its sync once the modal window returns.
+                Choose(OptionalModelChoice.Enable);
+                Close();
+                return;
+            }
+
             if (_viewModel.PrimaryAction == PromptPrimaryAction.StartSync)
             {
                 EditorOperations.StartBackgroundSync();
@@ -325,6 +431,62 @@ namespace Doji.AI.ModelHub.Editor
             return new PromptViewModel(headline, body, models, issueCount, label, tooltip, action);
         }
 
+        /// <summary>
+        /// The prompt for one optional model that is not enabled: one card, a body from
+        /// <see cref="OptionalModelPrompt.BuildMessage"/>, and Enable (and Download) as the primary action.
+        /// </summary>
+        internal static PromptViewModel BuildOptionalModelViewModel(ModelHubItem item, IReadOnlyList<DependencyStatus> dependents)
+        {
+            var revision = string.IsNullOrWhiteSpace(item.ResolvedCommitHash)
+                ? ManifestRevision.NormalizeForResolution(item.RequestedRevision)
+                : item.ResolvedCommitHash;
+            var licenseLink = ModelLinks.GetLicenseLink(item.Repository, revision, item.ModelCard, item.Files.Select(file => file.RepoPath));
+            return BuildOptionalModelViewModel(
+                item.Repository,
+                item.RequestedRevision,
+                (dependents ?? Array.Empty<DependencyStatus>()).Select(status => ModelStatus.GetOwnerDisplayName(status.Dependency)).ToArray(),
+                (dependents ?? Array.Empty<DependencyStatus>()).Select(status => status.Dependency.ManifestPath).ToArray(),
+                item.PendingDownloadBytes,
+                item.ConvertedSizeBytes,
+                licenseLink);
+        }
+
+        internal static PromptViewModel BuildOptionalModelViewModel(
+            string repository,
+            string requestedRevision,
+            IReadOnlyList<string> owners,
+            IReadOnlyList<string> manifestPaths,
+            long? pendingDownloadBytes,
+            long? convertedSizeBytes,
+            ModelLink licenseLink)
+        {
+            var needsDownload = pendingDownloadBytes != 0;
+            var model = new PromptModelEntry(
+                repository,
+                (owners ?? Array.Empty<string>()).Distinct().OrderBy(name => name, StringComparer.Ordinal).ToArray(),
+                (manifestPaths ?? Array.Empty<string>()).Distinct().ToArray(),
+                false,
+                needsDownload,
+                pendingDownloadBytes,
+                licenseLink,
+                // Unknown sizes: assume it converts, like the setup prompt does for an unknown file list.
+                convertedSizeBytes != 0);
+            return new PromptViewModel(
+                "Enable an optional AI model?",
+                OptionalModelPrompt.BuildMessage(repository, pendingDownloadBytes, convertedSizeBytes),
+                new[] { model },
+                0,
+                needsDownload ? "Enable and Download" : "Enable",
+                needsDownload
+                    ? "Enable the model in this project's settings, then download it from Hugging Face into the shared cache."
+                    : "Enable the model in this project's settings. The files are already downloaded.",
+                PromptPrimaryAction.EnableOptionalModel,
+                "Cancel",
+                "Open in AI Model Hub",
+                repository,
+                requestedRevision);
+        }
+
         private static (string Label, string Tooltip, PromptPrimaryAction Action) BuildPrimaryAction(IReadOnlyList<PromptModelEntry> models)
         {
             var syncable = models.Where(model => !model.IsConflict).ToArray();
@@ -404,8 +566,16 @@ namespace Doji.AI.ModelHub.Editor
                 int issueCount,
                 string primaryActionLabel,
                 string primaryActionTooltip,
-                PromptPrimaryAction primaryAction)
+                PromptPrimaryAction primaryAction,
+                string dismissLabel = "Later",
+                string openLabel = "Open Model Hub",
+                string openRepository = null,
+                string openRevision = null)
             {
+                DismissLabel = dismissLabel;
+                OpenLabel = openLabel;
+                OpenRepository = openRepository;
+                OpenRevision = openRevision;
                 Headline = headline;
                 Body = body;
                 Models = models?.ToArray() ?? Array.Empty<PromptModelEntry>();
@@ -422,6 +592,19 @@ namespace Doji.AI.ModelHub.Editor
             public string PrimaryActionLabel { get; }
             public string PrimaryActionTooltip { get; }
             public PromptPrimaryAction PrimaryAction { get; }
+
+            /// <summary>
+            /// The button that closes the prompt without acting.
+            /// </summary>
+            public string DismissLabel { get; }
+
+            /// <summary>
+            /// The button that opens Model Hub, with <see cref="OpenRepository"/> selected when it is set.
+            /// </summary>
+            public string OpenLabel { get; }
+
+            public string OpenRepository { get; }
+            public string OpenRevision { get; }
         }
 
         internal sealed class PromptModelEntry

@@ -39,6 +39,48 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies the optional-model prompt shows one card, counts only missing bytes, and offers Enable and Download,
+        /// Open in AI Model Hub for that model, and Cancel.
+        /// </summary>
+        [Test]
+        public void BuildOptionalModelViewModel_OffersEnableAndDownload()
+        {
+            var viewModel = AutoPromptWindow.BuildOptionalModelViewModel(
+                "doji/optional", "main", new[] { "Diffusers" }, new[] { "manifest.json" }, 4096, 8192,
+                new ModelLink("MIT", "https://example.invalid", null));
+
+            Assert.That(viewModel.Models.Count, Is.EqualTo(1));
+            Assert.That(viewModel.Models[0].NeedsDownload, Is.True);
+            Assert.That(viewModel.Models[0].DownloadSizeBytes, Is.EqualTo(4096));
+            Assert.That(viewModel.Models[0].LicenseLink.Label, Is.EqualTo("MIT"));
+            Assert.That(viewModel.Body, Does.StartWith("doji/optional is an optional model."));
+            Assert.That(viewModel.Body, Does.Contain("Download size: 4 KB."));
+            Assert.That(viewModel.Body, Does.Contain("The converted model needs about 8 KB of disk space."));
+            Assert.That(viewModel.PrimaryAction, Is.EqualTo(AutoPromptWindow.PromptPrimaryAction.EnableOptionalModel));
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable and Download"));
+            Assert.That(viewModel.OpenLabel, Is.EqualTo("Open in AI Model Hub"));
+            Assert.That(viewModel.OpenRepository, Is.EqualTo("doji/optional"));
+            Assert.That(viewModel.DismissLabel, Is.EqualTo("Cancel"));
+        }
+
+        /// <summary>
+        /// Verifies the optional-model prompt offers plain Enable when every file is in the cache.
+        /// </summary>
+        [Test]
+        public void BuildOptionalModelViewModel_OffersEnableWhenFilesAreCached()
+        {
+            var viewModel = AutoPromptWindow.BuildOptionalModelViewModel(
+                "doji/optional", "main", new[] { "Diffusers" }, null, 0, 0,
+                new ModelLink("MIT", "https://example.invalid", null));
+
+            Assert.That(viewModel.Models[0].NeedsDownload, Is.False);
+            Assert.That(viewModel.Models[0].WillConvert, Is.False);
+            Assert.That(viewModel.PrimaryActionLabel, Is.EqualTo("Enable"));
+            Assert.That(viewModel.Body, Does.Contain("The files are already downloaded."));
+            Assert.That(viewModel.Body, Does.Not.Contain("Download size"));
+        }
+
+        /// <summary>
         /// A model that selects only Sentis files downloads without a conversion, so the prompt does not mention one.
         /// </summary>
         [Test]

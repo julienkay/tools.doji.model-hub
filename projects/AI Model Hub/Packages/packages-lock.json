@@ -214,6 +214,7 @@
         "tools.doji.downloads": "1.0.0",
         "tools.doji.formats.onnx": "1.0.0",
         "com.unity.ai.inference": "2.6.1",
+        "tools.doji.sentis-utils": "0.1.1",
         "com.unity.nuget.newtonsoft-json": "3.2.2"
       }
     },
@@ -232,6 +233,14 @@
       "dependencies": {
         "tools.doji.formats.onnx": "1.0.0",
         "com.unity.ai.inference": "2.6.1"
+      }
+    },
+    "tools.doji.sentis-utils": {
+      "version": "file:../../../../tools.doji.sentis-utils/tools.doji.sentis-utils",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.ai.inference": "2.5.0"
       }
     },
     "com.unity.modules.adaptiveperformance": {

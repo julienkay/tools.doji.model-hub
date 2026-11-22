@@ -5,6 +5,7 @@
     "tools.doji.formats.onnx": "file:../../../../tools.doji.formats.onnx/tools.doji.formats.onnx",
     "tools.doji.model-hub": "file:../../../tools.doji.model-hub",
     "tools.doji.onnx-model-loader": "file:../../../../tools.doji.onnx-model-loader/tools.doji.onnx-model-loader",
+    "tools.doji.sentis-utils": "file:../../../../tools.doji.sentis-utils/tools.doji.sentis-utils",
     "com.unity.ide.rider": "3.0.40",
     "com.unity.inputsystem": "1.20.0",
     "com.unity.nuget.newtonsoft-json": "3.2.2",

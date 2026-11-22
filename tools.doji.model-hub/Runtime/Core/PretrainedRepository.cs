@@ -111,23 +111,25 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Returns the path of the runtime model's Sentis file, downloading or converting it first when needed, for
-        /// loaders that read the file themselves. Not on the Web, where a bundled model is not a file.
+        /// Opens the runtime model's Sentis file, downloading or converting it first when needed. Its weights stay in
+        /// the file until <see cref="Doji.AI.ModelFile.CreateWorker"/> needs them, so they are not in RAM. Dispose the
+        /// handle to close the file. Not on the Web, where a bundled model is not a file: use
+        /// <see cref="LoadModelAsync"/> there.
         /// </summary>
-        public Task<string> GetModelPathAsync(
+        public async Task<Doji.AI.ModelFile> OpenModelAsync(
             string repoPath,
             IProgress<DownloadProgress> progress = null,
             CancellationToken cancellationToken = default)
         {
-            return RuntimeModels.GetPathAsync(_model, GetFile(repoPath), progress, cancellationToken);
+            return Doji.AI.ModelFile.Open(await RuntimeModels.GetPathAsync(_model, GetFile(repoPath), progress, cancellationToken));
         }
 
         /// <summary>
-        /// Returns the path of the runtime model's Sentis file without waiting, where <see cref="LoadModel"/> can load it.
+        /// Opens the runtime model's Sentis file without waiting, where <see cref="LoadModel"/> can load the model.
         /// </summary>
-        public string GetModelPath(string repoPath)
+        public Doji.AI.ModelFile OpenModel(string repoPath)
         {
-            return RuntimeModels.GetPath(_model, GetFile(repoPath));
+            return Doji.AI.ModelFile.Open(RuntimeModels.GetPath(_model, GetFile(repoPath)));
         }
 
         /// <summary>

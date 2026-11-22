@@ -15,6 +15,12 @@ can read status, run a sync, and change file selections without the window. User
 | `StatusService`, `ModelHubService` | `Editor/Status` | Local status and file rows, as the window shows them. |
 | `OptionalFileSelection.SetEnabled`, `EditorOperations.ApplyProjectOverrides` | `Editor/Discovery`, `Editor/UI` | The Files tab and Details tab edits. The window and the CLI share them. |
 
+`ModelHubBatch` (`Editor/Automation`) is the one public type: `-executeMethod` entries `Sync` and `Status` for CI
+without Pipeline. They call `ModelHubAutomation`, log and optionally write the same JSON, and call
+`EditorApplication.Exit` with 0 (ready), 1 (failed or not ready), or 2 (argument error). `ModelHubAutomation` and
+the DTOs stay internal: the JSON is the contract, so the C# shapes can change. Only `Sync` and `Status` are batch
+entries; the other commands change state that a CI job sets in the manifest or project settings instead.
+
 `Doji.ModelHub.Editor.Cli` compiles only when `com.unity.pipeline` is installed: a `versionDefines` entry sets
 `MODEL_HUB_PIPELINE` and `defineConstraints` requires it. It references only `Unity.Pipeline.Attributes`, the
 assembly with `[CliCommand]` and `[CliArg]`. `Doji.ModelHub.Editor` has no Pipeline dependency, and the tests

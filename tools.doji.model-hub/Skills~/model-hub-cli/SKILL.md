@@ -66,6 +66,11 @@ when they decide. If a command refuses and names a flag such as `--confirm true`
 | `model_hub_cancel` | Stop the running sync. Finished files stay. |
 | `model_hub_remove_cache --repo <id> --confirm true` | Delete one model from the shared cache. |
 
+Without `com.unity.pipeline`, run `Unity -batchmode -projectPath <p> -executeMethod
+Doji.AI.ModelHub.Editor.ModelHubBatch.Sync` (or `.Status`) without `-quit`. Optional `-modelHubRepo <id>`,
+`-modelHubMode full|download`, `-modelHubOutput <file>` (JSON). Exit code 0 ready, 1 failed or not ready, 2 bad
+argument. Do not reflect on internal Model Hub types.
+
 A sync that fails with "Not enough disk space" names the space needed and free per drive. Run
 `model_hub_cache_info` and tell the user; do not delete cache content to make room. If `staleVariables` is not
 empty, the Editor still uses an old `HF_HOME` or similar value: tell the user to quit Unity Hub (also from the

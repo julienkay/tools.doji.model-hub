@@ -148,6 +148,8 @@ Status and sync:
   - unknown repositories, modes, quantizations, and file edits are refused with the fix in the message
   - cache removal refuses without `--confirm`; cancel reports when nothing runs
   - the run record survives save and load; sync reports become per-model results
+- `tools.doji.model-hub/Tests/Editor/Automation/ModelHubBatchTests.cs`
+  - `-executeMethod` exit codes for sync and status; command-line argument parsing
   - optional-file toggles keep the owner's other files; downloads report each file start
   - status reads snapshots from disk; a missing or foreign index is ignored
 - `tools.doji.model-hub/Tests/Editor/Import/ProjectRemovalServiceTests.cs`

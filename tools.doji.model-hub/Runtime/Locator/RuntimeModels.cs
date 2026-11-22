@@ -367,24 +367,42 @@ namespace Doji.AI.ModelHub
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
+            if (model.Delivery == ModelDelivery.Bundle && Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                var bytes = await ReadStreamingAssetBytesAsync(file.relativePath, progress, cancellationToken);
+                using var stream = new MemoryStream(bytes, false);
+                return ModelLoader.Load(stream);
+            }
+
+            return ModelLoader.Load(await GetPathAsync(model, file, progress, cancellationToken));
+        }
+
+        /// <summary>
+        /// Returns the path of one runtime model's Sentis file, downloading, copying or converting it first when
+        /// needed. Not on the Web, where a bundled model is not a file.
+        /// </summary>
+        public static async Task<string> GetPathAsync(
+            RuntimeModelEntry model,
+            RuntimeModelFile file,
+            IProgress<DownloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
             if (TryGetLocalPathWithoutWaiting(model, file, out var localPath))
             {
-                return ModelLoader.Load(localPath);
+                return localPath;
             }
 
             if (model.Delivery == ModelDelivery.Bundle)
             {
                 if (Application.platform == RuntimePlatform.WebGLPlayer)
                 {
-                    var bytes = await ReadStreamingAssetBytesAsync(file.relativePath, progress, cancellationToken);
-                    using var stream = new MemoryStream(bytes, false);
-                    return ModelLoader.Load(stream);
+                    throw new NotSupportedException($"AI Model Hub model '{model.repoId}:{file.repoPath}' is not a file on the Web. Use Hub.LoadModelAsync.");
                 }
 
-                return ModelLoader.Load(await CopyBundledModelAsync(file, progress, cancellationToken));
+                return await CopyBundledModelAsync(file, progress, cancellationToken);
             }
 
-            return ModelLoader.Load(await EnsureDownloadedAsync(model, file, progress, cancellationToken));
+            return await EnsureDownloadedAsync(model, file, progress, cancellationToken);
         }
 
         /// <summary>
@@ -393,9 +411,17 @@ namespace Doji.AI.ModelHub
         /// </summary>
         public static Model Load(RuntimeModelEntry model, RuntimeModelFile file)
         {
+            return ModelLoader.Load(GetPath(model, file));
+        }
+
+        /// <summary>
+        /// Returns the path of one runtime model's Sentis file without waiting, where <see cref="Load"/> can load it.
+        /// </summary>
+        public static string GetPath(RuntimeModelEntry model, RuntimeModelFile file)
+        {
             if (TryGetLocalPathWithoutWaiting(model, file, out var localPath))
             {
-                return ModelLoader.Load(localPath);
+                return localPath;
             }
 
             throw new InvalidOperationException(model.Delivery == ModelDelivery.Download

@@ -111,6 +111,26 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
+        /// Returns the path of the runtime model's Sentis file, downloading or converting it first when needed, for
+        /// loaders that read the file themselves. Not on the Web, where a bundled model is not a file.
+        /// </summary>
+        public Task<string> GetModelPathAsync(
+            string repoPath,
+            IProgress<DownloadProgress> progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return RuntimeModels.GetPathAsync(_model, GetFile(repoPath), progress, cancellationToken);
+        }
+
+        /// <summary>
+        /// Returns the path of the runtime model's Sentis file without waiting, where <see cref="LoadModel"/> can load it.
+        /// </summary>
+        public string GetModelPath(string repoPath)
+        {
+            return RuntimeModels.GetPath(_model, GetFile(repoPath));
+        }
+
+        /// <summary>
         /// Returns the runtime model's path when it is already a file on this device.
         /// </summary>
         public bool TryGetModelPath(string repoPath, out string path)

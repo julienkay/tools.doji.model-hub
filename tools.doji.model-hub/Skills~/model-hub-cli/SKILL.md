@@ -67,7 +67,8 @@ when they decide. If a command refuses and names a flag such as `--confirm true`
 | `model_hub_remove_cache --repo <id> --confirm true` | Delete one model from the shared cache. |
 
 Without `com.unity.pipeline`, run `Unity -batchmode -projectPath <p> -executeMethod
-Doji.AI.ModelHub.Editor.ModelHubBatch.Sync` (or `.Status`) without `-quit`. Optional `-modelHubRepo <id>`,
+Doji.AI.ModelHub.Editor.ModelHubBatch.Sync` (or `.Status`) without `-quit`
+(`Sync` exits with 2 when `-quit` is given). Optional `-modelHubRepo <id>`,
 `-modelHubMode full|download`, `-modelHubOutput <file>` (JSON). Exit code 0 ready, 1 failed or not ready, 2 bad
 argument. Do not reflect on internal Model Hub types.
 

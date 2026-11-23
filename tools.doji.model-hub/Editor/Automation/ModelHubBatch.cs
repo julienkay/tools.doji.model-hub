@@ -35,6 +35,14 @@ namespace Doji.AI.ModelHub.Editor
         public static async void Sync()
         {
             var args = Environment.GetCommandLineArgs();
+            var problem = GetSyncArgumentProblem(args);
+            if (problem != null)
+            {
+                Debug.LogError(LogPrefix + problem);
+                EditorApplication.Exit(Error);
+                return;
+            }
+
             await RunAsync(args, async () =>
             {
                 var result = await ModelHubAutomation.StartSyncAndWaitAsync(
@@ -83,6 +91,18 @@ namespace Doji.AI.ModelHub.Editor
                     .Where(dependency => dependency.Enabled)
                     .All(dependency => dependency.State == nameof(DependencyState.Ready));
             return ready ? Success : NotReady;
+        }
+
+        /// <summary>
+        /// Why <see cref="Sync"/> cannot run with these arguments, or null. With <c>-quit</c>, Unity waits for the
+        /// method without running Editor updates, which the sync needs to finish, so it would hang until Unity's
+        /// timeout.
+        /// </summary>
+        internal static string GetSyncArgumentProblem(string[] args)
+        {
+            return Array.Exists(args, arg => string.Equals(arg, "-quit", StringComparison.OrdinalIgnoreCase))
+                ? "Run ModelHubBatch.Sync without -quit. With -quit, Unity stops updating the Editor while it waits, so the sync never ends. The method exits the Editor itself when the sync is done."
+                : null;
         }
 
         /// <summary>

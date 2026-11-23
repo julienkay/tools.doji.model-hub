@@ -44,6 +44,30 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies sync refuses <c>-quit</c>: Unity then waits without Editor updates, and the sync hangs until
+        /// Unity's 300-second timeout.
+        /// </summary>
+        [TestCase("-quit")]
+        [TestCase("-Quit")]
+        public void SyncArguments_WithQuit_AreRejected(string quit)
+        {
+            var args = new[] { "Unity.exe", "-batchmode", quit, "-executeMethod", "Doji.AI.ModelHub.Editor.ModelHubBatch.Sync" };
+
+            Assert.That(ModelHubBatch.GetSyncArgumentProblem(args), Does.Contain("without -quit"));
+        }
+
+        /// <summary>
+        /// Verifies sync accepts the documented arguments, where the method exits the Editor itself.
+        /// </summary>
+        [Test]
+        public void SyncArguments_WithoutQuit_AreAccepted()
+        {
+            var args = new[] { "Unity.exe", "-batchmode", "-executeMethod", "Doji.AI.ModelHub.Editor.ModelHubBatch.Sync", "-modelHubOutput", "sync.json" };
+
+            Assert.That(ModelHubBatch.GetSyncArgumentProblem(args), Is.Null);
+        }
+
+        /// <summary>
         /// Verifies status exits with 0 when every enabled model is ready, ignoring optional models that are off.
         /// </summary>
         [Test]

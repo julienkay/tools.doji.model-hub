@@ -74,7 +74,7 @@ The command fails when an argument is invalid, for example an unknown model id. 
 
 ### Without the Unity CLI
 
-Without `com.unity.pipeline`, use `-executeMethod`. Leave out `-quit`: the method exits the Editor itself when the work is done.
+Without `com.unity.pipeline`, use `-executeMethod`. Leave out `-quit`: the method exits the Editor itself when the work is done. With `-quit`, `Sync` stops at once with exit code `2`, because Unity would wait without updating the Editor and the sync would never end.
 
 ```bash
 Unity -batchmode -projectPath path/to/Project -executeMethod Doji.AI.ModelHub.Editor.ModelHubBatch.Sync -modelHubOutput sync.json

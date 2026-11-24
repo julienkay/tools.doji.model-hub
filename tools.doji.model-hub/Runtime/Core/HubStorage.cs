@@ -36,7 +36,7 @@ namespace Doji.AI.ModelHub
 
         public string SourceEtag { get; }
 
-        /// <summary>The converter that produced the model, for example <c>unity-inference-editor-v2@sentis-f8</c>.</summary>
+        /// <summary>The converter that produced the model, for example <c>unity-inference-editor-v3@sentis-f8</c>.</summary>
         public string ConverterId { get; }
 
         /// <summary>

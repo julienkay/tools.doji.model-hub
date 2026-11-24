@@ -14,7 +14,7 @@ namespace Doji.AI.ModelHub.Editor
         /// Converter id of the Editor import: Unity's Editor ONNX converter, followed by
         /// <see cref="OnnxConversionSettings.Apply"/>. Combined with the Inference Engine version in conversion keys.
         /// </summary>
-        public const string DefaultConversionPipelineVersion = "unity-inference-editor-v2";
+        public const string DefaultConversionPipelineVersion = "unity-inference-editor-v3";
 
         public static OnnxConversionRecipe CreateDefaultRecipe()
         {

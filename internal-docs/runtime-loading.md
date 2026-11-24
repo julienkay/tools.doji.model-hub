@@ -68,7 +68,7 @@ A package entry lists only its own owner's selection. The shared import may hold
 - A runtime model shared by two packages is bundled once.
 - A pulled copy under `Assets/StreamingAssets/model-hub/models/` is already in the build, so it is not added again.
 - The registry is written to `Library/Doji/ModelHub/build/model-hub-runtime.json` and added as `model-hub/model-hub-runtime.json`.
-- `onnxConverterId` is `doji-onnx-model-loader@<version>+<format generation>` when the loader package is installed, else null. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
+- `onnxConverterId` is `doji-onnx-model-loader-v2@<version>+<format generation>` when the loader package is installed, else null. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
 
 Builds never ship `.onnx` files.
 

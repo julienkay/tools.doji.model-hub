@@ -9,7 +9,7 @@ namespace Doji.AI.ModelHub
     /// </summary>
     internal sealed class OnnxModelLoaderConverter : IOnnxModelConverter
     {
-        public const string PipelineName = "doji-onnx-model-loader";
+        public const string PipelineName = "doji-onnx-model-loader-v2";
 
         public OnnxConversionResult Convert(OnnxConversionRequest request)
         {

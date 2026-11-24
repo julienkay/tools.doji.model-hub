@@ -446,6 +446,19 @@ namespace Doji.AI.ModelHub.Editor
                 mismatches.Add("a runtime file record is incomplete");
             }
 
+            // A model converted by an older conversion pipeline converts again. The format generation after '@' is
+            // checked with the converted files.
+            var pipeline = OnnxImportMetadataUtility.DefaultConversionPipelineVersion;
+            var outdated = (shared.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).FirstOrDefault(file =>
+                file != null &&
+                string.Equals(file.Format, "onnx", StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(file.ConversionPipelineVersion) &&
+                !string.Equals(file.ConversionPipelineVersion.Split('@')[0], pipeline, StringComparison.Ordinal));
+            if (outdated != null)
+            {
+                mismatches.Add($"{outdated.RepoPath} was converted by {outdated.ConversionPipelineVersion}, this project converts with {GetEditorConverterId()}");
+            }
+
             return mismatches.Count == 0 ? null : $"The converted model is out of date: {string.Join("; ", mismatches)}.";
         }
 

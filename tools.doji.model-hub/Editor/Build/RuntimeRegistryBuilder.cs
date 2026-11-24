@@ -14,8 +14,10 @@ namespace Doji.AI.ModelHub.Editor
     {
         /// <summary>
         /// Converter id that a player with <c>tools.doji.onnx-model-loader</c> converts downloaded ONNX files with.
+        /// The suffix changes with what <see cref="OnnxConversionSettings.Apply"/> does, so players convert again.
+        /// It must match <c>OnnxModelLoaderConverter.PipelineName</c>.
         /// </summary>
-        internal const string PlayerOnnxPipelineName = "doji-onnx-model-loader";
+        internal const string PlayerOnnxPipelineName = "doji-onnx-model-loader-v2";
 
         internal sealed class Plan
         {

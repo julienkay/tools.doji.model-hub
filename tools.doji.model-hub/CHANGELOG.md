@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- A model quantized to float16 or uint8 dequantizes each weight right before the first layer that reads it, as tools.doji.onnx-model-loader does. Before, Inference Engine's `ModelQuantizer` dequantized all weights at the start of the model, so the model ran with all its float32 weights on the device. Models convert again after the update, in the Editor and in players.
 - The package is now `tools.doji.model-hub`, and packages list their models in `model-hub-manifest.json`. The define for the ONNX Model Loader is `MODEL_HUB_ONNX_MODEL_LOADER`. The package is not affiliated with Hugging Face.
 - Optional-file choices and changed import settings are stored in `ProjectSettings/Doji.AI.ModelHubSettings.asset`, next to the build delivery settings. The `AI Model Hub Optional File Selections` and `AI Model Hub Conversion Overrides` assets under `Assets/Doji/ModelHub/` are no longer read; choose those settings again in Model Hub.
 

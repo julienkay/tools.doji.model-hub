@@ -167,6 +167,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies a quantized weight is dequantized right before the layer that reads it, not at the start of the
+        /// model, so the float32 weights are not all on the device at once.
+        /// </summary>
+        [TestCase("float16", "Cast")]
+        [TestCase("uint8", "DequantizeUint8")]
+        public void Apply_DequantizesEachWeightRightBeforeItsUse(string quantization, string dequantize)
+        {
+            var graph = new FunctionalGraph();
+            var input = graph.AddInput<float>(new DynamicTensorShape(-1, 64), "x");
+            FunctionalTensor output = input;
+            for (var i = 0; i < 3; i++)
+            {
+                var weights = Functional.Constant(new TensorShape(64, 64), Enumerable.Range(0, 64 * 64).Select(value => (value + i) * 0.001f).ToArray());
+                output = Functional.Relu(Functional.MatMul(output, weights));
+            }
+
+            var model = OnnxConversionSettings.Apply(graph.Compile(output), new OnnxConversionRecipe { QuantizationMode = quantization }, new System.Collections.Generic.List<string>());
+
+            var layers = model.layers;
+            var dequantizeIndices = Enumerable.Range(0, layers.Count).Where(index => layers[index].opName == dequantize).ToArray();
+            Assert.That(dequantizeIndices, Has.Length.EqualTo(3));
+            foreach (var index in dequantizeIndices)
+            {
+                Assert.That(layers[index + 1].inputs, Does.Contain(layers[index].outputs[0]), $"The layer after {layers[index]} reads it.");
+            }
+        }
+
+        /// <summary>
         /// A model with a dynamic batch input and a 64 x 64 weight matrix, so shapes and quantization are measurable.
         /// </summary>
         private static Model CreateWeightedModel()

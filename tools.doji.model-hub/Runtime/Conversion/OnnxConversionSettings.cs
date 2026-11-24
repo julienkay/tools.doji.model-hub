@@ -77,9 +77,11 @@ namespace Doji.AI.ModelHub
             {
                 case "float16":
                     ModelQuantizer.QuantizeWeights(QuantizationType.Float16, ref model);
+                    DeferDequantization(model);
                     break;
                 case "uint8":
                     ModelQuantizer.QuantizeWeights(QuantizationType.Uint8, ref model);
+                    DeferDequantization(model);
                     break;
             }
 
@@ -90,6 +92,55 @@ namespace Doji.AI.ModelHub
             }
 
             return model;
+        }
+
+        /// <summary>
+        /// Moves each layer that dequantizes a weight right before the first layer that reads the weight.
+        /// <see cref="ModelQuantizer.QuantizeWeights"/> puts all of them at the start of the model, so all float32
+        /// weights are on the device at once while the model runs, as without quantization. Right before their use,
+        /// only the float32 weights of the running layers are, as the quantization of tools.doji.onnx-model-loader
+        /// does it while loading.
+        /// </summary>
+        internal static void DeferDequantization(Model model)
+        {
+            var constants = new HashSet<int>(model.constants.Select(constant => constant.index));
+            var deferred = new Dictionary<int, Layer>();
+            foreach (var layer in model.layers)
+            {
+                if ((layer.opName == "Cast" || layer.opName == "DequantizeUint8") && layer.inputs.Length > 0 && constants.Contains(layer.inputs[0]))
+                {
+                    deferred[layer.outputs[0]] = layer;
+                }
+            }
+
+            if (deferred.Count == 0)
+            {
+                return;
+            }
+
+            var ordered = new List<Layer>(model.layers.Count);
+            foreach (var layer in model.layers)
+            {
+                if (deferred.ContainsKey(layer.outputs[0]))
+                {
+                    continue;
+                }
+
+                foreach (var input in layer.inputs)
+                {
+                    if (deferred.Remove(input, out var dequantize))
+                    {
+                        ordered.Add(dequantize);
+                    }
+                }
+
+                ordered.Add(layer);
+            }
+
+            // A dequantized weight that no layer reads, a model output for example, stays at the start.
+            ordered.InsertRange(0, model.layers.Where(layer => deferred.ContainsKey(layer.outputs[0])));
+            model.layers.Clear();
+            model.layers.AddRange(ordered);
         }
 
         /// <summary>

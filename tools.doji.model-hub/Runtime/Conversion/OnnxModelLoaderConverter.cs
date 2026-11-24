@@ -4,9 +4,9 @@ using System.Linq;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Converts ONNX files with <c>tools.doji.onnx-model-loader</c>, in the Editor and in players. The loader quantizes
-    /// each weight while it loads and writes the float32 weights to the file one at a time, so a conversion never
-    /// holds all weights in memory.
+    /// Converts ONNX files with <c>tools.doji.onnx-model-loader</c>, in the Editor and in players. The loader reads
+    /// each weight, quantizes it, and writes it to the .sentis file one at a time, so a conversion never holds all
+    /// weights in memory, quantized or not.
     /// </summary>
     internal sealed class OnnxModelLoaderConverter : IOnnxModelConverter
     {

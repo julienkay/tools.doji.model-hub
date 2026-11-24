@@ -228,7 +228,12 @@ Package authors get `FromPretrained` methods for their model class by deriving f
 
 ### Load a file of your own
 
-`Hub.LoadModelFromFile(path)` loads a model file that did not come through AI Model Hub, for example one your app downloaded. `.sentis` files load directly. `.onnx` files are converted with `tools.doji.onnx-model-loader`.
+`Hub.LoadModelFromFile(path)` loads a model file that did not come through AI Model Hub, for example one your app downloaded:
+
+- A `.sentis` file loads as it is, with no conversion. Its weights load as the file stores them, quantized or not.
+- An `.onnx` file is converted with `tools.doji.onnx-model-loader` on every call, with float32 weights. No quantization or input shapes apply, and the converted model is not cached.
+
+To load an ONNX model often, or quantized, convert it once to a `.sentis` file. Add the model to a manifest, so AI Model Hub converts it with your conversion settings and caches the result, or call `OnnxModelLoader.Save(onnxPath, sentisPath, quantization)` yourself and load the `.sentis` file.
 
 ### Synchronous loading
 

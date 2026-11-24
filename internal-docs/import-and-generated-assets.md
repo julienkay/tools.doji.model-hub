@@ -66,7 +66,7 @@ path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
 - Nothing deletes converted models automatically. `HubStorage.GetConvertedModels` and `DeleteConvertedModels` let projects and applications clean up when they decide to.
 - Converted files never enter the Hugging Face cache, so Python tools never see them.
 
-`OnnxModelLoaderConverter` calls `OnnxModelLoader.Save`: the loader quantizes each weight while it loads, and streams the float32 weights to the file, so a conversion never holds all weights in memory. Its `beforeSave` callback fixes the input shapes (`OnnxConversionSettings.ApplyInputShapes`) and measures the weight bytes.
+`OnnxModelLoaderConverter` calls `OnnxModelLoader.Save`: the loader reads each weight from the ONNX file, quantizes it, and writes it to the `.sentis` file one at a time, so a conversion never holds all weights in memory, quantized or not. A uint8 conversion reads each weight twice, the first time for its scale and zero point. Its `beforeSave` callback fixes the input shapes (`OnnxConversionSettings.ApplyInputShapes`) and measures the weight bytes.
 
 ## On each new Inference Engine version
 

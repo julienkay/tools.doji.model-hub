@@ -262,12 +262,12 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             public List<long> WeightsSizes { get; } = new();
 
-            public OnnxConversionResult Convert(OnnxConversionRequest request)
+            public OnnxConversionResult Convert(OnnxConversionRequest request, string sentisPath)
             {
                 WeightsSizes.Add(new FileInfo(request.OnnxFilePath + "_data").Length);
                 var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(ModelAsset).Assembly);
                 var sample = Path.Combine(packageInfo.resolvedPath, "Samples~", "Run a model", "SingleInputSingleOuput.onnx");
-                return new EditorOnnxModelConverter().Convert(new OnnxConversionRequest(sample, request.Recipe));
+                return new OnnxModelLoaderConverter().Convert(new OnnxConversionRequest(sample, request.Recipe), sentisPath);
             }
         }
     }

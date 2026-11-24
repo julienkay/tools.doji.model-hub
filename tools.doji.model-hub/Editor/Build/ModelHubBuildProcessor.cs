@@ -99,20 +99,8 @@ namespace Doji.AI.ModelHub.Editor
                 ProjectSettings.instance.GetEffectiveDelivery,
                 (repository, repoPath) => recipes.GetEffectiveRecipe(repository, repoPath).Recipe,
                 forEditor: false,
-                GetPlayerOnnxConverterId(),
+                ProjectImportService.GetConverterId(),
                 GetProjectRoot());
-        }
-
-        /// <summary>
-        /// Converter id of <c>tools.doji.onnx-model-loader</c> in this project, or null when it is not installed.
-        /// </summary>
-        internal static string GetPlayerOnnxConverterId()
-        {
-            var loader = UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages()
-                .FirstOrDefault(package => package.name == "tools.doji.onnx-model-loader");
-            return loader == null
-                ? null
-                : $"{RuntimeRegistryBuilder.PlayerOnnxPipelineName}@{loader.version}+{SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion())}";
         }
 
         private static string WriteRegistry(RuntimeRegistry registry)

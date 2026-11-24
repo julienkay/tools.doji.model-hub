@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -6,8 +7,7 @@ using Unity.InferenceEngine;
 namespace Doji.AI.ModelHub.Editor.Tests
 {
     /// <summary>
-    /// Covers applying conversion settings through public Inference Engine APIs, the same for the Editor converter and
-    /// the runtime ONNX loader, and keys of converted models.
+    /// Covers the conversion settings, the ONNX converter that applies them, and keys of converted models.
     /// </summary>
     internal sealed class OnnxConversionSettingsTests
     {
@@ -39,103 +39,71 @@ namespace Doji.AI.ModelHub.Editor.Tests
         /// Verifies a fixed input shape is applied, and settings that do not match the model are reported, not applied.
         /// </summary>
         [Test]
-        public void Apply_FixesInputShapesAndReportsMismatches()
+        public void ApplyInputShapes_FixesInputShapesAndReportsMismatches()
         {
-            var model = CreateWeightedModel();
-            var input = model.inputs[0];
+            var graph = new FunctionalGraph();
+            var x = graph.AddInput<float>(new DynamicTensorShape(-1, 64), "x");
+            var model = graph.Compile(Functional.Relu(x));
             var dimensions = new[] { 3, 64 };
             var recipe = new OnnxConversionRecipe
             {
                 StaticInputShapeOverrides = new[]
                 {
-                    new OnnxStaticInputShapeOverride { InputName = input.name, Dimensions = dimensions },
+                    new OnnxStaticInputShapeOverride { InputName = "x", Dimensions = dimensions },
                     new OnnxStaticInputShapeOverride { InputName = "missing", Dimensions = new[] { 1 } }
                 }
             };
 
-            var warnings = new System.Collections.Generic.List<string>();
-            model = OnnxConversionSettings.Apply(model, recipe, warnings);
+            var warnings = new List<string>();
+            OnnxConversionSettings.ApplyInputShapes(model, recipe, warnings);
 
             Assert.That(model.inputs[0].shape.ToTensorShape().ToArray(), Is.EqualTo(dimensions));
             Assert.That(warnings.Single(), Does.Contain("`missing`"));
 
             var wrongRank = new OnnxConversionRecipe
             {
-                StaticInputShapeOverrides = new[] { new OnnxStaticInputShapeOverride { InputName = input.name, Dimensions = new[] { 1, 2, 3 } } }
+                StaticInputShapeOverrides = new[] { new OnnxStaticInputShapeOverride { InputName = "x", Dimensions = new[] { 1, 2, 3 } } }
             };
-            var rankWarnings = new System.Collections.Generic.List<string>();
-            OnnxConversionSettings.Apply(CreateWeightedModel(), wrongRank, rankWarnings);
+            var rankWarnings = new List<string>();
+            OnnxConversionSettings.ApplyInputShapes(model, wrongRank, rankWarnings);
             Assert.That(rankWarnings.Single(), Does.Contain("dimensions"));
         }
 
         /// <summary>
-        /// Verifies quantization reaches the weights and survives saving: the 64 x 64 weight constant becomes 16-bit
-        /// or 8-bit data. The quantizer builds a new model, so the returned model must be used.
+        /// Verifies the converter quantizes the 64 x 64 weight of a MatMul in the saved file, keeps the bias float32,
+        /// fixes the input shape, and measures the weight bytes before and after.
         /// </summary>
-        [TestCase("float16", DataType.Short)]
-        [TestCase("uint8", DataType.Byte)]
-        [TestCase("int8", DataType.Byte)]
-        public void Apply_QuantizesWeights(string mode, DataType expected)
+        [TestCase("none", DataType.Float, 64 * 64 * 4)]
+        [TestCase("float16", DataType.Short, 64 * 64 * 2)]
+        [TestCase("uint8", DataType.Byte, 64 * 64)]
+        [TestCase("int8", DataType.Byte, 64 * 64)]
+        public void Convert_QuantizesWeightsAndFixesInputShapes(string mode, DataType expected, int weightBytes)
         {
-            var path = Path.Combine(Path.GetTempPath(), $"model-hub-quantized-{System.Guid.NewGuid():N}.sentis");
-            try
+            var recipe = new OnnxConversionRecipe
             {
-                var quantized = OnnxConversionSettings.Apply(CreateWeightedModel(), new OnnxConversionRecipe { QuantizationMode = mode });
-                ModelWriter.Save(path, quantized);
-                var reloaded = ModelLoader.Load(path);
+                QuantizationMode = mode,
+                StaticInputShapeOverrides = new[] { new OnnxStaticInputShapeOverride { InputName = "x", Dimensions = new[] { 2, 64 } } }
+            };
 
-                Assert.That(reloaded.constants.Any(constant => constant.dataType == expected && constant.shape.length == 64 * 64), Is.True);
-                Assert.That(reloaded.constants.Any(constant => constant.dataType == DataType.Float && constant.shape.length == 64 * 64), Is.False);
-            }
-            finally
-            {
-                File.Delete(path);
-            }
-        }
+            var (result, model) = Convert("matmul.onnx", recipe);
 
-        [Test]
-        public void Apply_LeavesWeightsWithoutQuantization()
-        {
-            var model = OnnxConversionSettings.Apply(CreateWeightedModel(), new OnnxConversionRecipe());
-
-            Assert.That(model.constants.Any(constant => constant.dataType == DataType.Float && constant.shape.length == 64 * 64), Is.True);
+            Assert.That(model.constants.Any(constant => constant.dataType == expected && constant.shape.length == 64 * 64), Is.True);
+            Assert.That(model.constants.Any(constant => constant.dataType == DataType.Float && constant.shape.length == 64), Is.True);
+            Assert.That(model.inputs[0].shape.ToTensorShape().ToArray(), Is.EqualTo(new[] { 2, 64 }));
+            Assert.That(result.ImportedWeightBytes, Is.EqualTo((64 * 64 + 64) * 4));
+            Assert.That(result.ConvertedWeightBytes, Is.InRange(weightBytes + 64 * 4, weightBytes + 64 * 4 + 64));
+            Assert.That(result.Diagnostics, Is.Empty);
         }
 
         /// <summary>
-        /// Verifies the measured weight bytes shrink with quantization: 16 KiB of float32 weights become 8 KiB or 4 KiB.
-        /// </summary>
-        [TestCase("none", 64 * 64 * 4)]
-        [TestCase("float16", 64 * 64 * 2)]
-        [TestCase("uint8", 64 * 64)]
-        public void GetWeightBytes_MeasuresQuantizedWeights(string mode, int expectedWeightBytes)
-        {
-            var warnings = new System.Collections.Generic.List<string>();
-            var model = OnnxConversionSettings.Apply(CreateWeightedModel(), new OnnxConversionRecipe { QuantizationMode = mode }, warnings);
-
-            Assert.That(OnnxConversionSettings.GetWeightBytes(model), Is.InRange(expectedWeightBytes, expectedWeightBytes + 64));
-            Assert.That(warnings, Is.Empty);
-        }
-
-        /// <summary>
-        /// Verifies quantization that changes no weight is reported: the quantizer only re-stores weights of a few
-        /// layer types, and weights it already quantized.
+        /// Verifies quantization that changes no weight is reported: rank-1 weights such as biases stay float32.
         /// </summary>
         [Test]
-        public void Apply_WarnsWhenQuantizationChangesNoWeights()
+        public void Convert_WarnsWhenQuantizationChangesNoWeights()
         {
-            var graph = new FunctionalGraph();
-            var input = graph.AddInput<float>(new DynamicTensorShape(-1, 64), "x");
-            var bias = Functional.Constant(new TensorShape(64), Enumerable.Range(0, 64).Select(value => value * 0.1f).ToArray());
-            var model = graph.Compile(input + bias);
+            var (result, _) = Convert("add.onnx", new OnnxConversionRecipe { QuantizationMode = "float16" });
 
-            var warnings = new System.Collections.Generic.List<string>();
-            OnnxConversionSettings.Apply(model, new OnnxConversionRecipe { QuantizationMode = "float16" }, warnings);
-            Assert.That(warnings.Single(), Does.Contain("changed no weights"));
-
-            var twice = new System.Collections.Generic.List<string>();
-            var quantized = OnnxConversionSettings.Apply(CreateWeightedModel(), new OnnxConversionRecipe { QuantizationMode = "uint8" });
-            OnnxConversionSettings.Apply(quantized, new OnnxConversionRecipe { QuantizationMode = "uint8" }, twice);
-            Assert.That(twice.Single(), Does.Contain("`uint8` changed no weights"));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("`float16` changed no weights"));
         }
 
         [Test]
@@ -167,42 +135,26 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies a quantized weight is dequantized right before the layer that reads it, not at the start of the
-        /// model, so the float32 weights are not all on the device at once.
+        /// Converts an ONNX file of TestData~ to a temporary .sentis file and loads it.
         /// </summary>
-        [TestCase("float16", "Cast")]
-        [TestCase("uint8", "DequantizeUint8")]
-        public void Apply_DequantizesEachWeightRightBeforeItsUse(string quantization, string dequantize)
+        private static (OnnxConversionResult result, Model model) Convert(string fileName, OnnxConversionRecipe recipe)
         {
-            var graph = new FunctionalGraph();
-            var input = graph.AddInput<float>(new DynamicTensorShape(-1, 64), "x");
-            FunctionalTensor output = input;
-            for (var i = 0; i < 3; i++)
+            var path = Path.Combine(Path.GetTempPath(), $"model-hub-conversion-{System.Guid.NewGuid():N}.sentis");
+            try
             {
-                var weights = Functional.Constant(new TensorShape(64, 64), Enumerable.Range(0, 64 * 64).Select(value => (value + i) * 0.001f).ToArray());
-                output = Functional.Relu(Functional.MatMul(output, weights));
+                var result = new OnnxModelLoaderConverter().Convert(new OnnxConversionRequest(GetTestDataPath(fileName), recipe), path);
+                return (result, ModelLoader.Load(path));
             }
-
-            var model = OnnxConversionSettings.Apply(graph.Compile(output), new OnnxConversionRecipe { QuantizationMode = quantization }, new System.Collections.Generic.List<string>());
-
-            var layers = model.layers;
-            var dequantizeIndices = Enumerable.Range(0, layers.Count).Where(index => layers[index].opName == dequantize).ToArray();
-            Assert.That(dequantizeIndices, Has.Length.EqualTo(3));
-            foreach (var index in dequantizeIndices)
+            finally
             {
-                Assert.That(layers[index + 1].inputs, Does.Contain(layers[index].outputs[0]), $"The layer after {layers[index]} reads it.");
+                File.Delete(path);
             }
         }
 
-        /// <summary>
-        /// A model with a dynamic batch input and a 64 x 64 weight matrix, so shapes and quantization are measurable.
-        /// </summary>
-        private static Model CreateWeightedModel()
+        private static string GetTestDataPath(string fileName)
         {
-            var graph = new FunctionalGraph();
-            var input = graph.AddInput<float>(new DynamicTensorShape(-1, 64), "x");
-            var weights = Functional.Constant(new TensorShape(64, 64), Enumerable.Range(0, 64 * 64).Select(value => value * 0.001f).ToArray());
-            return graph.Compile(Functional.MatMul(input, weights));
+            var package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(OnnxConversionSettingsTests).Assembly);
+            return Path.Combine(package.resolvedPath, "Tests", "Editor", "Import", "TestData~", fileName);
         }
     }
 }

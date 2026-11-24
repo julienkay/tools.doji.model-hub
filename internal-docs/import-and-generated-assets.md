@@ -15,7 +15,7 @@ Import turns the selected model files of one dependency into **runtime models**:
 
 1. Resolve the selection (`GetSelectedModelRepoPaths`). `GetSelectionProblem` rejects a whole-repository dependency on a mixed repository and a selection without model files.
 2. For each `.sentis` file: record the cached snapshot path as the runtime model. No conversion.
-3. For each `.onnx` file: compute the conversion key, reuse `ConvertedModelStore.TryGet` when it hits, otherwise convert with the Editor importer, apply the recipe with `OnnxConversionSettings.Apply`, and `ConvertedModelStore.Save`.
+3. For each `.onnx` file: compute the conversion key, reuse `ConvertedModelStore.TryGet` when it hits, otherwise `ConvertedModelStore.Save` with `OnnxModelLoaderConverter`, which converts with the recipe and writes the file.
 4. Write the shared import record and one binding per owner.
 
 A conversion failure skips that file when another ONNX file converts. The model stays **Ready** with a warning, and `SkippedRepoPaths` keeps status from retrying it every time. Import fails only when no ONNX file converts.
@@ -59,14 +59,14 @@ path = <data-root>/converted/<models--owner--name, lowercase>/<key>.sentis
 ```
 
 - `etag` is the source blob name: sha256 for LFS files, git sha1 otherwise. `SourceFileIdentity` reads it from the index, else from the snapshot link target, else hashes the content.
-- `converterId` names the converter and everything that changes its output. Editor: `unity-inference-editor-v3@<generation>`. Player: `doji-onnx-model-loader-v2@<loader version>+<generation>`. The `-v` suffixes change when `OnnxConversionSettings.Apply` changes its output.
+- `converterId` names the converter and everything that changes its output: `doji-onnx-model-loader-v3@<loader version>+<generation>`, the same in the Editor and in players. The `-v` suffix (`OnnxModelLoaderConverter.PipelineName`) changes when the converter changes its output.
 - `<generation>` comes from [SentisCompatibility.cs](../tools.doji.model-hub/Runtime/Conversion/SentisCompatibility.cs): `sentis-f<ModelWriter.version>`, for example `sentis-f8`, with a revision suffix (`sentis-f8.1`) for importer changes that keep the format. The table is maintained by hand; AI Model Hub does not read the internal const at runtime. Inference Engine updates within one generation reuse conversions: `ModelLoader` upgrades older `.sentis` files on load and loads newer ones with a warning. `SentisCompatibilityTests.Generations_CoverTheInstalledModelWriterVersion` fails when the installed writer version is newer than the last entry's `checkedUpToWriterVersion`, so the decision is never skipped. Then either add a generation (older conversions must not be reused), add a revision (importer output changed, format did not), or raise `checkedUpToWriterVersion` (the new format still reuses old files; the id stays).
 - `recipeHash` covers quantization (normalized: `int8` maps to `uint8`) and fixed input shapes.
 - `Save` takes the blob lock, writes `<key>.sentis.incomplete`, and renames. The `.json` record names the source path, etag, converter, format generation, and recipe.
 - Nothing deletes converted models automatically. `HubStorage.GetConvertedModels` and `DeleteConvertedModels` let projects and applications clean up when they decide to.
 - Converted files never enter the Hugging Face cache, so Python tools never see them.
 
-`OnnxConversionSettings.Apply` uses public APIs only. `ModelQuantizer.QuantizeWeights` replaces the model, so `Apply` returns the model to use.
+`OnnxModelLoaderConverter` calls `OnnxModelLoader.Save`: the loader quantizes each weight while it loads, and streams the float32 weights to the file, so a conversion never holds all weights in memory. Its `beforeSave` callback fixes the input shapes (`OnnxConversionSettings.ApplyInputShapes`) and measures the weight bytes.
 
 ## On each new Inference Engine version
 

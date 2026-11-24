@@ -76,7 +76,7 @@ The choice is stored per manifest and model, so different packages can turn on d
 
 - **Format**: **Sentis, used as downloaded**, **ONNX, converted to Sentis**, or **ONNX and Sentis files**, from the selected model files.
 - **In this project**: how many Sentis models the project can load.
-- **In builds**: how builds deliver this model. **Project default** follows Project Settings. **Bundle in the build** adds the Sentis model to the build. **Download at runtime** makes players download it on first use, at the commit tested in this project. For ONNX files, download at runtime needs the `tools.doji.onnx-model-loader` package; the field says so when it is missing. See [Builds](import-cache-runtime.md#builds).
+- **In builds**: how builds deliver this model. **Project default** follows Project Settings. **Bundle in the build** adds the Sentis model to the build. **Download at runtime** makes players download it on first use, at the commit tested in this project. See [Builds](import-cache-runtime.md#builds).
 
 **Used by** lists every manifest that declares the model, with its scope (all files, or the number of required and optional files) and its revision. **Manifest** selects that manifest. When the model has a revision conflict, each row also says how to fix it for that kind of manifest.
 

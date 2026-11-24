@@ -1046,7 +1046,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                     FilePath = sentisAbsolutePath,
                     SizeInBytes = 6,
                     RecipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe()),
-                    ConversionPipelineVersion = OnnxImportMetadataUtility.DefaultConversionPipelineVersion
+                    ConversionPipelineVersion = OnnxModelLoaderConverter.PipelineName
                 }
             };
         }

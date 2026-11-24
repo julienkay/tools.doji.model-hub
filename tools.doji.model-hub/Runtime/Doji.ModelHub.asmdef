@@ -13,12 +13,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "tools.doji.onnx-model-loader",
-            "expression": "",
-            "define": "MODEL_HUB_ONNX_MODEL_LOADER"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }

@@ -583,20 +583,7 @@ namespace Doji.AI.ModelHub.Editor
                 settings.SetDeliveryOverride(item.Repository, index == 0 ? null : index == 1 ? ModelDelivery.Bundle : ModelDelivery.Download);
                 EditorRuntimeCatalog.Invalidate();
             });
-
-            var hasOnnx = item.Files.Any(file => file.IsDependencySelected && ModelFiles.GetFormat(file.RepoPath) == ModelFileFormat.Onnx);
-            if (!hasOnnx || ModelHubBuildProcessor.GetPlayerOnnxConverterId() != null)
-            {
-                return field;
-            }
-
-            var row = UiKit.Element("mh-delivery");
-            row.Add(field);
-            var hint = UiKit.Text("Download needs tools.doji.onnx-model-loader for ONNX files.", "hf-small", "hf-muted");
-            UiKit.SetVisible(hint, settings.GetEffectiveDelivery(item.Repository) == ModelDelivery.Download);
-            field.RegisterValueChangedCallback(_ => UiKit.SetVisible(hint, settings.GetEffectiveDelivery(item.Repository) == ModelDelivery.Download));
-            row.Add(hint);
-            return row;
+            return field;
         }
 
         internal static string DeliveryLabel(ModelDelivery delivery)

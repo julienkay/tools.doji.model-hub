@@ -135,7 +135,7 @@ Rules:
 - Starting a build counts as confirmation: the build converts every downloaded model that needs it, with a progress bar, before it adds the models.
 - A build never downloads. It fails, with a list, when a model is not downloaded. Download it in Model Hub first. A build never ships without a model silently.
 - The registry stores the commit that the Editor resolved. Players download exactly that commit and do not ask Hugging Face for the latest revision.
-- **Download at runtime** for an `.onnx` file needs the `tools.doji.onnx-model-loader` package, which converts ONNX models on the device. Without it, the build fails for that model.
+- **Download at runtime** for an `.onnx` file converts it on the device with `tools.doji.onnx-model-loader`.
 - Only public models can download at runtime. A build cannot contain an access token. A gated or private file fails with an `IOException` that names the model and file.
 
 ### Pull into project
@@ -228,7 +228,7 @@ Package authors get `FromPretrained` methods for their model class by deriving f
 
 ### Load a file of your own
 
-`Hub.LoadModelFromFile(path)` loads a model file that did not come through AI Model Hub, for example one your app downloaded. `.sentis` files load directly. `.onnx` files are converted in the Editor, and in players with `tools.doji.onnx-model-loader` or the converter set with `Hub.RegisterOnnxConverter`.
+`Hub.LoadModelFromFile(path)` loads a model file that did not come through AI Model Hub, for example one your app downloaded. `.sentis` files load directly. `.onnx` files are converted with `tools.doji.onnx-model-loader`.
 
 ### Synchronous loading
 
@@ -249,5 +249,3 @@ Model model = await Hub.LoadModelAsync("com.example.depth", "julienkay/sentis-Mi
 | `AI Model Hub has no model '<repo>'` | No manifest declares the model, or it is not ready in this project. In a player, the build did not include it. |
 | `AI Model Hub model '<repo>' has no file '<path>'` | The manifest does not select that file. The message lists the files it does select. For `ReadTextAsync` and `ReadFileAsync`, it lists the selected files that are not models. |
 | `... is downloaded on first use. Use Hub.LoadModelAsync` | A synchronous call for a model that is not on the device yet. |
-| `... needs an ONNX converter` | A player downloads an `.onnx` file but `tools.doji.onnx-model-loader` is not installed. |
-| `'<path>' is an ONNX file, and this player has no ONNX converter` | `Hub.LoadModelFromFile` got an `.onnx` file in a player without a converter. |

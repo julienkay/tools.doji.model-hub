@@ -19,7 +19,7 @@ The companion project references the package and its dependencies with
 | `tools.doji.downloads` | Resumable transfer, persisted queue state, file locks, Editor `Progress` operations |
 | `tools.doji.formats.onnx` | `OnnxModelSignatureReader`: ONNX input shapes for the import UI, without loading weights |
 | `com.unity.ai.inference` | ONNX to `.sentis` conversion in the Editor and runtime `Model` loading |
-| `tools.doji.onnx-model-loader` (optional) | ONNX conversion in players, behind the `MODEL_HUB_ONNX_MODEL_LOADER` version define |
+| `tools.doji.onnx-model-loader` | ONNX conversion, in the Editor and in players |
 | `com.unity.nuget.newtonsoft-json` | Manifest, metadata and registry JSON |
 | `com.unity.pipeline` (optional) | Unity CLI commands, behind the `MODEL_HUB_PIPELINE` version define. See [command-line-automation.md](command-line-automation.md). |
 

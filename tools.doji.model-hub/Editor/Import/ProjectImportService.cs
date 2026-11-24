@@ -25,16 +25,21 @@ namespace Doji.AI.ModelHub.Editor
             IOnnxModelConverter onnxModelConverter = null,
             IProjectModelRecipeSource recipeSource = null)
         {
-            _onnxModelConverter = onnxModelConverter ?? new EditorOnnxModelConverter();
+            _onnxModelConverter = onnxModelConverter ?? new OnnxModelLoaderConverter();
             _recipeSource = recipeSource ?? new ProjectModelRecipeSource();
         }
 
         /// <summary>
         /// Converter id used in conversion keys: the Editor pipeline plus the installed Inference Engine version.
         /// </summary>
-        internal static string GetEditorConverterId()
+        /// <summary>
+        /// Id of the ONNX converter, in the Editor and in players: the pipeline name, the version of
+        /// tools.doji.onnx-model-loader and the Inference Engine generation.
+        /// </summary>
+        internal static string GetConverterId()
         {
-            return $"{OnnxImportMetadataUtility.DefaultConversionPipelineVersion}@{SentisCompatibility.GetGeneration(GetSentisVersion())}";
+            var loader = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(OnnxModelLoader).Assembly);
+            return $"{OnnxModelLoaderConverter.PipelineName}@{loader?.version}+{SentisCompatibility.GetGeneration(GetSentisVersion())}";
         }
 
         /// <summary>
@@ -49,7 +54,7 @@ namespace Doji.AI.ModelHub.Editor
             var recipe = recipeSource.GetEffectiveRecipe(repository, file.RepoPath).Recipe;
             return ConvertedModelStore.ComputeKey(
                 SourceFileIdentity.GetEtag(file),
-                converterId ?? GetEditorConverterId(),
+                converterId ?? GetConverterId(),
                 OnnxImportMetadataUtility.ComputeRecipeHash(recipe));
         }
 
@@ -69,7 +74,7 @@ namespace Doji.AI.ModelHub.Editor
                 return Array.Empty<string>();
             }
 
-            var converterId = GetEditorConverterId();
+            var converterId = GetConverterId();
             return (cachedFiles ?? Array.Empty<RawCacheFileMetadata>())
                 .Where(file => file != null && selected.Contains(file.RepoPath))
                 .Where(file => !ConvertedModelStore.TryGet(repository, GetConversionKey(repository, file, recipeSource, converterId), out _))
@@ -178,7 +183,7 @@ namespace Doji.AI.ModelHub.Editor
             var conversionFailures = new List<string>();
             var skippedRepoPaths = new List<string>();
             var diagnostics = new List<ImportDiagnostic>();
-            var converterId = GetEditorConverterId();
+            var converterId = GetConverterId();
             foreach (var snapshotFile in cachedSnapshot.Metadata?.Files ?? Array.Empty<RawCacheFileMetadata>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -220,43 +225,35 @@ namespace Doji.AI.ModelHub.Editor
                             throw new InvalidOperationException(unsupported);
                         }
 
-                        var conversionResult = _onnxModelConverter.Convert(new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe));
-                        var settingWarnings = new List<string>();
-                        importedWeightBytes = OnnxConversionSettings.GetWeightBytes(conversionResult.Model);
-                        var convertedModel = OnnxConversionSettings.Apply(conversionResult.Model, recipe, settingWarnings);
-                        convertedWeightBytes = OnnxConversionSettings.GetWeightBytes(convertedModel);
-                        foreach (var warning in settingWarnings)
+                        var record = new ConvertedModelRecord
                         {
-                            diagnostics.Add(new ImportDiagnostic { Severity = "warning", Message = $"{snapshotFile.RepoPath}: {warning}" });
-                        }
-
-                        foreach (var conversionDiagnostic in conversionResult.Diagnostics ?? Array.Empty<OnnxConversionDiagnostic>())
+                            repository = dependency.Repository,
+                            repoPath = snapshotFile.RepoPath,
+                            sourceEtag = sourceEtag,
+                            converterId = converterId,
+                            formatGeneration = SentisCompatibility.GetGeneration(sentisVersion),
+                            recipeHash = recipeHash
+                        };
+                        OnnxConversionResult conversionResult = null;
+                        convertedPath = ConvertedModelStore.Save(dependency.Repository, conversionKey, sentisPath =>
+                        {
+                            conversionResult = _onnxModelConverter.Convert(new OnnxConversionRequest(snapshotFile.CachedFilePath, recipe), sentisPath);
+                            record.importedWeightBytes = conversionResult.ImportedWeightBytes;
+                            record.convertedWeightBytes = conversionResult.ConvertedWeightBytes;
+                        }, record);
+                        importedWeightBytes = record.importedWeightBytes;
+                        convertedWeightBytes = record.convertedWeightBytes;
+                        foreach (var conversionDiagnostic in conversionResult.Diagnostics)
                         {
                             if (!string.IsNullOrWhiteSpace(conversionDiagnostic?.Message))
                             {
                                 diagnostics.Add(new ImportDiagnostic
                                 {
                                     Severity = string.IsNullOrWhiteSpace(conversionDiagnostic.Severity) ? "warning" : conversionDiagnostic.Severity,
-                                    Message = conversionDiagnostic.Message
+                                    Message = $"{snapshotFile.RepoPath}: {conversionDiagnostic.Message}"
                                 });
                             }
                         }
-
-                        convertedPath = ConvertedModelStore.Save(
-                            dependency.Repository,
-                            conversionKey,
-                            convertedModel,
-                            new ConvertedModelRecord
-                            {
-                                repository = dependency.Repository,
-                                repoPath = snapshotFile.RepoPath,
-                                sourceEtag = sourceEtag,
-                                converterId = converterId,
-                                formatGeneration = SentisCompatibility.GetGeneration(sentisVersion),
-                                recipeHash = recipeHash,
-                                importedWeightBytes = importedWeightBytes ?? 0,
-                                convertedWeightBytes = convertedWeightBytes ?? 0
-                            });
                     }
                     catch (Exception exception)
                     {
@@ -448,7 +445,7 @@ namespace Doji.AI.ModelHub.Editor
 
             // A model converted by an older conversion pipeline converts again. The format generation after '@' is
             // checked with the converted files.
-            var pipeline = OnnxImportMetadataUtility.DefaultConversionPipelineVersion;
+            var pipeline = OnnxModelLoaderConverter.PipelineName;
             var outdated = (shared.RuntimeFiles ?? Array.Empty<ImportedRuntimeFileMetadata>()).FirstOrDefault(file =>
                 file != null &&
                 string.Equals(file.Format, "onnx", StringComparison.Ordinal) &&
@@ -456,7 +453,7 @@ namespace Doji.AI.ModelHub.Editor
                 !string.Equals(file.ConversionPipelineVersion.Split('@')[0], pipeline, StringComparison.Ordinal));
             if (outdated != null)
             {
-                mismatches.Add($"{outdated.RepoPath} was converted by {outdated.ConversionPipelineVersion}, this project converts with {GetEditorConverterId()}");
+                mismatches.Add($"{outdated.RepoPath} was converted by {outdated.ConversionPipelineVersion}, this project converts with {GetConverterId()}");
             }
 
             return mismatches.Count == 0 ? null : $"The converted model is out of date: {string.Join("; ", mismatches)}.";

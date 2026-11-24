@@ -331,7 +331,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var report = new StatusService().BuildStatusReport(Discovery(CreateDependency()));
 
-            var plan = RuntimeRegistryBuilder.Build(report, _ => ModelDelivery.Bundle, null, forEditor: false, playerOnnxConverterId: null, _rootDirectory);
+            var plan = RuntimeRegistryBuilder.Build(report, _ => ModelDelivery.Bundle, null, forEditor: false, onnxConverterId: null, _rootDirectory);
 
             Assert.That(plan.Problems, Is.Empty);
             Assert.That(plan.BundledFiles, Is.Empty);

@@ -16,7 +16,6 @@ namespace Doji.AI.ModelHub.Editor
         static EditorRuntimeCatalog()
         {
             RuntimeModels.EditorCatalog = Get;
-            RuntimeModels.EditorOnnxConverter = new EditorOnnxModelConverter();
             RuntimeModels.EditorOfferEnableModel = OptionalModelPrompt.OfferEnable;
             RuntimeModels.EditorWaitForSync = OptionalModelPrompt.WaitForSyncAsync;
             BackgroundSyncManager.SyncStateChanged += Invalidate;
@@ -41,7 +40,7 @@ namespace Doji.AI.ModelHub.Editor
                 ProjectSettings.instance.GetEffectiveDelivery,
                 (repository, repoPath) => recipes.GetEffectiveRecipe(repository, repoPath).Recipe,
                 forEditor: true,
-                playerOnnxConverterId: null,
+                ProjectImportService.GetConverterId(),
                 Path.GetFullPath(Path.Combine(Application.dataPath, ".."))).Registry;
             return _catalog;
         }

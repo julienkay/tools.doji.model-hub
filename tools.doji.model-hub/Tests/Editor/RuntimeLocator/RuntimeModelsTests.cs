@@ -33,7 +33,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             _cacheScope = new TestCacheScope(Path.Combine(_rootDirectory, "SharedCache"));
             _projectScope = new TestProjectStateScope();
             _sentisPath = Path.Combine(_rootDirectory, "sample.sentis");
-            ModelWriter.Save(_sentisPath, new EditorOnnxModelConverter().Convert(new OnnxConversionRequest(GetSampleOnnxPath())).Model);
+            new OnnxModelLoaderConverter().Convert(new OnnxConversionRequest(GetSampleOnnxPath()), _sentisPath);
             CacheFiles.ForceSymlinkSupport = false;
             _downloadCount = 0;
             _downloadedUrls.Clear();
@@ -165,7 +165,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             var converter = new CountingConverter();
             Hub.RegisterOnnxConverter(converter, "test-converter@1");
-            var input = new EditorOnnxModelConverter().Convert(new OnnxConversionRequest(GetSampleOnnxPath())).Model.inputs[0];
+            var input = ModelLoader.Load(_sentisPath).inputs[0];
             var dimensions = Enumerable.Repeat(5, input.shape.rank).ToArray();
             UseRegistry(Model("download", new RuntimeModelFile
             {
@@ -209,20 +209,6 @@ namespace Doji.AI.ModelHub.Editor.Tests
             await Hub.LoadModelAsync(Repo, "onnx/model.onnx");
 
             Assert.That(File.Exists(ConvertedModelStore.GetModelPath(Repo, ConvertedModelStore.ComputeKey("etag-onnx", "built-in@2", "recipe-1"))), Is.True);
-        }
-
-        /// <summary>
-        /// Verifies a downloaded ONNX model without a converter explains how to fix it.
-        /// </summary>
-        [Test]
-        public void LoadModelAsync_ExplainsAMissingOnnxConverter()
-        {
-            UseRegistry(Model("download", new RuntimeModelFile { repoPath = "a.onnx", format = "onnx", source = new RuntimeSourceFile { repoPath = "a.onnx", etag = "e" } }));
-
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(() => Hub.LoadModelAsync(Repo, "a.onnx"));
-
-            Assert.That(exception.Message, Does.Contain("tools.doji.onnx-model-loader"));
-            Assert.That(_downloadCount, Is.Zero, "Nothing is downloaded when it could not be converted.");
         }
 
         /// <summary>
@@ -615,10 +601,10 @@ namespace Doji.AI.ModelHub.Editor.Tests
         {
             public int Count { get; private set; }
 
-            public OnnxConversionResult Convert(OnnxConversionRequest request)
+            public OnnxConversionResult Convert(OnnxConversionRequest request, string sentisPath)
             {
                 Count++;
-                return new EditorOnnxModelConverter().Convert(request);
+                return new OnnxModelLoaderConverter().Convert(request, sentisPath);
             }
         }
     }

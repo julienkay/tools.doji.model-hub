@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- A model quantized to float16 or uint8 dequantizes each weight right before the first layer that reads it, as tools.doji.onnx-model-loader does. Before, Inference Engine's `ModelQuantizer` dequantized all weights at the start of the model, so the model ran with all its float32 weights on the device. Models convert again after the update, in the Editor and in players.
-- The package is now `tools.doji.model-hub`, and packages list their models in `model-hub-manifest.json`. The define for the ONNX Model Loader is `MODEL_HUB_ONNX_MODEL_LOADER`. The package is not affiliated with Hugging Face.
+- ONNX files convert with `tools.doji.onnx-model-loader`, in the Editor and in players, and the package depends on it. The loader quantizes each weight while it loads and writes the weights to the file one at a time, so a conversion never holds all weights in memory. A model quantized to float16 or uint8 dequantizes each weight right before the first layer that reads it. Before, Inference Engine's `ModelQuantizer` dequantized all weights at the start of the model, so the model ran with all its float32 weights on the device. Models convert again after the update, in the Editor and in players.
+- `IOnnxModelConverter.Convert(request, sentisPath)` writes the converted model to a file and returns no `Model`.
+- The package is now `tools.doji.model-hub`, and packages list their models in `model-hub-manifest.json`. The package is not affiliated with Hugging Face.
 - Optional-file choices and changed import settings are stored in `ProjectSettings/Doji.AI.ModelHubSettings.asset`, next to the build delivery settings. The `AI Model Hub Optional File Selections` and `AI Model Hub Conversion Overrides` assets under `Assets/Doji/ModelHub/` are no longer read; choose those settings again in Model Hub.
 
 ### Added
@@ -32,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ONNX external weight files (`.onnx_data`, `.onnx.data`) are selected with their `.onnx` file.
 - Builds add models to StreamingAssets at build time. Project Settings chooses the default delivery, **Bundle in the build** or **Download at runtime**, and Model Hub overrides it per model.
 - Players download models from Hugging Face at the commit tested in the Editor. Desktop players use the user's Hugging Face cache; other players use `persistentDataPath`.
-- Players convert downloaded ONNX files when `tools.doji.onnx-model-loader` is installed.
+- Players convert downloaded ONNX files.
 - Runtime API: `Hub.LoadModelAsync`, `Hub.LoadModel`, `Hub.EnsureAvailableAsync`, `Hub.FromPretrained`, `Hub.FromPretrainedAsync`, and `Hub.RegisterOnnxConverter`. Android and Web players read StreamingAssets with `UnityWebRequest`.
 - **Pull into Project** copies a model's Sentis files into `Assets/StreamingAssets/model-hub/models`.
 - Model Hub and Add Model show the model format.

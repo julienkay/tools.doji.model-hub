@@ -96,10 +96,11 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Saves a converted model. It is written under a temporary name and renamed, so a reader never sees a
-        /// partial file, and a lock keeps two writers from converting the same key at once.
+        /// Saves a converted model: <paramref name="write"/> writes it to the path it gets. It is written under a
+        /// temporary name and renamed, so a reader never sees a partial file, and a lock keeps two writers from
+        /// converting the same key at once.
         /// </summary>
-        public static string Save(string repository, string key, Model model, ConvertedModelRecord record)
+        public static string Save(string repository, string key, Action<string> write, ConvertedModelRecord record)
         {
             var modelPath = GetModelPath(repository, key);
             Directory.CreateDirectory(Path.GetDirectoryName(modelPath));
@@ -113,7 +114,7 @@ namespace Doji.AI.ModelHub
                 var temporaryPath = modelPath + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".incomplete";
                 try
                 {
-                    ModelWriter.Save(temporaryPath, model);
+                    write(temporaryPath);
                     if (File.Exists(modelPath))
                     {
                         File.Delete(modelPath);

@@ -57,18 +57,18 @@ A package entry lists only its own owner's selection. The shared import may hold
 - The Inspector drawer ([HubModelReferenceDrawer.cs](../tools.doji.model-hub/Editor/UI/HubModelReferenceDrawer.cs)) lists more than the catalog: `HubModelPicker.Build` takes every declared model file from the status report and marks it `Included` (in the catalog), `NotTurnedOn` (optional, not enabled), `NeedsDownload`, `NeedsConversion` (the dependency's `PendingConversions` lists the file; the entry keeps `ConversionCause`), or `NeedsSetup` (import pending without a conversion). Whole-repository dependencies list their imported runtime files. `HubModelReferenceDrawer.GetStatus` maps the state to the status line's text and button. `NotTurnedOn` and `NeedsDownload` look the same to users ("Not downloaded yet", **Download**); for `NotTurnedOn`, **Download** first writes the optional-file selection. **Download**, **Convert**, and **Set up** start `BackgroundSyncManager.StartForRepository`. While a sync runs, the drawer polls its progress every 250 ms and rebuilds when it ends.
 - `HubModelLoader` (one per package) maps strings to a model: empty for the default, `IsFilePath` (exists or rooted) for `Hub.LoadModelFromFile`, `owner/name:path` for another repository, else a path in the default repository. It wraps failures of package files in an `InvalidOperationException` that names the package and `Window > AI Model Hub`; cancellation and failures of the user's own files and assets pass through.
 - `PretrainedModel<T>` reads `[PretrainedModel]` from `T` once into a static `HubModelLoader`, creates instances through the private parameterless constructor (`Activator.CreateInstance(nonPublic: true)`), and calls `Initialize`. The `Backend` setter calls `Release` then `Initialize`. `[HubModel(typeof(T))]` reads the package id from the same attribute.
-- `Hub.LoadModelFromFile` bypasses the registry. ONNX files use `RuntimeModels.OnnxConverter`, else in the Editor `EditorOnnxConverter` (set by `EditorRuntimeCatalog`), and are not cached.
+- `Hub.LoadModelFromFile` bypasses the registry. ONNX files load with `OnnxModelLoader.Load` and are not cached.
 
 ## Build
 
 [RuntimeRegistryBuilder.cs](../tools.doji.model-hub/Editor/Build/RuntimeRegistryBuilder.cs) turns a `StatusReport` into a `Plan`: registry, bundled files, and problems. [ModelHubBuildProcessor.cs](../tools.doji.model-hub/Editor/Build/ModelHubBuildProcessor.cs) runs it in `BuildPlayerProcessor.PrepareForBuild`:
 
-- Problems fail the build with `BuildFailedException` and a list: a model that is not imported, a missing runtime model file, a download-mode file without an etag, or a download-mode ONNX file when `tools.doji.onnx-model-loader` is not installed.
+- Problems fail the build with `BuildFailedException` and a list: a model that is not imported, a missing runtime model file, or a download-mode file without an etag.
 - Each bundled runtime model goes in with `BuildPlayerContext.AddAdditionalPathToStreamingAssets`, straight from the converted store or the cache. Nothing is copied into `Assets`.
 - A runtime model shared by two packages is bundled once.
 - A pulled copy under `Assets/StreamingAssets/model-hub/models/` is already in the build, so it is not added again.
 - The registry is written to `Library/Doji/ModelHub/build/model-hub-runtime.json` and added as `model-hub/model-hub-runtime.json`.
-- `onnxConverterId` is `doji-onnx-model-loader-v2@<version>+<format generation>` when the loader package is installed, else null. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
+- `onnxConverterId` is `doji-onnx-model-loader-v3@<version>+<format generation>`. `formatGeneration` records the Editor's generation; `HubStorage.FormatGeneration` reads it in players.
 
 Builds never ship `.onnx` files.
 
@@ -120,7 +120,7 @@ Desktop players share the user's Hugging Face cache by default, so a model the E
 
 ### ONNX on the device
 
-[OnnxModelLoaderConverter.cs](../tools.doji.model-hub/Runtime/Conversion/OnnxModelLoaderConverter.cs) compiles under the `MODEL_HUB_ONNX_MODEL_LOADER` version define, set when `tools.doji.onnx-model-loader` is installed. It registers itself with `RuntimeInitializeOnLoadMethod`. `Hub.RegisterOnnxConverter(converter, converterId)` replaces it.
+[OnnxModelLoaderConverter.cs](../tools.doji.model-hub/Runtime/Conversion/OnnxModelLoaderConverter.cs) is the default `RuntimeModels.OnnxConverter`. `Hub.RegisterOnnxConverter(converter, converterId)` replaces it, and null restores it.
 
 `RuntimeModels.CurrentConverterId` is the registered converter's id, else the registry's `onnxConverterId`. It is part of the conversion key, so a loader upgrade converts again.
 

@@ -6,8 +6,7 @@ using Unity.InferenceEngine;
 namespace Doji.AI.ModelHub
 {
     /// <summary>
-    /// Applies conversion settings to a converted model through public Inference Engine APIs, so the Editor converter
-    /// and the runtime ONNX loader produce the same result.
+    /// Helpers for the conversion settings of ONNX files.
     /// </summary>
     public static class OnnxConversionSettings
     {
@@ -27,16 +26,27 @@ namespace Doji.AI.ModelHub
         }
 
         /// <summary>
-        /// Fixes input dimensions and quantizes weights, and returns the resulting model: quantization builds a new
-        /// model, so always continue with the return value. Settings that do not match the model are skipped and
+        /// Returns the quantization type of a quantization mode, or null for <c>none</c>.
+        /// </summary>
+        public static QuantizationType? GetQuantizationType(string quantizationMode)
+        {
+            return NormalizeQuantizationMode(quantizationMode) switch
+            {
+                "float16" => QuantizationType.Float16,
+                "uint8" => QuantizationType.Uint8,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Fixes the input dimensions that the recipe sets. Settings that do not match the model are skipped and
         /// described in <paramref name="warnings"/>.
         /// </summary>
-        public static Model Apply(Model model, OnnxConversionRecipe recipe, ICollection<string> warnings = null)
+        public static void ApplyInputShapes(Model model, OnnxConversionRecipe recipe, ICollection<string> warnings)
         {
-            warnings ??= new List<string>();
             if (model == null || recipe == null)
             {
-                return model;
+                return;
             }
 
             foreach (var shapeOverride in recipe.StaticInputShapeOverrides ?? Array.Empty<OnnxStaticInputShapeOverride>())
@@ -70,77 +80,6 @@ namespace Doji.AI.ModelHub
                 input.shape = new DynamicTensorShape(dimensions.AsSpan());
                 model.inputs[index] = input;
             }
-
-            var mode = NormalizeQuantizationMode(recipe.QuantizationMode);
-            var weightBytesBefore = GetWeightBytes(model);
-            switch (mode)
-            {
-                case "float16":
-                    ModelQuantizer.QuantizeWeights(QuantizationType.Float16, ref model);
-                    DeferDequantization(model);
-                    break;
-                case "uint8":
-                    ModelQuantizer.QuantizeWeights(QuantizationType.Uint8, ref model);
-                    DeferDequantization(model);
-                    break;
-            }
-
-            var warning = DescribeQuantizationEffect(mode, weightBytesBefore, GetWeightBytes(model));
-            if (warning != null)
-            {
-                warnings.Add(warning);
-            }
-
-            return model;
-        }
-
-        /// <summary>
-        /// Moves each layer that dequantizes a weight right before the first layer that reads the weight.
-        /// <see cref="ModelQuantizer.QuantizeWeights"/> puts all of them at the start of the model, so all float32
-        /// weights are on the device at once while the model runs, as without quantization. Right before their use,
-        /// only the float32 weights of the running layers are, as the quantization of tools.doji.onnx-model-loader
-        /// does it while loading.
-        /// </summary>
-        internal static void DeferDequantization(Model model)
-        {
-            var constants = new HashSet<int>(model.constants.Select(constant => constant.index));
-            var deferred = new Dictionary<int, Layer>();
-            foreach (var layer in model.layers)
-            {
-                if ((layer.opName == "Cast" || layer.opName == "DequantizeUint8") && layer.inputs.Length > 0 && constants.Contains(layer.inputs[0]))
-                {
-                    deferred[layer.outputs[0]] = layer;
-                }
-            }
-
-            if (deferred.Count == 0)
-            {
-                return;
-            }
-
-            var ordered = new List<Layer>(model.layers.Count);
-            foreach (var layer in model.layers)
-            {
-                if (deferred.ContainsKey(layer.outputs[0]))
-                {
-                    continue;
-                }
-
-                foreach (var input in layer.inputs)
-                {
-                    if (deferred.Remove(input, out var dequantize))
-                    {
-                        ordered.Add(dequantize);
-                    }
-                }
-
-                ordered.Add(layer);
-            }
-
-            // A dequantized weight that no layer reads, a model output for example, stays at the start.
-            ordered.InsertRange(0, model.layers.Where(layer => deferred.ContainsKey(layer.outputs[0])));
-            model.layers.Clear();
-            model.layers.AddRange(ordered);
         }
 
         /// <summary>
@@ -149,6 +88,16 @@ namespace Doji.AI.ModelHub
         public static long GetWeightBytes(Model model)
         {
             return model?.constants?.Sum(constant => (long)constant.lengthBytes) ?? 0;
+        }
+
+        /// <summary>
+        /// Returns the bytes of all constants as float32: quantized float16 and uint8 weights count four bytes each.
+        /// </summary>
+        public static long GetFloatWeightBytes(Model model)
+        {
+            return model?.constants?.Sum(constant => constant.dataType == DataType.Short || constant.dataType == DataType.Byte
+                ? constant.shape.length * 4L
+                : constant.lengthBytes) ?? 0;
         }
 
         /// <summary>

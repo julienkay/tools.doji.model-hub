@@ -72,7 +72,7 @@ A string names a model in this order:
 3. `owner/name:path`: a file of another repository that the manifest declares.
 4. Anything else: a path in the default model's repository, for example `onnx/dpt_swin2_tiny_256.onnx`.
 
-A rooted path that does not exist fails with `FileNotFoundException` instead of a lookup in the manifest. `Hub.LoadModelFromFile` loads `.sentis` files directly. It converts `.onnx` files in the Editor, and in players that have an ONNX converter (`tools.doji.onnx-model-loader`).
+A rooted path that does not exist fails with `FileNotFoundException` instead of a lookup in the manifest. `Hub.LoadModelFromFile` loads `.sentis` files directly. It converts `.onnx` files with `tools.doji.onnx-model-loader`.
 
 When a file of the manifest does not load, the exception names the package, the model, and the fix: `tools.doji.midas could not load model 'julienkay/sentis-MiDaS:onnx/dpt_swin2_tiny_256.onnx'. Include the file in Window > AI Model Hub.` Cancellation and errors of the user's own files and assets pass through unchanged.
 

@@ -12,7 +12,7 @@ How it works:
 - nothing is written into `Assets`; import records live in `Library/Doji/ModelHub/imports/`
 - builds bundle each model's Sentis file, or let the player download it at runtime, as Project Settings and per-model overrides say
 - runtime code loads models by repository id and file path: `await Hub.LoadModelAsync("owner/model", "onnx/model.onnx")`, and reads selected configs and tokenizer files with `await Hub.ReadTextAsync("owner/model", "config.json")`
-- players that download ONNX files convert them with the optional `tools.doji.onnx-model-loader` package
+- ONNX files convert with `tools.doji.onnx-model-loader`, in the Editor and in players that download them
 
 Manifest sources:
 

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.InferenceEngine;
 
 namespace Doji.AI.ModelHub
 {
@@ -32,36 +31,28 @@ namespace Doji.AI.ModelHub
     }
 
     /// <summary>
-    /// Captures normalized output of one ONNX conversion attempt.
+    /// Describes one finished ONNX conversion.
     /// </summary>
     [Serializable]
     public sealed class OnnxConversionResult
     {
         private readonly OnnxConversionDiagnostic[] _diagnostics;
 
-        /// <summary>
-        /// Creates immutable conversion result including diagnostics and discovered signature data.
-        /// </summary>
         public OnnxConversionResult(
-            Model model,
             OnnxConversionRecipe appliedRecipe,
             string conversionPipelineVersion,
-            OnnxModelSignature inputSignature = null,
+            long importedWeightBytes = 0,
+            long convertedWeightBytes = 0,
             IReadOnlyList<OnnxConversionDiagnostic> diagnostics = null)
         {
-            Model = model ?? throw new ArgumentNullException(nameof(model));
             AppliedRecipe = appliedRecipe ?? new OnnxConversionRecipe();
             ConversionPipelineVersion = string.IsNullOrWhiteSpace(conversionPipelineVersion)
                 ? "unknown"
                 : conversionPipelineVersion;
-            InputSignature = inputSignature;
+            ImportedWeightBytes = importedWeightBytes;
+            ConvertedWeightBytes = convertedWeightBytes;
             _diagnostics = diagnostics?.ToArray() ?? Array.Empty<OnnxConversionDiagnostic>();
         }
-
-        /// <summary>
-        /// Converted Sentis model ready to serialize.
-        /// </summary>
-        public Model Model { get; }
 
         /// <summary>
         /// Recipe actually applied by converter.
@@ -74,12 +65,17 @@ namespace Doji.AI.ModelHub
         public string ConversionPipelineVersion { get; }
 
         /// <summary>
-        /// Lightweight model signature discovered during conversion or inspection.
+        /// Bytes of the weights before quantization.
         /// </summary>
-        public OnnxModelSignature InputSignature { get; }
+        public long ImportedWeightBytes { get; }
 
         /// <summary>
-        /// Conversion diagnostics that should survive later status refreshes.
+        /// Bytes of the weights in the converted file.
+        /// </summary>
+        public long ConvertedWeightBytes { get; }
+
+        /// <summary>
+        /// Conversion warnings and errors that should survive later status refreshes.
         /// </summary>
         public IReadOnlyList<OnnxConversionDiagnostic> Diagnostics => _diagnostics;
     }

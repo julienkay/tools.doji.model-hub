@@ -64,7 +64,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             Assert.That(artifact.Shared.ResolvedCommitHash, Is.EqualTo("commit123"));
             var runtimeFile = artifact.RuntimeFiles.Single();
             var recipeHash = OnnxImportMetadataUtility.ComputeRecipeHash(new OnnxConversionRecipe());
-            var expectedKey = ConvertedModelStore.ComputeKey("etag-single", ProjectImportService.GetEditorConverterId(), recipeHash);
+            var expectedKey = ConvertedModelStore.ComputeKey("etag-single", ProjectImportService.GetConverterId(), recipeHash);
             Assert.That(runtimeFile.Format, Is.EqualTo("onnx"));
             Assert.That(runtimeFile.SourceEtag, Is.EqualTo("etag-single"));
             Assert.That(runtimeFile.ConversionKey, Is.EqualTo(expectedKey));
@@ -724,7 +724,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var path = Path.Combine(_rootDirectory, "sample.sentis");
             if (!File.Exists(path))
             {
-                ModelWriter.Save(path, new EditorOnnxModelConverter().Convert(new OnnxConversionRequest(GetInferenceSampleOnnxPath())).Model);
+                new OnnxModelLoaderConverter().Convert(new OnnxConversionRequest(GetInferenceSampleOnnxPath()), path);
             }
 
             return Task.FromResult(path);
@@ -773,7 +773,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 _message = message;
             }
 
-            public OnnxConversionResult Convert(OnnxConversionRequest request)
+            public OnnxConversionResult Convert(OnnxConversionRequest request, string sentisPath)
             {
                 throw new InvalidOperationException(_message);
             }
@@ -782,34 +782,34 @@ namespace Doji.AI.ModelHub.Editor.Tests
         private sealed class PartiallyThrowingOnnxConverter : IOnnxModelConverter
         {
             private readonly string _failingFileName;
-            private readonly EditorOnnxModelConverter _inner = new();
+            private readonly OnnxModelLoaderConverter _inner = new();
 
             public PartiallyThrowingOnnxConverter(string failingFileName)
             {
                 _failingFileName = failingFileName;
             }
 
-            public OnnxConversionResult Convert(OnnxConversionRequest request)
+            public OnnxConversionResult Convert(OnnxConversionRequest request, string sentisPath)
             {
                 if (string.Equals(Path.GetFileName(request.OnnxFilePath), _failingFileName, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException("Model contains unsupported operators or data types.");
                 }
 
-                return _inner.Convert(request);
+                return _inner.Convert(request, sentisPath);
             }
         }
 
         private sealed class CountingOnnxConverter : IOnnxModelConverter
         {
-            private readonly EditorOnnxModelConverter _inner = new();
+            private readonly OnnxModelLoaderConverter _inner = new();
 
             public int CallCount { get; private set; }
 
-            public OnnxConversionResult Convert(OnnxConversionRequest request)
+            public OnnxConversionResult Convert(OnnxConversionRequest request, string sentisPath)
             {
                 CallCount++;
-                return _inner.Convert(request);
+                return _inner.Convert(request, sentisPath);
             }
         }
     }

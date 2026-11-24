@@ -43,16 +43,11 @@ namespace Doji.AI.ModelHub
         internal static RuntimeRegistry RegistryOverride { get; set; }
 
         /// <summary>
-        /// Converter for ONNX models that a player downloads. <see cref="Hub.RegisterOnnxConverter"/> sets it.
+        /// Converter for ONNX models that a player downloads. <see cref="Hub.RegisterOnnxConverter"/> replaces it.
         /// </summary>
-        internal static IOnnxModelConverter OnnxConverter { get; set; }
+        internal static IOnnxModelConverter OnnxConverter { get; set; } = new OnnxModelLoaderConverter();
 
         internal static string OnnxConverterId { get; set; }
-
-        /// <summary>
-        /// Editor hook: the Editor's ONNX converter, for <see cref="Hub.LoadModelFromFile"/>. Set by the Editor assembly.
-        /// </summary>
-        internal static IOnnxModelConverter EditorOnnxConverter { get; set; }
 
         /// <summary>
         /// The registered converter's id, else the id the build recorded for the converter it shipped.
@@ -541,12 +536,6 @@ namespace Doji.AI.ModelHub
             IProgress<DownloadProgress> progress,
             CancellationToken cancellationToken)
         {
-            if (file.IsOnnx && OnnxConverter == null)
-            {
-                throw new InvalidOperationException(
-                    $"AI Model Hub model '{model.repoId}:{file.repoPath}' is an ONNX file that this player downloads, and needs an ONNX converter. Install the tools.doji.onnx-model-loader package, or bundle the model.");
-            }
-
             foreach (var companion in file.companions ?? Array.Empty<RuntimeSourceFile>())
             {
                 await RuntimeDownloader.EnsureFileAsync(model.CacheRepoId, model.revision, model.commit, companion, progress, cancellationToken);
@@ -564,16 +553,8 @@ namespace Doji.AI.ModelHub
                 return convertedPath;
             }
 
-            var recipe = file.ToRecipe();
-            var result = OnnxConverter.Convert(new OnnxConversionRequest(sourcePath, recipe));
-            var warnings = new System.Collections.Generic.List<string>();
-            var converted = OnnxConversionSettings.Apply(result.Model, recipe, warnings);
-            foreach (var warning in warnings)
-            {
-                Debug.LogWarning($"AI Model Hub: {model.repoId}:{file.repoPath}: {warning}");
-            }
-
-            return ConvertedModelStore.Save(model.repoId, key, converted, new ConvertedModelRecord
+            var request = new OnnxConversionRequest(sourcePath, file.ToRecipe());
+            var record = new ConvertedModelRecord
             {
                 repository = model.repoId,
                 repoPath = file.repoPath,
@@ -581,7 +562,20 @@ namespace Doji.AI.ModelHub
                 converterId = CurrentConverterId,
                 formatGeneration = TryGetCatalogWithoutWaiting()?.formatGeneration,
                 recipeHash = file.recipeHash
-            });
+            };
+            OnnxConversionResult result = null;
+            var path = ConvertedModelStore.Save(model.repoId, key, sentisPath =>
+            {
+                result = OnnxConverter.Convert(request, sentisPath);
+                record.importedWeightBytes = result.ImportedWeightBytes;
+                record.convertedWeightBytes = result.ConvertedWeightBytes;
+            }, record);
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                Debug.LogWarning($"AI Model Hub: {model.repoId}:{file.repoPath}: {diagnostic.Message}");
+            }
+
+            return path;
         }
 
         /// <summary>

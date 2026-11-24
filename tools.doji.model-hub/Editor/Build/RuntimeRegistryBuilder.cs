@@ -12,13 +12,6 @@ namespace Doji.AI.ModelHub.Editor
     /// </summary>
     internal static class RuntimeRegistryBuilder
     {
-        /// <summary>
-        /// Converter id that a player with <c>tools.doji.onnx-model-loader</c> converts downloaded ONNX files with.
-        /// The suffix changes with what <see cref="OnnxConversionSettings.Apply"/> does, so players convert again.
-        /// It must match <c>OnnxModelLoaderConverter.PipelineName</c>.
-        /// </summary>
-        internal const string PlayerOnnxPipelineName = "doji-onnx-model-loader-v2";
-
         internal sealed class Plan
         {
             public RuntimeRegistry Registry { get; } = new();
@@ -43,18 +36,18 @@ namespace Doji.AI.ModelHub.Editor
         /// <param name="getRecipe">Effective conversion settings of one ONNX file, for players that convert it.</param>
         /// <param name="forEditor">Set local paths for the Editor, and skip models that are not imported instead of
         /// reporting them.</param>
-        /// <param name="playerOnnxConverterId">Converter id of the ONNX converter a player has, or null.</param>
+        /// <param name="onnxConverterId">Id of the ONNX converter, for players that convert downloaded ONNX files.</param>
         /// <param name="projectRoot">Project folder, to find models pulled into <c>Assets/StreamingAssets</c>.</param>
         public static Plan Build(
             StatusReport report,
             Func<string, ModelDelivery> getDelivery,
             Func<string, string, OnnxConversionRecipe> getRecipe,
             bool forEditor,
-            string playerOnnxConverterId,
+            string onnxConverterId,
             string projectRoot)
         {
             var plan = new Plan();
-            plan.Registry.onnxConverterId = playerOnnxConverterId;
+            plan.Registry.onnxConverterId = onnxConverterId;
             plan.Registry.formatGeneration = SentisCompatibility.GetGeneration(ProjectImportService.GetSentisVersion());
             var bundledPaths = new HashSet<string>(StringComparer.Ordinal);
             var packages = new List<RuntimePackageEntry>();
@@ -275,11 +268,6 @@ namespace Doji.AI.ModelHub.Editor
                 if (string.IsNullOrWhiteSpace(runtimeFile.SourceEtag))
                 {
                     plan.Problems.Add($"{label}: {runtimeFile.RepoPath} has no etag to download it by. Download it again in Window > AI Model Hub.");
-                }
-
-                if (isOnnx && string.IsNullOrWhiteSpace(plan.Registry.onnxConverterId))
-                {
-                    plan.Problems.Add($"{label}: {runtimeFile.RepoPath} is an ONNX file set to download at runtime, so players must convert it. Install the tools.doji.onnx-model-loader package, or bundle this model.");
                 }
 
                 return file;

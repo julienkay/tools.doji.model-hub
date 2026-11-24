@@ -79,7 +79,7 @@ Details pane:
 
 - header: model name, repository id (selectable text), revision tag (resolved commit in tooltip), status pill, and the links row `Model card | Files | License` (`ModelLinks.Build`, drawn by `UiKit.Links`)
 - actions: primary action from `ModelStatus`, `Show Manifest`, and a `⋮` menu (open on Hugging Face, copy id, Pull into Project or Remove Pulled Copies, Remove from Project, Remove from Cache)
-- Details card: `Format` from `ModelFiles.Describe` of the selected model files, and `In builds` (`BuildDeliveryField`): project default, bundle, or download, stored in `ProjectSettings` as a per-repository override. It invalidates `EditorRuntimeCatalog`. A hint appears when download is chosen for ONNX files without `tools.doji.onnx-model-loader`
+- Details card: `Format` from `ModelFiles.Describe` of the selected model files, and `In builds` (`BuildDeliveryField`): project default, bundle, or download, stored in `ProjectSettings` as a per-repository override. It invalidates `EditorRuntimeCatalog`
 - status callout: the status description; error diagnostics are added only for error states, because download/import/update diagnostics repeat the status
 - tabs: `Overview` (optional files, details, used by), `Files` (only when inventory is known), `Storage` (only when something is on disk); the strip is hidden when only Overview exists
 

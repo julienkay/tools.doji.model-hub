@@ -234,7 +234,7 @@ Project overrides live in `ProjectSettings` (`ProjectSettings/Doji.AI.ModelHubSe
 
 Current converter seam is too small:
 
-- [IOnnxModelConverter.ConvertFromFile(string)](../tools.doji.model-hub/Runtime/Conversion/IOnnxModelConverter.cs)
+- [IOnnxModelConverter.Convert(request, sentisPath)](../tools.doji.model-hub/Runtime/Conversion/IOnnxModelConverter.cs)
 
 Configurable conversion needs explicit request and result types.
 
@@ -453,7 +453,7 @@ Checks:
 | before conversion | most weight bytes are float16 and the recipe does not quantize | info | Files tab advises `float16` |
 | after conversion | quantization was requested but no weight changed type | warning | stored with the conversion diagnostics |
 
-`OnnxConversionSettings.Apply` measures weight bytes per data type before and after the recipe, on the model already in memory. The converted model record keeps both totals, and the Files tab shows them, for example `Weights 120 MB → 60 MB`.
+`OnnxModelLoaderConverter` measures the weight bytes before and after quantization on the model description, before the file is written: a float16 or uint8 weight counts four bytes before. The converted model record keeps both totals, and the Files tab shows them, for example `Weights 120 MB → 60 MB`.
 
 Mixed-precision sources cannot be told apart after import, because the importer expands every float16 tensor. The source check uses byte totals: the advice appears when float16 holds most weight bytes.
 

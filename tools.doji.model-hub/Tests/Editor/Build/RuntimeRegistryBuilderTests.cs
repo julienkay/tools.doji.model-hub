@@ -116,8 +116,8 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
-        /// Verifies a build stops for models it cannot deliver: not downloaded, not set up, a missing runtime model, a downloaded
-        /// ONNX model without a player converter, or a source without an etag.
+        /// Verifies a build stops for models it cannot deliver: not downloaded, not set up, a missing runtime model, or a
+        /// source without an etag.
         /// </summary>
         [Test]
         public void Build_ReportsModelsItCannotDeliver()
@@ -130,16 +130,14 @@ namespace Doji.AI.ModelHub.Editor.Tests
             var notImported = Plan(ModelDelivery.Bundle, NotImported("tools.doji.a"));
             var notDownloaded = Plan(ModelDelivery.Bundle, NotImported("tools.doji.a", DependencyReasonCode.RawCacheRevisionRefMissing));
             var missingFile = Plan(ModelDelivery.Bundle, Ready("tools.doji.a", missing));
-            var noConverter = Plan(ModelDelivery.Download, Ready("tools.doji.a", OnnxFile("onnx/model.onnx")));
             var withoutEtag = Plan(ModelDelivery.Download, Ready("tools.doji.a", noEtag));
             var sentisDownload = Plan(ModelDelivery.Download, Ready("tools.doji.a", SentisFile("sentis/model.sentis")));
 
             Assert.That(notImported.Problems.Single(), Does.Contain("could not be set up from the downloaded files"));
             Assert.That(notDownloaded.Problems.Single(), Does.Contain("not downloaded. Download it in Window > AI Model Hub"));
             Assert.That(missingFile.Problems.Single(), Does.Contain("missing"));
-            Assert.That(noConverter.Problems.Single(), Does.Contain("tools.doji.onnx-model-loader"));
             Assert.That(withoutEtag.Problems.Single(), Does.Contain("etag"));
-            Assert.That(sentisDownload.Problems, Is.Empty, "A downloaded Sentis model needs no converter.");
+            Assert.That(sentisDownload.Problems, Is.Empty);
         }
 
         /// <summary>
@@ -173,7 +171,7 @@ namespace Doji.AI.ModelHub.Editor.Tests
                 repository => repository == "doji/large-model" ? ModelDelivery.Download : ModelDelivery.Bundle,
                 null,
                 forEditor: false,
-                playerOnnxConverterId: null,
+                onnxConverterId: null,
                 _projectRoot);
 
             var models = plan.Registry.packages.Single().models;

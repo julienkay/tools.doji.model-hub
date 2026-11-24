@@ -229,8 +229,7 @@ namespace Doji.AI.ModelHub
 
         /// <summary>
         /// Loads a model file that you got without AI Model Hub, for example one your app downloaded. Loads
-        /// <c>.sentis</c> files directly. Converts <c>.onnx</c> files in the Editor, and in players with the converter
-        /// that <see cref="RegisterOnnxConverter"/> sets (<c>tools.doji.onnx-model-loader</c> when it is installed).
+        /// <c>.sentis</c> files directly, and converts <c>.onnx</c> files with <c>tools.doji.onnx-model-loader</c>.
         /// </summary>
         public static Model LoadModelFromFile(string path)
         {
@@ -244,25 +243,15 @@ namespace Doji.AI.ModelHub
                 throw new FileNotFoundException($"Model file '{path}' does not exist.", path);
             }
 
-            if (!string.Equals(Path.GetExtension(path), ".onnx", StringComparison.OrdinalIgnoreCase))
-            {
-                return ModelLoader.Load(path);
-            }
-
-            var converter = RuntimeModels.OnnxConverter ?? (Application.isEditor ? RuntimeModels.EditorOnnxConverter : null);
-            if (converter == null)
-            {
-                throw new InvalidOperationException(
-                    $"'{path}' is an ONNX file, and this player has no ONNX converter. Install the tools.doji.onnx-model-loader package, or load a .sentis file.");
-            }
-
-            return converter.Convert(new OnnxConversionRequest(path)).Model;
+            return string.Equals(Path.GetExtension(path), ".onnx", StringComparison.OrdinalIgnoreCase)
+                ? OnnxModelLoader.Load(path)
+                : ModelLoader.Load(path);
         }
 
         /// <summary>
-        /// Sets the converter for ONNX models that players download. AI Model Hub uses <c>tools.doji.onnx-model-loader</c>
-        /// when it is installed; call this to use another converter. The id must change whenever the converter's output
-        /// can change, because converted models are found by it.
+        /// Sets the converter for ONNX models that players download. AI Model Hub uses <c>tools.doji.onnx-model-loader</c>;
+        /// call this to use another converter, and with null to use the loader again. The id must change whenever the
+        /// converter's output can change, because converted models are found by it.
         /// </summary>
         public static void RegisterOnnxConverter(IOnnxModelConverter converter, string converterId)
         {
@@ -271,7 +260,7 @@ namespace Doji.AI.ModelHub
                 throw new ArgumentException("A converter id is required.", nameof(converterId));
             }
 
-            RuntimeModels.OnnxConverter = converter;
+            RuntimeModels.OnnxConverter = converter ?? new OnnxModelLoaderConverter();
             RuntimeModels.OnnxConverterId = converter == null ? null : converterId;
         }
 

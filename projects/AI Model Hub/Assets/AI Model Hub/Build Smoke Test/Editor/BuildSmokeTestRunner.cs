@@ -24,7 +24,8 @@ namespace Doji.AI.ModelHub.Samples.Editor
 
         /// <summary>
         /// Builds and runs the player. Each entry is <c>repoId:repoPath</c>. Returns the player's result lines, the
-        /// build size of StreamingAssets/model-hub, and the path of the player log.
+        /// build size of StreamingAssets/model-hub, and the path of the player log. Fails before the run when a file in
+        /// StreamingAssets/model-hub is a symbolic link instead of a real file.
         /// </summary>
         public static string BuildAndRun(string[] entries, int timeoutSeconds = 900)
         {
@@ -51,11 +52,19 @@ namespace Doji.AI.ModelHub.Samples.Editor
             }
 
             var streamingAssets = Path.Combine(root, "Player", "Smoke_Data", "StreamingAssets", "model-hub");
-            var shipped = Directory.Exists(streamingAssets)
+            var shippedFiles = Directory.Exists(streamingAssets)
                 ? Directory.GetFiles(streamingAssets, "*", SearchOption.AllDirectories)
-                    .Select(file => $"{Path.GetRelativePath(streamingAssets, file)} ({new FileInfo(file).Length / 1024} KB)")
-                    .ToArray()
                 : Array.Empty<string>();
+            var shipped = shippedFiles
+                .Select(file => $"{Path.GetRelativePath(streamingAssets, file)} ({new FileInfo(file).Length / 1024} KB)")
+                .ToArray();
+
+            // A shipped symbolic link points into this machine's cache, so the player on another machine has no file.
+            var links = shippedFiles.Where(file => (File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0).ToArray();
+            if (links.Length > 0)
+            {
+                return $"SHIPPED LINKS: {string.Join(" | ", links.Select(file => Path.GetRelativePath(streamingAssets, file)))}";
+            }
 
             var output = Path.Combine(root, "results.txt");
             var log = Path.Combine(root, "player.log");

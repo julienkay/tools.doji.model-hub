@@ -256,6 +256,29 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies a build bundles the blob a snapshot file links to, not the link. Copying a link fails on Windows
+        /// without the symbolic link privilege, and the player would get a link instead of the file.
+        /// </summary>
+        [Test]
+        public void Build_BundlesTheBlobOfALinkedSnapshotFile()
+        {
+            Assume.That(CacheFiles.AreSymlinksSupported(_rootDirectory), Is.True, "This machine cannot create symbolic links.");
+            var blobPath = WriteFile("blobs/config-blob");
+            var snapshot = Path.Combine(_rootDirectory, "snapshot");
+            var configPath = Path.Combine(snapshot, "unet", "config.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(configPath));
+            Assert.That(CacheFiles.TryCreateSymlink(Path.Combine("..", "..", "blobs", "config-blob"), configPath), Is.True);
+
+            var plan = Plan(ModelDelivery.Bundle, ReadyWithDataFiles(snapshot));
+
+            Assert.That(plan.Problems, Is.Empty);
+            var (sourcePath, relativePath) = plan.BundledFiles.Single(file => file.RelativePath.EndsWith("config.json", StringComparison.Ordinal));
+            Assert.That(CacheFiles.IsSymlink(sourcePath), Is.False);
+            Assert.That(Path.GetFullPath(sourcePath), Is.EqualTo(Path.GetFullPath(blobPath)).IgnoreCase);
+            Assert.That(relativePath, Is.EqualTo("model-hub/files/doji/test-model/unet/config.json"));
+        }
+
+        /// <summary>
         /// Verifies a build stops when a bundled data file is not in the cache.
         /// </summary>
         [Test]

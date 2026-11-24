@@ -27,7 +27,7 @@ Tests that need real HTTP use `FakeHubServer` (`Tests/Editor/FakeHubServer.cs`),
 
 Tests that send real requests must be `async Task` and `await`. `UnityWebRequest` completes on the main thread, so a blocking wait such as `Assert.ThrowsAsync` or `.Result` freezes the Editor.
 
-The build is covered end to end by the companion project's smoke test, `Assets/AI Model Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. `BuildPlayer("android" | "web", entries)` builds the same scene for Android (IL2CPP, ARM64) or an uncompressed Web player:
+The build is covered end to end by the companion project's smoke test, `Assets/AI Model Hub/Build Smoke Test/Editor/BuildSmokeTestRunner.cs`. `BuildAndRun` builds a Windows player with an empty player cache, runs it, and checks that bundled and downloaded models load. It fails when a file in `StreamingAssets/model-hub` is a symbolic link. `BuildPlayer("android" | "web", entries)` builds the same scene for Android (IL2CPP, ARM64) or an uncompressed Web player:
 
 - Android: uninstall the app, `adb install` the APK, launch it, and read `adb logcat -s Unity` for `MODELHUB-SMOKE` lines.
 - Web: serve the `Web` folder from a new local port (a fresh origin has empty IndexedDB) with `Cache-Control: no-store`, and read the browser console. Keep the page visible: a hidden page runs at about one frame per second.
@@ -177,6 +177,7 @@ Runtime loading and builds:
   - download entries carry commit, etags, companions, and recipe
   - models a build cannot deliver are reported, with different text for not downloaded and not set up
   - delivery per repository, cache spelling of the repository id
+  - data files bundled from the cache, and from the blob when the snapshot file is a symbolic link
   - manifest file labels reach the registry
 
 Editor UI and manifest editing:

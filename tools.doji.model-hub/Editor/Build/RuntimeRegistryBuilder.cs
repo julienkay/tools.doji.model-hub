@@ -24,7 +24,9 @@ namespace Doji.AI.ModelHub.Editor
             public RuntimeRegistry Registry { get; } = new();
 
             /// <summary>
-            /// Runtime models the build adds to StreamingAssets: absolute source path and path inside StreamingAssets.
+            /// Runtime models and data files the build adds to StreamingAssets: absolute source path and path inside
+            /// StreamingAssets. A source path is never a symbolic link: the build would copy the link, and Windows only
+            /// allows that with the symbolic link privilege.
             /// </summary>
             public List<(string SourcePath, string RelativePath)> BundledFiles { get; } = new();
 
@@ -124,6 +126,15 @@ namespace Doji.AI.ModelHub.Editor
         }
 
         /// <summary>
+        /// Adds a file to the bundle. Snapshot files in a cache with symbolic links point at <c>blobs/</c>, so the build
+        /// copies the blob they point at instead of the link.
+        /// </summary>
+        private static void AddBundledFile(Plan plan, string path, string relativePath)
+        {
+            plan.BundledFiles.Add((CacheFiles.TryGetLinkTarget(path) ?? path, relativePath));
+        }
+
+        /// <summary>
         /// The repository id as the cache folder on this machine spells it, which is the Hub's spelling when AI Model Hub
         /// or Python downloaded it.
         /// </summary>
@@ -198,7 +209,7 @@ namespace Doji.AI.ModelHub.Editor
                     }
                     else
                     {
-                        plan.BundledFiles.Add((cachedPath, relativePath));
+                        AddBundledFile(plan, cachedPath, relativePath);
                     }
                 }
 
@@ -282,7 +293,7 @@ namespace Doji.AI.ModelHub.Editor
                 }
                 else
                 {
-                    plan.BundledFiles.Add((runtimeFile.FilePath, relativePath));
+                    AddBundledFile(plan, runtimeFile.FilePath, relativePath);
                 }
             }
 

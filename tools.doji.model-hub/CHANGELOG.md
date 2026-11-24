@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A player build bundles the real files of a model. Before, when the Hugging Face cache stored a bundled file as a symbolic link, the build copied the link. On Windows without the symbolic link privilege, the build then failed with `A required privilege is not held by the client`. This affected `.sentis` files from the Hub, and configs, tokenizers and other data files.
 - A manifest edit that does not change a model no longer makes the manifest's models stale. Examples are other line endings from git (`core.autocrlf`), a byte order mark, formatting, or a change to another model. AI Model Hub compares only the model's repository, revision, selected files, and conversion settings.
 
 ## [1.0.0] - 2026-10-20

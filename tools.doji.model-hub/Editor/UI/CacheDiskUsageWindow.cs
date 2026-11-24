@@ -30,7 +30,6 @@ namespace Doji.AI.ModelHub.Editor
         private VisualElement _treemap;
         private VisualElement _card;
 
-        [MenuItem("Tools/Doji/AI Model Hub/Model Cache Disk Usage")]
         public static void OpenWindow()
         {
             Open(null);

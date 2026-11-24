@@ -20,12 +20,6 @@ namespace Doji.AI.ModelHub.Editor
             EditorApplication.projectChanged += QueuePrompt;
         }
 
-        [MenuItem("Tools/Doji/AI Model Hub/Debug/Show Auto Prompt &2")]
-        private static void ShowPromptFromMenu()
-        {
-            ShowPromptForCurrentStatus();
-        }
-
         internal static bool ShouldPrompt(StatusReport report)
         {
             return report != null &&

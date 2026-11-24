@@ -70,7 +70,9 @@ Without `com.unity.pipeline`, run `Unity -batchmode -projectPath <p> -executeMet
 Doji.AI.ModelHub.Editor.ModelHubBatch.Sync` (or `.Status`) without `-quit`
 (`Sync` exits with 2 when `-quit` is given). Optional `-modelHubRepo <id>`,
 `-modelHubMode full|download`, `-modelHubOutput <file>` (JSON). Exit code 0 ready, 1 failed or not ready, 2 bad
-argument. Do not reflect on internal Model Hub types.
+argument. To enable or disable an optional model in batch mode, run
+`-executeMethod Doji.AI.ModelHub.Editor.ModelHubBatch.SetModel -modelHubRepo <id> -modelHubEnabled true|false`
+(optional `-modelHubOwner <package-id>`), then `Sync`. Ask the user before you enable a model. Do not reflect on internal Model Hub types.
 
 A sync that fails with "Not enough disk space" names the space needed and free per drive. Run
 `model_hub_cache_info` and tell the user; do not delete cache content to make room. If `staleVariables` is not

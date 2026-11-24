@@ -12,7 +12,7 @@ namespace Doji.AI.ModelHub.Editor
     /// Entry points for <c>-executeMethod</c>, for CI and scripts without <c>com.unity.pipeline</c>. Each method runs
     /// the same call as the matching Unity CLI command, logs the JSON result, and exits the Editor with a code:
     /// 0 on success, 1 when a model is not ready or the sync failed, 2 for a wrong argument or an error.
-    /// Run without <c>-quit</c>: the method exits the Editor itself once the work is done.
+    /// Run <see cref="Sync"/> without <c>-quit</c>: it exits the Editor itself once the sync is done.
     /// </summary>
     /// <example>
     /// <code>
@@ -64,6 +64,36 @@ namespace Doji.AI.ModelHub.Editor
                 var result = ModelHubAutomation.GetStatus(GetArgument(args, "-modelHubRepo"));
                 return Task.FromResult<(object, int)>((result, GetExitCode(result)));
             });
+        }
+
+        /// <summary>
+        /// Enables or disables an optional model for the project, like <c>model_hub_set_model</c>, and exits with 0.
+        /// Arguments: <c>-modelHubRepo &lt;id&gt;</c>, <c>-modelHubEnabled true|false</c>,
+        /// <c>-modelHubOwner &lt;package-id&gt;</c> (when several packages declare the model), and
+        /// <c>-modelHubOutput &lt;path&gt;</c>. It does not download: run <see cref="Sync"/> afterwards. It runs at
+        /// once, so <c>-quit</c> is fine.
+        /// </summary>
+        public static async void SetModel()
+        {
+            var args = Environment.GetCommandLineArgs();
+            await RunAsync(args, () =>
+            {
+                var result = ModelHubAutomation.SetModel(
+                    GetArgument(args, "-modelHubRepo"),
+                    ParseEnabled(GetArgument(args, "-modelHubEnabled")),
+                    GetArgument(args, "-modelHubOwner"));
+                return Task.FromResult<(object, int)>((result, Success));
+            });
+        }
+
+        /// <summary>
+        /// The value of <c>-modelHubEnabled</c>; throws when it is missing or not <c>true</c> or <c>false</c>.
+        /// </summary>
+        internal static bool ParseEnabled(string value)
+        {
+            return bool.TryParse(value, out var enabled)
+                ? enabled
+                : throw new ModelHubAutomationException("Pass -modelHubEnabled true or -modelHubEnabled false.");
         }
 
         /// <summary>

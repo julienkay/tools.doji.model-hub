@@ -105,6 +105,18 @@ namespace Doji.AI.ModelHub.Editor.Tests
         }
 
         /// <summary>
+        /// Verifies -modelHubEnabled takes true or false in any case, and refuses a missing or other value.
+        /// </summary>
+        [Test]
+        public void ParseEnabled_AcceptsTrueOrFalseOnly()
+        {
+            Assert.That(ModelHubBatch.ParseEnabled("true"), Is.True);
+            Assert.That(ModelHubBatch.ParseEnabled("False"), Is.False);
+            Assert.Throws<ModelHubAutomationException>(() => ModelHubBatch.ParseEnabled(null));
+            Assert.Throws<ModelHubAutomationException>(() => ModelHubBatch.ParseEnabled("yes"));
+        }
+
+        /// <summary>
         /// Verifies an argument's value is read case-insensitively, and a missing or trailing argument gives null.
         /// </summary>
         [Test]

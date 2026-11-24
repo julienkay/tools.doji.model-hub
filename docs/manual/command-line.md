@@ -74,17 +74,19 @@ The command fails when an argument is invalid, for example an unknown model id. 
 
 ### Without the Unity CLI
 
-Without `com.unity.pipeline`, use `-executeMethod`. Leave out `-quit`: the method exits the Editor itself when the work is done. With `-quit`, `Sync` stops at once with exit code `2`, because Unity would wait without updating the Editor and the sync would never end.
+Without `com.unity.pipeline`, use `-executeMethod`. Leave out `-quit` for `Sync`: it exits the Editor itself when the work is done. With `-quit`, `Sync` stops at once with exit code `2`, because Unity would wait without updating the Editor and the sync would never end.
 
 ```bash
 Unity -batchmode -projectPath path/to/Project -executeMethod Doji.AI.ModelHub.Editor.ModelHubBatch.Sync -modelHubOutput sync.json
 Unity -batchmode -projectPath path/to/Project -executeMethod Doji.AI.ModelHub.Editor.ModelHubBatch.Status
+Unity -batchmode -quit -projectPath path/to/Project -executeMethod Doji.AI.ModelHub.Editor.ModelHubBatch.SetModel -modelHubRepo owner/model -modelHubEnabled true
 ```
 
 | Method | Does |
 |---|---|
 | `Doji.AI.ModelHub.Editor.ModelHubBatch.Sync` | Like `model_hub_sync` in batch mode: downloads and sets up the models that need it and waits until the sync ends. |
 | `Doji.AI.ModelHub.Editor.ModelHubBatch.Status` | Like `model_hub_status`. |
+| `Doji.AI.ModelHub.Editor.ModelHubBatch.SetModel` | Like `model_hub_set_model`: enables (`-modelHubEnabled true`) or disables (`false`) an optional model for the project. `-modelHubOwner <package-id>` picks the package when several declare the model. It does not download: run `Sync` afterwards. It ends at once, so `-quit` is fine. |
 
 Arguments: `-modelHubRepo <id>` for one model, `-modelHubMode full|download` (`Sync` only), and `-modelHubOutput <path>` to write the JSON result to a file. The result is also in the Editor log. The exit code is `0` when the sync succeeded or every enabled model is ready, `1` when a model failed or is not ready, and `2` for an invalid argument or an error.
 

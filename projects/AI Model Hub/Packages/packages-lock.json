@@ -197,6 +197,7 @@
       "depth": 0,
       "source": "local",
       "dependencies": {
+        "com.unity.modules.unitywebrequest": "1.0.0",
         "com.unity.nuget.newtonsoft-json": "3.2.2"
       }
     },
